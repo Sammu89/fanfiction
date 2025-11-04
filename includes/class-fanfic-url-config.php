@@ -47,6 +47,13 @@ class Fanfic_URL_Config {
     const OPTION_SECONDARY_PATHS = 'fanfic_secondary_paths';
 
     /**
+     * Option name for storing story path
+     *
+     * @var string
+     */
+    const OPTION_STORY_PATH = 'fanfic_story_path';
+
+    /**
      * Option name for storing old base slug (for 301 redirects)
      *
      * @var string
@@ -186,24 +193,30 @@ class Fanfic_URL_Config {
                                     </td>
                                 </tr>
 
-                                <!-- Stories Slug (TODO) -->
-                                <tr class="fanfic-todo-row">
+                                <!-- Stories Slug -->
+                                <tr>
                                     <th scope="row">
-                                        <label>
+                                        <label for="fanfic_story_path">
                                             <?php echo esc_html__( 'Stories Slug', 'fanfiction-manager' ); ?>
-                                            <span class="fanfic-todo-badge"><?php echo esc_html__( 'Coming Soon', 'fanfiction-manager' ); ?></span>
+                                            <span class="fanfic-required">*</span>
                                         </label>
                                     </th>
                                     <td>
                                         <input
                                             type="text"
-                                            value="story"
-                                            class="regular-text"
-                                            disabled
+                                            id="fanfic_story_path"
+                                            name="fanfic_story_path"
+                                            value="<?php echo esc_attr( $current_slugs['story_path'] ); ?>"
+                                            class="regular-text fanfic-slug-input"
+                                            pattern="[a-z0-9-]+"
+                                            maxlength="50"
+                                            required
+                                            data-slug-type="story_path"
                                         >
                                         <p class="description">
-                                            <?php echo esc_html__( 'Individual story URL structure. This feature will be available in a future update.', 'fanfiction-manager' ); ?>
+                                            <?php echo esc_html__( 'The subdirectory where individual stories are placed. Used in all story URLs.', 'fanfiction-manager' ); ?>
                                         </p>
+                                        <div class="fanfic-slug-validation" id="story-path-validation"></div>
                                     </td>
                                 </tr>
 
@@ -242,7 +255,7 @@ class Fanfic_URL_Config {
                             <div class="fanfic-url-preview-grid">
                                 <div class="fanfic-url-preview-item">
                                     <span class="fanfic-url-label"><?php echo esc_html__( 'Story:', 'fanfiction-manager' ); ?></span>
-                                    <code id="preview-story-url"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/my-story-title/' ) ); ?></code>
+                                    <code id="preview-story-url"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' . $current_slugs['story_path'] . '/my-story-title/' ) ); ?></code>
                                 </div>
                                 <div class="fanfic-url-preview-item">
                                     <span class="fanfic-url-label"><?php echo esc_html__( 'Archive:', 'fanfiction-manager' ); ?></span>
@@ -915,6 +928,7 @@ class Fanfic_URL_Config {
             // Real-time URL preview updates
             function updatePreviews() {
                 var newBase = $('#fanfic_base_slug').val().trim() || baseSlug;
+                var newStoryPath = $('#fanfic_story_path').val().trim() || 'stories';
                 var newArchive = $('#fanfic_archive_slug').val().trim() || 'archive';
                 var newDashboard = $('#fanfic_dashboard_slug').val().trim() || 'dashboard';
                 var newUser = $('#fanfic_user_slug').val().trim() || 'user';
@@ -925,6 +939,8 @@ class Fanfic_URL_Config {
 
                 // Update main preview box
                 $('#preview-story-url').text(homeUrl + newBase + '/my-story-title/');
+
+                $('#preview-story-url').text(homeUrl + newBase + '/' + newStoryPath + '/my-story-title/');
                 $('#preview-archive-url').text(homeUrl + newBase + '/' + newArchive + '/');
 
                 // Update dashboard preview
@@ -1058,7 +1074,7 @@ class Fanfic_URL_Config {
         if ( isset( $_POST['fanfic_base_slug'] ) ) {
             $new_base_slug = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
             $validation = $this->validate_slug( $new_base_slug, array( 'base' ) );
-            
+
             if ( is_wp_error( $validation ) ) {
                 $errors[] = __( 'Base Slug: ', 'fanfiction-manager' ) . $validation->get_error_message();
             } else {
@@ -1075,7 +1091,28 @@ class Fanfic_URL_Config {
         }
 
         // ==========================================
-        // 3. SAVE SECONDARY PATHS
+        // 3. SAVE STORY PATH
+        // ==========================================
+        if ( isset( $_POST['fanfic_story_path'] ) ) {
+            $new_story_path = sanitize_title( wp_unslash( $_POST['fanfic_story_path'] ) );
+            $validation = $this->validate_slug( $new_story_path, array( 'story_path' ) );
+
+            if ( is_wp_error( $validation ) ) {
+                $errors[] = __( 'Stories Slug: ', 'fanfiction-manager' ) . $validation->get_error_message();
+            } else {
+                $old_story_path = get_option( self::OPTION_STORY_PATH, 'stories' );
+                if ( $old_story_path !== $new_story_path ) {
+                    if ( class_exists( 'Fanfic_Slug_Tracker' ) ) {
+                        Fanfic_Slug_Tracker::add_manual_redirect( $old_story_path, $new_story_path );
+                    }
+                }
+                update_option( self::OPTION_STORY_PATH, $new_story_path );
+                $success_messages[] = __( 'Stories slug saved.', 'fanfiction-manager' );
+            }
+        }
+
+        // ==========================================
+        // 4. SAVE SECONDARY PATHS
         // ==========================================
         $dashboard_slug = isset( $_POST['fanfic_dashboard_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_dashboard_slug'] ) ) : '';
         $user_slug      = isset( $_POST['fanfic_user_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_user_slug'] ) ) : '';
@@ -1111,7 +1148,7 @@ class Fanfic_URL_Config {
         }
 
         // ==========================================
-        // 4. SAVE CHAPTER SLUGS
+        // 5. SAVE CHAPTER SLUGS
         // ==========================================
         $prologue_slug = isset( $_POST['fanfic_prologue_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_prologue_slug'] ) ) : '';
         $chapter_slug  = isset( $_POST['fanfic_chapter_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_chapter_slug'] ) ) : '';
@@ -1145,7 +1182,7 @@ class Fanfic_URL_Config {
         }
 
         // ==========================================
-        // 5. SAVE SYSTEM PAGE SLUGS
+        // 6. SAVE SYSTEM PAGE SLUGS
         // ==========================================
         if ( isset( $_POST['fanfic_system_page_slugs'] ) && is_array( $_POST['fanfic_system_page_slugs'] ) ) {
             $old_slugs  = get_option( 'fanfic_system_page_slugs', array() );
@@ -1272,6 +1309,9 @@ class Fanfic_URL_Config {
         // Get base slug
         $base = get_option( self::OPTION_BASE_SLUG, 'fanfiction' );
 
+        // Get story path
+        $story_path = get_option( self::OPTION_STORY_PATH, 'stories' );
+
         // Get chapter slugs
         $chapter_slugs = get_option( self::OPTION_CHAPTER_SLUGS, array(
             'prologue' => 'prologue',
@@ -1289,7 +1329,10 @@ class Fanfic_URL_Config {
 
         // Merge all slugs
         return array_merge(
-            array( 'base' => $base ),
+            array(
+                'base' => $base,
+                'story_path' => $story_path,
+            ),
             $chapter_slugs,
             $secondary_paths
         );
