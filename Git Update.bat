@@ -5,6 +5,8 @@ cd /d "C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction"
 echo =========================================
 echo 🔄 Syncing with GitHub (pull + push)
 echo =========================================
+git fetch origin
+git status
 
 REM Step 1: Pull latest changes from GitHub
 git pull origin main
