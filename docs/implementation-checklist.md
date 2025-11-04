@@ -455,7 +455,7 @@ Create templates/ directory with HTML template files:
 Use shortcodes for dynamic content (to be implemented in Phase 4)
 
 Step 4: Create Theme Template Fallbacks
-Create theme-templates/ directory with WordPress template files:
+Create templates/ directory with WordPress template files:
 - single-fanfiction_story.php (for story single pages)
 - single-fanfiction_chapter.php (for chapter single pages)
 - archive-fanfiction_story.php (for story archive)
