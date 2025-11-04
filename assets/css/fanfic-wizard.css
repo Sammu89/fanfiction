@@ -1,0 +1,462 @@
+/**
+ * Fanfiction Manager - Setup Wizard Styles
+ *
+ * Styles for the initial setup wizard interface.
+ *
+ * @package FanfictionManager
+ * @since 1.0.0
+ */
+
+/* ========== Wizard Wrapper ========== */
+.fanfic-wizard-wrap {
+	max-width: 900px;
+	margin: 40px auto;
+	padding: 0 20px;
+}
+
+.fanfic-wizard-wrap h1 {
+	text-align: center;
+	margin-bottom: 30px;
+	font-size: 2em;
+}
+
+/* ========== Progress Bar ========== */
+.fanfic-wizard-progress {
+	width: 100%;
+	height: 8px;
+	background-color: #e5e5e5;
+	border-radius: 4px;
+	margin-bottom: 30px;
+	overflow: hidden;
+}
+
+.fanfic-wizard-progress-bar {
+	height: 100%;
+	background: linear-gradient(90deg, #2271b1 0%, #135e96 100%);
+	transition: width 0.3s ease;
+	border-radius: 4px;
+}
+
+/* ========== Step Indicator ========== */
+.fanfic-wizard-steps {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 40px;
+	gap: 10px;
+}
+
+.fanfic-wizard-step {
+	flex: 1;
+	text-align: center;
+	position: relative;
+}
+
+.fanfic-wizard-step-number {
+	width: 40px;
+	height: 40px;
+	line-height: 40px;
+	border-radius: 50%;
+	background-color: #e5e5e5;
+	color: #666;
+	font-weight: bold;
+	margin: 0 auto 10px;
+	transition: all 0.3s ease;
+}
+
+.fanfic-wizard-step.active .fanfic-wizard-step-number {
+	background-color: #2271b1;
+	color: #fff;
+	transform: scale(1.1);
+	box-shadow: 0 0 0 4px rgba(34, 113, 177, 0.2);
+}
+
+.fanfic-wizard-step.completed .fanfic-wizard-step-number {
+	background-color: #46b450;
+	color: #fff;
+}
+
+.fanfic-wizard-step.completed .fanfic-wizard-step-number::before {
+	content: '\f147';
+	font-family: dashicons;
+	display: inline-block;
+}
+
+.fanfic-wizard-step-title {
+	font-size: 13px;
+	color: #666;
+	font-weight: 500;
+}
+
+.fanfic-wizard-step.active .fanfic-wizard-step-title {
+	color: #2271b1;
+	font-weight: 600;
+}
+
+.fanfic-wizard-step.completed .fanfic-wizard-step-title {
+	color: #46b450;
+}
+
+/* ========== Content Area ========== */
+.fanfic-wizard-content {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 40px;
+	margin-bottom: 30px;
+	min-height: 400px;
+}
+
+.fanfic-wizard-step-content h2 {
+	margin-top: 0;
+	margin-bottom: 10px;
+	font-size: 1.8em;
+	color: #1d2327;
+}
+
+.fanfic-wizard-step-content > .description {
+	margin-bottom: 30px;
+	font-size: 1.1em;
+	color: #646970;
+}
+
+/* ========== Welcome Step ========== */
+.fanfic-wizard-welcome {
+	text-align: center;
+	padding: 20px 0;
+}
+
+.fanfic-wizard-welcome-icon {
+	margin-bottom: 20px;
+}
+
+.fanfic-wizard-welcome h3 {
+	font-size: 1.6em;
+	margin-bottom: 20px;
+	color: #1d2327;
+}
+
+.fanfic-wizard-welcome p {
+	font-size: 1.1em;
+	line-height: 1.6;
+	margin-bottom: 15px;
+	color: #50575e;
+}
+
+.fanfic-wizard-welcome ul {
+	text-align: left;
+	max-width: 500px;
+	margin: 20px auto;
+	font-size: 1em;
+}
+
+.fanfic-wizard-welcome ul li {
+	margin-bottom: 10px;
+	line-height: 1.5;
+}
+
+/* ========== Form Styles ========== */
+.fanfic-wizard-form .form-table {
+	margin-top: 0;
+}
+
+.fanfic-wizard-form .form-table th {
+	padding-top: 20px;
+	width: 200px;
+}
+
+.fanfic-wizard-form .form-table td {
+	padding-top: 20px;
+}
+
+.fanfic-wizard-form input[type="text"] {
+	padding: 8px 12px;
+}
+
+.fanfic-base-slug-preview,
+.fanfic-path-preview {
+	font-weight: 600;
+	color: #2271b1;
+}
+
+/* ========== User Roles Step ========== */
+.fanfic-wizard-roles-info {
+	margin-bottom: 30px;
+}
+
+.fanfic-wizard-role-descriptions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 20px;
+	margin: 20px 0;
+}
+
+.fanfic-role-description {
+	background: #f6f7f7;
+	padding: 20px;
+	border-radius: 4px;
+	border-left: 4px solid #2271b1;
+}
+
+.fanfic-role-description h4 {
+	margin-top: 0;
+	margin-bottom: 10px;
+	color: #1d2327;
+}
+
+.fanfic-role-description ul {
+	margin-bottom: 0;
+}
+
+.fanfic-role-description ul li {
+	margin-bottom: 8px;
+	line-height: 1.5;
+	font-size: 0.95em;
+}
+
+/* ========== Complete Step ========== */
+.fanfic-wizard-complete {
+	text-align: center;
+	padding: 20px 0;
+}
+
+.fanfic-wizard-complete-icon {
+	margin-bottom: 20px;
+}
+
+.fanfic-wizard-complete h3 {
+	font-size: 1.6em;
+	margin-bottom: 20px;
+	color: #1d2327;
+}
+
+.fanfic-wizard-complete p {
+	font-size: 1.1em;
+	line-height: 1.6;
+	margin-bottom: 15px;
+	color: #50575e;
+}
+
+.fanfic-wizard-complete ul {
+	text-align: left;
+	max-width: 500px;
+	margin: 20px auto;
+	font-size: 1em;
+}
+
+.fanfic-wizard-complete ul li {
+	margin-bottom: 10px;
+	line-height: 1.5;
+}
+
+.fanfic-wizard-success {
+	background: #f0f6f0;
+	padding: 30px;
+	border-radius: 4px;
+	border: 2px solid #46b450;
+}
+
+.fanfic-wizard-progress-text {
+	text-align: center;
+	font-size: 1.1em;
+}
+
+.fanfic-wizard-progress-text p {
+	margin: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* ========== Navigation ========== */
+.fanfic-wizard-navigation {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 15px;
+}
+
+.fanfic-wizard-navigation .button {
+	padding: 8px 30px;
+	height: auto;
+	font-size: 15px;
+}
+
+.fanfic-wizard-prev {
+	margin-right: auto;
+}
+
+.fanfic-wizard-next,
+.fanfic-wizard-complete {
+	margin-left: auto;
+}
+
+.fanfic-wizard-navigation .button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* ========== Messages ========== */
+.fanfic-wizard-messages {
+	margin-top: 20px;
+}
+
+.fanfic-wizard-message {
+	padding: 12px 20px;
+	border-radius: 4px;
+	margin-bottom: 10px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.fanfic-wizard-message.success {
+	background-color: #edfaed;
+	border-left: 4px solid #46b450;
+	color: #1e4620;
+}
+
+.fanfic-wizard-message.error {
+	background-color: #fcf0f1;
+	border-left: 4px solid #d63638;
+	color: #3c1f1f;
+}
+
+.fanfic-wizard-message.info {
+	background-color: #f0f6fc;
+	border-left: 4px solid #2271b1;
+	color: #1d2327;
+}
+
+.fanfic-wizard-message .dashicons {
+	font-size: 20px;
+	width: 20px;
+	height: 20px;
+}
+
+.fanfic-wizard-message.success .dashicons {
+	color: #46b450;
+}
+
+.fanfic-wizard-message.error .dashicons {
+	color: #d63638;
+}
+
+.fanfic-wizard-message.info .dashicons {
+	color: #2271b1;
+}
+
+/* ========== Loading States ========== */
+.fanfic-wizard-loading {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.fanfic-wizard-navigation .button .spinner {
+	float: none;
+	margin: 0 8px 0 0;
+}
+
+/* ========== Responsive ========== */
+@media screen and (max-width: 768px) {
+	.fanfic-wizard-wrap {
+		margin: 20px auto;
+		padding: 0 10px;
+	}
+
+	.fanfic-wizard-content {
+		padding: 20px;
+	}
+
+	.fanfic-wizard-steps {
+		flex-wrap: wrap;
+	}
+
+	.fanfic-wizard-step {
+		flex: 1 1 45%;
+		margin-bottom: 15px;
+	}
+
+	.fanfic-wizard-role-descriptions {
+		grid-template-columns: 1fr;
+	}
+
+	.fanfic-wizard-navigation {
+		flex-direction: column;
+	}
+
+	.fanfic-wizard-prev,
+	.fanfic-wizard-next,
+	.fanfic-wizard-complete {
+		width: 100%;
+		margin: 0 0 10px 0;
+	}
+
+	.fanfic-wizard-form .form-table {
+		display: block;
+	}
+
+	.fanfic-wizard-form .form-table tr,
+	.fanfic-wizard-form .form-table th,
+	.fanfic-wizard-form .form-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.fanfic-wizard-form .form-table th {
+		padding-bottom: 5px;
+	}
+
+	.fanfic-wizard-form .form-table td {
+		padding-top: 5px;
+		padding-bottom: 20px;
+	}
+}
+
+@media screen and (max-width: 480px) {
+	.fanfic-wizard-step {
+		flex: 1 1 100%;
+	}
+
+	.fanfic-wizard-step-title {
+		font-size: 12px;
+	}
+
+	.fanfic-wizard-step-number {
+		width: 35px;
+		height: 35px;
+		line-height: 35px;
+		font-size: 14px;
+	}
+}
+
+/* ========== Accessibility ========== */
+.fanfic-wizard-navigation .button:focus,
+.fanfic-wizard-form input:focus,
+.fanfic-wizard-form select:focus {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+	position: absolute;
+	top: -40px;
+	left: 0;
+	background: #2271b1;
+	color: #fff;
+	padding: 8px;
+	text-decoration: none;
+	z-index: 100000;
+}
+
+.skip-link:focus {
+	top: 0;
+}
+
+/* ========== Print Styles ========== */
+@media print {
+	.fanfic-wizard-navigation,
+	.fanfic-wizard-progress-bar {
+		display: none;
+	}
+}

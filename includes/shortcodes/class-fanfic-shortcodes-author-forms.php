@@ -1,0 +1,2299 @@
+<?php
+/**
+ * Author Forms Shortcodes Class
+ *
+ * Handles all author dashboard form shortcodes for story/chapter creation, editing, and profile management.
+ *
+ * @package FanfictionManager
+ * @subpackage Shortcodes
+ * @since 1.0.0
+ */
+
+// Exit if accessed directly
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Class Fanfic_Shortcodes_Author_Forms
+ *
+ * Author dashboard forms for content management.
+ *
+ * @since 1.0.0
+ */
+class Fanfic_Shortcodes_Author_Forms {
+
+	/**
+	 * Register author forms shortcodes
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function register() {
+		error_log( 'Fanfic_Shortcodes_Author_Forms::register() called' );
+
+		add_shortcode( 'author-dashboard-home', array( __CLASS__, 'dashboard_home' ) );
+		add_shortcode( 'author-stories-manage', array( __CLASS__, 'stories_manage' ) );
+		add_shortcode( 'author-create-story-form', array( __CLASS__, 'create_story_form' ) );
+		add_shortcode( 'author-edit-story-form', array( __CLASS__, 'edit_story_form' ) );
+		add_shortcode( 'author-create-chapter-form', array( __CLASS__, 'create_chapter_form' ) );
+		add_shortcode( 'author-edit-chapter-form', array( __CLASS__, 'edit_chapter_form' ) );
+		add_shortcode( 'author-edit-profile-form', array( __CLASS__, 'edit_profile_form' ) );
+
+		// Register form submission handlers
+		// Use 'template_redirect' instead of 'init' to ensure it runs on every request
+		add_action( 'template_redirect', array( __CLASS__, 'handle_create_story_submission' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_story_submission' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'handle_create_chapter_submission' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_chapter_submission' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_profile_submission' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_story' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_chapter' ) );
+
+		// Register AJAX handlers for logged-in users
+		add_action( 'wp_ajax_fanfic_create_story', array( __CLASS__, 'ajax_create_story' ) );
+		add_action( 'wp_ajax_fanfic_edit_story', array( __CLASS__, 'ajax_edit_story' ) );
+		add_action( 'wp_ajax_fanfic_create_chapter', array( __CLASS__, 'ajax_create_chapter' ) );
+		add_action( 'wp_ajax_fanfic_edit_chapter', array( __CLASS__, 'ajax_edit_chapter' ) );
+		add_action( 'wp_ajax_fanfic_edit_profile', array( __CLASS__, 'ajax_edit_profile' ) );
+
+		error_log( 'Profile handler registered on template_redirect hook' );
+	}
+
+	/**
+	 * Get page URL with fallback to manual construction
+	 *
+	 * Helper function to build URLs for plugin pages. First tries to get the page by path,
+	 * if that fails, constructs the URL manually using the configured slugs.
+	 *
+	 * @since 1.0.0
+	 * @param string $page_slug The page slug to look for (e.g., 'edit-story', 'manage-stories').
+	 * @param string $page_path The relative path after dashboard slug (e.g., 'edit-story', 'manage-stories').
+	 * @return string The page URL.
+	 */
+	private static function get_page_url_with_fallback( $page_slug, $page_path = '' ) {
+		// Try to get the page by path first
+		$page = get_page_by_path( $page_slug );
+		if ( $page ) {
+			return get_permalink( $page );
+		}
+
+		// Fallback to manual URL construction
+		$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
+		$dashboard_slug = get_option( 'fanfic_dashboard_slug', 'dashboard' );
+
+		// If no custom page_path provided, use the page_slug
+		if ( empty( $page_path ) ) {
+			$page_path = $page_slug;
+		}
+
+		// Build URL based on whether it's a dashboard page or not
+		if ( in_array( $page_slug, array( 'dashboard', 'edit-story', 'edit-chapter', 'create-story', 'manage-stories', 'edit-profile' ), true ) ) {
+			// Dashboard pages
+			$url = home_url( "/{$base_slug}/{$dashboard_slug}/{$page_path}/" );
+		} else {
+			// Non-dashboard pages (archive, search, create-chapter, etc.)
+			$url = home_url( "/{$base_slug}/{$page_path}/" );
+		}
+
+		error_log( "Warning: Page '{$page_slug}' not found, using fallback URL: {$url}" );
+		return $url;
+	}
+
+	/**
+	 * Dashboard home shortcode
+	 *
+	 * [author-dashboard-home]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Dashboard home HTML.
+	 */
+	public static function dashboard_home( $atts ) {
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You must be logged in to access the dashboard.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		$current_user = wp_get_current_user();
+		$user_id = $current_user->ID;
+
+		// Get statistics
+		$story_count = count_user_posts( $user_id, 'fanfiction_story', true );
+
+		// Get all stories by author
+		$stories = get_posts( array(
+			'post_type'      => 'fanfiction_story',
+			'author'         => $user_id,
+			'post_status'    => array( 'publish', 'draft', 'pending' ),
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		) );
+
+		$total_chapters = 0;
+		$total_views = 0;
+
+		foreach ( $stories as $story_id ) {
+			$chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story_id,
+				'post_status'    => array( 'publish', 'draft', 'pending' ),
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			) );
+			$total_chapters += count( $chapters );
+
+			// Get views from meta
+			$story_views = get_post_meta( $story_id, '_fanfic_views', true );
+			$total_views += absint( $story_views );
+		}
+
+		ob_start();
+		?>
+		<div class="fanfic-author-dashboard-home">
+			<div class="fanfic-dashboard-header">
+				<h1><?php printf( esc_html__( 'Welcome, %s', 'fanfiction-manager' ), esc_html( $current_user->display_name ) ); ?></h1>
+			</div>
+
+			<div class="fanfic-dashboard-stats">
+				<div class="fanfic-stat-card">
+					<div class="fanfic-stat-value"><?php echo esc_html( Fanfic_Shortcodes::format_number( $story_count ) ); ?></div>
+					<div class="fanfic-stat-label"><?php esc_html_e( 'Total Stories', 'fanfiction-manager' ); ?></div>
+				</div>
+				<div class="fanfic-stat-card">
+					<div class="fanfic-stat-value"><?php echo esc_html( Fanfic_Shortcodes::format_number( $total_chapters ) ); ?></div>
+					<div class="fanfic-stat-label"><?php esc_html_e( 'Total Chapters', 'fanfiction-manager' ); ?></div>
+				</div>
+				<div class="fanfic-stat-card">
+					<div class="fanfic-stat-value"><?php echo esc_html( Fanfic_Shortcodes::format_number( $total_views ) ); ?></div>
+					<div class="fanfic-stat-label"><?php esc_html_e( 'Total Views', 'fanfiction-manager' ); ?></div>
+				</div>
+			</div>
+
+			<div class="fanfic-dashboard-actions">
+				<h2><?php esc_html_e( 'Quick Actions', 'fanfiction-manager' ); ?></h2>
+				<div class="fanfic-quick-actions">
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'create-story' ) ); ?>" class="fanfic-btn fanfic-btn-primary">
+						<?php esc_html_e( 'Create New Story', 'fanfiction-manager' ); ?>
+					</a>
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+						<?php esc_html_e( 'Manage Stories', 'fanfiction-manager' ); ?>
+					</a>
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'edit-profile' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+						<?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+			</div>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Stories management table shortcode
+	 *
+	 * [author-stories-manage posts_per_page="10"]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Stories management table HTML.
+	 */
+	public static function stories_manage( $atts ) {
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You must be logged in to manage stories.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		$atts = Fanfic_Shortcodes::sanitize_atts(
+			$atts,
+			array(
+				'posts_per_page' => 10,
+			),
+			'author-stories-manage'
+		);
+
+		$current_user = wp_get_current_user();
+		$paged = get_query_var( 'paged' ) ? get_query_var( 'paged' ) : 1;
+
+		// Query user's stories
+		$query = new WP_Query( array(
+			'post_type'      => 'fanfiction_story',
+			'author'         => $current_user->ID,
+			'post_status'    => array( 'publish', 'draft', 'pending' ),
+			'posts_per_page' => $atts['posts_per_page'],
+			'paged'          => $paged,
+			'orderby'        => 'modified',
+			'order'          => 'DESC',
+		) );
+
+		// Check for success/error messages
+		$message = '';
+		if ( isset( $_GET['story_deleted'] ) && 'success' === $_GET['story_deleted'] ) {
+			$message = '<div class="fanfic-message fanfic-success" role="alert">' .
+				esc_html__( 'Story deleted successfully.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		ob_start();
+		?>
+		<div class="fanfic-author-stories-manage">
+			<?php echo $message; ?>
+
+			<?php if ( $query->have_posts() ) : ?>
+				<div class="fanfic-stories-table-wrapper">
+					<table class="fanfic-stories-table">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'Title', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Views', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Updated', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Actions', 'fanfiction-manager' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php while ( $query->have_posts() ) : $query->the_post(); ?>
+								<?php
+								$story_id = get_the_ID();
+								$chapter_count = get_posts( array(
+									'post_type'      => 'fanfiction_chapter',
+									'post_parent'    => $story_id,
+									'post_status'    => array( 'publish', 'draft', 'pending' ),
+									'posts_per_page' => -1,
+									'fields'         => 'ids',
+								) );
+								$views = get_post_meta( $story_id, '_fanfic_views', true );
+								$status_terms = wp_get_post_terms( $story_id, 'fanfiction_status' );
+								$status_name = ! empty( $status_terms ) ? $status_terms[0]->name : esc_html__( 'Unknown', 'fanfiction-manager' );
+								?>
+								<tr>
+									<td class="fanfic-story-title">
+										<a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
+										<?php if ( 'publish' !== get_post_status() ) : ?>
+											<span class="fanfic-badge fanfic-badge-draft"><?php echo esc_html( ucfirst( get_post_status() ) ); ?></span>
+										<?php endif; ?>
+									</td>
+									<td><?php echo esc_html( $status_name ); ?></td>
+									<td><?php echo esc_html( count( $chapter_count ) ); ?></td>
+									<td><?php echo esc_html( Fanfic_Shortcodes::format_number( $views ) ); ?></td>
+									<td>
+										<time datetime="<?php echo esc_attr( get_the_modified_time( 'c' ) ); ?>">
+											<?php echo esc_html( get_the_modified_time( get_option( 'date_format' ) ) ); ?>
+										</time>
+									</td>
+									<td class="fanfic-story-actions">
+										<a href="<?php echo esc_url( add_query_arg( 'story_id', $story_id, self::get_page_url_with_fallback( 'edit-story' ) ) ); ?>" class="fanfic-btn fanfic-btn-small">
+											<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
+										</a>
+										<a href="<?php echo esc_url( add_query_arg( 'story_id', $story_id, self::get_page_url_with_fallback( 'create-chapter' ) ) ); ?>" class="fanfic-btn fanfic-btn-small">
+											<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+										</a>
+										<form method="post" style="display: inline;" onsubmit="return confirm('<?php esc_attr_e( 'Are you sure you want to delete this story and all its chapters? This action cannot be undone.', 'fanfiction-manager' ); ?>');">
+											<?php wp_nonce_field( 'fanfic_delete_story_' . $story_id, 'fanfic_delete_story_nonce' ); ?>
+											<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
+											<input type="hidden" name="fanfic_delete_story_submit" value="1" />
+											<button type="submit" class="fanfic-btn fanfic-btn-small fanfic-btn-danger">
+												<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+											</button>
+										</form>
+									</td>
+								</tr>
+							<?php endwhile; ?>
+						</tbody>
+					</table>
+				</div>
+
+				<?php
+				// Pagination
+				if ( $query->max_num_pages > 1 ) {
+					echo '<div class="fanfic-pagination">';
+					echo paginate_links( array(
+						'total'   => $query->max_num_pages,
+						'current' => $paged,
+						'format'  => '?paged=%#%',
+						'prev_text' => esc_html__( '&laquo; Previous', 'fanfiction-manager' ),
+						'next_text' => esc_html__( 'Next &raquo;', 'fanfiction-manager' ),
+					) );
+					echo '</div>';
+				}
+				?>
+
+			<?php else : ?>
+				<div class="fanfic-message fanfic-info">
+					<p><?php esc_html_e( 'You have not created any stories yet.', 'fanfiction-manager' ); ?></p>
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'create-story' ) ); ?>" class="fanfic-btn fanfic-btn-primary">
+						<?php esc_html_e( 'Create Your First Story', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+			<?php endif; ?>
+		</div>
+		<?php
+		wp_reset_postdata();
+		return ob_get_clean();
+	}
+
+	/**
+	 * Create story form shortcode
+	 *
+	 * [author-create-story-form]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Create story form HTML.
+	 */
+	public static function create_story_form( $atts ) {
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You must be logged in to create a story.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get genres and statuses
+		$genres = Fanfic_Taxonomies::get_genres();
+		$statuses = Fanfic_Taxonomies::get_statuses();
+
+		// Check for errors
+		$errors = get_transient( 'fanfic_story_errors_' . get_current_user_id() );
+		if ( $errors ) {
+			delete_transient( 'fanfic_story_errors_' . get_current_user_id() );
+		}
+
+		ob_start();
+		?>
+		<div class="fanfic-author-form-wrapper">
+			<?php if ( ! empty( $errors ) && is_array( $errors ) ) : ?>
+				<div class="fanfic-message fanfic-error" role="alert">
+					<ul>
+						<?php foreach ( $errors as $error ) : ?>
+							<li><?php echo esc_html( $error ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
+
+			<form class="fanfic-author-form fanfic-create-story-form" method="post" action="" novalidate>
+				<?php wp_nonce_field( 'fanfic_create_story_action', 'fanfic_create_story_nonce' ); ?>
+
+				<div class="fanfic-form-section">
+					<h2><?php esc_html_e( 'Story Details', 'fanfiction-manager' ); ?></h2>
+
+					<div class="fanfic-form-field" data-field-type="text">
+						<label for="fanfic_story_title">
+							<?php esc_html_e( 'Story Title', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<input
+							type="text"
+							name="fanfic_story_title"
+							id="fanfic_story_title"
+							class="fanfic-input"
+							required
+							aria-required="true"
+							maxlength="200"
+							value="<?php echo isset( $_POST['fanfic_story_title'] ) ? esc_attr( $_POST['fanfic_story_title'] ) : ''; ?>"
+						/>
+					</div>
+
+					<div class="fanfic-form-field" data-field-type="textarea">
+						<label for="fanfic_story_introduction">
+							<?php esc_html_e( 'Story Introduction', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<textarea
+							name="fanfic_story_introduction"
+							id="fanfic_story_introduction"
+							class="fanfic-textarea"
+							required
+							aria-required="true"
+							rows="8"
+							maxlength="10000"
+						><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : ''; ?></textarea>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Brief description of your story (max 10,000 characters).', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<?php if ( ! empty( $genres ) && ! is_wp_error( $genres ) ) : ?>
+						<div class="fanfic-form-field" data-field-type="checkbox">
+							<label><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
+							<div class="fanfic-checkbox-group">
+								<?php foreach ( $genres as $genre ) : ?>
+									<label class="fanfic-checkbox-label">
+										<input
+											type="checkbox"
+											name="fanfic_story_genres[]"
+											value="<?php echo esc_attr( $genre->term_id ); ?>"
+											<?php checked( isset( $_POST['fanfic_story_genres'] ) && in_array( $genre->term_id, (array) $_POST['fanfic_story_genres'] ) ); ?>
+										/>
+										<?php echo esc_html( $genre->name ); ?>
+									</label>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					<?php endif; ?>
+
+					<?php if ( ! empty( $statuses ) && ! is_wp_error( $statuses ) ) : ?>
+						<div class="fanfic-form-field" data-field-type="radio">
+							<label>
+								<?php esc_html_e( 'Story Status', 'fanfiction-manager' ); ?>
+								<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+							</label>
+							<div class="fanfic-radio-group">
+								<?php foreach ( $statuses as $status ) : ?>
+									<label class="fanfic-radio-label">
+										<input
+											type="radio"
+											name="fanfic_story_status"
+											value="<?php echo esc_attr( $status->term_id ); ?>"
+											required
+											<?php checked( isset( $_POST['fanfic_story_status'] ) && $_POST['fanfic_story_status'] == $status->term_id ); ?>
+										/>
+										<?php echo esc_html( $status->name ); ?>
+									</label>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					<?php endif; ?>
+
+					<div class="fanfic-form-field" data-field-type="url">
+						<label for="fanfic_story_image">
+							<?php esc_html_e( 'Featured Image URL', 'fanfiction-manager' ); ?>
+						</label>
+						<input
+							type="url"
+							name="fanfic_story_image"
+							id="fanfic_story_image"
+							class="fanfic-input"
+							placeholder="https://"
+							value="<?php echo isset( $_POST['fanfic_story_image'] ) ? esc_attr( $_POST['fanfic_story_image'] ) : ''; ?>"
+						/>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Optional. Enter a URL to an image for your story cover.', 'fanfiction-manager' ); ?></p>
+					</div>
+				</div>
+
+				<input type="hidden" name="fanfic_create_story_submit" value="1" />
+
+				<div class="fanfic-form-actions">
+					<button type="submit" class="fanfic-btn fanfic-btn-primary">
+						<?php esc_html_e( 'Create Story', 'fanfiction-manager' ); ?>
+					</button>
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+			</form>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Edit story form shortcode
+	 *
+	 * [author-edit-story-form story_id="123"]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Edit story form HTML.
+	 */
+	public static function edit_story_form( $atts ) {
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You must be logged in to edit a story.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get story by slug or ID from attributes or query string
+		$story = null;
+		$story_id = 0;
+
+		// First try to get by slug (preferred for pretty URLs)
+		if ( isset( $atts['story'] ) ) {
+			$story_slug = sanitize_title( $atts['story'] );
+			$story = get_page_by_path( $story_slug, OBJECT, 'fanfiction_story' );
+		} elseif ( isset( $_GET['story'] ) ) {
+			$story_slug = sanitize_title( $_GET['story'] );
+			$story = get_page_by_path( $story_slug, OBJECT, 'fanfiction_story' );
+		}
+
+		// Fall back to ID-based lookup
+		if ( ! $story ) {
+			if ( isset( $atts['story_id'] ) ) {
+				$story_id = absint( $atts['story_id'] );
+			} elseif ( isset( $_GET['story_id'] ) ) {
+				$story_id = absint( $_GET['story_id'] );
+			}
+
+			if ( $story_id ) {
+				$story = get_post( $story_id );
+			}
+		}
+
+		// Validate story exists
+		if ( ! $story ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'No story specified.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		if ( 'fanfiction_story' !== $story->post_type ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'Invalid story.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Set story_id for later use
+		$story_id = $story->ID;
+
+		// Check permissions
+		$current_user = wp_get_current_user();
+		if ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You do not have permission to edit this story.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get current genres and status
+		$current_genres = wp_get_post_terms( $story_id, 'fanfiction_genre', array( 'fields' => 'ids' ) );
+		$current_status_terms = wp_get_post_terms( $story_id, 'fanfiction_status' );
+		$current_status = ! empty( $current_status_terms ) ? $current_status_terms[0]->term_id : 0;
+
+		// Get all genres and statuses
+		$genres = Fanfic_Taxonomies::get_genres();
+		$statuses = Fanfic_Taxonomies::get_statuses();
+
+		// Get featured image URL
+		$featured_image = get_post_meta( $story_id, '_fanfic_featured_image', true );
+
+		// Check for success/error messages
+		$message = '';
+		if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {
+			$message = '<div class="fanfic-message fanfic-success" role="alert">' .
+				esc_html__( 'Story updated successfully.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		$errors = get_transient( 'fanfic_story_errors_' . get_current_user_id() );
+		if ( $errors ) {
+			delete_transient( 'fanfic_story_errors_' . get_current_user_id() );
+		}
+
+		ob_start();
+		?>
+		<div class="fanfic-author-form-wrapper">
+			<?php echo $message; ?>
+
+			<?php if ( ! empty( $errors ) && is_array( $errors ) ) : ?>
+				<div class="fanfic-message fanfic-error" role="alert">
+					<ul>
+						<?php foreach ( $errors as $error ) : ?>
+							<li><?php echo esc_html( $error ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
+
+			<form class="fanfic-author-form fanfic-edit-story-form" method="post" action="" novalidate>
+				<?php wp_nonce_field( 'fanfic_edit_story_action_' . $story_id, 'fanfic_edit_story_nonce' ); ?>
+
+				<div class="fanfic-form-section">
+					<h2><?php esc_html_e( 'Story Details', 'fanfiction-manager' ); ?></h2>
+
+					<div class="fanfic-form-field" data-field-type="text">
+						<label for="fanfic_story_title">
+							<?php esc_html_e( 'Story Title', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<input
+							type="text"
+							name="fanfic_story_title"
+							id="fanfic_story_title"
+							class="fanfic-input"
+							required
+							aria-required="true"
+							maxlength="200"
+							value="<?php echo isset( $_POST['fanfic_story_title'] ) ? esc_attr( $_POST['fanfic_story_title'] ) : esc_attr( $story->post_title ); ?>"
+						/>
+					</div>
+
+					<div class="fanfic-form-field" data-field-type="textarea">
+						<label for="fanfic_story_introduction">
+							<?php esc_html_e( 'Story Introduction', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<textarea
+							name="fanfic_story_introduction"
+							id="fanfic_story_introduction"
+							class="fanfic-textarea"
+							required
+							aria-required="true"
+							rows="8"
+							maxlength="10000"
+						><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : esc_textarea( $story->post_content ); ?></textarea>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Brief description of your story (max 10,000 characters).', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<?php if ( ! empty( $genres ) && ! is_wp_error( $genres ) ) : ?>
+						<div class="fanfic-form-field" data-field-type="checkbox">
+							<label><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
+							<div class="fanfic-checkbox-group">
+								<?php foreach ( $genres as $genre ) : ?>
+									<?php
+									$is_checked = isset( $_POST['fanfic_story_genres'] )
+										? in_array( $genre->term_id, (array) $_POST['fanfic_story_genres'] )
+										: in_array( $genre->term_id, $current_genres );
+									?>
+									<label class="fanfic-checkbox-label">
+										<input
+											type="checkbox"
+											name="fanfic_story_genres[]"
+											value="<?php echo esc_attr( $genre->term_id ); ?>"
+											<?php checked( $is_checked ); ?>
+										/>
+										<?php echo esc_html( $genre->name ); ?>
+									</label>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					<?php endif; ?>
+
+					<?php if ( ! empty( $statuses ) && ! is_wp_error( $statuses ) ) : ?>
+						<div class="fanfic-form-field" data-field-type="radio">
+							<label>
+								<?php esc_html_e( 'Story Status', 'fanfiction-manager' ); ?>
+								<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+							</label>
+							<div class="fanfic-radio-group">
+								<?php foreach ( $statuses as $status ) : ?>
+									<?php
+									$is_checked = isset( $_POST['fanfic_story_status'] )
+										? $_POST['fanfic_story_status'] == $status->term_id
+										: $current_status == $status->term_id;
+									?>
+									<label class="fanfic-radio-label">
+										<input
+											type="radio"
+											name="fanfic_story_status"
+											value="<?php echo esc_attr( $status->term_id ); ?>"
+											required
+											<?php checked( $is_checked ); ?>
+										/>
+										<?php echo esc_html( $status->name ); ?>
+									</label>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					<?php endif; ?>
+
+					<div class="fanfic-form-field" data-field-type="url">
+						<label for="fanfic_story_image">
+							<?php esc_html_e( 'Featured Image URL', 'fanfiction-manager' ); ?>
+						</label>
+						<input
+							type="url"
+							name="fanfic_story_image"
+							id="fanfic_story_image"
+							class="fanfic-input"
+							placeholder="https://"
+							value="<?php echo isset( $_POST['fanfic_story_image'] ) ? esc_attr( $_POST['fanfic_story_image'] ) : esc_attr( $featured_image ); ?>"
+						/>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Optional. Enter a URL to an image for your story cover.', 'fanfiction-manager' ); ?></p>
+					</div>
+				</div>
+
+				<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
+				<input type="hidden" name="fanfic_edit_story_submit" value="1" />
+
+				<div class="fanfic-form-actions">
+					<button type="submit" class="fanfic-btn fanfic-btn-primary">
+						<?php esc_html_e( 'Update Story', 'fanfiction-manager' ); ?>
+					</button>
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+			</form>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Create chapter form shortcode
+	 *
+	 * [author-create-chapter-form story_id="123"]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Create chapter form HTML.
+	 */
+	public static function create_chapter_form( $atts ) {
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You must be logged in to create a chapter.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get story by slug or ID from attributes or query string
+		$story = null;
+		$story_id = 0;
+
+		// First try to get by slug (preferred for pretty URLs)
+		if ( isset( $atts['story'] ) ) {
+			$story_slug = sanitize_title( $atts['story'] );
+			$story = get_page_by_path( $story_slug, OBJECT, 'fanfiction_story' );
+		} elseif ( isset( $_GET['story'] ) ) {
+			$story_slug = sanitize_title( $_GET['story'] );
+			$story = get_page_by_path( $story_slug, OBJECT, 'fanfiction_story' );
+		}
+
+		// Fall back to ID-based lookup
+		if ( ! $story ) {
+			if ( isset( $atts['story_id'] ) ) {
+				$story_id = absint( $atts['story_id'] );
+			} elseif ( isset( $_GET['story_id'] ) ) {
+				$story_id = absint( $_GET['story_id'] );
+			}
+
+			if ( $story_id ) {
+				$story = get_post( $story_id );
+			}
+		}
+
+		// Validate story exists
+		if ( ! $story ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'No story specified.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		if ( 'fanfiction_story' !== $story->post_type ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'Invalid story.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Set story_id for later use
+		$story_id = $story->ID;
+
+		// Check permissions
+		$current_user = wp_get_current_user();
+		if ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You do not have permission to add chapters to this story.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get available chapter numbers
+		$available_numbers = self::get_available_chapter_numbers( $story_id );
+
+		// Check for errors
+		$errors = get_transient( 'fanfic_chapter_errors_' . get_current_user_id() );
+		if ( $errors ) {
+			delete_transient( 'fanfic_chapter_errors_' . get_current_user_id() );
+		}
+
+		ob_start();
+		?>
+		<div class="fanfic-author-form-wrapper">
+			<div class="fanfic-form-header">
+				<h2><?php printf( esc_html__( 'Add Chapter to "%s"', 'fanfiction-manager' ), esc_html( $story->post_title ) ); ?></h2>
+			</div>
+
+			<?php if ( ! empty( $errors ) && is_array( $errors ) ) : ?>
+				<div class="fanfic-message fanfic-error" role="alert">
+					<ul>
+						<?php foreach ( $errors as $error ) : ?>
+							<li><?php echo esc_html( $error ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
+
+			<form class="fanfic-author-form fanfic-create-chapter-form" method="post" action="" novalidate>
+				<?php wp_nonce_field( 'fanfic_create_chapter_action_' . $story_id, 'fanfic_create_chapter_nonce' ); ?>
+
+				<div class="fanfic-form-section">
+					<h3><?php esc_html_e( 'Chapter Details', 'fanfiction-manager' ); ?></h3>
+
+					<div class="fanfic-form-field" data-field-type="select">
+						<label for="fanfic_chapter_number">
+							<?php esc_html_e( 'Chapter Number', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<select
+							name="fanfic_chapter_number"
+							id="fanfic_chapter_number"
+							class="fanfic-select"
+							required
+							aria-required="true"
+						>
+							<option value=""><?php esc_html_e( '-- Select Chapter Number --', 'fanfiction-manager' ); ?></option>
+							<?php foreach ( $available_numbers as $number ) : ?>
+								<option value="<?php echo esc_attr( $number ); ?>" <?php selected( isset( $_POST['fanfic_chapter_number'] ) && $_POST['fanfic_chapter_number'] == $number ); ?>>
+									<?php echo esc_html( $number ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Select the next available chapter number.', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<div class="fanfic-form-field" data-field-type="radio">
+						<label>
+							<?php esc_html_e( 'Chapter Type', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<div class="fanfic-radio-group">
+							<label class="fanfic-radio-label">
+								<input
+									type="radio"
+									name="fanfic_chapter_type"
+									value="prologue"
+									<?php checked( isset( $_POST['fanfic_chapter_type'] ) && 'prologue' === $_POST['fanfic_chapter_type'] ); ?>
+								/>
+								<?php esc_html_e( 'Prologue', 'fanfiction-manager' ); ?>
+							</label>
+							<label class="fanfic-radio-label">
+								<input
+									type="radio"
+									name="fanfic_chapter_type"
+									value="chapter"
+									<?php checked( ! isset( $_POST['fanfic_chapter_type'] ) || 'chapter' === $_POST['fanfic_chapter_type'] ); ?>
+								/>
+								<?php esc_html_e( 'Chapter', 'fanfiction-manager' ); ?>
+							</label>
+							<label class="fanfic-radio-label">
+								<input
+									type="radio"
+									name="fanfic_chapter_type"
+									value="epilogue"
+									<?php checked( isset( $_POST['fanfic_chapter_type'] ) && 'epilogue' === $_POST['fanfic_chapter_type'] ); ?>
+								/>
+								<?php esc_html_e( 'Epilogue', 'fanfiction-manager' ); ?>
+							</label>
+						</div>
+					</div>
+
+					<div class="fanfic-form-field" data-field-type="text">
+						<label for="fanfic_chapter_title">
+							<?php esc_html_e( 'Chapter Title', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<input
+							type="text"
+							name="fanfic_chapter_title"
+							id="fanfic_chapter_title"
+							class="fanfic-input"
+							required
+							aria-required="true"
+							maxlength="200"
+							value="<?php echo isset( $_POST['fanfic_chapter_title'] ) ? esc_attr( $_POST['fanfic_chapter_title'] ) : ''; ?>"
+						/>
+					</div>
+
+					<div class="fanfic-form-field" data-field-type="textarea">
+						<label for="fanfic_chapter_content">
+							<?php esc_html_e( 'Chapter Content', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<textarea
+							name="fanfic_chapter_content"
+							id="fanfic_chapter_content"
+							class="fanfic-textarea fanfic-content-editor"
+							required
+							aria-required="true"
+							rows="20"
+						><?php echo isset( $_POST['fanfic_chapter_content'] ) ? esc_textarea( $_POST['fanfic_chapter_content'] ) : ''; ?></textarea>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Write your chapter content here. Basic HTML formatting is allowed.', 'fanfiction-manager' ); ?></p>
+					</div>
+				</div>
+
+				<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
+				<input type="hidden" name="fanfic_create_chapter_submit" value="1" />
+
+				<div class="fanfic-form-actions">
+					<button type="submit" class="fanfic-btn fanfic-btn-primary">
+						<?php esc_html_e( 'Create Chapter', 'fanfiction-manager' ); ?>
+					</button>
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+			</form>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Edit chapter form shortcode
+	 *
+	 * [author-edit-chapter-form chapter_id="456"]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Edit chapter form HTML.
+	 */
+	public static function edit_chapter_form( $atts ) {
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You must be logged in to edit a chapter.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get chapter ID from attributes or query string
+		$chapter_id = 0;
+		if ( isset( $atts['chapter_id'] ) ) {
+			$chapter_id = absint( $atts['chapter_id'] );
+		} elseif ( isset( $_GET['chapter_id'] ) ) {
+			$chapter_id = absint( $_GET['chapter_id'] );
+		}
+
+		if ( ! $chapter_id ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'No chapter specified.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get chapter
+		$chapter = get_post( $chapter_id );
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'Invalid chapter.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get parent story
+		$story = get_post( $chapter->post_parent );
+		if ( ! $story ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'Parent story not found.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Check permissions
+		$current_user = wp_get_current_user();
+		if ( $chapter->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You do not have permission to edit this chapter.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		// Get chapter metadata
+		$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+		if ( empty( $chapter_type ) ) {
+			$chapter_type = 'chapter';
+		}
+
+		// Get available chapter numbers (including current)
+		$available_numbers = self::get_available_chapter_numbers( $story->ID, $chapter_id );
+
+		// Check for success/error messages
+		$message = '';
+		if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {
+			$message = '<div class="fanfic-message fanfic-success" role="alert">' .
+				esc_html__( 'Chapter updated successfully.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		$errors = get_transient( 'fanfic_chapter_errors_' . get_current_user_id() );
+		if ( $errors ) {
+			delete_transient( 'fanfic_chapter_errors_' . get_current_user_id() );
+		}
+
+		ob_start();
+		?>
+		<div class="fanfic-author-form-wrapper">
+			<div class="fanfic-form-header">
+				<h2><?php printf( esc_html__( 'Edit Chapter - "%s"', 'fanfiction-manager' ), esc_html( $story->post_title ) ); ?></h2>
+			</div>
+
+			<?php echo $message; ?>
+
+			<?php if ( ! empty( $errors ) && is_array( $errors ) ) : ?>
+				<div class="fanfic-message fanfic-error" role="alert">
+					<ul>
+						<?php foreach ( $errors as $error ) : ?>
+							<li><?php echo esc_html( $error ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
+
+			<form class="fanfic-author-form fanfic-edit-chapter-form" method="post" action="" novalidate>
+				<?php wp_nonce_field( 'fanfic_edit_chapter_action_' . $chapter_id, 'fanfic_edit_chapter_nonce' ); ?>
+
+				<div class="fanfic-form-section">
+					<h3><?php esc_html_e( 'Chapter Details', 'fanfiction-manager' ); ?></h3>
+
+					<div class="fanfic-form-field" data-field-type="select">
+						<label for="fanfic_chapter_number">
+							<?php esc_html_e( 'Chapter Number', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<select
+							name="fanfic_chapter_number"
+							id="fanfic_chapter_number"
+							class="fanfic-select"
+							required
+							aria-required="true"
+						>
+							<?php foreach ( $available_numbers as $number ) : ?>
+								<?php
+								$is_selected = isset( $_POST['fanfic_chapter_number'] )
+									? $_POST['fanfic_chapter_number'] == $number
+									: $chapter_number == $number;
+								?>
+								<option value="<?php echo esc_attr( $number ); ?>" <?php selected( $is_selected ); ?>>
+									<?php echo esc_html( $number ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+					</div>
+
+					<div class="fanfic-form-field" data-field-type="radio">
+						<label>
+							<?php esc_html_e( 'Chapter Type', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<div class="fanfic-radio-group">
+							<label class="fanfic-radio-label">
+								<input
+									type="radio"
+									name="fanfic_chapter_type"
+									value="prologue"
+									<?php checked( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'prologue' : $chapter_type === 'prologue' ); ?>
+								/>
+								<?php esc_html_e( 'Prologue', 'fanfiction-manager' ); ?>
+							</label>
+							<label class="fanfic-radio-label">
+								<input
+									type="radio"
+									name="fanfic_chapter_type"
+									value="chapter"
+									<?php checked( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'chapter' : $chapter_type === 'chapter' ); ?>
+								/>
+								<?php esc_html_e( 'Chapter', 'fanfiction-manager' ); ?>
+							</label>
+							<label class="fanfic-radio-label">
+								<input
+									type="radio"
+									name="fanfic_chapter_type"
+									value="epilogue"
+									<?php checked( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'epilogue' : $chapter_type === 'epilogue' ); ?>
+								/>
+								<?php esc_html_e( 'Epilogue', 'fanfiction-manager' ); ?>
+							</label>
+						</div>
+					</div>
+
+					<div class="fanfic-form-field" data-field-type="text">
+						<label for="fanfic_chapter_title">
+							<?php esc_html_e( 'Chapter Title', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<input
+							type="text"
+							name="fanfic_chapter_title"
+							id="fanfic_chapter_title"
+							class="fanfic-input"
+							required
+							aria-required="true"
+							maxlength="200"
+							value="<?php echo isset( $_POST['fanfic_chapter_title'] ) ? esc_attr( $_POST['fanfic_chapter_title'] ) : esc_attr( $chapter->post_title ); ?>"
+						/>
+					</div>
+
+					<div class="fanfic-form-field" data-field-type="textarea">
+						<label for="fanfic_chapter_content">
+							<?php esc_html_e( 'Chapter Content', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<textarea
+							name="fanfic_chapter_content"
+							id="fanfic_chapter_content"
+							class="fanfic-textarea fanfic-content-editor"
+							required
+							aria-required="true"
+							rows="20"
+						><?php echo isset( $_POST['fanfic_chapter_content'] ) ? esc_textarea( $_POST['fanfic_chapter_content'] ) : esc_textarea( $chapter->post_content ); ?></textarea>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Write your chapter content here. Basic HTML formatting is allowed.', 'fanfiction-manager' ); ?></p>
+					</div>
+				</div>
+
+				<input type="hidden" name="fanfic_chapter_id" value="<?php echo esc_attr( $chapter_id ); ?>" />
+				<input type="hidden" name="fanfic_edit_chapter_submit" value="1" />
+
+				<div class="fanfic-form-actions">
+					<button type="submit" class="fanfic-btn fanfic-btn-primary">
+						<?php esc_html_e( 'Update Chapter', 'fanfiction-manager' ); ?>
+					</button>
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+			</form>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Edit profile form shortcode
+	 *
+	 * [author-edit-profile-form]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Edit profile form HTML.
+	 */
+	public static function edit_profile_form( $atts ) {
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return '<div class="fanfic-message fanfic-error">' .
+				esc_html__( 'You must be logged in to edit your profile.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		$current_user = wp_get_current_user();
+
+		// Get native WordPress user fields
+		$nickname = $current_user->user_login;  // Username for login
+		$display_name = $current_user->display_name;  // Public name shown on stories
+		$user_email = $current_user->user_email;
+		$user_url = $current_user->user_url;  // Website
+		$bio = $current_user->description; // Bio (native WordPress field)
+
+		// Custom field for avatar (WordPress uses Gravatar by default)
+		$avatar_url = get_user_meta( $current_user->ID, '_fanfic_avatar_url', true );
+
+		// Check for success/error messages
+		$message = '';
+		if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {
+			$message = '<div class="fanfic-message fanfic-success" role="alert">' .
+				esc_html__( 'Profile updated successfully.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
+		$errors = get_transient( 'fanfic_profile_errors_' . $current_user->ID );
+		if ( $errors ) {
+			delete_transient( 'fanfic_profile_errors_' . $current_user->ID );
+		}
+
+		ob_start();
+		?>
+		<div class="fanfic-author-form-wrapper">
+			<?php echo $message; ?>
+
+			<?php if ( ! empty( $errors ) && is_array( $errors ) ) : ?>
+				<div class="fanfic-message fanfic-error" role="alert">
+					<ul>
+						<?php foreach ( $errors as $error ) : ?>
+							<li><?php echo esc_html( $error ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
+
+			<form class="fanfic-author-form fanfic-edit-profile-form" method="post" action="" novalidate>
+				<?php wp_nonce_field( 'fanfic_edit_profile_action', 'fanfic_edit_profile_nonce' ); ?>
+
+				<div class="fanfic-form-section">
+					<h2><?php esc_html_e( 'Edit Your Profile', 'fanfiction-manager' ); ?></h2>
+
+					<div class="fanfic-form-field">
+						<label for="nickname">
+							<?php esc_html_e( 'Username', 'fanfiction-manager' ); ?>
+						</label>
+						<input
+							type="text"
+							name="nickname"
+							id="nickname"
+							class="fanfic-input"
+							disabled
+							readonly
+							value="<?php echo esc_attr( $nickname ); ?>"
+						/>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Your username cannot be changed.', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<div class="fanfic-form-field">
+						<label for="display_name">
+							<?php esc_html_e( 'Public Display Name', 'fanfiction-manager' ); ?>
+							<span class="required">*</span>
+						</label>
+						<input
+							type="text"
+							name="display_name"
+							id="display_name"
+							class="fanfic-input"
+							required
+							aria-required="true"
+							maxlength="250"
+							value="<?php echo isset( $_POST['display_name'] ) ? esc_attr( $_POST['display_name'] ) : esc_attr( $display_name ); ?>"
+						/>
+						<p class="fanfic-field-description"><?php esc_html_e( 'This name will be displayed on your stories and profile.', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<div class="fanfic-form-field">
+						<label for="user_email">
+							<?php esc_html_e( 'Email Address', 'fanfiction-manager' ); ?>
+							<span class="required">*</span>
+						</label>
+						<input
+							type="email"
+							name="user_email"
+							id="user_email"
+							class="fanfic-input"
+							required
+							aria-required="true"
+							maxlength="100"
+							value="<?php echo isset( $_POST['user_email'] ) ? esc_attr( $_POST['user_email'] ) : esc_attr( $user_email ); ?>"
+						/>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Your email address (required for notifications).', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<div class="fanfic-form-field">
+						<label for="user_url">
+							<?php esc_html_e( 'Website', 'fanfiction-manager' ); ?>
+						</label>
+						<input
+							type="url"
+							name="user_url"
+							id="user_url"
+							class="fanfic-input"
+							placeholder="https://yourwebsite.com"
+							value="<?php echo isset( $_POST['user_url'] ) ? esc_attr( $_POST['user_url'] ) : esc_attr( $user_url ); ?>"
+						/>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Optional. Link to your personal website or blog.', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<div class="fanfic-form-field">
+						<label for="description">
+							<?php esc_html_e( 'Bio', 'fanfiction-manager' ); ?>
+						</label>
+						<textarea
+							name="description"
+							id="description"
+							class="fanfic-textarea"
+							rows="8"
+							maxlength="5000"
+							placeholder="<?php esc_attr_e( 'Tell readers about yourself...', 'fanfiction-manager' ); ?>"
+						><?php echo isset( $_POST['description'] ) ? esc_textarea( $_POST['description'] ) : esc_textarea( $bio ); ?></textarea>
+						<p class="fanfic-field-description">
+							<span class="char-count"><?php echo esc_html( strlen( $bio ) ); ?></span> / 5000 <?php esc_html_e( 'characters', 'fanfiction-manager' ); ?>
+						</p>
+					</div>
+
+					<div class="fanfic-form-field">
+						<label for="fanfic_avatar_url">
+							<?php esc_html_e( 'Avatar Image URL', 'fanfiction-manager' ); ?>
+						</label>
+						<input
+							type="url"
+							name="fanfic_avatar_url"
+							id="fanfic_avatar_url"
+							class="fanfic-input"
+							placeholder="https://example.com/avatar.jpg"
+							value="<?php echo isset( $_POST['fanfic_avatar_url'] ) ? esc_attr( $_POST['fanfic_avatar_url'] ) : esc_attr( $avatar_url ); ?>"
+						/>
+						<?php if ( ! empty( $avatar_url ) ) : ?>
+							<div class="fanfic-avatar-preview">
+								<img src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php esc_attr_e( 'Avatar preview', 'fanfiction-manager' ); ?>" />
+							</div>
+						<?php endif; ?>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Optional. Enter a URL to your avatar image. Leave blank to use Gravatar.', 'fanfiction-manager' ); ?></p>
+					</div>
+				</div>
+
+				<input type="hidden" name="fanfic_edit_profile_submit" value="1" />
+
+				<div class="fanfic-form-actions">
+					<button type="submit" class="fanfic-btn fanfic-btn-primary">
+						<?php esc_html_e( 'Update Profile', 'fanfiction-manager' ); ?>
+					</button>
+					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'dashboard' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+			</form>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Handle create story form submission
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function handle_create_story_submission() {
+		if ( ! isset( $_POST['fanfic_create_story_submit'] ) ) {
+			return;
+		}
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_create_story_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_create_story_nonce'], 'fanfic_create_story_action' ) ) {
+			return;
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		$errors = array();
+		$current_user = wp_get_current_user();
+
+		// Get and sanitize form data
+		$title = isset( $_POST['fanfic_story_title'] ) ? sanitize_text_field( $_POST['fanfic_story_title'] ) : '';
+		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
+		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
+		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+
+		// Validate
+		if ( empty( $title ) ) {
+			$errors[] = __( 'Story title is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $introduction ) ) {
+			$errors[] = __( 'Story introduction is required.', 'fanfiction-manager' );
+		}
+
+		if ( ! $status ) {
+			$errors[] = __( 'Story status is required.', 'fanfiction-manager' );
+		}
+
+		// If errors, store and redirect back
+		if ( ! empty( $errors ) ) {
+			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
+			wp_redirect( wp_get_referer() );
+			exit;
+		}
+
+		// Generate unique slug before creating the post
+		$base_slug = sanitize_title( $title );
+		$unique_slug = wp_unique_post_slug( $base_slug, 0, 'draft', 'fanfiction_story', 0 );
+
+		// Create story as draft initially
+		$story_id = wp_insert_post( array(
+			'post_type'    => 'fanfiction_story',
+			'post_title'   => $title,
+			'post_name'    => $unique_slug,
+			'post_content' => $introduction,
+			'post_status'  => 'draft',
+			'post_author'  => $current_user->ID,
+		) );
+
+		if ( is_wp_error( $story_id ) ) {
+			$errors[] = $story_id->get_error_message();
+			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
+			wp_redirect( wp_get_referer() );
+			exit;
+		}
+
+		// Set genres
+		if ( ! empty( $genres ) ) {
+			wp_set_post_terms( $story_id, $genres, 'fanfiction_genre' );
+		}
+
+		// Set status
+		wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
+
+		// Set featured image if provided
+		if ( ! empty( $image_url ) ) {
+			update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
+		}
+
+		// Initialize view count
+		update_post_meta( $story_id, '_fanfic_views', 0 );
+
+		// Redirect to create chapter page using story slug
+		$create_chapter_url = add_query_arg(
+			array(
+				'story' => $unique_slug,
+			),
+			self::get_page_url_with_fallback( 'create-chapter' )
+		);
+		wp_redirect( $create_chapter_url );
+		exit;
+	}
+
+	/**
+	 * Handle edit story form submission
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function handle_edit_story_submission() {
+		if ( ! isset( $_POST['fanfic_edit_story_submit'] ) ) {
+			return;
+		}
+
+		$story_id = isset( $_POST['fanfic_story_id'] ) ? absint( $_POST['fanfic_story_id'] ) : 0;
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_edit_story_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_edit_story_nonce'], 'fanfic_edit_story_action_' . $story_id ) ) {
+			return;
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		$current_user = wp_get_current_user();
+		$story = get_post( $story_id );
+
+		// Check permissions
+		if ( ! $story || $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+			return;
+		}
+
+		$errors = array();
+
+		// Get and sanitize form data
+		$title = isset( $_POST['fanfic_story_title'] ) ? sanitize_text_field( $_POST['fanfic_story_title'] ) : '';
+		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
+		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
+		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+
+		// Validate
+		if ( empty( $title ) ) {
+			$errors[] = __( 'Story title is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $introduction ) ) {
+			$errors[] = __( 'Story introduction is required.', 'fanfiction-manager' );
+		}
+
+		if ( ! $status ) {
+			$errors[] = __( 'Story status is required.', 'fanfiction-manager' );
+		}
+
+		// If errors, store and redirect back
+		if ( ! empty( $errors ) ) {
+			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
+			wp_redirect( wp_get_referer() );
+			exit;
+		}
+
+		// Update story
+		$result = wp_update_post( array(
+			'ID'           => $story_id,
+			'post_title'   => $title,
+			'post_content' => $introduction,
+		) );
+
+		if ( is_wp_error( $result ) ) {
+			$errors[] = $result->get_error_message();
+			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
+			wp_redirect( wp_get_referer() );
+			exit;
+		}
+
+		// Update genres
+		wp_set_post_terms( $story_id, $genres, 'fanfiction_genre' );
+
+		// Update status
+		wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
+
+		// Update featured image
+		if ( ! empty( $image_url ) ) {
+			update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
+		} else {
+			delete_post_meta( $story_id, '_fanfic_featured_image' );
+		}
+
+		// Redirect back with success message
+		$redirect_url = add_query_arg(
+			array(
+				'story_id' => $story_id,
+				'updated' => 'success'
+			),
+			wp_get_referer()
+		);
+		wp_redirect( $redirect_url );
+		exit;
+	}
+
+	/**
+	 * Handle create chapter form submission
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function handle_create_chapter_submission() {
+		if ( ! isset( $_POST['fanfic_create_chapter_submit'] ) ) {
+			return;
+		}
+
+		$story_id = isset( $_POST['fanfic_story_id'] ) ? absint( $_POST['fanfic_story_id'] ) : 0;
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_create_chapter_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_create_chapter_nonce'], 'fanfic_create_chapter_action_' . $story_id ) ) {
+			return;
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		$current_user = wp_get_current_user();
+		$story = get_post( $story_id );
+
+		// Check permissions
+		if ( ! $story || ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) ) {
+			return;
+		}
+
+		$errors = array();
+
+		// Get and sanitize form data
+		$chapter_number = isset( $_POST['fanfic_chapter_number'] ) ? absint( $_POST['fanfic_chapter_number'] ) : 0;
+		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
+		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
+		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
+
+		// Validate
+		if ( ! $chapter_number ) {
+			$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $title ) ) {
+			$errors[] = __( 'Chapter title is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $content ) ) {
+			$errors[] = __( 'Chapter content is required.', 'fanfiction-manager' );
+		}
+
+		// If errors, store and redirect back
+		if ( ! empty( $errors ) ) {
+			set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
+			wp_redirect( wp_get_referer() );
+			exit;
+		}
+
+		// Create chapter
+		$chapter_id = wp_insert_post( array(
+			'post_type'    => 'fanfiction_chapter',
+			'post_title'   => $title,
+			'post_content' => $content,
+			'post_status'  => 'publish',
+			'post_author'  => $current_user->ID,
+			'post_parent'  => $story_id,
+		) );
+
+		if ( is_wp_error( $chapter_id ) ) {
+			$errors[] = $chapter_id->get_error_message();
+			set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
+			wp_redirect( wp_get_referer() );
+			exit;
+		}
+
+		// Set chapter metadata
+		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
+		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
+
+		// Redirect to edit chapter page
+		$edit_url = add_query_arg(
+			array(
+				'chapter_id' => $chapter_id,
+				'updated' => 'success'
+			),
+			self::get_page_url_with_fallback( 'edit-chapter' )
+		);
+		wp_redirect( $edit_url );
+		exit;
+	}
+
+	/**
+	 * Handle edit chapter form submission
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function handle_edit_chapter_submission() {
+		if ( ! isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
+			return;
+		}
+
+		$chapter_id = isset( $_POST['fanfic_chapter_id'] ) ? absint( $_POST['fanfic_chapter_id'] ) : 0;
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_edit_chapter_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_edit_chapter_nonce'], 'fanfic_edit_chapter_action_' . $chapter_id ) ) {
+			return;
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		$current_user = wp_get_current_user();
+		$chapter = get_post( $chapter_id );
+
+		// Check permissions
+		if ( ! $chapter || ( $chapter->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) ) {
+			return;
+		}
+
+		$errors = array();
+
+		// Get and sanitize form data
+		$chapter_number = isset( $_POST['fanfic_chapter_number'] ) ? absint( $_POST['fanfic_chapter_number'] ) : 0;
+		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
+		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
+		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
+
+		// Validate
+		if ( ! $chapter_number ) {
+			$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $title ) ) {
+			$errors[] = __( 'Chapter title is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $content ) ) {
+			$errors[] = __( 'Chapter content is required.', 'fanfiction-manager' );
+		}
+
+		// If errors, store and redirect back
+		if ( ! empty( $errors ) ) {
+			set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
+			wp_redirect( wp_get_referer() );
+			exit;
+		}
+
+		// Update chapter
+		$result = wp_update_post( array(
+			'ID'           => $chapter_id,
+			'post_title'   => $title,
+			'post_content' => $content,
+		) );
+
+		if ( is_wp_error( $result ) ) {
+			$errors[] = $result->get_error_message();
+			set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
+			wp_redirect( wp_get_referer() );
+			exit;
+		}
+
+		// Update chapter metadata
+		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
+		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
+
+		// Redirect back with success message
+		$redirect_url = add_query_arg(
+			array(
+				'chapter_id' => $chapter_id,
+				'updated' => 'success'
+			),
+			wp_get_referer()
+		);
+		wp_redirect( $redirect_url );
+		exit;
+	}
+
+	/**
+	 * Handle edit profile form submission
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function handle_edit_profile_submission() {
+		// ALWAYS log - even if no POST data
+		error_log( '=== TEMPLATE_REDIRECT HOOK FIRED - Checking for profile submission ===' );
+		error_log( 'REQUEST_METHOD: ' . $_SERVER['REQUEST_METHOD'] );
+		error_log( 'REQUEST_URI: ' . $_SERVER['REQUEST_URI'] );
+		error_log( 'POST data exists: ' . ( ! empty( $_POST ) ? 'YES' : 'NO' ) );
+
+		if ( ! empty( $_POST ) ) {
+			error_log( 'POST keys: ' . implode( ', ', array_keys( $_POST ) ) );
+		}
+
+		if ( ! isset( $_POST['fanfic_edit_profile_submit'] ) ) {
+			error_log( 'fanfic_edit_profile_submit field NOT found - exiting handler' );
+			return;
+		}
+
+		error_log( '=== PROFILE FORM SUBMITTED - PROCESSING ===' );
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_edit_profile_nonce'] ) ) {
+			error_log( 'Nonce not set' );
+			if ( is_user_logged_in() ) {
+				$current_user = wp_get_current_user();
+				set_transient( 'fanfic_profile_errors_' . $current_user->ID, array( __( 'Security verification failed (missing nonce). Please try again.', 'fanfiction-manager' ) ), 60 );
+			}
+			wp_safe_redirect( wp_get_referer() ? wp_get_referer() : home_url() );
+			exit;
+		}
+
+		if ( ! wp_verify_nonce( $_POST['fanfic_edit_profile_nonce'], 'fanfic_edit_profile_action' ) ) {
+			error_log( 'Nonce verification failed' );
+			// Nonce verification failed - add error
+			if ( is_user_logged_in() ) {
+				$current_user = wp_get_current_user();
+				set_transient( 'fanfic_profile_errors_' . $current_user->ID, array( __( 'Security verification failed. Please try again.', 'fanfiction-manager' ) ), 60 );
+			}
+			wp_safe_redirect( wp_get_referer() ? wp_get_referer() : home_url() );
+			exit;
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_safe_redirect( wp_login_url() );
+			exit;
+		}
+
+		$current_user = wp_get_current_user();
+		$errors = array();
+
+		// Get and sanitize form data
+		$display_name = isset( $_POST['display_name'] ) ? sanitize_text_field( trim( $_POST['display_name'] ) ) : '';
+		$user_email = isset( $_POST['user_email'] ) ? sanitize_email( trim( $_POST['user_email'] ) ) : '';
+		$user_url = isset( $_POST['user_url'] ) ? esc_url_raw( trim( $_POST['user_url'] ) ) : '';
+		$description = isset( $_POST['description'] ) ? sanitize_textarea_field( $_POST['description'] ) : '';
+		$avatar_url = isset( $_POST['fanfic_avatar_url'] ) ? esc_url_raw( trim( $_POST['fanfic_avatar_url'] ) ) : '';
+
+		// Validate required fields
+		if ( empty( $display_name ) ) {
+			$errors[] = __( 'Display name is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $user_email ) ) {
+			$errors[] = __( 'Email address is required.', 'fanfiction-manager' );
+		}
+
+		// Validate email format
+		if ( ! empty( $user_email ) && ! is_email( $user_email ) ) {
+			$errors[] = __( 'Please enter a valid email address.', 'fanfiction-manager' );
+		}
+
+		// Check if email is already in use by another user
+		if ( ! empty( $user_email ) && $user_email !== $current_user->user_email ) {
+			$email_exists = email_exists( $user_email );
+			if ( $email_exists && $email_exists !== $current_user->ID ) {
+				$errors[] = __( 'This email address is already in use by another user.', 'fanfiction-manager' );
+			}
+		}
+
+		// Validate bio length
+		if ( ! empty( $description ) && strlen( $description ) > 5000 ) {
+			$errors[] = __( 'Biographical info must be less than 5000 characters.', 'fanfiction-manager' );
+		}
+
+		// If errors, store and redirect back
+		if ( ! empty( $errors ) ) {
+			error_log( 'Validation errors found: ' . implode( ', ', $errors ) );
+			set_transient( 'fanfic_profile_errors_' . $current_user->ID, $errors, 60 );
+
+			// Check if AJAX request
+			$is_ajax = ! empty( $_SERVER['HTTP_X_REQUESTED_WITH'] ) && strtolower( $_SERVER['HTTP_X_REQUESTED_WITH'] ) === 'xmlhttprequest';
+
+			if ( $is_ajax ) {
+				wp_send_json_error(
+					array(
+						'message' => implode( ' ', $errors ),
+					)
+				);
+			} else {
+				wp_safe_redirect( wp_get_referer() ? wp_get_referer() : home_url() );
+				exit;
+			}
+		}
+
+		// Update user using native WordPress function
+		$user_data = array(
+			'ID'           => $current_user->ID,
+			'display_name' => $display_name,  // Native WP field
+			'user_email'   => $user_email,    // Native WP field
+			'user_url'     => $user_url,      // Native WP field
+			'description'  => $description,   // Native WP field (bio)
+		);
+
+		// Log the data we're trying to save
+		error_log( 'Attempting to update user with data: ' . print_r( $user_data, true ) );
+
+		// Update user profile
+		$updated = wp_update_user( $user_data );
+
+		// Log the result
+		error_log( 'Update result: ' . print_r( $updated, true ) );
+
+		if ( is_wp_error( $updated ) ) {
+			error_log( 'Update failed with error: ' . $updated->get_error_message() );
+			$errors[] = $updated->get_error_message();
+			set_transient( 'fanfic_profile_errors_' . $current_user->ID, $errors, 60 );
+
+			// Check if AJAX request
+			$is_ajax = ! empty( $_SERVER['HTTP_X_REQUESTED_WITH'] ) && strtolower( $_SERVER['HTTP_X_REQUESTED_WITH'] ) === 'xmlhttprequest';
+
+			if ( $is_ajax ) {
+				wp_send_json_error(
+					array(
+						'message' => $updated->get_error_message(),
+					)
+				);
+			} else {
+				wp_safe_redirect( wp_get_referer() ? wp_get_referer() : home_url() );
+				exit;
+			}
+		}
+
+		error_log( 'User updated successfully. User ID: ' . $updated );
+
+		// Update custom avatar URL (non-native field)
+		if ( ! empty( $avatar_url ) ) {
+			update_user_meta( $current_user->ID, '_fanfic_avatar_url', $avatar_url );
+		} else {
+			delete_user_meta( $current_user->ID, '_fanfic_avatar_url' );
+		}
+
+		// Clear any cached user data
+		clean_user_cache( $current_user->ID );
+
+		// Check if this is an AJAX request
+		$is_ajax = ! empty( $_SERVER['HTTP_X_REQUESTED_WITH'] ) && strtolower( $_SERVER['HTTP_X_REQUESTED_WITH'] ) === 'xmlhttprequest';
+
+		if ( $is_ajax ) {
+			// Return JSON response for AJAX
+			error_log( 'AJAX request detected - returning JSON' );
+			wp_send_json_success(
+				array(
+					'message' => __( 'Profile updated successfully!', 'fanfiction-manager' ),
+				)
+			);
+		} else {
+			// Regular form submission - redirect
+			$redirect_url = add_query_arg( 'updated', 'success', wp_get_referer() ? wp_get_referer() : home_url() );
+			error_log( 'Regular submission - Redirecting to: ' . $redirect_url );
+			wp_safe_redirect( $redirect_url );
+			exit;
+		}
+	}
+
+	/**
+	 * Handle delete story action
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function handle_delete_story() {
+		if ( ! isset( $_POST['fanfic_delete_story_submit'] ) ) {
+			return;
+		}
+
+		$story_id = isset( $_POST['fanfic_story_id'] ) ? absint( $_POST['fanfic_story_id'] ) : 0;
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_delete_story_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_delete_story_nonce'], 'fanfic_delete_story_' . $story_id ) ) {
+			return;
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		$current_user = wp_get_current_user();
+		$story = get_post( $story_id );
+
+		// Check permissions
+		if ( ! $story || ( $story->post_author != $current_user->ID && ! current_user_can( 'delete_others_posts' ) ) ) {
+			return;
+		}
+
+		// Delete all chapters first
+		$chapters = get_posts( array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		) );
+
+		foreach ( $chapters as $chapter_id ) {
+			wp_delete_post( $chapter_id, true );
+		}
+
+		// Delete the story
+		wp_delete_post( $story_id, true );
+
+		// Redirect to manage stories with success message
+		$redirect_url = add_query_arg( 'story_deleted', 'success', self::get_page_url_with_fallback( 'manage-stories' ) );
+		wp_redirect( $redirect_url );
+		exit;
+	}
+
+	/**
+	 * Handle delete chapter action
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function handle_delete_chapter() {
+		if ( ! isset( $_POST['fanfic_delete_chapter_submit'] ) ) {
+			return;
+		}
+
+		$chapter_id = isset( $_POST['fanfic_chapter_id'] ) ? absint( $_POST['fanfic_chapter_id'] ) : 0;
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_delete_chapter_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_delete_chapter_nonce'], 'fanfic_delete_chapter_' . $chapter_id ) ) {
+			return;
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		$current_user = wp_get_current_user();
+		$chapter = get_post( $chapter_id );
+
+		// Check permissions
+		if ( ! $chapter || ( $chapter->post_author != $current_user->ID && ! current_user_can( 'delete_others_posts' ) ) ) {
+			return;
+		}
+
+		// Delete the chapter
+		wp_delete_post( $chapter_id, true );
+
+		// Redirect to manage stories with success message
+		$redirect_url = add_query_arg( 'chapter_deleted', 'success', self::get_page_url_with_fallback( 'manage-stories' ) );
+		wp_redirect( $redirect_url );
+		exit;
+	}
+
+	/**
+	 * Get available chapter numbers for a story
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @param int $exclude_chapter_id Optional. Chapter ID to exclude (for editing).
+	 * @return array Available chapter numbers.
+	 */
+	private static function get_available_chapter_numbers( $story_id, $exclude_chapter_id = 0 ) {
+		// Get existing chapters
+		$args = array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		);
+
+		if ( $exclude_chapter_id ) {
+			$args['post__not_in'] = array( $exclude_chapter_id );
+		}
+
+		$chapters = get_posts( $args );
+
+		// Get used chapter numbers
+		$used_numbers = array();
+		foreach ( $chapters as $chapter_id ) {
+			$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+			if ( $chapter_number ) {
+				$used_numbers[] = absint( $chapter_number );
+			}
+		}
+
+		// Generate available numbers (1-100)
+		$available_numbers = array();
+		for ( $i = 1; $i <= 100; $i++ ) {
+			if ( ! in_array( $i, $used_numbers ) || ( $exclude_chapter_id && get_post_meta( $exclude_chapter_id, '_fanfic_chapter_number', true ) == $i ) ) {
+				$available_numbers[] = $i;
+			}
+		}
+
+		return $available_numbers;
+	}
+
+	/**
+	 * AJAX handler for creating a story
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_create_story() {
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_create_story_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_create_story_nonce'], 'fanfic_create_story_action' ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'Security check failed. Please refresh and try again.', 'fanfiction-manager' )
+			) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array(
+				'message' => __( 'You must be logged in to create a story.', 'fanfiction-manager' )
+			) );
+		}
+
+		$errors = array();
+		$current_user = wp_get_current_user();
+
+		// Get and sanitize form data
+		$title = isset( $_POST['fanfic_story_title'] ) ? sanitize_text_field( $_POST['fanfic_story_title'] ) : '';
+		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
+		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
+		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+
+		// Validate
+		if ( empty( $title ) ) {
+			$errors[] = __( 'Story title is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $introduction ) ) {
+			$errors[] = __( 'Story introduction is required.', 'fanfiction-manager' );
+		}
+
+		if ( ! $status ) {
+			$errors[] = __( 'Story status is required.', 'fanfiction-manager' );
+		}
+
+		// If errors, return error response
+		if ( ! empty( $errors ) ) {
+			wp_send_json_error( array(
+				'message' => implode( ' ', $errors )
+			) );
+		}
+
+		// Generate unique slug before creating the post
+		$base_slug = sanitize_title( $title );
+		$unique_slug = wp_unique_post_slug( $base_slug, 0, 'draft', 'fanfiction_story', 0 );
+
+		// Create story as draft initially
+		$story_id = wp_insert_post( array(
+			'post_type'    => 'fanfiction_story',
+			'post_title'   => $title,
+			'post_name'    => $unique_slug,
+			'post_content' => $introduction,
+			'post_status'  => 'draft',
+			'post_author'  => $current_user->ID,
+		) );
+
+		if ( is_wp_error( $story_id ) ) {
+			wp_send_json_error( array(
+				'message' => $story_id->get_error_message()
+			) );
+		}
+
+		// Set genres
+		if ( ! empty( $genres ) ) {
+			wp_set_post_terms( $story_id, $genres, 'fanfiction_genre' );
+		}
+
+		// Set status
+		wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
+
+		// Set featured image if provided
+		if ( ! empty( $image_url ) ) {
+			update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
+		}
+
+		// Initialize view count
+		update_post_meta( $story_id, '_fanfic_views', 0 );
+
+		// Build redirect URL to create chapter page using story slug
+		$create_chapter_url = add_query_arg(
+			array(
+				'story' => $unique_slug,
+			),
+			self::get_page_url_with_fallback( 'create-chapter' )
+		);
+
+		// Return success response
+		wp_send_json_success( array(
+			'message' => __( 'Story created as draft. Add your first chapter to publish it.', 'fanfiction-manager' ),
+			'redirect_url' => $create_chapter_url,
+			'story_id' => $story_id,
+			'story_slug' => $unique_slug
+		) );
+	}
+
+	/**
+	 * AJAX handler for editing a story
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_edit_story() {
+		$story_id = isset( $_POST['fanfic_story_id'] ) ? absint( $_POST['fanfic_story_id'] ) : 0;
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_edit_story_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_edit_story_nonce'], 'fanfic_edit_story_action_' . $story_id ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'Security check failed. Please refresh and try again.', 'fanfiction-manager' )
+			) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array(
+				'message' => __( 'You must be logged in to edit a story.', 'fanfiction-manager' )
+			) );
+		}
+
+		$current_user = wp_get_current_user();
+		$story = get_post( $story_id );
+
+		// Check permissions
+		if ( ! $story || $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'You do not have permission to edit this story.', 'fanfiction-manager' )
+			) );
+		}
+
+		$errors = array();
+
+		// Get and sanitize form data
+		$title = isset( $_POST['fanfic_story_title'] ) ? sanitize_text_field( $_POST['fanfic_story_title'] ) : '';
+		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
+		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
+		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+
+		// Validate
+		if ( empty( $title ) ) {
+			$errors[] = __( 'Story title is required.', 'fanfiction-manager' );
+		}
+
+		if ( empty( $introduction ) ) {
+			$errors[] = __( 'Story introduction is required.', 'fanfiction-manager' );
+		}
+
+		if ( ! $status ) {
+			$errors[] = __( 'Story status is required.', 'fanfiction-manager' );
+		}
+
+		// If errors, return error response
+		if ( ! empty( $errors ) ) {
+			wp_send_json_error( array(
+				'message' => implode( ' ', $errors )
+			) );
+		}
+
+		// Update story
+		$updated = wp_update_post( array(
+			'ID'           => $story_id,
+			'post_title'   => $title,
+			'post_content' => $introduction,
+		) );
+
+		if ( is_wp_error( $updated ) ) {
+			wp_send_json_error( array(
+				'message' => $updated->get_error_message()
+			) );
+		}
+
+		// Set genres
+		if ( ! empty( $genres ) ) {
+			wp_set_post_terms( $story_id, $genres, 'fanfiction_genre' );
+		}
+
+		// Set status
+		wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
+
+		// Set featured image if provided
+		if ( ! empty( $image_url ) ) {
+			update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
+		}
+
+		// Build redirect URL
+		$redirect_url = add_query_arg(
+			array(
+				'story_id' => $story_id,
+				'updated' => 'success'
+			),
+			wp_get_referer()
+		);
+
+		// Return success response
+		wp_send_json_success( array(
+			'message' => __( 'Story updated successfully!', 'fanfiction-manager' ),
+			'redirect_url' => $redirect_url,
+			'story_id' => $story_id
+		) );
+	}
+
+	/**
+	 * AJAX handler for editing user profile
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_edit_profile() {
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_edit_profile_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_edit_profile_nonce'], 'fanfic_edit_profile_action' ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'Security check failed. Please refresh and try again.', 'fanfiction-manager' )
+			) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array(
+				'message' => __( 'You must be logged in to edit your profile.', 'fanfiction-manager' )
+			) );
+		}
+
+		$current_user = wp_get_current_user();
+		$errors = array();
+
+		// Get and sanitize form data
+		$display_name = isset( $_POST['fanfic_display_name'] ) ? sanitize_text_field( $_POST['fanfic_display_name'] ) : '';
+		$bio = isset( $_POST['fanfic_bio'] ) ? wp_kses_post( $_POST['fanfic_bio'] ) : '';
+		$website = isset( $_POST['fanfic_website'] ) ? esc_url_raw( $_POST['fanfic_website'] ) : '';
+
+		// Validate
+		if ( empty( $display_name ) ) {
+			$errors[] = __( 'Display name is required.', 'fanfiction-manager' );
+		}
+
+		// If errors, return error response
+		if ( ! empty( $errors ) ) {
+			wp_send_json_error( array(
+				'message' => implode( ' ', $errors )
+			) );
+		}
+
+		// Update user
+		$updated = wp_update_user( array(
+			'ID'           => $current_user->ID,
+			'display_name' => $display_name,
+			'user_url'     => $website,
+		) );
+
+		if ( is_wp_error( $updated ) ) {
+			wp_send_json_error( array(
+				'message' => $updated->get_error_message()
+			) );
+		}
+
+		// Update bio
+		update_user_meta( $current_user->ID, 'description', $bio );
+
+		// Return success response (no redirect for profile edit)
+		wp_send_json_success( array(
+			'message' => __( 'Profile updated successfully!', 'fanfiction-manager' )
+		) );
+	}
+}

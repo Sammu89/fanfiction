@@ -1,0 +1,266 @@
+<?php
+/**
+ * Template Name: Edit Chapter
+ * Description: Form for creating and editing fanfiction chapters
+ *
+ * This template displays:
+ * - Chapter create/edit form
+ * - Chapter preview section
+ * - Delete chapter option (danger zone)
+ *
+ * @package Fanfiction_Manager
+ * @since 1.0.0
+ */
+
+// Security check - prevent direct access
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+// Check if user is logged in
+if ( ! is_user_logged_in() ) {
+	?>
+	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
+		<p><?php esc_html_e( 'You must be logged in to edit chapters.', 'fanfiction-manager' ); ?></p>
+		<p>
+			<a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>" class="button">
+				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
+			</a>
+		</p>
+	</div>
+	<?php
+	return;
+}
+
+// Get story ID and chapter ID from URL parameters
+$story_id = isset( $_GET['story_id'] ) ? absint( $_GET['story_id'] ) : 0;
+$chapter_id = isset( $_GET['chapter_id'] ) ? absint( $_GET['chapter_id'] ) : 0;
+
+// Validate story exists and user has permission
+if ( ! $story_id || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+	?>
+	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
+		<p><?php esc_html_e( 'Access Denied: You do not have permission to add chapters to this story, or the story does not exist.', 'fanfiction-manager' ); ?></p>
+		<p>
+			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="button">
+				<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+			</a>
+		</p>
+	</div>
+	<?php
+	return;
+}
+
+// If editing a chapter, validate it belongs to this story
+if ( $chapter_id ) {
+	$chapter = get_post( $chapter_id );
+	if ( ! $chapter || $chapter->post_type !== 'fanfiction_chapter' || (int) $chapter->post_parent !== $story_id ) {
+		?>
+		<div class="fanfic-error-notice" role="alert" aria-live="assertive">
+			<p><?php esc_html_e( 'Chapter not found or does not belong to this story.', 'fanfiction-manager' ); ?></p>
+			<p>
+				<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="button">
+					<?php esc_html_e( 'Back to Story', 'fanfiction-manager' ); ?>
+				</a>
+			</p>
+		</div>
+		<?php
+		return;
+	}
+}
+
+// Get story and chapter titles for breadcrumb
+$story = get_post( $story_id );
+$story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-manager' );
+
+$page_title = $chapter_id
+	? sprintf( __( 'Edit Chapter: %s', 'fanfiction-manager' ), get_the_title( $chapter_id ) )
+	: __( 'Create Chapter', 'fanfiction-manager' );
+
+$page_description = $chapter_id
+	? __( 'Update your chapter details below. Changes will be saved immediately.', 'fanfiction-manager' )
+	: __( 'Create a new chapter for your story below.', 'fanfiction-manager' );
+?>
+
+<a href="#main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
+
+<main id="main-content" role="main">
+
+<!-- Breadcrumb Navigation -->
+<nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
+	<ol class="fanfic-breadcrumb-list">
+		<li class="fanfic-breadcrumb-item">
+			<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
+		</li>
+		<li class="fanfic-breadcrumb-item">
+			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></a>
+		</li>
+		<li class="fanfic-breadcrumb-item">
+			<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>"><?php echo esc_html( $story_title ); ?></a>
+		</li>
+		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
+			<?php echo esc_html( $chapter_id ? __( 'Edit', 'fanfiction-manager' ) : __( 'Add Chapter', 'fanfiction-manager' ) ); ?>
+		</li>
+	</ol>
+</nav>
+
+<!-- Success/Error Messages -->
+<?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'true' ) : ?>
+	<div class="fanfic-success-notice" role="status" aria-live="polite">
+		<p><?php echo $chapter_id ? esc_html__( 'Chapter updated successfully!', 'fanfiction-manager' ) : esc_html__( 'Chapter created successfully!', 'fanfiction-manager' ); ?></p>
+		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+<?php endif; ?>
+
+<?php if ( isset( $_GET['error'] ) ) : ?>
+	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
+		<p><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ); ?></p>
+		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+<?php endif; ?>
+
+<!-- Page Header -->
+<header class="fanfic-page-header">
+	<h1 class="fanfic-page-title"><?php echo esc_html( $page_title ); ?></h1>
+	<p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
+</header>
+
+<!-- Info Box -->
+<div class="fanfic-info-box" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
+	<span class="dashicons dashicons-info" aria-hidden="true"></span>
+	<p>
+		<?php esc_html_e( 'Chapter content supports plain text, bold, italic, and line breaks. No links or HTML allowed.', 'fanfiction-manager' ); ?>
+	</p>
+</div>
+
+<!-- Chapter Form Section -->
+<section class="fanfic-form-section" aria-labelledby="form-heading">
+	<h2 id="form-heading"><?php echo esc_html( $chapter_id ? __( 'Chapter Details', 'fanfiction-manager' ) : __( 'New Chapter', 'fanfiction-manager' ) ); ?></h2>
+
+	<!-- Form Shortcode -->
+	<?php if ( $chapter_id ) : ?>
+		[author-edit-chapter-form chapter_id="<?php echo absint( $chapter_id ); ?>"]
+	<?php else : ?>
+		[author-create-chapter-form story_id="<?php echo absint( $story_id ); ?>"]
+	<?php endif; ?>
+</section>
+
+<!-- Quick Actions -->
+<section class="fanfic-quick-actions" aria-labelledby="actions-heading">
+	<h2 id="actions-heading"><?php esc_html_e( 'Quick Actions', 'fanfiction-manager' ); ?></h2>
+	<div class="fanfic-action-buttons">
+		<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button-secondary">
+			<span class="dashicons dashicons-arrow-left" aria-hidden="true"></span>
+			<?php esc_html_e( 'Back to Story', 'fanfiction-manager' ); ?>
+		</a>
+		<?php if ( $chapter_id ) : ?>
+			<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button-secondary">
+				<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+				<?php esc_html_e( 'View Chapter', 'fanfiction-manager' ); ?>
+			</a>
+		<?php endif; ?>
+		<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button-secondary">
+			<span class="dashicons dashicons-dashboard" aria-hidden="true"></span>
+			<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+		</a>
+	</div>
+</section>
+
+<!-- Danger Zone (only for editing) -->
+<?php if ( $chapter_id ) : ?>
+	<section class="fanfic-danger-zone" aria-labelledby="danger-heading">
+		<h2 id="danger-heading" class="fanfic-danger-title">
+			<span class="dashicons dashicons-warning" aria-hidden="true"></span>
+			<?php esc_html_e( 'Danger Zone', 'fanfiction-manager' ); ?>
+		</h2>
+
+		<div class="fanfic-danger-content">
+			<div class="fanfic-danger-info">
+				<h3><?php esc_html_e( 'Delete This Chapter', 'fanfiction-manager' ); ?></h3>
+				<p><?php esc_html_e( 'Once you delete a chapter, there is no going back. The chapter and all its content will be permanently removed.', 'fanfiction-manager' ); ?></p>
+			</div>
+			<button type="button" id="delete-chapter-button" class="fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
+				<?php esc_html_e( 'Delete This Chapter', 'fanfiction-manager' ); ?>
+			</button>
+		</div>
+
+		<p class="fanfic-danger-warning">
+			<strong><?php esc_html_e( 'Warning:', 'fanfiction-manager' ); ?></strong>
+			<?php esc_html_e( 'This action cannot be undone.', 'fanfiction-manager' ); ?>
+		</p>
+	</section>
+
+	<!-- Delete Confirmation Modal -->
+	<div id="delete-confirm-modal" class="fanfic-modal" role="dialog" aria-labelledby="modal-title" aria-modal="true" style="display: none;">
+		<div class="fanfic-modal-overlay"></div>
+		<div class="fanfic-modal-content">
+			<h2 id="modal-title"><?php esc_html_e( 'Confirm Deletion', 'fanfiction-manager' ); ?></h2>
+			<p id="modal-message"></p>
+			<div class="fanfic-modal-actions">
+				<button type="button" id="confirm-delete" class="fanfic-button-danger">
+					<?php esc_html_e( 'Yes, Delete', 'fanfiction-manager' ); ?>
+				</button>
+				<button type="button" id="cancel-delete" class="fanfic-button-secondary">
+					<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Inline Script for Delete Confirmation -->
+	<script>
+	(function() {
+		document.addEventListener('DOMContentLoaded', function() {
+			// Close button functionality for notices
+			var closeButtons = document.querySelectorAll('.fanfic-notice-close');
+			closeButtons.forEach(function(button) {
+				button.addEventListener('click', function() {
+					var notice = this.closest('.fanfic-success-notice, .fanfic-error-notice');
+					if (notice) {
+						notice.style.display = 'none';
+					}
+				});
+			});
+
+			// Delete chapter confirmation
+			var deleteChapterButton = document.getElementById('delete-chapter-button');
+			var modal = document.getElementById('delete-confirm-modal');
+			var confirmButton = document.getElementById('confirm-delete');
+			var cancelButton = document.getElementById('cancel-delete');
+			var modalMessage = document.getElementById('modal-message');
+
+			if (deleteChapterButton) {
+				deleteChapterButton.addEventListener('click', function() {
+					var chapterTitle = this.getAttribute('data-chapter-title');
+					modalMessage.textContent = '<?php esc_html_e( 'Are you sure you want to delete chapter', 'fanfiction-manager' ); ?> "' + chapterTitle + '"? <?php esc_html_e( 'This will be permanently removed.', 'fanfiction-manager' ); ?>';
+					modal.style.display = 'block';
+				});
+			}
+
+			if (cancelButton) {
+				cancelButton.addEventListener('click', function() {
+					modal.style.display = 'none';
+				});
+			}
+
+			if (confirmButton && deleteChapterButton) {
+				confirmButton.addEventListener('click', function() {
+					var chapterId = deleteChapterButton.getAttribute('data-chapter-id');
+					var storyId = deleteChapterButton.getAttribute('data-story-id');
+					window.location.href = '<?php echo esc_js( fanfic_get_dashboard_url() ); ?>?action=delete_chapter&chapter_id=' + chapterId + '&story_id=' + storyId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_chapter' ) ); ?>';
+				});
+			}
+
+			// Close modal when clicking overlay
+			var modalOverlay = document.querySelector('.fanfic-modal-overlay');
+			if (modalOverlay) {
+				modalOverlay.addEventListener('click', function() {
+					modal.style.display = 'none';
+				});
+			}
+		});
+	})();
+	</script>
+<?php endif; ?>
+
+</main>

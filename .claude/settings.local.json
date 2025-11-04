@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(cat:*)",
+      "Read(//c/Users/Administrator/Desktop/**)",
+      "Bash(php -l:*)",
+      "Bash(for file in includes/*.php)",
+      "Bash(do echo \"Checking $file...\")",
+      "Bash(done)",
+      "Bash(php:*)",
+      "Bash(for file in class-fanfic-cache.php class-fanfic-post-types.php class-fanfic-taxonomies.php class-fanfic-roles-caps.php class-fanfic-validation.php class-fanfic-rewrite.php class-fanfic-templates.php class-fanfic-shortcodes.php class-fanfic-author-dashboard.php class-fanfic-comments.php class-fanfic-ratings.php class-fanfic-bookmarks.php class-fanfic-follows.php class-fanfic-views.php class-fanfic-notifications.php class-fanfic-notification-preferences.php class-fanfic-email-templates.php class-fanfic-email-sender.php class-fanfic-author-demotion.php class-fanfic-export.php class-fanfic-import.php class-fanfic-widgets.php class-fanfic-seo.php class-fanfic-settings.php cache/story-cache.php class-fanfic-cache-hooks.php)",
+      "Bash(do if [ -f \"$file\" ])",
+      "Bash(then echo \"OK: $file\")",
+      "Bash(else echo \"MISSING: $file\")",
+      "Bash(fi)",
+      "Bash(for file in admin/class-fanfic-cache-admin.php class-fanfic-stories-table.php class-fanfic-url-config.php class-fanfic-taxonomies-admin.php class-fanfic-moderation.php class-fanfic-moderation-table.php class-fanfic-moderation-stamps.php class-fanfic-users-admin.php admin/class-fanfic-export-import-admin.php class-fanfic-admin.php)",
+      "Bash(node -c:*)",
+      "Bash(python:*)",
+      "Bash(find:*)",
+      "Bash(for file in \"C:\\Users\\Sammu\\Dentego Cloud\\Codes\\fanfic_project\\includes\\shortcodes\"/*.php)",
+      "Bash(test:*)",
+      "Bash(echo:*)",
+      "Bash(findstr:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

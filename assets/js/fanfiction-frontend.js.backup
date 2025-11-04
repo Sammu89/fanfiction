@@ -1,0 +1,1264 @@
+/**
+ * Fanfiction Manager - Frontend JavaScript
+ *
+ * Handles dashboard forms, modals, validation, and user interactions.
+ *
+ * @package FanfictionManager
+ * @since 1.0.0
+ */
+
+(function($) {
+	'use strict';
+
+	/**
+	 * Form Validation Handler
+	 */
+	const FormValidator = {
+		/**
+		 * Validate a form field
+		 */
+		validateField: function(field) {
+			const $field = $(field);
+			const type = $field.attr('type');
+			const value = $field.val().trim();
+			const isRequired = $field.prop('required');
+			const minLength = $field.attr('minlength');
+			const maxLength = $field.attr('maxlength');
+			const pattern = $field.attr('pattern');
+
+			let isValid = true;
+			let errorMessage = '';
+
+			// Check if required
+			if (isRequired && !value) {
+				isValid = false;
+				errorMessage = 'This field is required.';
+			}
+
+			// Check min length
+			if (isValid && minLength && value && value.length < parseInt(minLength)) {
+				isValid = false;
+				errorMessage = 'Minimum ' + minLength + ' characters required.';
+			}
+
+			// Check max length
+			if (isValid && maxLength && value.length > parseInt(maxLength)) {
+				isValid = false;
+				errorMessage = 'Maximum ' + maxLength + ' characters allowed.';
+			}
+
+			// Check pattern (email, URL, etc.)
+			if (isValid && pattern && value) {
+				const regex = new RegExp('^' + pattern + '$');
+				if (!regex.test(value)) {
+					isValid = false;
+					errorMessage = 'Invalid format.';
+				}
+			}
+
+			// Update field state
+			this.updateFieldState($field, isValid, errorMessage);
+			return isValid;
+		},
+
+		/**
+		 * Update field visual state
+		 */
+		updateFieldState: function($field, isValid, errorMessage) {
+			const $fieldWrapper = $field.closest('.fanfic-form-field');
+			const $errorMsg = $fieldWrapper.find('.fanfic-form-error');
+
+			if (isValid) {
+				$fieldWrapper.removeClass('fanfic-error');
+				$errorMsg.remove();
+			} else {
+				$fieldWrapper.addClass('fanfic-error');
+				if ($errorMsg.length === 0) {
+					$field.after('<span class="fanfic-form-error">' + errorMessage + '</span>');
+				} else {
+					$errorMsg.text(errorMessage);
+				}
+			}
+		},
+
+		/**
+		 * Validate entire form
+		 */
+		validateForm: function(form) {
+			const $form = $(form);
+			let isValid = true;
+
+			$form.find('input[required], textarea[required], select[required]').each((i, field) => {
+				if (!this.validateField(field)) {
+					isValid = false;
+				}
+			});
+
+			return isValid;
+		}
+	};
+
+	/**
+	 * Modal Handler
+	 */
+	const Modal = {
+		open: function(modalId) {
+			$('#' + modalId).fadeIn(200);
+			$('body').css('overflow', 'hidden');
+		},
+
+		close: function(modalId) {
+			$('#' + modalId).fadeOut(200);
+			$('body').css('overflow', 'auto');
+		},
+
+		closeAll: function() {
+			$('.fanfic-modal').fadeOut(200);
+			$('body').css('overflow', 'auto');
+		}
+	};
+
+	/**
+	 * Notice Handler
+	 */
+	const Notice = {
+		show: function(type, message) {
+			const noticeClass = 'fanfic-' + type + '-notice';
+			const $notice = $('<div class="' + noticeClass + '" role="' + (type === 'error' ? 'alert' : 'status') + '">')
+				.html('<p>' + message + '</p>')
+				.prependTo('main, .fanfic-content, body');
+
+			// Add close button
+			$notice.append('<button class="fanfic-notice-close" aria-label="Close notice">&times;</button>');
+
+			// Auto-hide after 5 seconds
+			setTimeout(() => {
+				$notice.fadeOut(200, function() { $(this).remove(); });
+			}, 5000);
+		},
+
+		dismiss: function(noticeSelector) {
+			$(noticeSelector).fadeOut(200, function() { $(this).remove(); });
+		}
+	};
+
+	/**
+	 * Character Counter
+	 */
+	const CharCounter = {
+		init: function() {
+			$('[maxlength]').each((i, field) => {
+				const $field = $(field);
+				const maxLength = $field.attr('maxlength');
+				const $counter = $('<div class="fanfic-char-counter"><small><span class="current">0</span> / ' + maxLength + ' characters</small></div>');
+
+				$field.after($counter);
+				this.updateCounter($field, $counter);
+
+				$field.on('input', () => {
+					this.updateCounter($field, $counter);
+				});
+			});
+		},
+
+		updateCounter: function($field, $counter) {
+			const current = $field.val().length;
+			const maxLength = $field.attr('maxlength');
+			$counter.find('.current').text(current);
+
+			// Change color if near limit
+			if (current > maxLength * 0.9) {
+				$counter.addClass('warning');
+			} else {
+				$counter.removeClass('warning');
+			}
+		}
+	};
+
+	/**
+	 * Form Submission Handler
+	 */
+	const FormSubmitter = {
+		init: function() {
+			// Story form
+			$(document).on('submit', '.fanfic-author-form', (e) => {
+				e.preventDefault();
+				const $form = $(e.currentTarget);
+				if (FormValidator.validateForm($form)) {
+					this.submitForm($form);
+				}
+			});
+		},
+
+		submitForm: function($form) {
+			const formData = new FormData($form[0]);
+			const $submitBtn = $form.find('button[type="submit"]');
+			const originalText = $submitBtn.text();
+
+			$submitBtn.prop('disabled', true).text('Processing...');
+
+			$.ajax({
+				url: $form.attr('action') || window.location.href,
+				type: $form.attr('method') || 'POST',
+				data: formData,
+				processData: false,
+				contentType: false,
+				dataType: 'json',
+				success: (response) => {
+					if (response.success) {
+						Notice.show('success', response.message || 'Saved successfully!');
+						if (response.data && response.data.redirect_url) {
+							setTimeout(() => {
+								window.location.href = response.data.redirect_url;
+							}, 1500);
+						} else {
+							$form.trigger('reset');
+						}
+					} else {
+						Notice.show('error', response.message || 'An error occurred.');
+					}
+				},
+				error: (xhr) => {
+					const errorMsg = xhr.responseJSON?.message || 'An error occurred. Please try again.';
+					Notice.show('error', errorMsg);
+				},
+				complete: () => {
+					$submitBtn.prop('disabled', false).text(originalText);
+				}
+			});
+		}
+	};
+
+	/**
+	 * Delete Confirmation
+	 */
+	const DeleteConfirm = {
+		init: function() {
+			$(document).on('click', '[data-delete-confirm]', (e) => {
+				e.preventDefault();
+				const $btn = $(e.currentTarget);
+				const itemName = $btn.data('delete-confirm');
+				const itemId = $btn.data('delete-id');
+				const itemType = $btn.data('delete-type') || 'item';
+
+				if (confirm('Are you sure you want to delete "' + itemName + '"? This action cannot be undone.')) {
+					const url = new URL(window.location.href);
+					url.searchParams.set('action', 'delete_' + itemType);
+					url.searchParams.set(itemType + '_id', itemId);
+					window.location.href = url.toString();
+				}
+			});
+		}
+	};
+
+	/**
+	 * Modal Close Handlers
+	 */
+	const ModalClose = {
+		init: function() {
+			// Close button
+			$(document).on('click', '.fanfic-modal .fanfic-modal-close, .fanfic-modal .cancel-delete', function() {
+				Modal.close($(this).closest('.fanfic-modal').attr('id'));
+			});
+
+			// Overlay click
+			$(document).on('click', '.fanfic-modal-overlay', function() {
+				Modal.close($(this).closest('.fanfic-modal').attr('id'));
+			});
+
+			// Notice close
+			$(document).on('click', '.fanfic-notice-close', function() {
+				$(this).closest('.fanfic-success-notice, .fanfic-error-notice').fadeOut(200, function() {
+					$(this).remove();
+				});
+			});
+		}
+	};
+
+	/**
+	 * Rating Handler
+	 */
+	const RatingHandler = {
+		init: function() {
+			$(document).on('click', '.fanfic-rating-star', function(e) {
+				e.preventDefault();
+				const $star = $(this);
+				const rating = $star.data('rating');
+				const chapterId = $star.closest('[data-chapter-id]').data('chapter-id');
+
+				RatingHandler.submitRating(chapterId, rating);
+			});
+		},
+
+		submitRating: function(chapterId, rating) {
+			$.ajax({
+				url: ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_submit_chapter_rating',
+					chapter_id: chapterId,
+					rating: rating,
+					nonce: $('[name="fanfic_nonce"]').val()
+				},
+				success: (response) => {
+					if (response.success) {
+						Notice.show('success', 'Rating submitted!');
+					} else {
+						Notice.show('error', response.data?.message || 'Failed to submit rating.');
+					}
+				},
+				error: () => {
+					Notice.show('error', 'An error occurred.');
+				}
+			});
+		}
+	};
+
+	/**
+	 * Initialize on document ready
+	 */
+	$(document).ready(function() {
+		// Initialize all modules
+		FormValidator;
+		Modal;
+		Notice;
+		CharCounter.init();
+		FormSubmitter.init();
+		DeleteConfirm.init();
+		ModalClose.init();
+		RatingHandler.init();
+
+		// Custom event logging
+		console.log('Fanfiction Manager Frontend loaded');
+	});
+
+})(jQuery);
+
+	/**
+	 * Comment Edit/Delete Handler
+	 */
+	const CommentHandler = {
+		/**
+		 * Initialize comment handlers
+		 */
+		init: function() {
+			if (typeof fanficComments === 'undefined') {
+				return;
+			}
+
+			this.bindEditButtons();
+			this.bindDeleteButtons();
+			this.initGracePeriodTimers();
+		},
+
+		/**
+		 * Bind edit button clicks
+		 */
+		bindEditButtons: function() {
+			$(document).on('click', '.fanfic-comment-edit-btn', function(e) {
+				e.preventDefault();
+				const commentId = $(this).data('comment-id');
+				CommentHandler.showEditForm(commentId);
+			});
+		},
+
+		/**
+		 * Bind delete button clicks
+		 */
+		bindDeleteButtons: function() {
+			$(document).on('click', '.fanfic-comment-delete-btn', function(e) {
+				e.preventDefault();
+				const commentId = $(this).data('comment-id');
+				CommentHandler.deleteComment(commentId);
+			});
+		},
+
+		/**
+		 * Show inline edit form for a comment
+		 */
+		showEditForm: function(commentId) {
+			const $comment = $('#comment-' + commentId);
+			const $content = $comment.find('.fanfic-comment-content');
+			const currentText = $content.text().trim();
+
+			// Create edit form
+			const editForm = `
+				<div class="fanfic-comment-edit-form">
+					<label for="edit-comment-${commentId}">${fanficComments.editLabel}</label>
+					<textarea id="edit-comment-${commentId}" class="fanfic-edit-textarea">${currentText}</textarea>
+					<div class="fanfic-edit-buttons">
+						<button class="fanfic-save-btn" data-comment-id="${commentId}">${fanficComments.saveLabel}</button>
+						<button class="fanfic-cancel-btn">${fanficComments.cancelLabel}</button>
+					</div>
+				</div>
+			`;
+
+			// Hide original content and show edit form
+			$content.hide();
+			$content.after(editForm);
+
+			// Hide edit/delete buttons while editing
+			$comment.find('.fanfic-comment-actions').hide();
+
+			// Bind save and cancel
+			$comment.find('.fanfic-save-btn').on('click', function() {
+				const newContent = $('#edit-comment-' + commentId).val();
+				CommentHandler.saveComment(commentId, newContent);
+			});
+
+			$comment.find('.fanfic-cancel-btn').on('click', function() {
+				CommentHandler.cancelEdit(commentId);
+			});
+		},
+
+		/**
+		 * Cancel editing and restore original view
+		 */
+		cancelEdit: function(commentId) {
+			const $comment = $('#comment-' + commentId);
+			$comment.find('.fanfic-comment-edit-form').remove();
+			$comment.find('.fanfic-comment-content').show();
+			$comment.find('.fanfic-comment-actions').show();
+		},
+
+		/**
+		 * Save edited comment via AJAX
+		 */
+		saveComment: function(commentId, newContent) {
+			if (!newContent || newContent.trim() === '') {
+				alert('Comment cannot be empty.');
+				return;
+			}
+
+			const $comment = $('#comment-' + commentId);
+			const $saveBtn = $comment.find('.fanfic-save-btn');
+
+			// Disable button and show loading
+			$saveBtn.prop('disabled', true).text('Saving...');
+
+			$.ajax({
+				url: fanficComments.ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_edit_comment',
+					comment_id: commentId,
+					content: newContent,
+					nonce: fanficComments.nonce
+				},
+				success: function(response) {
+					if (response.success) {
+						// Update comment content
+						$comment.find('.fanfic-comment-content').html('<p>' + newContent + '</p>');
+						
+						// Add edited indicator if not already present
+						if ($comment.find('.fanfic-comment-edited').length === 0) {
+							$comment.find('.fanfic-comment-metadata').append(
+								'<span class="fanfic-comment-edited">(edited)</span>'
+							);
+						}
+
+						// Remove edit form and restore view
+						CommentHandler.cancelEdit(commentId);
+
+						// Show success message
+						alert(response.data.message || 'Comment updated successfully.');
+					} else {
+						alert(response.data.message || 'Failed to update comment.');
+						$saveBtn.prop('disabled', false).text(fanficComments.saveLabel);
+					}
+				},
+				error: function() {
+					alert('An error occurred. Please try again.');
+					$saveBtn.prop('disabled', false).text(fanficComments.saveLabel);
+				}
+			});
+		},
+
+		/**
+		 * Delete comment via AJAX
+		 */
+		deleteComment: function(commentId) {
+			if (!confirm(fanficComments.confirmDelete)) {
+				return;
+			}
+
+			const $comment = $('#comment-' + commentId);
+
+			$.ajax({
+				url: fanficComments.ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_delete_comment',
+					comment_id: commentId,
+					nonce: fanficComments.nonce
+				},
+				success: function(response) {
+					if (response.success) {
+						// Fade out and remove comment
+						$comment.fadeOut(300, function() {
+							$(this).remove();
+						});
+
+						// Show success message
+						alert(response.data.message || 'Comment deleted successfully.');
+					} else {
+						alert(response.data.message || 'Failed to delete comment.');
+					}
+				},
+				error: function() {
+					alert('An error occurred. Please try again.');
+				}
+			});
+		},
+
+		/**
+		 * Initialize grace period countdown timers
+		 */
+		initGracePeriodTimers: function() {
+			const $timers = $('.fanfic-comment-timer');
+			
+			if ($timers.length === 0) {
+				return;
+			}
+
+			// Update timers every minute
+			setInterval(function() {
+				$timers.each(function() {
+					const $timer = $(this);
+					let remaining = parseInt($timer.data('remaining'));
+
+					if (remaining > 0) {
+						remaining--;
+						$timer.data('remaining', remaining);
+						
+						if (remaining > 0) {
+							$timer.text('(' + remaining + ' min left)');
+						} else {
+							// Grace period expired - hide edit/delete buttons
+							$timer.closest('.fanfic-comment-actions').fadeOut(300, function() {
+								$(this).remove();
+							});
+						}
+					}
+				});
+			}, 60000); // Update every 60 seconds
+		}
+	};
+
+	/**
+	 * Notification Handler
+	 *
+	 * Handles all notification-related AJAX operations.
+	 */
+	const NotificationHandler = {
+		/**
+		 * Initialize notification handlers
+		 */
+		init: function() {
+			this.bindEvents();
+			this.startPolling();
+		},
+
+		/**
+		 * Bind event listeners
+		 */
+		bindEvents: function() {
+			const self = this;
+
+			// Mark single notification as read
+			$(document).on('click', '.fanfic-mark-read', function(e) {
+				e.preventDefault();
+				const $btn = $(this);
+				const notificationId = $btn.data('notification-id');
+				const nonce = $btn.data('nonce');
+				self.markAsRead(notificationId, nonce, $btn);
+			});
+
+			// Delete single notification
+			$(document).on('click', '.fanfic-delete-notification', function(e) {
+				e.preventDefault();
+				const $btn = $(this);
+				const notificationId = $btn.data('notification-id');
+				const nonce = $btn.data('nonce');
+
+				if (confirm('Are you sure you want to delete this notification?')) {
+					self.deleteNotification(notificationId, nonce, $btn);
+				}
+			});
+
+			// Mark all notifications as read
+			$(document).on('click', '.fanfic-mark-all-read', function(e) {
+				e.preventDefault();
+				const $btn = $(this);
+				const nonce = $btn.data('nonce');
+				self.markAllAsRead(nonce, $btn);
+			});
+
+			// Notification bell click (toggle dropdown)
+			$(document).on('click', '.fanfic-notification-bell', function(e) {
+				e.preventDefault();
+				$(this).find('.fanfic-notification-dropdown').toggleClass('show');
+			});
+
+			// Close dropdown when clicking outside
+			$(document).on('click', function(e) {
+				if (!$(e.target).closest('.fanfic-notification-bell').length) {
+					$('.fanfic-notification-dropdown').removeClass('show');
+				}
+			});
+
+			// Save notification settings
+			$(document).on('click', '.fanfic-notification-save-btn', function(e) {
+				e.preventDefault();
+				const $form = $(this).closest('form');
+				self.saveSettings($form);
+			});
+		},
+
+		/**
+		 * Mark notification as read
+		 */
+		markAsRead: function(notificationId, nonce, $btn) {
+			const self = this;
+			const $item = $btn.closest('.fanfic-notification-item');
+
+			$.ajax({
+				url: fanficData.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_mark_notification_read',
+					notification_id: notificationId,
+					nonce: nonce
+				},
+				beforeSend: function() {
+					$btn.prop('disabled', true);
+				},
+				success: function(response) {
+					if (response.success) {
+						// Update UI
+						$item.removeClass('fanfic-notification-unread');
+						$item.find('.fanfic-notification-dot').fadeOut();
+						$btn.fadeOut();
+
+						// Update badge count
+						self.updateBadgeCount();
+
+						// Show success message
+						self.showMessage('Marked as read', 'success');
+					} else {
+						self.showMessage(response.data.message || 'Failed to mark as read', 'error');
+						$btn.prop('disabled', false);
+					}
+				},
+				error: function() {
+					self.showMessage('Network error. Please try again.', 'error');
+					$btn.prop('disabled', false);
+				}
+			});
+		},
+
+		/**
+		 * Delete notification
+		 */
+		deleteNotification: function(notificationId, nonce, $btn) {
+			const self = this;
+			const $item = $btn.closest('.fanfic-notification-item');
+
+			$.ajax({
+				url: fanficData.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_delete_notification',
+					notification_id: notificationId,
+					nonce: nonce
+				},
+				beforeSend: function() {
+					$btn.prop('disabled', true);
+				},
+				success: function(response) {
+					if (response.success) {
+						// Animate and remove
+						$item.fadeOut(300, function() {
+							$(this).remove();
+
+							// Check if list is empty
+							if ($('.fanfic-notification-item').length === 0) {
+								$('.fanfic-notifications-list').html(
+									'<div class="fanfic-empty-state"><p>No notifications yet.</p></div>'
+								);
+								$('.fanfic-mark-all-read').fadeOut();
+							}
+						});
+
+						// Update badge count
+						self.updateBadgeCount();
+
+						// Show success message
+						self.showMessage('Notification deleted', 'success');
+					} else {
+						self.showMessage(response.data.message || 'Failed to delete notification', 'error');
+						$btn.prop('disabled', false);
+					}
+				},
+				error: function() {
+					self.showMessage('Network error. Please try again.', 'error');
+					$btn.prop('disabled', false);
+				}
+			});
+		},
+
+		/**
+		 * Mark all notifications as read
+		 */
+		markAllAsRead: function(nonce, $btn) {
+			const self = this;
+
+			$.ajax({
+				url: fanficData.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_mark_all_notifications_read',
+					nonce: nonce
+				},
+				beforeSend: function() {
+					$btn.prop('disabled', true).text('Processing...');
+				},
+				success: function(response) {
+					if (response.success) {
+						// Update all notification items
+						$('.fanfic-notification-item').removeClass('fanfic-notification-unread');
+						$('.fanfic-notification-dot').fadeOut();
+						$('.fanfic-mark-read').fadeOut();
+						$btn.fadeOut();
+
+						// Update badge count
+						self.updateBadgeCount();
+
+						// Show success message
+						self.showMessage('All notifications marked as read', 'success');
+					} else {
+						self.showMessage(response.data.message || 'Failed to mark all as read', 'error');
+						$btn.prop('disabled', false).text('Mark All as Read');
+					}
+				},
+				error: function() {
+					self.showMessage('Network error. Please try again.', 'error');
+					$btn.prop('disabled', false).text('Mark All as Read');
+				}
+			});
+		},
+
+		/**
+		 * Update unread count badge
+		 */
+		updateBadgeCount: function() {
+			$.ajax({
+				url: fanficData.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_get_unread_count'
+				},
+				success: function(response) {
+					if (response.success && response.data.count !== undefined) {
+						const count = parseInt(response.data.count);
+						const $badge = $('.fanfic-notification-bell-badge');
+
+						if (count > 0) {
+							$badge.text(count).show();
+						} else {
+							$badge.hide();
+						}
+					}
+				}
+			});
+		},
+
+		/**
+		 * Start polling for new notifications
+		 */
+		startPolling: function() {
+			const self = this;
+
+			// Only poll if user is logged in and on a page with notifications
+			if ($('.fanfic-notification-bell').length > 0 || $('.fanfic-user-notifications').length > 0) {
+				// Poll every 60 seconds
+				setInterval(function() {
+					self.updateBadgeCount();
+				}, 60000);
+			}
+		},
+
+		/**
+		 * Save notification settings
+		 */
+		saveSettings: function($form) {
+			const self = this;
+			const $btn = $form.find('.fanfic-notification-save-btn');
+			const formData = $form.serialize();
+
+			$.ajax({
+				url: fanficData.ajaxUrl,
+				type: 'POST',
+				data: formData + '&action=fanfic_save_notification_settings',
+				beforeSend: function() {
+					$btn.prop('disabled', true).text('Saving...');
+				},
+				success: function(response) {
+					if (response.success) {
+						self.showMessage('Settings saved successfully', 'success');
+						$btn.prop('disabled', false).text('Save Settings');
+					} else {
+						self.showMessage(response.data.message || 'Failed to save settings', 'error');
+						$btn.prop('disabled', false).text('Save Settings');
+					}
+				},
+				error: function() {
+					self.showMessage('Network error. Please try again.', 'error');
+					$btn.prop('disabled', false).text('Save Settings');
+				}
+			});
+		},
+
+		/**
+		 * Show message to user
+		 */
+		showMessage: function(message, type) {
+			// Create message element
+			const $message = $('<div class="fanfic-message fanfic-' + type + '">' + message + '</div>');
+
+			// Prepend to notification container or body
+			const $container = $('.fanfic-user-notifications, .fanfic-notification-settings').first();
+			if ($container.length) {
+				$container.prepend($message);
+			} else {
+				$('body').prepend($message);
+			}
+
+			// Auto-remove after 5 seconds
+			setTimeout(function() {
+				$message.fadeOut(300, function() {
+					$(this).remove();
+				});
+			}, 5000);
+		}
+	};
+
+	/**
+	 * Keyboard Navigation Handler
+	 *
+	 * Provides comprehensive keyboard navigation for WCAG 2.1 AA compliance.
+	 */
+	const KeyboardNavigation = {
+		/**
+		 * Store reference to element that triggered modal/dropdown
+		 */
+		triggerElement: null,
+
+		/**
+		 * Initialize keyboard navigation handlers
+		 */
+		init: function() {
+			this.bindArrowKeyNavigation();
+			this.bindEscapeKeyHandler();
+			this.bindModalTabTrapping();
+			this.initFocusManagement();
+			this.initAriaStateManagement();
+		},
+
+		/**
+		 * Arrow Key Navigation for Chapters
+		 * Left arrow: Previous chapter, Right arrow: Next chapter
+		 */
+		bindArrowKeyNavigation: function() {
+			$(document).on('keydown', function(e) {
+				// Only activate on chapter pages
+				const isChapterPage = $('body').hasClass('single-fanfiction_chapter') ||
+				                      $('[data-page-type="chapter"]').length > 0;
+
+				if (!isChapterPage) {
+					return;
+				}
+
+				// Don't capture arrow keys in form inputs
+				const activeElement = document.activeElement;
+				const isInputField = activeElement && (
+					activeElement.tagName === 'INPUT' ||
+					activeElement.tagName === 'TEXTAREA' ||
+					activeElement.tagName === 'SELECT' ||
+					activeElement.isContentEditable
+				);
+
+				if (isInputField) {
+					return;
+				}
+
+				// Left arrow: Previous chapter
+				if (e.keyCode === 37 || e.key === 'ArrowLeft') {
+					const $prevButton = $('a[aria-label*="Previous chapter"], .fanfic-chapter-nav-prev, .prev-chapter');
+					if ($prevButton.length > 0 && $prevButton.attr('href')) {
+						e.preventDefault();
+						KeyboardNavigation.announceNavigation('Navigating to previous chapter');
+						window.location.href = $prevButton.attr('href');
+					}
+				}
+
+				// Right arrow: Next chapter
+				if (e.keyCode === 39 || e.key === 'ArrowRight') {
+					const $nextButton = $('a[aria-label*="Next chapter"], .fanfic-chapter-nav-next, .next-chapter');
+					if ($nextButton.length > 0 && $nextButton.attr('href')) {
+						e.preventDefault();
+						KeyboardNavigation.announceNavigation('Navigating to next chapter');
+						window.location.href = $nextButton.attr('href');
+					}
+				}
+			});
+		},
+
+		/**
+		 * Escape Key Handler
+		 * Close modals and dropdowns, restore focus
+		 */
+		bindEscapeKeyHandler: function() {
+			const self = this;
+
+			$(document).on('keydown', function(e) {
+				if (e.keyCode === 27 || e.key === 'Escape') {
+					// Close modals
+					const $visibleModals = $('[role="dialog"]').filter(function() {
+						return $(this).is(':visible') ||
+						       $(this).css('display') === 'block' ||
+						       parseFloat($(this).css('opacity')) > 0;
+					});
+
+					if ($visibleModals.length > 0) {
+						e.preventDefault();
+						$visibleModals.each(function() {
+							const modalId = $(this).attr('id');
+							if (modalId) {
+								Modal.close(modalId);
+							} else {
+								$(this).fadeOut(200);
+							}
+						});
+
+						// Restore focus to trigger element
+						if (self.triggerElement) {
+							self.triggerElement.focus();
+							self.triggerElement = null;
+						}
+						return;
+					}
+
+					// Close dropdowns with aria-expanded
+					const $openDropdowns = $('[aria-expanded="true"]');
+					if ($openDropdowns.length > 0) {
+						e.preventDefault();
+						$openDropdowns.each(function() {
+							$(this).attr('aria-expanded', 'false');
+							$(this).trigger('click'); // Trigger close behavior
+						});
+
+						// Close notification dropdown specifically
+						$('.fanfic-notification-dropdown').removeClass('show');
+
+						// Restore focus to trigger element
+						if (self.triggerElement) {
+							self.triggerElement.focus();
+							self.triggerElement = null;
+						}
+						return;
+					}
+				}
+			});
+		},
+
+		/**
+		 * Tab Trapping in Modals
+		 * Keep focus within modal when open
+		 */
+		bindModalTabTrapping: function() {
+			const self = this;
+
+			$(document).on('keydown', '[role="dialog"]', function(e) {
+				// Only trap Tab key
+				if (e.keyCode !== 9 && e.key !== 'Tab') {
+					return;
+				}
+
+				const $modal = $(this);
+
+				// Only trap if modal is visible
+				if (!$modal.is(':visible')) {
+					return;
+				}
+
+				// Get all focusable elements
+				const focusableSelector = 'button:not([disabled]), [href]:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])';
+				const $focusableElements = $modal.find(focusableSelector).filter(':visible');
+
+				if ($focusableElements.length === 0) {
+					return;
+				}
+
+				const firstFocusable = $focusableElements.first()[0];
+				const lastFocusable = $focusableElements.last()[0];
+				const activeElement = document.activeElement;
+
+				// Shift+Tab on first element: go to last
+				if (e.shiftKey && activeElement === firstFocusable) {
+					e.preventDefault();
+					lastFocusable.focus();
+				}
+				// Tab on last element: go to first
+				else if (!e.shiftKey && activeElement === lastFocusable) {
+					e.preventDefault();
+					firstFocusable.focus();
+				}
+			});
+		},
+
+		/**
+		 * Focus Management After AJAX
+		 * Move focus to new content or results
+		 */
+		initFocusManagement: function() {
+			const self = this;
+
+			// Override jQuery AJAX complete to handle focus
+			$(document).ajaxComplete(function(event, xhr, settings) {
+				// Find containers that were aria-busy
+				const $busyContainers = $('[aria-busy="true"]');
+				$busyContainers.attr('aria-busy', 'false');
+
+				// Check if new content was added
+				const $newContent = $('.fanfic-ajax-content, [data-ajax-loaded="true"]').filter(function() {
+					return $(this).data('justLoaded') === true;
+				});
+
+				if ($newContent.length > 0) {
+					// Announce via aria-live region
+					self.announceContent('Content loaded');
+
+					// Focus first focusable element in new content
+					const focusableSelector = 'button:not([disabled]), [href]:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])';
+					const $firstFocusable = $newContent.find(focusableSelector).first();
+
+					if ($firstFocusable.length > 0) {
+						setTimeout(function() {
+							$firstFocusable.focus({ preventScroll: true });
+						}, 100);
+					}
+
+					// Clear the justLoaded flag
+					$newContent.data('justLoaded', false);
+				}
+
+				// Focus result summary if available
+				const $resultSummary = $('.fanfic-result-summary, .fanfic-ajax-message').last();
+				if ($resultSummary.length > 0 && $resultSummary.is(':visible')) {
+					setTimeout(function() {
+						$resultSummary.attr('tabindex', '-1').focus({ preventScroll: true });
+					}, 100);
+				}
+			});
+		},
+
+		/**
+		 * ARIA State Management
+		 * Update aria attributes with user interactions
+		 */
+		initAriaStateManagement: function() {
+			// Update aria-expanded on dropdown toggles
+			$(document).on('click', '[data-toggle="dropdown"], .fanfic-dropdown-toggle', function() {
+				const $toggle = $(this);
+				const isExpanded = $toggle.attr('aria-expanded') === 'true';
+				$toggle.attr('aria-expanded', !isExpanded);
+			});
+
+			// Update aria-pressed on toggle buttons (bookmark, follow, etc.)
+			$(document).on('click', '[data-toggle-button], .fanfic-bookmark-btn, .fanfic-follow-btn', function() {
+				const $button = $(this);
+				const isPressed = $button.attr('aria-pressed') === 'true';
+				$button.attr('aria-pressed', !isPressed);
+			});
+
+			// Set aria-busy on forms during submission
+			$(document).on('submit', 'form', function() {
+				const $form = $(this);
+				$form.attr('aria-busy', 'true');
+				const $submitBtn = $form.find('button[type="submit"]');
+				$submitBtn.attr('aria-busy', 'true');
+			});
+
+			// Set aria-busy on AJAX buttons
+			$(document).on('click', '[data-ajax-action], .fanfic-ajax-btn', function() {
+				const $button = $(this);
+				$button.attr('aria-busy', 'true');
+			});
+
+			// Update aria-expanded on notification bell
+			$(document).on('click', '.fanfic-notification-bell', function() {
+				const $bell = $(this);
+				const $dropdown = $bell.find('.fanfic-notification-dropdown');
+				const isOpen = $dropdown.hasClass('show');
+				$bell.attr('aria-expanded', isOpen);
+			});
+
+			// Store trigger element for focus restoration
+			const self = this;
+			$(document).on('click', '[data-opens-modal], [data-opens-dropdown]', function() {
+				self.triggerElement = this;
+			});
+		},
+
+		/**
+		 * Announce navigation to screen readers
+		 */
+		announceNavigation: function(message) {
+			this.announce(message, 'polite');
+		},
+
+		/**
+		 * Announce content changes to screen readers
+		 */
+		announceContent: function(message) {
+			this.announce(message, 'assertive');
+		},
+
+		/**
+		 * Create or update aria-live region for announcements
+		 */
+		announce: function(message, priority) {
+			priority = priority || 'polite';
+			let $liveRegion = $('#fanfic-aria-live-' + priority);
+
+			// Create live region if it doesn't exist
+			if ($liveRegion.length === 0) {
+				$liveRegion = $('<div>')
+					.attr('id', 'fanfic-aria-live-' + priority)
+					.attr('aria-live', priority)
+					.attr('aria-atomic', 'true')
+					.css({
+						position: 'absolute',
+						left: '-10000px',
+						width: '1px',
+						height: '1px',
+						overflow: 'hidden'
+					})
+					.appendTo('body');
+			}
+
+			// Clear and update message
+			$liveRegion.text('');
+			setTimeout(function() {
+				$liveRegion.text(message);
+			}, 100);
+
+			// Clear after announcement
+			setTimeout(function() {
+				$liveRegion.text('');
+			}, 3000);
+		},
+
+		/**
+		 * Focus Restoration Helper
+		 * Call this before opening modals/dropdowns
+		 */
+		storeFocus: function() {
+			this.triggerElement = document.activeElement;
+		},
+
+		/**
+		 * Restore Focus Helper
+		 * Call this after closing modals/dropdowns
+		 */
+		restoreFocus: function() {
+			if (this.triggerElement && typeof this.triggerElement.focus === 'function') {
+				this.triggerElement.focus({ preventScroll: true });
+				this.triggerElement = null;
+			}
+		}
+	};
+
+	/**
+	 * Enhanced Modal Handler with Focus Management
+	 */
+	const EnhancedModal = {
+		/**
+		 * Open modal with focus management
+		 */
+		open: function(modalId) {
+			// Store current focus
+			KeyboardNavigation.storeFocus();
+
+			// Open modal
+			const $modal = $('#' + modalId);
+			$modal.fadeIn(200);
+			$('body').css('overflow', 'hidden');
+
+			// Set ARIA attributes
+			$modal.attr('aria-hidden', 'false');
+
+			// Move focus to modal
+			setTimeout(function() {
+				// Focus first focusable element or modal itself
+				const focusableSelector = 'button:not([disabled]), [href]:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])';
+				const $firstFocusable = $modal.find(focusableSelector).first();
+
+				if ($firstFocusable.length > 0) {
+					$firstFocusable.focus();
+				} else {
+					$modal.attr('tabindex', '-1').focus();
+				}
+			}, 250);
+
+			// Announce to screen readers
+			const modalTitle = $modal.find('h2, h3, .fanfic-modal-title').first().text();
+			if (modalTitle) {
+				KeyboardNavigation.announceContent('Dialog opened: ' + modalTitle);
+			}
+		},
+
+		/**
+		 * Close modal with focus restoration
+		 */
+		close: function(modalId) {
+			const $modal = $('#' + modalId);
+			$modal.fadeOut(200);
+			$('body').css('overflow', 'auto');
+
+			// Set ARIA attributes
+			$modal.attr('aria-hidden', 'true');
+
+			// Restore focus after modal closes
+			setTimeout(function() {
+				KeyboardNavigation.restoreFocus();
+			}, 250);
+
+			// Announce to screen readers
+			KeyboardNavigation.announceContent('Dialog closed');
+		}
+	};
+
+	/**
+	 * Document Ready
+	 */
+	$(document).ready(function() {
+		// Initialize existing handlers
+		FormValidator.init();
+		ModalHandler.init();
+		CharacterCounter.init();
+
+		// Initialize comment handler
+		CommentHandler.init();
+
+		// Initialize notification handler
+		NotificationHandler.init();
+
+		// Initialize keyboard navigation
+		KeyboardNavigation.init();
+
+		console.log('Fanfiction Manager: Keyboard navigation initialized');
+	});
+
+})(jQuery);
