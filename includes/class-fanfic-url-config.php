@@ -302,7 +302,7 @@ class Fanfic_URL_Config {
                                                 data-slug-type="dashboard"
                                             >
                                             <p class="description">
-                                                <code><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">dashboard</span>/</code>
+                                                <code id="dashboard-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">dashboard</span>/</code>
                                             </p>
                                         </td>
                                     </tr>
@@ -327,7 +327,7 @@ class Fanfic_URL_Config {
                                                 data-slug-type="user"
                                             >
                                             <p class="description">
-                                                <code><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">user</span>/username/</code>
+                                                <code id="user-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">user</span>/username/</code>
                                             </p>
                                         </td>
                                     </tr>
@@ -352,7 +352,7 @@ class Fanfic_URL_Config {
                                                 data-slug-type="search"
                                             >
                                             <p class="description">
-                                                <code><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">search</span>/</code>
+                                                <code id="search-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">search</span>/</code>
                                             </p>
                                         </td>
                                     </tr>
@@ -453,7 +453,7 @@ class Fanfic_URL_Config {
                                             data-slug-type="prologue"
                                         >
                                         <p class="description">
-                                            <code><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/story-title/' ) ); ?><span class="fanfic-dynamic-slug">prologue</span>/</code>
+                                            <code id="prologue-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/story-title/' ) ); ?><span class="fanfic-dynamic-slug">prologue</span>/</code>
                                         </p>
                                     </td>
                                 </tr>
@@ -478,7 +478,7 @@ class Fanfic_URL_Config {
                                             data-slug-type="chapter"
                                         >
                                         <p class="description">
-                                            <code><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/story-title/' ) ); ?><span class="fanfic-dynamic-slug">chapter</span>-1/</code>
+                                            <code id="chapter-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/story-title/' ) ); ?><span class="fanfic-dynamic-slug">chapter</span>-1/</code>
                                         </p>
                                     </td>
                                 </tr>
@@ -503,7 +503,7 @@ class Fanfic_URL_Config {
                                             data-slug-type="epilogue"
                                         >
                                         <p class="description">
-                                            <code><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/story-title/' ) ); ?><span class="fanfic-dynamic-slug">epilogue</span>/</code>
+                                            <code id="epilogue-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/story-title/' ) ); ?><span class="fanfic-dynamic-slug">epilogue</span>/</code>
                                         </p>
                                     </td>
                                 </tr>
@@ -930,54 +930,85 @@ class Fanfic_URL_Config {
                 var newBase = $('#fanfic_base_slug').val().trim() || baseSlug;
                 var newStoryPath = $('#fanfic_story_path').val().trim() || 'stories';
                 var newArchive = $('#fanfic_archive_slug').val().trim() || 'archive';
+                var newDashboard = $('#fanfic_dashboard_slug').val().trim() || 'dashboard';
+                var newUser = $('#fanfic_user_slug').val().trim() || 'user';
+                var newSearch = $('#fanfic_search_slug').val().trim() || 'search';
+                var newPrologue = $('#fanfic_prologue_slug').val().trim() || 'prologue';
+                var newChapter = $('#fanfic_chapter_slug').val().trim() || 'chapter';
+                var newEpilogue = $('#fanfic_epilogue_slug').val().trim() || 'epilogue';
+
+                // Update main preview box
+                $('#preview-story-url').text(homeUrl + newBase + '/my-story-title/');
 
                 $('#preview-story-url').text(homeUrl + newBase + '/' + newStoryPath + '/my-story-title/');
                 $('#preview-archive-url').text(homeUrl + newBase + '/' + newArchive + '/');
+
+                // Update dashboard preview
+                $('#dashboard-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newDashboard + '</span>/');
+
+                // Update user profile preview
+                $('#user-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newUser + '</span>/username/');
+
+                // Update search preview
+                $('#search-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newSearch + '</span>/');
+
+                // Update chapter URLs with /base_slug/story-title/ pattern
+                $('#prologue-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/story-title/' +
+                    '<span class="fanfic-dynamic-slug">' + newPrologue + '</span>/');
+
+                $('#chapter-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/story-title/' +
+                    '<span class="fanfic-dynamic-slug">' + newChapter + '</span>-1/');
+
+                $('#epilogue-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/story-title/' +
+                    '<span class="fanfic-dynamic-slug">' + newEpilogue + '</span>/');
             }
 
             // Update dynamic slug highlights
             $('.fanfic-slug-input').on('input', function() {
                 var slugType = $(this).data('slug-type');
                 var newValue = $(this).val().trim();
-                
-                // Update corresponding dynamic slugs
-                $(this).closest('td').find('.fanfic-dynamic-slug').text(newValue);
-                
-                // Update live previews
+
+                // Update live previews for all URL types
                 updatePreviews();
-                
+
                 // Validate slug
                 validateSlug($(this));
             });
+
+            // Initial update on page load
+            updatePreviews();
 
             // Slug validation
             function validateSlug($input) {
                 var slug = $input.val().trim();
                 var validationDiv = $input.siblings('.fanfic-slug-validation');
-                
+
                 if (!validationDiv.length) {
                     validationDiv = $('<div class="fanfic-slug-validation"></div>');
                     $input.parent().append(validationDiv);
                 }
-                
+
                 // Check length
                 if (slug.length > 50) {
                     validationDiv.removeClass('success').addClass('error').text('<?php echo esc_js( __( 'Too long! Maximum 50 characters.', 'fanfiction-manager' ) ); ?>');
                     return false;
                 }
-                
+
                 // Check format
                 if (!/^[a-z0-9-]+$/.test(slug)) {
                     validationDiv.removeClass('success').addClass('error').text('<?php echo esc_js( __( 'Only lowercase letters, numbers, and hyphens allowed.', 'fanfiction-manager' ) ); ?>');
                     return false;
                 }
-                
+
                 // Check if empty
                 if (slug.length === 0) {
                     validationDiv.removeClass('success error').text('');
                     return false;
                 }
-                
+
                 validationDiv.removeClass('error').addClass('success').text('✓ <?php echo esc_js( __( 'Valid slug', 'fanfiction-manager' ) ); ?>');
                 return true;
             }
@@ -985,13 +1016,13 @@ class Fanfic_URL_Config {
             // Form submission validation
             $('#fanfic-url-config-form').on('submit', function(e) {
                 var isValid = true;
-                
+
                 $('.fanfic-slug-input').each(function() {
                     if (!validateSlug($(this))) {
                         isValid = false;
                     }
                 });
-                
+
                 if (!isValid) {
                     e.preventDefault();
                     alert('<?php echo esc_js( __( 'Please fix validation errors before saving.', 'fanfiction-manager' ) ); ?>');
