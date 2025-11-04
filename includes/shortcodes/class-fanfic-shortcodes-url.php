@@ -37,6 +37,7 @@ class Fanfic_Shortcodes_URL {
 		add_shortcode( 'url-parent', array( __CLASS__, 'url_parent' ) );
 		add_shortcode( 'url-error', array( __CLASS__, 'url_error' ) );
 		add_shortcode( 'url-search', array( __CLASS__, 'url_search' ) );
+		add_shortcode( 'url-stories', array( __CLASS__, 'url_stories' ) );
 	}
 
 	/**
@@ -49,7 +50,7 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Login page URL.
 	 */
 	public static function url_login( $atts ) {
-		$url = Fanfic_Templates::get_page_url( 'login' );
+		$url = fanfic_get_login_url();
 
 		if ( empty( $url ) ) {
 			$url = wp_login_url();
@@ -68,7 +69,7 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Register page URL.
 	 */
 	public static function url_register( $atts ) {
-		$url = Fanfic_Templates::get_page_url( 'register' );
+		$url = fanfic_get_register_url();
 
 		if ( empty( $url ) ) {
 			$url = wp_registration_url();
@@ -87,7 +88,7 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Archive page URL.
 	 */
 	public static function url_archive( $atts ) {
-		$url = Fanfic_Templates::get_page_url( 'archive' );
+		$url = fanfic_get_main_url();
 
 		if ( empty( $url ) ) {
 			$url = get_post_type_archive_link( 'fanfiction_story' );
@@ -106,7 +107,7 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Dashboard page URL.
 	 */
 	public static function url_dashboard( $atts ) {
-		$url = Fanfic_Templates::get_page_url( 'dashboard' );
+		$url = fanfic_get_dashboard_url();
 
 		if ( empty( $url ) ) {
 			$url = home_url( '/fanfiction/dashboard/' );
@@ -125,7 +126,7 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Main page URL.
 	 */
 	public static function url_parent( $atts ) {
-		$url = Fanfic_Templates::get_page_url( 'main' );
+		$url = fanfic_get_main_url();
 
 		if ( empty( $url ) ) {
 			$url = home_url( '/fanfiction/' );
@@ -144,7 +145,7 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Error page URL.
 	 */
 	public static function url_error( $atts ) {
-		$url = Fanfic_Templates::get_page_url( 'error' );
+		$url = fanfic_get_error_url();
 
 		if ( empty( $url ) ) {
 			$url = home_url( '/fanfiction/error/' );
@@ -163,10 +164,29 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Search page URL.
 	 */
 	public static function url_search( $atts ) {
-		$url = Fanfic_Templates::get_page_url( 'search' );
+		$url = fanfic_get_search_url();
 
 		if ( empty( $url ) ) {
 			$url = home_url( '/fanfiction/search/' );
+		}
+
+		return esc_url( $url );
+	}
+
+	/**
+	 * Stories archive URL
+	 *
+	 * [url-stories]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Stories archive URL.
+	 */
+	public static function url_stories( $atts ) {
+		$url = fanfic_get_stories_archive_url();
+
+		if ( empty( $url ) ) {
+			$url = home_url( '/fanfiction/stories/' );
 		}
 
 		return esc_url( $url );
