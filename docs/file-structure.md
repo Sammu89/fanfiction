@@ -40,10 +40,11 @@ fanfiction-manager/
 │   ├── edit-profile.html
 │   ├── search.html
 │   └── error.html
-│
-├── theme-templates/ (Fallback templates if not overridden by theme)
-│   ├── single-fanfiction_story.php
-│   └── single-fanfiction_chapter.php
+│   ├── single-fanfiction_story.php (Fallback template if not overridden by theme)
+│   ├── single-fanfiction_chapter.php (Fallback template if not overridden by theme)
+│   ├── archive-fanfiction_story.php (Fallback template if not overridden by theme)
+│   ├── taxonomy-fanfiction_genre.php (Fallback template if not overridden by theme)
+│   └── taxonomy-fanfiction_status.php (Fallback template if not overridden by theme)
 │
 ├── assets/
 │   ├── css/

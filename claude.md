@@ -92,8 +92,7 @@ textfanfiction-manager/
 │   ├── class-fanfic-validation.php
 │   ├── class-fanfic-rewrite.php
 │   └── functions.php
-├── templates/                      # Frontend HTML templates (pending)
-├── theme-templates/                # Theme fallback templates (pending)
+├── templates/                      # Frontend templates (HTML and PHP theme fallbacks)
 ├── assets/                         # CSS, JS, images
 │   ├── css/
 │   │   ├── fanfiction-admin.css

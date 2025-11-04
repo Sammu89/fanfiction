@@ -107,8 +107,8 @@ class Fanfic_Templates {
 			return $theme_template;
 		}
 
-		// Check plugin theme-templates directory
-		$plugin_template = FANFIC_PLUGIN_DIR . 'theme-templates/' . $template_name;
+		// Check plugin templates directory
+		$plugin_template = FANFIC_PLUGIN_DIR . 'templates/' . $template_name;
 		if ( file_exists( $plugin_template ) ) {
 			return $plugin_template;
 		}
