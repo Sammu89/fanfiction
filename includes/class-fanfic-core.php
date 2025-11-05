@@ -290,8 +290,22 @@ class Fanfic_Core {
 			return;
 		}
 
-		// Only apply to post type archive or taxonomy archives
-		if ( ! is_post_type_archive( 'fanfiction_story' ) &&
+		// Check if this is the main page in stories_homepage mode
+		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+		$is_main_page_archive = false;
+		if ( 'stories_homepage' === $main_page_mode && is_page() ) {
+			$page_ids = get_option( 'fanfic_system_page_ids', array() );
+			if ( isset( $page_ids['main'] ) && is_page( $page_ids['main'] ) ) {
+				$is_main_page_archive = true;
+				// Set query to show fanfiction_story posts
+				$query->set( 'post_type', 'fanfiction_story' );
+				$query->set( 'post_status', 'publish' );
+			}
+		}
+
+		// Only apply to post type archive, taxonomy archives, or main page in stories_homepage mode
+		if ( ! $is_main_page_archive &&
+		     ! is_post_type_archive( 'fanfiction_story' ) &&
 		     ! is_tax( array( 'fanfiction_genre', 'fanfiction_status', 'fanfiction_rating', 'fanfiction_character', 'fanfiction_relationship' ) ) ) {
 			return;
 		}

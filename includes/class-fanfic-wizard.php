@@ -909,17 +909,7 @@ private function render_choice_screen() {
 			update_option( 'fanfic_story_path', $story_path );
 		}
 
-		// Validate and save archive slug (from fanfic_archive_slug field)
-		if ( isset( $_POST['fanfic_archive_slug'] ) ) {
-			$archive_slug = sanitize_title( wp_unslash( $_POST['fanfic_archive_slug'] ) );
-			if ( empty( $archive_slug ) || strlen( $archive_slug ) > 50 ) {
-				wp_send_json_error( array( 'message' => __( 'Archive slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
-			}
-		} else {
-			$archive_slug = 'archive'; // Default value
-		}
-
-		// Validate and save secondary paths (including archive slug)
+		// Validate and save secondary paths
 		if ( isset( $_POST['fanfic_secondary_paths'] ) && is_array( $_POST['fanfic_secondary_paths'] ) ) {
 			$secondary_paths = array();
 			$allowed_paths = array( 'dashboard', 'user', 'search', 'author' );
@@ -941,9 +931,6 @@ private function render_choice_screen() {
 					$secondary_paths[ $path_key ] = $path_slug;
 				}
 			}
-
-			// Add archive slug to secondary paths
-			$secondary_paths['archive'] = $archive_slug;
 
 			// Check for duplicate slugs
 			$unique_slugs = array_unique( $secondary_paths );

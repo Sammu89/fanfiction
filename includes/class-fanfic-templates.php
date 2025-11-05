@@ -49,6 +49,19 @@ class Fanfic_Templates {
 	 * @return string Modified template path.
 	 */
 	public static function template_loader( $template ) {
+		// Check if viewing main page in stories_homepage mode
+		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+		if ( 'stories_homepage' === $main_page_mode && is_page() ) {
+			$page_ids = get_option( 'fanfic_system_page_ids', array() );
+			if ( isset( $page_ids['main'] ) && is_page( $page_ids['main'] ) ) {
+				// Load archive template for main page
+				$custom_template = self::locate_template( 'archive-fanfiction_story.php' );
+				if ( $custom_template ) {
+					return $custom_template;
+				}
+			}
+		}
+
 		// Check if this is a fanfiction post type
 		if ( is_singular( 'fanfiction_story' ) ) {
 			$custom_template = self::locate_template( 'single-fanfiction_story.php' );
@@ -327,12 +340,12 @@ class Fanfic_Templates {
 
 		// Create main page based on mode
 		if ( $main_page_mode === 'stories_homepage' ) {
-			// Main page IS the archive - use archive template
+			// Main page will use post type archive template (handled in template_loader)
 			$main_page_id = self::create_or_update_page(
 				'main',
 				__( 'Fanfiction', 'fanfiction-manager' ),
 				'',
-				self::load_template_content( 'archive' ),
+				'<!-- wp:paragraph --><p>' . __( 'Loading stories...', 'fanfiction-manager' ) . '</p><!-- /wp:paragraph -->',
 				$base_slug,
 				0,
 				$result
@@ -370,11 +383,6 @@ class Fanfic_Templates {
 				'title'    => __( 'Password Reset', 'fanfiction-manager' ),
 				'slug'     => isset( $custom_slugs['password-reset'] ) ? $custom_slugs['password-reset'] : 'password-reset',
 				'template' => 'password-reset',
-			),
-			'archive'         => array(
-				'title'    => __( 'Story Archive', 'fanfiction-manager' ),
-				'slug'     => isset( $custom_slugs['archive'] ) ? $custom_slugs['archive'] : 'archive',
-				'template' => 'archive',
 			),
 			'dashboard'       => array(
 				'title'    => __( 'Dashboard', 'fanfiction-manager' ),
@@ -453,7 +461,6 @@ class Fanfic_Templates {
 			'login',
 			'register',
 			'password-reset',
-			'archive',
 			'dashboard',
 			'create-story',
 			'edit-story',
@@ -582,41 +589,50 @@ class Fanfic_Templates {
 				'page_key'   => 'main',
 				'title'      => __( 'Home', 'fanfiction-manager' ),
 				'visibility' => 'all', // visible to everyone
+				'type'       => 'page',
 			),
 			array(
 				'page_key'   => 'archive',
 				'title'      => __( 'Stories', 'fanfiction-manager' ),
 				'visibility' => 'all',
+				'type'       => 'custom',
+				'url'        => get_post_type_archive_link( 'fanfiction_story' ),
 			),
 			array(
 				'page_key'   => 'search',
 				'title'      => __( 'Search', 'fanfiction-manager' ),
 				'visibility' => 'all',
+				'type'       => 'page',
 			),
 			array(
 				'page_key'   => 'members',
 				'title'      => __( 'Members', 'fanfiction-manager' ),
 				'visibility' => 'all',
+				'type'       => 'page',
 			),
 			array(
 				'page_key'   => 'dashboard',
 				'title'      => __( 'Dashboard', 'fanfiction-manager' ),
 				'visibility' => 'logged_in', // only for logged-in users
+				'type'       => 'page',
 			),
 			array(
 				'page_key'   => 'create-story',
 				'title'      => __( 'Add Story', 'fanfiction-manager' ),
 				'visibility' => 'logged_in', // only for logged-in users
+				'type'       => 'page',
 			),
 			array(
 				'page_key'   => 'register',
 				'title'      => __( 'Register', 'fanfiction-manager' ),
 				'visibility' => 'logged_out', // only for logged-out users
+				'type'       => 'page',
 			),
 			array(
 				'page_key'   => 'login',
 				'title'      => __( 'Login', 'fanfiction-manager' ),
 				'visibility' => 'logged_out', // only for logged-out users
+				'type'       => 'page',
 			),
 		);
 
@@ -624,9 +640,10 @@ class Fanfic_Templates {
 		$position = 0;
 		foreach ( $menu_structure as $item_config ) {
 			$page_key = $item_config['page_key'];
+			$item_type = isset( $item_config['type'] ) ? $item_config['type'] : 'page';
 
-			// Skip if page doesn't exist
-			if ( empty( $page_ids[ $page_key ] ) ) {
+			// Skip if page doesn't exist (for page type items)
+			if ( 'page' === $item_type && empty( $page_ids[ $page_key ] ) ) {
 				continue;
 			}
 
@@ -640,16 +657,29 @@ class Fanfic_Templates {
 				$classes[] = 'fanfic-menu-logged-out';
 			}
 
-			// Add menu item
-			$menu_item_data = array(
-				'menu-item-object-id'   => $page_ids[ $page_key ],
-				'menu-item-object'      => 'page',
-				'menu-item-type'        => 'post_type',
-				'menu-item-status'      => 'publish',
-				'menu-item-title'       => $item_config['title'],
-				'menu-item-position'    => $position,
-				'menu-item-classes'     => implode( ' ', $classes ),
-			);
+			// Build menu item data based on type
+			if ( 'custom' === $item_type ) {
+				// Custom URL menu item (e.g., post type archive)
+				$menu_item_data = array(
+					'menu-item-url'         => $item_config['url'],
+					'menu-item-type'        => 'custom',
+					'menu-item-status'      => 'publish',
+					'menu-item-title'       => $item_config['title'],
+					'menu-item-position'    => $position,
+					'menu-item-classes'     => implode( ' ', $classes ),
+				);
+			} else {
+				// Page menu item
+				$menu_item_data = array(
+					'menu-item-object-id'   => $page_ids[ $page_key ],
+					'menu-item-object'      => 'page',
+					'menu-item-type'        => 'post_type',
+					'menu-item-status'      => 'publish',
+					'menu-item-title'       => $item_config['title'],
+					'menu-item-position'    => $position,
+					'menu-item-classes'     => implode( ' ', $classes ),
+				);
+			}
 
 			$result = wp_update_nav_menu_item( $menu_id, 0, $menu_item_data );
 
@@ -839,7 +869,6 @@ class Fanfic_Templates {
 			'login'          => '<!-- wp:paragraph --><p>[fanfic-login-form]</p><!-- /wp:paragraph -->',
 			'register'       => '<!-- wp:paragraph --><p>[fanfic-register-form]</p><!-- /wp:paragraph -->',
 			'password-reset' => '<!-- wp:paragraph --><p>[fanfic-password-reset-form]</p><!-- /wp:paragraph -->',
-			'archive'        => '<!-- wp:paragraph --><p>[story-list]</p><!-- /wp:paragraph -->',
 			'dashboard'      => '<!-- wp:paragraph --><p>[user-dashboard]</p><!-- /wp:paragraph -->',
 			'create-story'   => '<!-- wp:paragraph --><p>[author-create-story-form]</p><!-- /wp:paragraph -->',
 			'edit-story'     => '<!-- wp:paragraph --><p>[author-edit-story-form]</p><!-- /wp:paragraph -->',
