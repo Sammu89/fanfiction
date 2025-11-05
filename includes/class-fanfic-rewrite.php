@@ -106,6 +106,7 @@ class Fanfic_Rewrite {
 		add_action( 'init', array( __CLASS__, 'add_rewrite_rules' ), 20 );
 		add_filter( 'post_type_link', array( __CLASS__, 'filter_chapter_permalink' ), 10, 2 );
 		add_filter( 'post_type_link', array( __CLASS__, 'filter_story_permalink' ), 10, 2 );
+		add_filter( 'preview_post_link', array( __CLASS__, 'filter_preview_link' ), 10, 2 );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_old_slug_redirects' ) );
 		add_filter( 'query_vars', array( __CLASS__, 'add_query_vars' ) );
 	}
@@ -195,6 +196,7 @@ class Fanfic_Rewrite {
 	 * Filter the permalink for story posts.
 	 *
 	 * Replaces the %fanfiction_story% placeholder with the actual story slug.
+	 * Also builds pretty permalinks for draft and unpublished posts.
 	 *
 	 * @since 1.0.0
 	 * @param string  $permalink The post's permalink.
@@ -206,15 +208,21 @@ class Fanfic_Rewrite {
 			return $permalink;
 		}
 
-		if ( false === strpos( $permalink, '%fanfiction_story%' ) ) {
+		// Handle placeholder replacement for published posts.
+		if ( false !== strpos( $permalink, '%fanfiction_story%' ) ) {
+			$base_slug = self::get_base_slug();
+			$story_path = self::get_story_path();
+			$story_slug = $post->post_name;
+
+			$permalink = str_replace( '%fanfiction_story%', $base_slug . '/' . $story_path . '/' . $story_slug, $permalink );
 			return $permalink;
 		}
 
-		$base_slug = self::get_base_slug();
-		$story_path = self::get_story_path();
-		$story_slug = $post->post_name;
-
-		$permalink = str_replace( '%fanfiction_story%', $base_slug . '/' . $story_path . '/' . $story_slug, $permalink );
+		// For draft/pending posts, WordPress returns ugly URLs like ?post_type=X&p=ID.
+		// Build a pretty permalink instead.
+		if ( false !== strpos( $permalink, '?' ) || false !== strpos( $permalink, 'post_type=' ) ) {
+			$permalink = self::build_story_permalink( $post );
+		}
 
 		return $permalink;
 	}
@@ -223,6 +231,7 @@ class Fanfic_Rewrite {
 	 * Filter the permalink for chapter posts.
 	 *
 	 * Builds proper hierarchical URLs for chapters based on their parent story and type.
+	 * Also builds pretty permalinks for draft and unpublished chapters.
 	 *
 	 * @since 1.0.0
 	 * @param string  $permalink The post's permalink.
@@ -232,6 +241,15 @@ class Fanfic_Rewrite {
 	public static function filter_chapter_permalink( $permalink, $post ) {
 		if ( 'fanfiction_chapter' !== $post->post_type ) {
 			return $permalink;
+		}
+
+		// For draft/pending posts or posts without pretty permalinks, build one.
+		if ( false !== strpos( $permalink, '?' ) || false !== strpos( $permalink, 'post_type=' ) ) {
+			$permalink = self::build_chapter_permalink( $post );
+			if ( ! empty( $permalink ) ) {
+				return $permalink;
+			}
+			// If we couldn't build a chapter permalink, fall through to default handling.
 		}
 
 		// Get the parent story.
@@ -268,6 +286,110 @@ class Fanfic_Rewrite {
 		}
 
 		return $permalink;
+	}
+
+	/**
+	 * Filter preview links to use pretty permalinks for drafts and previews.
+	 *
+	 * By default, WordPress uses ugly URLs for draft and preview posts.
+	 * This filter ensures stories and chapters use pretty URLs even when not published.
+	 *
+	 * @since 1.0.0
+	 * @param string  $preview_link The preview link URL.
+	 * @param WP_Post $post The post object.
+	 * @return string The filtered preview link.
+	 */
+	public static function filter_preview_link( $preview_link, $post ) {
+		// Only process fanfiction post types.
+		if ( ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+			return $preview_link;
+		}
+
+		// Get the post permalink (which will be filtered by our other filters).
+		$permalink = get_permalink( $post );
+
+		// If we don't have a clean permalink, try to build one.
+		if ( ! $permalink || false !== strpos( $permalink, '?' ) ) {
+			if ( 'fanfiction_story' === $post->post_type ) {
+				$permalink = self::build_story_permalink( $post );
+			} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+				$permalink = self::build_chapter_permalink( $post );
+			}
+		}
+
+		// Add preview query parameter to the pretty URL.
+		if ( $permalink ) {
+			$preview_link = add_query_arg( 'preview', 'true', $permalink );
+		}
+
+		return $preview_link;
+	}
+
+	/**
+	 * Build a pretty permalink for a story post.
+	 *
+	 * @since 1.0.0
+	 * @param WP_Post $post The story post object.
+	 * @return string The story permalink.
+	 */
+	private static function build_story_permalink( $post ) {
+		$base_slug = self::get_base_slug();
+		$story_path = self::get_story_path();
+		$story_slug = $post->post_name;
+
+		// If the post doesn't have a slug yet, use the post ID.
+		if ( empty( $story_slug ) ) {
+			$story_slug = 'story-' . $post->ID;
+		}
+
+		return home_url( '/' . $base_slug . '/' . $story_path . '/' . $story_slug . '/' );
+	}
+
+	/**
+	 * Build a pretty permalink for a chapter post.
+	 *
+	 * @since 1.0.0
+	 * @param WP_Post $post The chapter post object.
+	 * @return string The chapter permalink.
+	 */
+	private static function build_chapter_permalink( $post ) {
+		// Get the parent story.
+		$parent_id = $post->post_parent;
+		if ( ! $parent_id ) {
+			return '';
+		}
+
+		$parent_story = get_post( $parent_id );
+		if ( ! $parent_story || 'fanfiction_story' !== $parent_story->post_type ) {
+			return '';
+		}
+
+		$base_slug = self::get_base_slug();
+		$story_path = self::get_story_path();
+		$chapter_slugs = self::get_chapter_type_slugs();
+		$story_slug = $parent_story->post_name;
+
+		// If the parent story doesn't have a slug yet, use the post ID.
+		if ( empty( $story_slug ) ) {
+			$story_slug = 'story-' . $parent_id;
+		}
+
+		// Get chapter type.
+		$chapter_type = get_post_meta( $post->ID, '_fanfic_chapter_type', true );
+
+		// Build the appropriate URL based on chapter type.
+		if ( 'prologue' === $chapter_type ) {
+			return home_url( '/' . $base_slug . '/' . $story_path . '/' . $story_slug . '/' . $chapter_slugs['prologue'] . '/' );
+		} elseif ( 'epilogue' === $chapter_type ) {
+			return home_url( '/' . $base_slug . '/' . $story_path . '/' . $story_slug . '/' . $chapter_slugs['epilogue'] . '/' );
+		} else {
+			// Regular chapter - get chapter number.
+			$chapter_number = get_post_meta( $post->ID, '_fanfic_chapter_number', true );
+			if ( ! $chapter_number ) {
+				$chapter_number = 1;
+			}
+			return home_url( '/' . $base_slug . '/' . $story_path . '/' . $story_slug . '/' . $chapter_slugs['chapter'] . '-' . $chapter_number . '/' );
+		}
 	}
 
 	/**
