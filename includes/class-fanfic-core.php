@@ -63,6 +63,9 @@ class Fanfic_Core {
 		// Load cache hooks class (handles automatic cache invalidation)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache-hooks.php';
 
+		// Load URL helper functions (used by shortcodes and templates)
+		require_once FANFIC_INCLUDES_DIR . 'fanfic-url-helpers.php';
+
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-post-types.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';

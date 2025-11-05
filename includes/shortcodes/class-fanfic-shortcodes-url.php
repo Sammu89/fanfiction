@@ -38,6 +38,13 @@ class Fanfic_Shortcodes_URL {
 		add_shortcode( 'url-error', array( __CLASS__, 'url_error' ) );
 		add_shortcode( 'url-search', array( __CLASS__, 'url_search' ) );
 		add_shortcode( 'url-stories', array( __CLASS__, 'url_stories' ) );
+		add_shortcode( 'url-password-reset', array( __CLASS__, 'url_password_reset' ) );
+		add_shortcode( 'url-create-story', array( __CLASS__, 'url_create_story' ) );
+		add_shortcode( 'url-edit-story', array( __CLASS__, 'url_edit_story' ) );
+		add_shortcode( 'url-edit-chapter', array( __CLASS__, 'url_edit_chapter' ) );
+		add_shortcode( 'url-edit-profile', array( __CLASS__, 'url_edit_profile' ) );
+		add_shortcode( 'url-members', array( __CLASS__, 'url_members' ) );
+		add_shortcode( 'url-main', array( __CLASS__, 'url_main' ) );
 	}
 
 	/**
@@ -88,10 +95,10 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Archive page URL.
 	 */
 	public static function url_archive( $atts ) {
-		$url = fanfic_get_main_url();
+		$url = fanfic_get_story_archive_url();
 
 		if ( empty( $url ) ) {
-			$url = get_post_type_archive_link( 'fanfiction_story' );
+			$url = home_url( '/fanfiction/stories/' );
 		}
 
 		return esc_url( $url );
@@ -183,10 +190,143 @@ class Fanfic_Shortcodes_URL {
 	 * @return string Stories archive URL.
 	 */
 	public static function url_stories( $atts ) {
-		$url = fanfic_get_stories_archive_url();
+		$url = fanfic_get_story_archive_url();
 
 		if ( empty( $url ) ) {
 			$url = home_url( '/fanfiction/stories/' );
+		}
+
+		return esc_url( $url );
+	}
+
+	/**
+	 * Password Reset URL shortcode
+	 *
+	 * [url-password-reset]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Password reset page URL.
+	 */
+	public static function url_password_reset( $atts ) {
+		$url = fanfic_get_password_reset_url();
+
+		if ( empty( $url ) ) {
+			$url = wp_lostpassword_url();
+		}
+
+		return esc_url( $url );
+	}
+
+	/**
+	 * Create Story URL shortcode
+	 *
+	 * [url-create-story]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Create story page URL.
+	 */
+	public static function url_create_story( $atts ) {
+		$url = fanfic_get_create_story_url();
+
+		if ( empty( $url ) ) {
+			$url = home_url( '/fanfiction/create-story/' );
+		}
+
+		return esc_url( $url );
+	}
+
+	/**
+	 * Edit Story URL shortcode
+	 *
+	 * [url-edit-story]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Edit story page URL.
+	 */
+	public static function url_edit_story( $atts ) {
+		$url = fanfic_get_edit_story_url();
+
+		if ( empty( $url ) ) {
+			$url = home_url( '/fanfiction/edit-story/' );
+		}
+
+		return esc_url( $url );
+	}
+
+	/**
+	 * Edit Chapter URL shortcode
+	 *
+	 * [url-edit-chapter]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Edit chapter page URL.
+	 */
+	public static function url_edit_chapter( $atts ) {
+		$url = fanfic_get_edit_chapter_url();
+
+		if ( empty( $url ) ) {
+			$url = home_url( '/fanfiction/edit-chapter/' );
+		}
+
+		return esc_url( $url );
+	}
+
+	/**
+	 * Edit Profile URL shortcode
+	 *
+	 * [url-edit-profile]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Edit profile page URL.
+	 */
+	public static function url_edit_profile( $atts ) {
+		$url = fanfic_get_edit_profile_url();
+
+		if ( empty( $url ) ) {
+			$url = home_url( '/fanfiction/edit-profile/' );
+		}
+
+		return esc_url( $url );
+	}
+
+	/**
+	 * Members URL shortcode
+	 *
+	 * [url-members]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Members page URL.
+	 */
+	public static function url_members( $atts ) {
+		$url = fanfic_get_members_url();
+
+		if ( empty( $url ) ) {
+			$url = home_url( '/fanfiction/members/' );
+		}
+
+		return esc_url( $url );
+	}
+
+	/**
+	 * Main page URL shortcode
+	 *
+	 * [url-main]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Main page URL.
+	 */
+	public static function url_main( $atts ) {
+		$url = fanfic_get_main_url();
+
+		if ( empty( $url ) ) {
+			$url = home_url( '/fanfiction/' );
 		}
 
 		return esc_url( $url );

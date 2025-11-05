@@ -64,7 +64,7 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
 		<li class="fanfic-breadcrumb-item">
-			<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
+			<a href="<?php echo esc_url( fanfic_get_main_url() ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
 		</li>
 		<li class="fanfic-breadcrumb-item">
 			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></a>

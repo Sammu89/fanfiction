@@ -56,7 +56,7 @@ $current_user = wp_get_current_user();
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
 		<li class="fanfic-breadcrumb-item">
-			<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
+			<a href="<?php echo esc_url( fanfic_get_main_url() ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
 		</li>
 		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
 			<?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?>
@@ -162,22 +162,22 @@ $current_user = wp_get_current_user();
 	<h2 id="actions-heading"><?php esc_html_e( 'Quick Actions', 'fanfiction-manager' ); ?></h2>
 
 	<div class="fanfic-actions-grid">
-		<a href="<?php echo esc_url( do_shortcode( '[url-dashboard]' ) . '/create-story/' ); ?>" class="fanfic-action-button fanfic-action-primary">
+		<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-action-button fanfic-action-primary">
 			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'Create New Story', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="<?php echo esc_url( do_shortcode( '[url-archive]' ) ); ?>" class="fanfic-action-button fanfic-action-secondary">
+		<a href="<?php echo esc_url( fanfic_get_story_archive_url() ); ?>" class="fanfic-action-button fanfic-action-secondary">
 			<span class="dashicons dashicons-archive" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'View Archive', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="<?php echo esc_url( do_shortcode( '[url-dashboard]' ) . '/edit-profile/' ); ?>" class="fanfic-action-button fanfic-action-secondary">
+		<a href="<?php echo esc_url( fanfic_get_edit_profile_url() ); ?>" class="fanfic-action-button fanfic-action-secondary">
 			<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="<?php echo esc_url( do_shortcode( '[url-dashboard]' ) . '#my-stories' ); ?>" class="fanfic-action-button fanfic-action-secondary">
+		<a href="<?php echo esc_url( fanfic_get_dashboard_url() . '#my-stories' ); ?>" class="fanfic-action-button fanfic-action-secondary">
 			<span class="dashicons dashicons-portfolio" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'View My Stories', 'fanfiction-manager' ); ?></span>
 		</a>
