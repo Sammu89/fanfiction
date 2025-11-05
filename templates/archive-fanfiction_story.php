@@ -12,16 +12,16 @@
 get_header(); ?>
 
 <div class="fanfic-archive">
-	<header class="archive-header">
-		<h1 class="archive-title">
+	<header class="fanfic-archive-header">
+		<h1 class="fanfic-archive-title">
 			<?php esc_html_e( 'Story Archive', 'fanfiction-manager' ); ?>
 		</h1>
-		<p class="archive-description">
+		<p class="fanfic-archive-description">
 			<?php esc_html_e( 'Browse all published fanfiction stories', 'fanfiction-manager' ); ?>
 		</p>
 	</header>
 
-	<div class="archive-content">
+	<div class="fanfic-archive-content">
 		[story-list]
 	</div>
 </div>

@@ -12,8 +12,8 @@
 get_header(); ?>
 
 <div class="fanfic-genre-archive">
-	<header class="archive-header">
-		<h1 class="archive-title">
+	<header class="fanfic-archive-header">
+		<h1 class="fanfic-archive-title">
 			<?php
 			printf(
 				/* translators: %s: genre name */
@@ -24,13 +24,13 @@ get_header(); ?>
 		</h1>
 
 		<?php if ( term_description() ) : ?>
-			<div class="archive-description">
+			<div class="fanfic-archive-description">
 				<?php echo wp_kses_post( term_description() ); ?>
 			</div>
 		<?php endif; ?>
 	</header>
 
-	<div class="archive-content">
+	<div class="fanfic-archive-content">
 		<?php
 		$current_term = get_queried_object();
 		if ( $current_term ) {
