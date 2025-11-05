@@ -118,7 +118,7 @@ $current_user = wp_get_current_user();
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Total Stories', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value">[author-story-count]</p>
+				<p class="fanfic-stat-value"><?php echo do_shortcode( '[author-story-count]' ); ?></p>
 			</div>
 		</div>
 
@@ -129,7 +129,7 @@ $current_user = wp_get_current_user();
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Total Chapters', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value">[author-total-chapters]</p>
+				<p class="fanfic-stat-value"><?php echo do_shortcode( '[author-total-chapters]' ); ?></p>
 			</div>
 		</div>
 
@@ -140,7 +140,7 @@ $current_user = wp_get_current_user();
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Total Views', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value">[author-total-views]</p>
+				<p class="fanfic-stat-value"><?php echo do_shortcode( '[author-total-views]' ); ?></p>
 			</div>
 		</div>
 
@@ -151,7 +151,7 @@ $current_user = wp_get_current_user();
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Stories Following', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value">[user-favorites-count]</p>
+				<p class="fanfic-stat-value"><?php echo do_shortcode( '[user-favorites-count]' ); ?></p>
 			</div>
 		</div>
 	</div>
@@ -162,22 +162,22 @@ $current_user = wp_get_current_user();
 	<h2 id="actions-heading"><?php esc_html_e( 'Quick Actions', 'fanfiction-manager' ); ?></h2>
 
 	<div class="fanfic-actions-grid">
-		<a href="[url-dashboard]/create-story/" class="fanfic-action-button fanfic-action-primary">
+		<a href="<?php echo esc_url( do_shortcode( '[url-dashboard]' ) . '/create-story/' ); ?>" class="fanfic-action-button fanfic-action-primary">
 			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'Create New Story', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="[url-archive]" class="fanfic-action-button fanfic-action-secondary">
+		<a href="<?php echo esc_url( do_shortcode( '[url-archive]' ) ); ?>" class="fanfic-action-button fanfic-action-secondary">
 			<span class="dashicons dashicons-archive" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'View Archive', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="[url-dashboard]/edit-profile/" class="fanfic-action-button fanfic-action-secondary">
+		<a href="<?php echo esc_url( do_shortcode( '[url-dashboard]' ) . '/edit-profile/' ); ?>" class="fanfic-action-button fanfic-action-secondary">
 			<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="[url-dashboard]#my-stories" class="fanfic-action-button fanfic-action-secondary">
+		<a href="<?php echo esc_url( do_shortcode( '[url-dashboard]' ) . '#my-stories' ); ?>" class="fanfic-action-button fanfic-action-secondary">
 			<span class="dashicons dashicons-portfolio" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'View My Stories', 'fanfiction-manager' ); ?></span>
 		</a>
@@ -190,13 +190,13 @@ $current_user = wp_get_current_user();
 		<!-- Author Dashboard Home Shortcode -->
 		<section class="fanfic-dashboard-overview" aria-labelledby="overview-heading">
 			<h2 id="overview-heading"><?php esc_html_e( 'Dashboard Overview', 'fanfiction-manager' ); ?></h2>
-			[author-dashboard-home]
+			<?php echo do_shortcode( '[author-dashboard-home]' ); ?>
 		</section>
 
 		<!-- Manage Stories Section -->
 		<section class="fanfic-dashboard-stories" id="my-stories" aria-labelledby="stories-heading">
 			<h2 id="stories-heading"><?php esc_html_e( 'Your Stories', 'fanfiction-manager' ); ?></h2>
-			[author-stories-manage]
+			<?php echo do_shortcode( '[author-stories-manage]' ); ?>
 		</section>
 	</div>
 
@@ -207,14 +207,14 @@ $current_user = wp_get_current_user();
 		<!-- Notifications -->
 		<section class="fanfic-dashboard-widget" aria-labelledby="notifications-heading">
 			<h3 id="notifications-heading"><?php esc_html_e( 'Notifications', 'fanfiction-manager' ); ?></h3>
-			[user-notifications]
+			<?php echo do_shortcode( '[user-notifications]' ); ?>
 		</section>
 
 		<!-- Recent Activity -->
 		<section class="fanfic-dashboard-widget" aria-labelledby="activity-heading">
 			<h3 id="activity-heading"><?php esc_html_e( 'Recent Activity', 'fanfiction-manager' ); ?></h3>
 			<div class="fanfic-activity-list">
-				[user-reading-history limit="5"]
+				<?php echo do_shortcode( '[user-reading-history limit="5"]' ); ?>
 			</div>
 		</section>
 

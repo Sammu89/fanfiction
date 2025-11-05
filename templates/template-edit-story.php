@@ -121,7 +121,7 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 	<h2 id="edit-form-heading"><?php esc_html_e( 'Story Details', 'fanfiction-manager' ); ?></h2>
 
 	<!-- Form Shortcode -->
-	[author-edit-story-form story_id="<?php echo absint( $story_id ); ?>"]
+	<?php echo do_shortcode( '[author-edit-story-form story_id="' . absint( $story_id ) . '"]' ); ?>
 </section>
 
 <!-- Chapters Management Section -->
