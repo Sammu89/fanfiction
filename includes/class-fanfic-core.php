@@ -42,6 +42,10 @@ class Fanfic_Core {
 	private function __construct() {
 		error_log( '=== FANFIC PLUGIN INITIALIZING ===' );
 		$this->load_dependencies();
+
+		// Load text domain immediately before any hooks (WordPress 6.7+ compatibility)
+		$this->load_textdomain();
+
 		$this->init_hooks();
 		error_log( '=== FANFIC PLUGIN INITIALIZED ===' );
 	}
@@ -204,9 +208,6 @@ class Fanfic_Core {
 		// Display suspension notice to banned users on frontend
 		add_action( 'wp_footer', array( $this, 'display_suspension_notice' ) );
 
-		// Load text domain for translations
-		add_action( 'init', array( $this, 'load_textdomain' ) );
-
 		// Enqueue frontend styles and scripts
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
 	}
@@ -292,15 +293,14 @@ class Fanfic_Core {
 
 		// Get suspension details
 		$suspended_at = get_user_meta( $current_user->ID, 'fanfic_suspended_at', true );
-		$suspended_date = $suspended_at ? date_i18n( get_option( 'date_format' ), strtotime( $suspended_at ) ) : __( 'recently', 'fanfiction-manager' );
+		$suspended_date = $suspended_at ? date_i18n( get_option( 'date_format' ), strtotime( $suspended_at ) ) : 'recently';
 
 		?>
 		<div id="fanfic-suspension-notice" style="position: fixed; top: 0; left: 0; right: 0; background: #dc3232; color: #fff; padding: 15px 20px; text-align: center; z-index: 999999; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
 			<p style="margin: 0; font-size: 16px; font-weight: 600;">
 				<?php
 				printf(
-					/* translators: %s: Date of suspension */
-					esc_html__( 'Your account has been suspended as of %s. You can view your content but cannot create or edit stories.', 'fanfiction-manager' ),
+					'Your account has been suspended as of %s. You can view your content but cannot create or edit stories.',
 					esc_html( $suspended_date )
 				);
 				?>
@@ -519,22 +519,23 @@ class Fanfic_Core {
 		$reports_table = $table_prefix . 'reports';
 		$sql_reports = "CREATE TABLE IF NOT EXISTS {$reports_table} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			reported_item_id bigint(20) UNSIGNED NOT NULL,
-			reported_item_type varchar(50) NOT NULL,
-			reporter_id bigint(20) UNSIGNED NOT NULL,
-			reason text NOT NULL,
+			content_id bigint(20) UNSIGNED NOT NULL,
+			content_type varchar(20) NOT NULL,
+			reporter_id bigint(20) UNSIGNED DEFAULT NULL,
+			reporter_ip varchar(45) NOT NULL,
+			reason varchar(100) NOT NULL,
+			details text,
 			status varchar(20) NOT NULL DEFAULT 'pending',
-			moderator_id bigint(20) UNSIGNED DEFAULT NULL,
-			moderator_notes text DEFAULT NULL,
-			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			created_at datetime NOT NULL,
+			reviewed_by bigint(20) UNSIGNED DEFAULT NULL,
+			reviewed_at datetime DEFAULT NULL,
+			action_taken text,
 			PRIMARY KEY (id),
-			KEY reported_item (reported_item_id, reported_item_type),
+			KEY content_id (content_id),
 			KEY reporter_id (reporter_id),
 			KEY status (status),
 			KEY created_at (created_at),
-			KEY status_created (status, created_at),
-			KEY moderator_id (moderator_id)
+			KEY status_created (status, created_at)
 		) $charset_collate;";
 
 		// Execute table creation

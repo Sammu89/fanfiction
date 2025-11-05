@@ -21,7 +21,9 @@
       "Bash(for file in \"C:\\Users\\Sammu\\Dentego Cloud\\Codes\\fanfic_project\\includes\\shortcodes\"/*.php)",
       "Bash(test:*)",
       "Bash(echo:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(debug.log)",
+      "Bash(__NEW_LINE__ cd \"C:\\Users\\Sammu\\Dentego Cloud\\Codes\\fanfic_project\")"
     ],
     "deny": [],
     "ask": []

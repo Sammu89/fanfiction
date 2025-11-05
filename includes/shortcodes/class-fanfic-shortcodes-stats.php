@@ -44,6 +44,7 @@ class Fanfic_Shortcodes_Stats {
 		add_shortcode( 'author-follow-button', array( __CLASS__, 'author_follow_button' ) );
 		add_shortcode( 'author-follower-count', array( __CLASS__, 'author_follower_count' ) );
 		add_shortcode( 'top-authors', array( __CLASS__, 'top_authors' ) );
+		add_shortcode( 'most-followed-authors', array( __CLASS__, 'most_followed_authors' ) );
 
 		// View shortcodes
 		add_shortcode( 'story-view-count', array( __CLASS__, 'story_view_count' ) );
@@ -298,7 +299,7 @@ class Fanfic_Shortcodes_Stats {
 	/**
 	 * Most bookmarked stories shortcode
 	 *
-	 * [most-bookmarked-stories limit="10"]
+	 * [most-bookmarked-stories limit="10" timeframe="all-time"]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
@@ -310,18 +311,66 @@ class Fanfic_Shortcodes_Stats {
 			array(
 				'limit'         => 10,
 				'min_bookmarks' => 1,
+				'timeframe'     => 'all-time',
 			),
 			'most-bookmarked-stories'
 		);
 
-		$stories = Fanfic_Bookmarks::get_most_bookmarked_stories( absint( $atts['limit'] ), absint( $atts['min_bookmarks'] ) );
+		// Build transient cache key including timeframe
+		$cache_key = 'fanfic_most_bookmarked_' . absint( $atts['limit'] ) . '_' . sanitize_key( $atts['timeframe'] );
+		$stories = get_transient( $cache_key );
+
+		if ( false === $stories ) {
+			global $wpdb;
+			$table_name = $wpdb->prefix . 'fanfic_bookmarks';
+
+			// Calculate date filter based on timeframe
+			$date_filter = '';
+			$timeframe = sanitize_key( $atts['timeframe'] );
+
+			if ( 'all-time' !== $timeframe ) {
+				$date_threshold = self::get_date_threshold( $timeframe );
+				if ( $date_threshold ) {
+					$date_filter = $wpdb->prepare( ' AND b.created_at >= %s', $date_threshold );
+				}
+			}
+
+			// Query for most bookmarked stories with optional timeframe filter
+			$query = $wpdb->prepare(
+				"SELECT b.story_id, COUNT(b.id) as bookmark_count
+				FROM {$table_name} b
+				INNER JOIN {$wpdb->posts} p ON b.story_id = p.ID
+				WHERE p.post_type = 'fanfiction_story'
+				AND p.post_status = 'publish'
+				{$date_filter}
+				GROUP BY b.story_id
+				HAVING bookmark_count >= %d
+				ORDER BY bookmark_count DESC
+				LIMIT %d",
+				absint( $atts['min_bookmarks'] ),
+				absint( $atts['limit'] )
+			);
+
+			$stories = $wpdb->get_results( $query );
+
+			// Cache for 1 hour
+			set_transient( $cache_key, $stories, HOUR_IN_SECONDS );
+		}
 
 		if ( empty( $stories ) ) {
 			return '<div class="fanfic-most-bookmarked fanfic-empty-state"><p>' . esc_html__( 'No bookmarked stories found.', 'fanfiction-manager' ) . '</p></div>';
 		}
 
-		$output = '<div class="fanfic-most-bookmarked">';
-		$output .= '<h3>' . esc_html__( 'Most Bookmarked Stories', 'fanfiction-manager' ) . '</h3>';
+		// Build timeframe heading
+		$timeframe_label = self::get_timeframe_label( $atts['timeframe'] );
+		$heading = sprintf(
+			/* translators: %s: timeframe label */
+			esc_html__( 'Most Bookmarked Stories %s', 'fanfiction-manager' ),
+			$timeframe_label
+		);
+
+		$output = '<div class="fanfic-most-bookmarked" role="region" aria-label="' . esc_attr( $heading ) . '">';
+		$output .= '<h3>' . esc_html( $heading ) . '</h3>';
 		$output .= '<div class="fanfic-story-cards">';
 
 		foreach ( $stories as $story_data ) {
@@ -333,7 +382,13 @@ class Fanfic_Shortcodes_Stats {
 				continue;
 			}
 
-			$output .= self::render_story_card( $story, null, null, $bookmark_count );
+			// Get featured image if available
+			$thumbnail = '';
+			if ( has_post_thumbnail( $story_id ) ) {
+				$thumbnail = get_the_post_thumbnail( $story_id, 'thumbnail', array( 'loading' => 'lazy' ) );
+			}
+
+			$output .= self::render_story_card_with_thumbnail( $story, null, null, $bookmark_count, null, $thumbnail );
 		}
 
 		$output .= '</div>';
@@ -481,6 +536,103 @@ class Fanfic_Shortcodes_Stats {
 			}
 
 			$output .= self::render_author_card( $author, $follower_count );
+		}
+
+		$output .= '</div>';
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Most followed authors shortcode with timeframe support
+	 *
+	 * [most-followed-authors limit="10" timeframe="all-time"]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Most followed authors list HTML.
+	 */
+	public static function most_followed_authors( $atts ) {
+		$atts = Fanfic_Shortcodes::sanitize_atts(
+			$atts,
+			array(
+				'limit'         => 10,
+				'min_followers' => 1,
+				'timeframe'     => 'all-time',
+			),
+			'most-followed-authors'
+		);
+
+		// Build transient cache key including timeframe
+		$cache_key = 'fanfic_most_followed_' . absint( $atts['limit'] ) . '_' . sanitize_key( $atts['timeframe'] );
+		$authors = get_transient( $cache_key );
+
+		if ( false === $authors ) {
+			global $wpdb;
+			$table_name = $wpdb->prefix . 'fanfic_follows';
+
+			// Calculate date filter based on timeframe
+			$date_filter = '';
+			$timeframe = sanitize_key( $atts['timeframe'] );
+
+			if ( 'all-time' !== $timeframe ) {
+				$date_threshold = self::get_date_threshold( $timeframe );
+				if ( $date_threshold ) {
+					$date_filter = $wpdb->prepare( ' AND f.created_at >= %s', $date_threshold );
+				}
+			}
+
+			// Query for most followed authors with optional timeframe filter
+			$query = $wpdb->prepare(
+				"SELECT f.author_id, COUNT(f.id) as follower_count
+				FROM {$table_name} f
+				INNER JOIN {$wpdb->users} u ON f.author_id = u.ID
+				WHERE 1=1
+				{$date_filter}
+				GROUP BY f.author_id
+				HAVING follower_count >= %d
+				ORDER BY follower_count DESC
+				LIMIT %d",
+				absint( $atts['min_followers'] ),
+				absint( $atts['limit'] )
+			);
+
+			$authors = $wpdb->get_results( $query );
+
+			// Cache for 1 hour
+			set_transient( $cache_key, $authors, HOUR_IN_SECONDS );
+		}
+
+		if ( empty( $authors ) ) {
+			return '<div class="fanfic-most-followed-authors fanfic-empty-state"><p>' . esc_html__( 'No authors found.', 'fanfiction-manager' ) . '</p></div>';
+		}
+
+		// Build timeframe heading
+		$timeframe_label = self::get_timeframe_label( $atts['timeframe'] );
+		$heading = sprintf(
+			/* translators: %s: timeframe label */
+			esc_html__( 'Most Followed Authors %s', 'fanfiction-manager' ),
+			$timeframe_label
+		);
+
+		$output = '<div class="fanfic-most-followed-authors" role="region" aria-label="' . esc_attr( $heading ) . '">';
+		$output .= '<h3>' . esc_html( $heading ) . '</h3>';
+		$output .= '<div class="fanfic-author-cards">';
+
+		foreach ( $authors as $author_data ) {
+			$author_id = $author_data->author_id;
+			$follower_count = $author_data->follower_count;
+
+			$author = get_userdata( $author_id );
+			if ( ! $author ) {
+				continue;
+			}
+
+			// Get story count for this author
+			$story_count = count_user_posts( $author_id, 'fanfiction_story' );
+
+			$output .= self::render_author_card_with_story_count( $author, $follower_count, $story_count );
 		}
 
 		$output .= '</div>';
@@ -844,5 +996,135 @@ class Fanfic_Shortcodes_Stats {
 		$output .= '</div>';
 
 		return $output;
+	}
+
+	/**
+	 * Render story card with thumbnail helper
+	 *
+	 * @since 1.0.0
+	 * @param WP_Post $story          Story post object.
+	 * @param float   $rating         Story rating (optional).
+	 * @param int     $rating_count   Rating count (optional).
+	 * @param int     $bookmark_count Bookmark count (optional).
+	 * @param int     $views          View count (optional).
+	 * @param string  $thumbnail      Thumbnail HTML (optional).
+	 * @return string Story card HTML.
+	 */
+	private static function render_story_card_with_thumbnail( $story, $rating = null, $rating_count = null, $bookmark_count = null, $views = null, $thumbnail = '' ) {
+		$story_url = get_permalink( $story->ID );
+		$author_id = $story->post_author;
+		$author_name = get_the_author_meta( 'display_name', $author_id );
+		$author_url = get_author_posts_url( $author_id );
+
+		$output = '<div class="fanfic-story-card">';
+
+		// Add thumbnail if available
+		if ( ! empty( $thumbnail ) ) {
+			$output .= '<div class="fanfic-story-thumbnail"><a href="' . esc_url( $story_url ) . '">' . $thumbnail . '</a></div>';
+		}
+
+		$output .= '<div class="fanfic-story-content">';
+		$output .= '<h4><a href="' . esc_url( $story_url ) . '">' . esc_html( $story->post_title ) . '</a></h4>';
+		$output .= '<p class="fanfic-author">by <a href="' . esc_url( $author_url ) . '">' . esc_html( $author_name ) . '</a></p>';
+
+		$output .= '<div class="fanfic-story-meta">';
+
+		if ( null !== $rating ) {
+			$output .= '<span class="fanfic-meta-item">';
+			$output .= Fanfic_Ratings::get_stars_html( $rating, false, 'small' );
+			$output .= ' ' . esc_html( number_format_i18n( $rating, 1 ) );
+			if ( null !== $rating_count ) {
+				$output .= ' (' . esc_html( number_format_i18n( $rating_count ) ) . ')';
+			}
+			$output .= '</span>';
+		}
+
+		if ( null !== $bookmark_count ) {
+			$output .= '<span class="fanfic-meta-item">&#9733; ' . esc_html( number_format_i18n( $bookmark_count ) ) . ' ' . esc_html( _n( 'bookmark', 'bookmarks', $bookmark_count, 'fanfiction-manager' ) ) . '</span>';
+		}
+
+		if ( null !== $views ) {
+			$output .= '<span class="fanfic-meta-item">&#128065; ' . esc_html( number_format_i18n( $views ) ) . ' ' . esc_html( _n( 'view', 'views', $views, 'fanfiction-manager' ) ) . '</span>';
+		}
+
+		$output .= '</div>';
+		$output .= '</div>';
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Render author card with story count helper
+	 *
+	 * @since 1.0.0
+	 * @param WP_User $author         Author user object.
+	 * @param int     $follower_count Follower count.
+	 * @param int     $story_count    Story count.
+	 * @return string Author card HTML.
+	 */
+	private static function render_author_card_with_story_count( $author, $follower_count, $story_count ) {
+		$author_url = get_author_posts_url( $author->ID );
+
+		$output = '<div class="fanfic-author-card">';
+		// Add lazy loading to avatar for performance optimization
+		$output .= '<div class="fanfic-author-avatar">' . get_avatar( $author->ID, 64, '', '', array( 'loading' => 'lazy' ) ) . '</div>';
+		$output .= '<div class="fanfic-author-info">';
+		$output .= '<h4><a href="' . esc_url( $author_url ) . '">' . esc_html( $author->display_name ) . '</a></h4>';
+		$output .= '<p class="fanfic-author-meta">';
+		$output .= '<span class="fanfic-meta-item">' . esc_html( number_format_i18n( $story_count ) ) . ' ' . esc_html( _n( 'story', 'stories', $story_count, 'fanfiction-manager' ) ) . '</span>';
+		$output .= ' &middot; ';
+		$output .= '<span class="fanfic-meta-item">' . esc_html( number_format_i18n( $follower_count ) ) . ' ' . esc_html( _n( 'follower', 'followers', $follower_count, 'fanfiction-manager' ) ) . '</span>';
+		$output .= '</p>';
+		$output .= '</div>';
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Get date threshold for timeframe filtering
+	 *
+	 * @since 1.0.0
+	 * @param string $timeframe Timeframe (week, month, year, all-time).
+	 * @return string|false MySQL datetime string or false if invalid timeframe.
+	 */
+	private static function get_date_threshold( $timeframe ) {
+		$timeframe = sanitize_key( $timeframe );
+
+		switch ( $timeframe ) {
+			case 'week':
+				return date( 'Y-m-d H:i:s', strtotime( '-7 days' ) );
+			case 'month':
+				return date( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+			case 'year':
+				return date( 'Y-m-d H:i:s', strtotime( '-1 year' ) );
+			case 'all-time':
+			default:
+				return false;
+		}
+	}
+
+	/**
+	 * Get human-readable label for timeframe
+	 *
+	 * @since 1.0.0
+	 * @param string $timeframe Timeframe (week, month, year, all-time).
+	 * @return string Human-readable timeframe label.
+	 */
+	private static function get_timeframe_label( $timeframe ) {
+		$timeframe = sanitize_key( $timeframe );
+
+		switch ( $timeframe ) {
+			case 'week':
+				return esc_html__( '(This Week)', 'fanfiction-manager' );
+			case 'month':
+				return esc_html__( '(This Month)', 'fanfiction-manager' );
+			case 'year':
+				return esc_html__( '(This Year)', 'fanfiction-manager' );
+			case 'all-time':
+			default:
+				return esc_html__( '(All Time)', 'fanfiction-manager' );
+		}
 	}
 }

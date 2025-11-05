@@ -36,6 +36,7 @@ class Fanfic_Shortcodes_Navigation {
 		add_shortcode( 'latest-chapter', array( __CLASS__, 'latest_chapter' ) );
 		add_shortcode( 'chapter-breadcrumb', array( __CLASS__, 'chapter_breadcrumb' ) );
 		add_shortcode( 'chapter-story', array( __CLASS__, 'chapter_story' ) );
+		add_shortcode( 'story-chapters-dropdown', array( __CLASS__, 'story_chapters_dropdown' ) );
 	}
 
 	/**
@@ -302,5 +303,82 @@ class Fanfic_Shortcodes_Navigation {
 			esc_url( $story_url ),
 			esc_html( $story_title )
 		);
+	}
+
+	/**
+	 * Story chapters dropdown shortcode
+	 *
+	 * [story-chapters-dropdown story_id="123"]
+	 *
+	 * Displays a dropdown menu of all chapters for a story.
+	 * Includes prologue, numbered chapters, and epilogue.
+	 * Uses JavaScript to navigate on selection change.
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Dropdown HTML.
+	 */
+	public static function story_chapters_dropdown( $atts ) {
+		$atts = Fanfic_Shortcodes::sanitize_atts(
+			$atts,
+			array(
+				'story_id' => 0,
+			),
+			'story-chapters-dropdown'
+		);
+
+		// Get story ID from attribute or current context
+		$story_id = absint( $atts['story_id'] );
+		if ( empty( $story_id ) ) {
+			// Try to get from current post
+			global $post;
+			if ( $post ) {
+				if ( 'fanfiction_story' === $post->post_type ) {
+					$story_id = $post->ID;
+				} elseif ( 'fanfiction_chapter' === $post->post_type && $post->post_parent ) {
+					$story_id = $post->post_parent;
+				}
+			}
+		}
+
+		// If no story ID found, return empty
+		if ( empty( $story_id ) ) {
+			return '';
+		}
+
+		// Get all chapters for the story
+		$chapters = self::get_story_chapters( $story_id );
+
+		// If no chapters, return empty
+		if ( empty( $chapters ) ) {
+			return '';
+		}
+
+		// Get current chapter ID if we're on a chapter page
+		$current_chapter_id = 0;
+		global $post;
+		if ( $post && 'fanfiction_chapter' === $post->post_type ) {
+			$current_chapter_id = $post->ID;
+		}
+
+		// Build dropdown HTML
+		$output = '<select class="fanfic-chapters-dropdown" onchange="if(this.value) window.location.href=this.value" aria-label="' . esc_attr__( 'Jump to chapter', 'fanfiction-manager' ) . '">';
+		$output .= '<option value="">' . esc_html__( 'Jump to Chapter', 'fanfiction-manager' ) . '</option>';
+
+		foreach ( $chapters as $chapter ) {
+			$selected = ( $chapter->ID === $current_chapter_id ) ? ' selected' : '';
+			$aria_current = ( $chapter->ID === $current_chapter_id ) ? ' aria-current="page"' : '';
+			$output .= sprintf(
+				'<option value="%s"%s%s>%s</option>',
+				esc_url( get_permalink( $chapter->ID ) ),
+				$selected,
+				$aria_current,
+				esc_html( $chapter->post_title )
+			);
+		}
+
+		$output .= '</select>';
+
+		return $output;
 	}
 }

@@ -29,11 +29,11 @@ define( 'FANFIC_INCLUDES_DIR', FANFIC_PLUGIN_DIR . 'includes/' );
 // Load core class
 require_once FANFIC_INCLUDES_DIR . 'class-fanfic-core.php';
 
-// Initialize the plugin
+// Initialize the plugin on 'init' hook (WordPress 6.7+ requires textdomain loading at init or later)
 function fanfic_init() {
 	Fanfic_Core::get_instance();
 }
-add_action( 'plugins_loaded', 'fanfic_init' );
+add_action( 'init', 'fanfic_init', 0 );
 
 // Activation hook
 register_activation_hook( __FILE__, array( 'Fanfic_Core', 'activate' ) );

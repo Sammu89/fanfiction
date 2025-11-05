@@ -80,6 +80,13 @@ get_header(); ?>
 
 			<div class="story-actions">
 				[story-actions]
+				<?php echo do_shortcode( '[edit-story-button]' ); ?>
+			</div>
+
+			<div class="story-navigation">
+				<div class="story-chapters-dropdown">
+					<?php echo do_shortcode( '[story-chapters-dropdown]' ); ?>
+				</div>
 			</div>
 
 			<div class="story-chapters-list">

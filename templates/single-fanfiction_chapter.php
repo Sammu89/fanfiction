@@ -40,12 +40,13 @@ get_header(); ?>
 				[chapters-nav]
 			</nav>
 
-			<div class="chapter-content">
-				<?php the_content(); ?>
-			</div>
-
 			<div class="chapter-actions">
 				[chapter-actions]
+				<?php echo do_shortcode( '[edit-chapter-button]' ); ?>
+			</div>
+
+			<div class="chapter-content">
+				<?php the_content(); ?>
 			</div>
 
 			<div class="chapter-rating">

@@ -571,7 +571,34 @@ class Fanfic_Templates {
 		if ( isset( $page_ids[ $key ] ) ) {
 			$existing_page = get_post( $page_ids[ $key ] );
 			if ( $existing_page && $existing_page->post_status !== 'trash' ) {
-				// Page exists, add to existing array
+				// Page exists - check if updates are needed
+				$needs_update = false;
+				$update_data = array( 'ID' => $page_ids[ $key ] );
+
+				// Check if slug needs updating
+				if ( $existing_page->post_name !== $post_name ) {
+					$update_data['post_name'] = $post_name;
+					$needs_update = true;
+				}
+
+				// Check if title needs updating
+				if ( $existing_page->post_title !== $title ) {
+					$update_data['post_title'] = $title;
+					$needs_update = true;
+				}
+
+				// Check if parent needs updating
+				if ( $existing_page->post_parent != $parent_id ) {
+					$update_data['post_parent'] = $parent_id;
+					$needs_update = true;
+				}
+
+				// Perform update if needed
+				if ( $needs_update ) {
+					wp_update_post( $update_data );
+				}
+
+				// Page exists (or was updated), add to existing array
 				if ( is_array( $result ) ) {
 					$result['existing'][] = $key;
 				}

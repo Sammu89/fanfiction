@@ -1842,7 +1842,7 @@ class Fanfic_Users_Admin {
 			if ( 0 === $story_count ) {
 				$user = get_userdata( $author_id );
 				if ( $user ) {
-					$user->set_role( 'subscriber' );
+					$user->set_role( 'fanfiction_reader' );
 					update_user_meta( $author_id, 'fanfic_auto_demoted', '1' );
 					update_user_meta( $author_id, 'fanfic_auto_demoted_at', current_time( 'mysql' ) );
 
@@ -1878,8 +1878,8 @@ class Fanfic_Users_Admin {
 			return;
 		}
 
-		// Check if user is a subscriber (reader)
-		if ( ! in_array( 'subscriber', $author->roles, true ) ) {
+		// Check if user is a reader (fanfiction_reader role)
+		if ( ! in_array( 'fanfiction_reader', $author->roles, true ) ) {
 			return;
 		}
 

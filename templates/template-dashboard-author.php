@@ -216,6 +216,18 @@ $current_user = wp_get_current_user();
 				[user-reading-history limit="5"]
 			</div>
 		</section>
+
+		<!-- Popular Stories -->
+		<section class="fanfic-dashboard-widget" aria-labelledby="popular-stories-heading">
+			<h3 id="popular-stories-heading"><?php esc_html_e( 'Popular Stories', 'fanfiction-manager' ); ?></h3>
+			<?php echo do_shortcode( '[most-bookmarked-stories limit="5" timeframe="week"]' ); ?>
+		</section>
+
+		<!-- Trending Authors -->
+		<section class="fanfic-dashboard-widget" aria-labelledby="trending-authors-heading">
+			<h3 id="trending-authors-heading"><?php esc_html_e( 'Trending Authors', 'fanfiction-manager' ); ?></h3>
+			<?php echo do_shortcode( '[most-followed-authors limit="5" timeframe="week"]' ); ?>
+		</section>
 	</aside>
 </div>
 

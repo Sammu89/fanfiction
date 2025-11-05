@@ -545,176 +545,25 @@ private function render_choice_screen() {
 	/**
 	 * Render URL settings step
 	 *
+	 * Uses the same form fields as the URL Configuration admin page
+	 * to ensure consistency and maintainability.
+	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	private function render_url_settings_step() {
-		$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
-		$story_path = get_option( 'fanfic_story_path', 'stories' );
-		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
-		$secondary_paths = get_option( 'fanfic_secondary_paths', array(
-			'dashboard' => 'dashboard',
-			'user'      => 'user',
-			'search'    => 'search',
-		) );
 		?>
 		<form id="fanfic-wizard-form-step-2" class="fanfic-wizard-form">
-			<?php wp_nonce_field( 'fanfic_wizard_step_2', 'fanfic_wizard_nonce_step_2' ); ?>
-
-			<table class="form-table">
-				<tr>
-					<th scope="row">
-						<label for="fanfic_main_page_mode">
-							<?php esc_html_e( 'Main Page Mode', 'fanfiction-manager' ); ?>
-							<span class="required">*</span>
-						</label>
-					</th>
-					<td>
-						<select name="fanfic_main_page_mode" id="fanfic_main_page_mode" required>
-							<option value="stories_homepage" <?php selected( $main_page_mode, 'stories_homepage' ); ?>>
-								<?php esc_html_e( 'Stories as Homepage', 'fanfiction-manager' ); ?>
-							</option>
-							<option value="custom_homepage" <?php selected( $main_page_mode, 'custom_homepage' ); ?>>
-								<?php esc_html_e( 'Custom Homepage with Separate Archive', 'fanfiction-manager' ); ?>
-							</option>
-						</select>
-						<p class="description">
-							<?php esc_html_e( 'Stories as Homepage: Your main page will display the story archive directly.', 'fanfiction-manager' ); ?><br>
-							<?php esc_html_e( 'Custom Homepage: You can customize the main page, and stories will be at /base-slug/stories/.', 'fanfiction-manager' ); ?>
-						</p>
-					</td>
-				</tr>
-
-				<tr>
-					<th scope="row">
-						<label for="fanfic_base_slug"><?php esc_html_e( 'Base Slug', 'fanfiction-manager' ); ?></label>
-					</th>
-					<td>
-						<input type="text" id="fanfic_base_slug" name="fanfic_base_slug" value="<?php echo esc_attr( $base_slug ); ?>" class="regular-text" pattern="[a-z0-9-]+" maxlength="50" required />
-						<p class="description">
-							<?php esc_html_e( 'This will be the main URL path for all fanfiction pages (e.g., /fanfiction/). Use lowercase letters, numbers, and hyphens only.', 'fanfiction-manager' ); ?>
-						</p>
-						<p class="description">
-							<strong><?php esc_html_e( 'Example:', 'fanfiction-manager' ); ?></strong>
-							<code><?php echo esc_html( home_url( '/' ) ); ?><span class="fanfic-base-slug-preview"><?php echo esc_html( $base_slug ); ?></span>/</code>
-						</p>
-					</td>
-				</tr>
-
-				<tr>
-					<th scope="row">
-						<label for="fanfic_story_path"><?php esc_html_e( 'Story Subdirectory', 'fanfiction-manager' ); ?></label>
-					</th>
-					<td>
-						<input type="text" id="fanfic_story_path" name="fanfic_story_path" value="<?php echo esc_attr( $story_path ); ?>" class="regular-text" pattern="[a-z0-9-]+" maxlength="50" required />
-						<p class="description">
-							<?php esc_html_e( 'Stories will be placed under this subdirectory to avoid conflicts with system pages. Use lowercase letters, numbers, and hyphens only.', 'fanfiction-manager' ); ?>
-						</p>
-						<p class="description">
-							<strong><?php esc_html_e( 'Example:', 'fanfiction-manager' ); ?></strong>
-							<code><?php echo esc_html( home_url( '/' ) ); ?><span class="fanfic-base-slug-preview"><?php echo esc_html( $base_slug ); ?></span>/<span class="fanfic-story-path-preview"><?php echo esc_html( $story_path ); ?></span>/my-story/</code>
-						</p>
-					</td>
-				</tr>
-
-				<tr>
-					<th scope="row">
-						<label><?php esc_html_e( 'Secondary Paths', 'fanfiction-manager' ); ?></label>
-					</th>
-					<td>
-						<p class="description"><?php esc_html_e( 'Customize the paths for secondary pages. Leave default if unsure.', 'fanfiction-manager' ); ?></p>
-
-						<table class="widefat">
-							<thead>
-								<tr>
-									<th><?php esc_html_e( 'Page Type', 'fanfiction-manager' ); ?></th>
-									<th><?php esc_html_e( 'Path Slug', 'fanfiction-manager' ); ?></th>
-									<th><?php esc_html_e( 'Example URL', 'fanfiction-manager' ); ?></th>
-								</tr>
-							</thead>
-							<tbody>
-								<tr>
-									<td><strong><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></strong></td>
-									<td>
-										<input type="text" name="fanfic_secondary_paths[dashboard]" value="<?php echo esc_attr( $secondary_paths['dashboard'] ); ?>" class="regular-text" pattern="[a-z0-9-]+" maxlength="50" required />
-									</td>
-									<td><code><?php echo esc_html( home_url( '/' ) ); ?><span class="fanfic-base-slug-preview"><?php echo esc_html( $base_slug ); ?></span>/<span class="fanfic-path-preview" data-path="dashboard"><?php echo esc_html( $secondary_paths['dashboard'] ); ?></span>/</code></td>
-								</tr>
-								<tr>
-									<td><strong><?php esc_html_e( 'Author/User Profile', 'fanfiction-manager' ); ?></strong></td>
-									<td>
-										<input type="text" name="fanfic_secondary_paths[user]" value="<?php echo esc_attr( $secondary_paths['user'] ); ?>" class="regular-text" pattern="[a-z0-9-]+" maxlength="50" required />
-									</td>
-									<td><code><?php echo esc_html( home_url( '/' ) ); ?><span class="fanfic-base-slug-preview"><?php echo esc_html( $base_slug ); ?></span>/<span class="fanfic-path-preview" data-path="user"><?php echo esc_html( $secondary_paths['user'] ); ?></span>/username/</code></td>
-								</tr>
-								<tr>
-									<td><strong><?php esc_html_e( 'Search', 'fanfiction-manager' ); ?></strong></td>
-									<td>
-										<input type="text" name="fanfic_secondary_paths[search]" value="<?php echo esc_attr( $secondary_paths['search'] ); ?>" class="regular-text" pattern="[a-z0-9-]+" maxlength="50" required />
-									</td>
-									<td><code><?php echo esc_html( home_url( '/' ) ); ?><span class="fanfic-base-slug-preview"><?php echo esc_html( $base_slug ); ?></span>/<span class="fanfic-path-preview" data-path="search"><?php echo esc_html( $secondary_paths['search'] ); ?></span>/</code></td>
-								</tr>
-							</tbody>
-						</table>
-					</td>
-				</tr>
-
-				<tr>
-					<th colspan="2" class="section-header">
-						<h3><?php esc_html_e( 'System Page Names', 'fanfiction-manager' ); ?></h3>
-						<p class="description">
-							<?php esc_html_e( 'Customize the names of system pages. Use lowercase letters, numbers, and hyphens only.', 'fanfiction-manager' ); ?>
-						</p>
-					</th>
-				</tr>
-
-				<?php
-				$system_pages = array(
-					'login'          => __( 'Login Page', 'fanfiction-manager' ),
-					'register'       => __( 'Register Page', 'fanfiction-manager' ),
-					'password-reset' => __( 'Password Reset Page', 'fanfiction-manager' ),
-					'dashboard'      => __( 'Dashboard Page', 'fanfiction-manager' ),
-					'create-story'   => __( 'Create Story Page', 'fanfiction-manager' ),
-					'edit-story'     => __( 'Edit Story Page', 'fanfiction-manager' ),
-					'edit-chapter'   => __( 'Edit Chapter Page', 'fanfiction-manager' ),
-					'edit-profile'   => __( 'Edit Profile Page', 'fanfiction-manager' ),
-					'search'         => __( 'Search Page', 'fanfiction-manager' ),
-					'members'        => __( 'Members/User Profile Page', 'fanfiction-manager' ),
-					'error'          => __( 'Error Page', 'fanfiction-manager' ),
-					'maintenance'    => __( 'Maintenance Page', 'fanfiction-manager' ),
-				);
-
-				$page_slugs = get_option( 'fanfic_system_page_slugs', array() );
-
-				foreach ( $system_pages as $key => $label ) :
-					$default_slug = $key;
-					$current_slug = isset( $page_slugs[ $key ] ) ? $page_slugs[ $key ] : $default_slug;
-					?>
-					<tr>
-						<th scope="row">
-							<label for="page_slug_<?php echo esc_attr( $key ); ?>">
-								<?php echo esc_html( $label ); ?>
-							</label>
-						</th>
-						<td>
-							<input
-								type="text"
-								name="fanfic_system_page_slugs[<?php echo esc_attr( $key ); ?>]"
-								id="page_slug_<?php echo esc_attr( $key ); ?>"
-								value="<?php echo esc_attr( $current_slug ); ?>"
-								pattern="[a-z0-9-]+"
-								maxlength="50"
-								class="regular-text"
-							/>
-							<p class="description">
-								<?php printf( esc_html__( 'Default: %s', 'fanfiction-manager' ), '<code>' . esc_html( $default_slug ) . '</code>' ); ?>
-							</p>
-						</td>
-					</tr>
-				<?php endforeach; ?>
-			</table>
+			<?php
+			// Use the same form fields from URL Config class
+			// This ensures consistency between wizard and settings page
+			Fanfic_URL_Config::render_form_fields( true );
+			?>
 		</form>
 		<?php
+		// Include the CSS and JavaScript for URL previews
+		Fanfic_URL_Config::render_styles();
+		Fanfic_URL_Config::render_scripts();
 	}
 
 	/**
@@ -1060,7 +909,17 @@ private function render_choice_screen() {
 			update_option( 'fanfic_story_path', $story_path );
 		}
 
-		// Validate and save secondary paths
+		// Validate and save archive slug (from fanfic_archive_slug field)
+		if ( isset( $_POST['fanfic_archive_slug'] ) ) {
+			$archive_slug = sanitize_title( wp_unslash( $_POST['fanfic_archive_slug'] ) );
+			if ( empty( $archive_slug ) || strlen( $archive_slug ) > 50 ) {
+				wp_send_json_error( array( 'message' => __( 'Archive slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
+			}
+		} else {
+			$archive_slug = 'archive'; // Default value
+		}
+
+		// Validate and save secondary paths (including archive slug)
 		if ( isset( $_POST['fanfic_secondary_paths'] ) && is_array( $_POST['fanfic_secondary_paths'] ) ) {
 			$secondary_paths = array();
 			$allowed_paths = array( 'dashboard', 'user', 'search', 'author' );
@@ -1083,6 +942,9 @@ private function render_choice_screen() {
 				}
 			}
 
+			// Add archive slug to secondary paths
+			$secondary_paths['archive'] = $archive_slug;
+
 			// Check for duplicate slugs
 			$unique_slugs = array_unique( $secondary_paths );
 			if ( count( $unique_slugs ) !== count( $secondary_paths ) ) {
@@ -1091,6 +953,35 @@ private function render_choice_screen() {
 
 			update_option( 'fanfic_secondary_paths', $secondary_paths );
 		}
+
+		// Validate and save chapter slugs
+		$prologue_slug = isset( $_POST['fanfic_prologue_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_prologue_slug'] ) ) : 'prologue';
+		$chapter_slug  = isset( $_POST['fanfic_chapter_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_chapter_slug'] ) ) : 'chapter';
+		$epilogue_slug = isset( $_POST['fanfic_epilogue_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_epilogue_slug'] ) ) : 'epilogue';
+
+		// Validate chapter slugs
+		if ( empty( $prologue_slug ) || strlen( $prologue_slug ) > 50 ) {
+			wp_send_json_error( array( 'message' => __( 'Prologue slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
+		}
+		if ( empty( $chapter_slug ) || strlen( $chapter_slug ) > 50 ) {
+			wp_send_json_error( array( 'message' => __( 'Chapter slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
+		}
+		if ( empty( $epilogue_slug ) || strlen( $epilogue_slug ) > 50 ) {
+			wp_send_json_error( array( 'message' => __( 'Epilogue slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
+		}
+
+		// Check for duplicate chapter slugs
+		$chapter_slugs_array = array( $prologue_slug, $chapter_slug, $epilogue_slug );
+		if ( count( $chapter_slugs_array ) !== count( array_unique( $chapter_slugs_array ) ) ) {
+			wp_send_json_error( array( 'message' => __( 'Chapter type slugs must be unique from each other.', 'fanfiction-manager' ) ) );
+		}
+
+		// Save chapter slugs
+		update_option( 'fanfic_chapter_slugs', array(
+			'prologue' => $prologue_slug,
+			'chapter'  => $chapter_slug,
+			'epilogue' => $epilogue_slug,
+		) );
 
 		// Validate and save system page slugs
 		if ( isset( $_POST['fanfic_system_page_slugs'] ) && is_array( $_POST['fanfic_system_page_slugs'] ) ) {
@@ -1120,6 +1011,15 @@ private function render_choice_screen() {
 			}
 			update_option( 'fanfic_system_page_slugs', $page_slugs );
 		}
+
+		// Create or update pages with new slugs
+		if ( class_exists( 'Fanfic_Templates' ) ) {
+			$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
+			Fanfic_Templates::create_system_pages( $base_slug );
+		}
+
+		// Flush rewrite rules to ensure new slugs work
+		flush_rewrite_rules();
 	}
 
 	/**

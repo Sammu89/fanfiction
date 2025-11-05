@@ -149,26 +149,9 @@ class Fanfic_Roles_Caps {
 			$banned_caps
 		);
 
-		// Add fanfiction capabilities to administrator
-		$admin = get_role( 'administrator' );
-		if ( $admin ) {
-			$admin->add_cap( 'edit_fanfiction_stories' );
-			$admin->add_cap( 'edit_others_fanfiction_stories' );
-			$admin->add_cap( 'publish_fanfiction_stories' );
-			$admin->add_cap( 'delete_fanfiction_stories' );
-			$admin->add_cap( 'delete_others_fanfiction_stories' );
-			$admin->add_cap( 'edit_fanfiction_chapters' );
-			$admin->add_cap( 'edit_others_fanfiction_chapters' );
-			$admin->add_cap( 'publish_fanfiction_chapters' );
-			$admin->add_cap( 'delete_fanfiction_chapters' );
-			$admin->add_cap( 'delete_others_fanfiction_chapters' );
-			$admin->add_cap( 'moderate_fanfiction' );
-			$admin->add_cap( 'manage_fanfiction_settings' );
-			$admin->add_cap( 'manage_fanfiction_taxonomies' );
-			$admin->add_cap( 'manage_fanfiction_url_config' );
-			$admin->add_cap( 'manage_fanfiction_emails' );
-			$admin->add_cap( 'manage_fanfiction_css' );
-		}
+		// NOTE: WordPress administrators do NOT get fanfiction capabilities added to their role.
+		// Instead, they inherit all permissions automatically via the cascade system in map_meta_cap().
+		// This follows the hierarchy: WordPress Admin >> Fanfic Admin > Fanfic Moderator > Fanfic Author > Fanfic Reader
 	}
 
 	/**
@@ -219,9 +202,11 @@ class Fanfic_Roles_Caps {
 		remove_role( 'fanfiction_author' );
 		remove_role( 'fanfiction_reader' );
 		remove_role( 'fanfiction_moderator' );
+		remove_role( 'fanfiction_admin' );
 		remove_role( 'fanfiction_banned_user' );
 
-		// Remove fanfiction capabilities from administrator
+		// Clean up any fanfiction capabilities that may have been added to administrator role
+		// in earlier versions of the plugin
 		$admin = get_role( 'administrator' );
 		if ( $admin ) {
 			$admin->remove_cap( 'edit_fanfiction_stories' );
@@ -235,6 +220,11 @@ class Fanfic_Roles_Caps {
 			$admin->remove_cap( 'delete_fanfiction_chapters' );
 			$admin->remove_cap( 'delete_others_fanfiction_chapters' );
 			$admin->remove_cap( 'moderate_fanfiction' );
+			$admin->remove_cap( 'manage_fanfiction_settings' );
+			$admin->remove_cap( 'manage_fanfiction_taxonomies' );
+			$admin->remove_cap( 'manage_fanfiction_url_config' );
+			$admin->remove_cap( 'manage_fanfiction_emails' );
+			$admin->remove_cap( 'manage_fanfiction_css' );
 		}
 	}
 
@@ -244,6 +234,9 @@ class Fanfic_Roles_Caps {
 	 * Handles granular permission checks, such as ensuring authors
 	 * can only edit their own stories and chapters.
 	 *
+	 * Implements cascade system: WordPress Admin >> Fanfic Admin > Fanfic Moderator > Fanfic Author > Fanfic Reader
+	 * WordPress admins automatically have all fanfiction permissions without needing explicit capabilities.
+	 *
 	 * @since 1.0.0
 	 * @param array  $caps    Primitive capabilities required.
 	 * @param string $cap     Capability being checked.
@@ -252,12 +245,56 @@ class Fanfic_Roles_Caps {
 	 * @return array Modified capabilities required.
 	 */
 	public static function map_meta_cap( $caps, $cap, $user_id, $args ) {
+		// WordPress admins automatically have all fanfiction permissions (cascade system)
+		// Check if this is a fanfiction-related capability
+		$fanfic_caps = array(
+			'edit_fanfiction_story',
+			'delete_fanfiction_story',
+			'edit_fanfiction_chapter',
+			'delete_fanfiction_chapter',
+			'edit_fanfiction_stories',
+			'edit_others_fanfiction_stories',
+			'publish_fanfiction_stories',
+			'delete_fanfiction_stories',
+			'delete_others_fanfiction_stories',
+			'edit_fanfiction_chapters',
+			'edit_others_fanfiction_chapters',
+			'publish_fanfiction_chapters',
+			'delete_fanfiction_chapters',
+			'delete_others_fanfiction_chapters',
+			'moderate_fanfiction',
+			'manage_fanfiction_settings',
+			'manage_fanfiction_taxonomies',
+			'manage_fanfiction_url_config',
+			'manage_fanfiction_emails',
+			'manage_fanfiction_css',
+		);
+
+		if ( in_array( $cap, $fanfic_caps, true ) ) {
+			// WordPress admins bypass all checks - they have manage_options which is top-level
+			if ( user_can( $user_id, 'manage_options' ) ) {
+				return array( 'manage_options' );
+			}
+		}
+
 		// Handle story capabilities
 		if ( in_array( $cap, array( 'edit_fanfiction_story', 'delete_fanfiction_story' ), true ) ) {
+			// WordPress admins should have already been granted access above,
+			// but double-check here as a safety net
+			if ( user_can( $user_id, 'manage_options' ) ) {
+				return array( 'manage_options' );
+			}
+
 			$post = get_post( $args[0] );
 
+			// If post doesn't exist or isn't a fanfiction story, require the "others" capability
+			// This allows moderators/admins to access, but prevents authors from accessing invalid stories
 			if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
-				return $caps;
+				if ( 'edit_fanfiction_story' === $cap ) {
+					return array( 'edit_others_fanfiction_stories' );
+				} elseif ( 'delete_fanfiction_story' === $cap ) {
+					return array( 'delete_others_fanfiction_stories' );
+				}
 			}
 
 			// Check if user can edit/delete others' stories
@@ -278,10 +315,22 @@ class Fanfic_Roles_Caps {
 
 		// Handle chapter capabilities
 		if ( in_array( $cap, array( 'edit_fanfiction_chapter', 'delete_fanfiction_chapter' ), true ) ) {
+			// WordPress admins should have already been granted access above,
+			// but double-check here as a safety net
+			if ( user_can( $user_id, 'manage_options' ) ) {
+				return array( 'manage_options' );
+			}
+
 			$post = get_post( $args[0] );
 
+			// If post doesn't exist or isn't a fanfiction chapter, require the "others" capability
+			// This allows moderators/admins to access, but prevents authors from accessing invalid chapters
 			if ( ! $post || 'fanfiction_chapter' !== $post->post_type ) {
-				return $caps;
+				if ( 'edit_fanfiction_chapter' === $cap ) {
+					return array( 'edit_others_fanfiction_chapters' );
+				} elseif ( 'delete_fanfiction_chapter' === $cap ) {
+					return array( 'delete_others_fanfiction_chapters' );
+				}
 			}
 
 			// Check if user can edit/delete others' chapters

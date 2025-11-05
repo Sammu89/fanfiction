@@ -53,6 +53,9 @@ class Fanfic_Shortcodes_User {
 		add_shortcode( 'user-story-list', array( __CLASS__, 'user_story_list' ) );
 		add_shortcode( 'user-notification-settings', array( __CLASS__, 'user_notification_settings' ) );
 		add_shortcode( 'notification-bell-icon', array( __CLASS__, 'notification_bell_icon' ) );
+		add_shortcode( 'user-ban', array( __CLASS__, 'user_ban' ) );
+		add_shortcode( 'user-moderator', array( __CLASS__, 'user_moderator' ) );
+		add_shortcode( 'user-demoderator', array( __CLASS__, 'user_demoderator' ) );
 	}
 
 	/**
@@ -1390,5 +1393,331 @@ class Fanfic_Shortcodes_User {
 		$output .= '</div>'; // .fanfic-notification-bell
 
 		return $output;
+	}
+
+	/**
+	 * User ban shortcode
+	 *
+	 * Displays a button to ban a user (moderators and admins only).
+	 * [user-ban user_id="123" button_text="Ban User"]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Ban user form HTML.
+	 */
+	public static function user_ban( $atts ) {
+		// Parse attributes
+		$atts = shortcode_atts( array(
+			'user_id'     => 0,
+			'button_text' => __( 'Ban User', 'fanfiction-manager' ),
+		), $atts, 'user-ban' );
+
+		$target_user_id = absint( $atts['user_id'] );
+
+		// Validate user ID
+		if ( ! $target_user_id ) {
+			return '<div class="fanfic-error">' . esc_html__( 'Invalid user ID.', 'fanfiction-manager' ) . '</div>';
+		}
+
+		// Check if current user has capability
+		if ( ! current_user_can( 'moderate_fanfiction' ) ) {
+			return '';
+		}
+
+		// Check if user exists
+		$user = get_userdata( $target_user_id );
+		if ( ! $user ) {
+			return '<div class="fanfic-error">' . esc_html__( 'User not found.', 'fanfiction-manager' ) . '</div>';
+		}
+
+		// Prevent users from banning themselves
+		if ( get_current_user_id() === $target_user_id ) {
+			return '<div class="fanfic-error">' . esc_html__( 'You cannot ban yourself.', 'fanfiction-manager' ) . '</div>';
+		}
+
+		// Handle form submission
+		if ( isset( $_POST['fanfic_action'] ) && 'ban_user' === $_POST['fanfic_action'] &&
+		     isset( $_POST['fanfic_user_id'] ) && absint( $_POST['fanfic_user_id'] ) === $target_user_id ) {
+
+			// Verify nonce
+			if ( ! isset( $_POST['fanfic_ban_nonce'] ) ||
+			     ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_ban_nonce'] ) ), 'fanfic_ban_user_' . $target_user_id ) ) {
+				return '<div class="fanfic-error">' . esc_html__( 'Security check failed.', 'fanfiction-manager' ) . '</div>';
+			}
+
+			// Check capability again
+			if ( ! current_user_can( 'moderate_fanfiction' ) ) {
+				return '<div class="fanfic-error">' . esc_html__( 'You do not have permission to ban users.', 'fanfiction-manager' ) . '</div>';
+			}
+
+			// Ensure banned role exists
+			self::ensure_banned_role_exists();
+
+			// Get user object
+			$target_user = new WP_User( $target_user_id );
+
+			// Change user role to banned
+			$target_user->set_role( 'fanfiction_banned_user' );
+
+			// Log action to moderation log
+			self::log_moderation_action( $target_user_id, 'ban', array(
+				'moderator_id' => get_current_user_id(),
+				'timestamp'    => current_time( 'mysql' ),
+				'reason'       => __( 'User banned by moderator', 'fanfiction-manager' ),
+			) );
+
+			// Redirect with success message
+			wp_safe_redirect( add_query_arg( 'fanfic_action', 'user_banned', wp_get_referer() ) );
+			exit;
+		}
+
+		// Display success message if redirected back
+		$output = '';
+		if ( isset( $_GET['fanfic_action'] ) && 'user_banned' === $_GET['fanfic_action'] ) {
+			$output .= '<div class="fanfic-notice fanfic-notice-success"><p>' . esc_html__( 'User banned successfully.', 'fanfiction-manager' ) . '</p></div>';
+		}
+
+		// Display form
+		ob_start();
+		?>
+		<form method="post" class="fanfic-user-action-form" id="fanfic-ban-user-<?php echo esc_attr( $target_user_id ); ?>">
+			<?php wp_nonce_field( 'fanfic_ban_user_' . $target_user_id, 'fanfic_ban_nonce' ); ?>
+			<input type="hidden" name="fanfic_action" value="ban_user" />
+			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
+			<button type="submit" class="button button-secondary fanfic-ban-user-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to ban this user? Their content will be preserved.', 'fanfiction-manager' ) ); ?>')">
+				<?php echo esc_html( $atts['button_text'] ); ?>
+			</button>
+		</form>
+		<?php
+		return $output . ob_get_clean();
+	}
+
+	/**
+	 * User promote to moderator shortcode
+	 *
+	 * Displays a button to promote a user to moderator (admins only).
+	 * [user-moderator user_id="123" button_text="Promote to Moderator"]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Promote user form HTML.
+	 */
+	public static function user_moderator( $atts ) {
+		// Parse attributes
+		$atts = shortcode_atts( array(
+			'user_id'     => 0,
+			'button_text' => __( 'Promote to Moderator', 'fanfiction-manager' ),
+		), $atts, 'user-moderator' );
+
+		$target_user_id = absint( $atts['user_id'] );
+
+		// Validate user ID
+		if ( ! $target_user_id ) {
+			return '<div class="fanfic-error">' . esc_html__( 'Invalid user ID.', 'fanfiction-manager' ) . '</div>';
+		}
+
+		// Check if current user is admin
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return '';
+		}
+
+		// Check if user exists
+		$user = get_userdata( $target_user_id );
+		if ( ! $user ) {
+			return '<div class="fanfic-error">' . esc_html__( 'User not found.', 'fanfiction-manager' ) . '</div>';
+		}
+
+		// Handle form submission
+		if ( isset( $_POST['fanfic_action'] ) && 'promote_moderator' === $_POST['fanfic_action'] &&
+		     isset( $_POST['fanfic_user_id'] ) && absint( $_POST['fanfic_user_id'] ) === $target_user_id ) {
+
+			// Verify nonce
+			if ( ! isset( $_POST['fanfic_moderator_nonce'] ) ||
+			     ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_moderator_nonce'] ) ), 'fanfic_promote_moderator_' . $target_user_id ) ) {
+				return '<div class="fanfic-error">' . esc_html__( 'Security check failed.', 'fanfiction-manager' ) . '</div>';
+			}
+
+			// Check capability again
+			if ( ! current_user_can( 'manage_options' ) ) {
+				return '<div class="fanfic-error">' . esc_html__( 'You do not have permission to promote users.', 'fanfiction-manager' ) . '</div>';
+			}
+
+			// Get user object
+			$target_user = new WP_User( $target_user_id );
+
+			// Change user role to moderator
+			$target_user->set_role( 'fanfiction_moderator' );
+
+			// Log action to moderation log
+			self::log_moderation_action( $target_user_id, 'promote_moderator', array(
+				'moderator_id' => get_current_user_id(),
+				'timestamp'    => current_time( 'mysql' ),
+				'reason'       => __( 'User promoted to moderator', 'fanfiction-manager' ),
+			) );
+
+			// Redirect with success message
+			wp_safe_redirect( add_query_arg( 'fanfic_action', 'user_promoted', wp_get_referer() ) );
+			exit;
+		}
+
+		// Display success message if redirected back
+		$output = '';
+		if ( isset( $_GET['fanfic_action'] ) && 'user_promoted' === $_GET['fanfic_action'] ) {
+			$output .= '<div class="fanfic-notice fanfic-notice-success"><p>' . esc_html__( 'User promoted to moderator successfully.', 'fanfiction-manager' ) . '</p></div>';
+		}
+
+		// Display form
+		ob_start();
+		?>
+		<form method="post" class="fanfic-user-action-form" id="fanfic-promote-moderator-<?php echo esc_attr( $target_user_id ); ?>">
+			<?php wp_nonce_field( 'fanfic_promote_moderator_' . $target_user_id, 'fanfic_moderator_nonce' ); ?>
+			<input type="hidden" name="fanfic_action" value="promote_moderator" />
+			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
+			<button type="submit" class="button button-primary fanfic-promote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to promote this user to moderator?', 'fanfiction-manager' ) ); ?>')">
+				<?php echo esc_html( $atts['button_text'] ); ?>
+			</button>
+		</form>
+		<?php
+		return $output . ob_get_clean();
+	}
+
+	/**
+	 * User demote from moderator shortcode
+	 *
+	 * Displays a button to demote a moderator to author (admins only).
+	 * [user-demoderator user_id="123" button_text="Demote to Author"]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Demote user form HTML.
+	 */
+	public static function user_demoderator( $atts ) {
+		// Parse attributes
+		$atts = shortcode_atts( array(
+			'user_id'     => 0,
+			'button_text' => __( 'Demote to Author', 'fanfiction-manager' ),
+		), $atts, 'user-demoderator' );
+
+		$target_user_id = absint( $atts['user_id'] );
+
+		// Validate user ID
+		if ( ! $target_user_id ) {
+			return '<div class="fanfic-error">' . esc_html__( 'Invalid user ID.', 'fanfiction-manager' ) . '</div>';
+		}
+
+		// Check if current user is admin
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return '';
+		}
+
+		// Check if user exists
+		$user = get_userdata( $target_user_id );
+		if ( ! $user ) {
+			return '<div class="fanfic-error">' . esc_html__( 'User not found.', 'fanfiction-manager' ) . '</div>';
+		}
+
+		// Prevent admins from demoting themselves
+		if ( get_current_user_id() === $target_user_id ) {
+			return '<div class="fanfic-error">' . esc_html__( 'You cannot demote yourself.', 'fanfiction-manager' ) . '</div>';
+		}
+
+		// Handle form submission
+		if ( isset( $_POST['fanfic_action'] ) && 'demote_moderator' === $_POST['fanfic_action'] &&
+		     isset( $_POST['fanfic_user_id'] ) && absint( $_POST['fanfic_user_id'] ) === $target_user_id ) {
+
+			// Verify nonce
+			if ( ! isset( $_POST['fanfic_demoderator_nonce'] ) ||
+			     ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_demoderator_nonce'] ) ), 'fanfic_demote_moderator_' . $target_user_id ) ) {
+				return '<div class="fanfic-error">' . esc_html__( 'Security check failed.', 'fanfiction-manager' ) . '</div>';
+			}
+
+			// Check capability again
+			if ( ! current_user_can( 'manage_options' ) ) {
+				return '<div class="fanfic-error">' . esc_html__( 'You do not have permission to demote users.', 'fanfiction-manager' ) . '</div>';
+			}
+
+			// Get user object
+			$target_user = new WP_User( $target_user_id );
+
+			// Change user role to author
+			$target_user->set_role( 'fanfiction_author' );
+
+			// Log action to moderation log
+			self::log_moderation_action( $target_user_id, 'demote_moderator', array(
+				'moderator_id' => get_current_user_id(),
+				'timestamp'    => current_time( 'mysql' ),
+				'reason'       => __( 'User demoted from moderator to author', 'fanfiction-manager' ),
+			) );
+
+			// Redirect with success message
+			wp_safe_redirect( add_query_arg( 'fanfic_action', 'user_demoted', wp_get_referer() ) );
+			exit;
+		}
+
+		// Display success message if redirected back
+		$output = '';
+		if ( isset( $_GET['fanfic_action'] ) && 'user_demoted' === $_GET['fanfic_action'] ) {
+			$output .= '<div class="fanfic-notice fanfic-notice-success"><p>' . esc_html__( 'User demoted to author successfully.', 'fanfiction-manager' ) . '</p></div>';
+		}
+
+		// Display form
+		ob_start();
+		?>
+		<form method="post" class="fanfic-user-action-form" id="fanfic-demote-moderator-<?php echo esc_attr( $target_user_id ); ?>">
+			<?php wp_nonce_field( 'fanfic_demote_moderator_' . $target_user_id, 'fanfic_demoderator_nonce' ); ?>
+			<input type="hidden" name="fanfic_action" value="demote_moderator" />
+			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
+			<button type="submit" class="button button-secondary fanfic-demote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to demote this moderator to author?', 'fanfiction-manager' ) ); ?>')">
+				<?php echo esc_html( $atts['button_text'] ); ?>
+			</button>
+		</form>
+		<?php
+		return $output . ob_get_clean();
+	}
+
+	/**
+	 * Ensure banned user role exists
+	 *
+	 * Creates the banned user role if it doesn't exist.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private static function ensure_banned_role_exists() {
+		if ( ! get_role( 'fanfiction_banned_user' ) ) {
+			add_role(
+				'fanfiction_banned_user',
+				__( 'Fanfiction Banned User', 'fanfiction-manager' ),
+				array( 'read' => true )
+			);
+		}
+	}
+
+	/**
+	 * Log moderation action to user meta
+	 *
+	 * Logs a moderation action (ban, promote, demote) to user meta.
+	 *
+	 * @since 1.0.0
+	 * @param int    $user_id User ID who was affected.
+	 * @param string $action Action type (ban, promote_moderator, demote_moderator).
+	 * @param array  $data Additional data to log.
+	 * @return void
+	 */
+	private static function log_moderation_action( $user_id, $action, $data ) {
+		// Get existing log
+		$log = get_user_meta( $user_id, 'fanfic_moderation_log', true );
+
+		if ( ! is_array( $log ) ) {
+			$log = array();
+		}
+
+		// Add new log entry
+		$log[] = array_merge( array(
+			'action' => $action,
+		), $data );
+
+		// Save log
+		update_user_meta( $user_id, 'fanfic_moderation_log', $log );
 	}
 }

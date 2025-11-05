@@ -26,6 +26,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_URL_Config {
 
     /**
+     * Instance of this class
+     *
+     * @var Fanfic_URL_Config
+     */
+    private static $instance = null;
+
+    /**
      * Option name for storing base slug
      *
      * @var string
@@ -69,42 +76,35 @@ class Fanfic_URL_Config {
      * @return void
      */
     public static function init() {
-        $instance = new self();
-        add_action( 'admin_post_fanfic_save_url_config', array( $instance, 'save_url_config' ) );
-        add_action( 'template_redirect', array( $instance, 'handle_301_redirects' ) );
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        add_action( 'admin_post_fanfic_save_url_config', array( self::$instance, 'save_url_config' ) );
+        add_action( 'admin_post_fanfic_delete_redirect', array( self::$instance, 'delete_redirect' ) );
+        add_action( 'template_redirect', array( self::$instance, 'handle_301_redirects' ) );
     }
 
     /**
-     * Render the URL configuration page
-     *
-     * Outputs the complete admin page with all configuration sections.
+     * Render just the form fields (reusable in wizard and settings page)
      *
      * @since 1.0.0
+     * @param bool $in_wizard Whether this is being rendered in the wizard context.
      * @return void
      */
-    public static function render() {
-        // Check user capabilities
-        if ( ! current_user_can( 'manage_options' ) ) {
-            wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
-        }
-
+    public static function render_form_fields( $in_wizard = false ) {
         $current_slugs      = self::get_current_slugs();
         $main_page_mode     = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
         $page_slugs         = get_option( 'fanfic_system_page_slugs', array() );
         $page_ids           = get_option( 'fanfic_system_page_ids', array() );
 
+        // Determine nonce and action based on context
+        if ( $in_wizard ) {
+            wp_nonce_field( 'fanfic_wizard_step_2', 'fanfic_wizard_nonce_step_2' );
+        } else {
+            wp_nonce_field( 'fanfic_save_url_config', 'fanfic_url_config_nonce' );
+            echo '<input type="hidden" name="action" value="fanfic_save_url_config">';
+        }
         ?>
-        <div class="wrap fanfic-url-config-wrap">
-            <h1><?php echo esc_html__( 'URL Configuration', 'fanfiction-manager' ); ?></h1>
-            <p class="description" style="font-size: 14px; margin-bottom: 25px;">
-                <?php echo esc_html__( 'Configure how your fanfiction site URLs are structured. Changes are applied immediately and old URLs will redirect automatically.', 'fanfiction-manager' ); ?>
-            </p>
-
-            <?php self::display_notices(); ?>
-
-            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="fanfic-url-config-form">
-                <?php wp_nonce_field( 'fanfic_save_url_config', 'fanfic_url_config_nonce' ); ?>
-                <input type="hidden" name="action" value="fanfic_save_url_config">
 
                 <!-- ============================================ -->
                 <!-- SECTION 1: SITE ORGANIZATION -->
@@ -181,7 +181,7 @@ class Fanfic_URL_Config {
                                             name="fanfic_base_slug"
                                             value="<?php echo esc_attr( $current_slugs['base'] ); ?>"
                                             class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9-]+"
+                                            pattern="[a-z0-9\-]+"
                                             maxlength="50"
                                             required
                                             data-slug-type="base"
@@ -211,7 +211,7 @@ class Fanfic_URL_Config {
                                             name="fanfic_story_path"
                                             value="<?php echo esc_attr( $current_slugs['story_path'] ); ?>"
                                             class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9-]+"
+                                            pattern="[a-z0-9\-]+"
                                             maxlength="50"
                                             required
                                             data-slug-type="story_path"
@@ -239,9 +239,9 @@ class Fanfic_URL_Config {
                                             type="text"
                                             id="fanfic_archive_slug"
                                             name="fanfic_archive_slug"
-                                            value="<?php echo esc_attr( $current_slugs['archive'] ); ?>"
+                                            value="<?php echo esc_attr( isset( $current_slugs['archive'] ) ? $current_slugs['archive'] : 'archive' ); ?>"
                                             class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9-]+"
+                                            pattern="[a-z0-9\-]+"
                                             maxlength="50"
                                             required
                                             data-slug-type="archive"
@@ -250,7 +250,7 @@ class Fanfic_URL_Config {
                                             <?php echo esc_html__( 'The path for browsing all stories (when using Custom Homepage mode).', 'fanfiction-manager' ); ?>
                                         </p>
                                         <p class="description">
-                                            <code id="archive-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slugs['archive'] ); ?></span>/</code>
+                                            <code id="archive-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( isset( $current_slugs['archive'] ) ? $current_slugs['archive'] : 'archive' ); ?></span>/</code>
                                         </p>
                                         <div class="fanfic-slug-validation" id="archive-slug-validation"></div>
                                     </td>
@@ -288,9 +288,9 @@ class Fanfic_URL_Config {
                                                 type="text"
                                                 id="fanfic_dashboard_slug"
                                                 name="fanfic_dashboard_slug"
-                                                value="<?php echo esc_attr( $current_slugs['dashboard'] ); ?>"
+                                                value="<?php echo esc_attr( isset( $current_slugs['dashboard'] ) ? $current_slugs['dashboard'] : 'dashboard' ); ?>"
                                                 class="regular-text fanfic-slug-input"
-                                                pattern="[a-z0-9-]+"
+                                                pattern="[a-z0-9\-]+"
                                                 maxlength="50"
                                                 required
                                                 data-slug-type="dashboard"
@@ -313,9 +313,9 @@ class Fanfic_URL_Config {
                                                 type="text"
                                                 id="fanfic_user_slug"
                                                 name="fanfic_user_slug"
-                                                value="<?php echo esc_attr( $current_slugs['user'] ); ?>"
+                                                value="<?php echo esc_attr( isset( $current_slugs['user'] ) ? $current_slugs['user'] : 'user' ); ?>"
                                                 class="regular-text fanfic-slug-input"
-                                                pattern="[a-z0-9-]+"
+                                                pattern="[a-z0-9\-]+"
                                                 maxlength="50"
                                                 required
                                                 data-slug-type="user"
@@ -338,9 +338,9 @@ class Fanfic_URL_Config {
                                                 type="text"
                                                 id="fanfic_search_slug"
                                                 name="fanfic_search_slug"
-                                                value="<?php echo esc_attr( $current_slugs['search'] ); ?>"
+                                                value="<?php echo esc_attr( isset( $current_slugs['search'] ) ? $current_slugs['search'] : 'search' ); ?>"
                                                 class="regular-text fanfic-slug-input"
-                                                pattern="[a-z0-9-]+"
+                                                pattern="[a-z0-9\-]+"
                                                 maxlength="50"
                                                 required
                                                 data-slug-type="search"
@@ -395,13 +395,13 @@ class Fanfic_URL_Config {
                                                     name="fanfic_system_page_slugs[<?php echo esc_attr( $key ); ?>]"
                                                     id="page_slug_<?php echo esc_attr( $key ); ?>"
                                                     value="<?php echo esc_attr( $current_slug ); ?>"
-                                                    pattern="[a-z0-9-]+"
+                                                    pattern="[a-z0-9\-]+"
                                                     maxlength="50"
                                                     class="regular-text fanfic-slug-input"
                                                     data-slug-type="system_<?php echo esc_attr( $key ); ?>"
                                                 />
                                                 <p class="description">
-                                                    <code id="system-<?php echo esc_attr( $key ); ?>-preview-code"><?php echo esc_html( home_url( '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slug ); ?></span>/</code>
+                                                    <code id="system-<?php echo esc_attr( $key ); ?>-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slug ); ?></span>/</code>
                                                 </p>
                                             </td>
                                         </tr>
@@ -438,9 +438,9 @@ class Fanfic_URL_Config {
                                             type="text"
                                             id="fanfic_prologue_slug"
                                             name="fanfic_prologue_slug"
-                                            value="<?php echo esc_attr( $current_slugs['prologue'] ); ?>"
+                                            value="<?php echo esc_attr( isset( $current_slugs['prologue'] ) ? $current_slugs['prologue'] : 'prologue' ); ?>"
                                             class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9-]+"
+                                            pattern="[a-z0-9\-]+"
                                             maxlength="50"
                                             required
                                             data-slug-type="prologue"
@@ -463,9 +463,9 @@ class Fanfic_URL_Config {
                                             type="text"
                                             id="fanfic_chapter_slug"
                                             name="fanfic_chapter_slug"
-                                            value="<?php echo esc_attr( $current_slugs['chapter'] ); ?>"
+                                            value="<?php echo esc_attr( isset( $current_slugs['chapter'] ) ? $current_slugs['chapter'] : 'chapter' ); ?>"
                                             class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9-]+"
+                                            pattern="[a-z0-9\-]+"
                                             maxlength="50"
                                             required
                                             data-slug-type="chapter"
@@ -488,9 +488,9 @@ class Fanfic_URL_Config {
                                             type="text"
                                             id="fanfic_epilogue_slug"
                                             name="fanfic_epilogue_slug"
-                                            value="<?php echo esc_attr( $current_slugs['epilogue'] ); ?>"
+                                            value="<?php echo esc_attr( isset( $current_slugs['epilogue'] ) ? $current_slugs['epilogue'] : 'epilogue' ); ?>"
                                             class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9-]+"
+                                            pattern="[a-z0-9\-]+"
                                             maxlength="50"
                                             required
                                             data-slug-type="epilogue"
@@ -513,6 +513,7 @@ class Fanfic_URL_Config {
                 <!-- ============================================ -->
                 <!-- SECTION 5: REDIRECT INFORMATION -->
                 <!-- ============================================ -->
+                <?php if ( ! $in_wizard ) : ?>
                 <div class="fanfic-config-section fanfic-section-redirects">
                     <div class="fanfic-section-header">
                         <h2><?php echo esc_html__( 'Active URL Redirects', 'fanfiction-manager' ); ?></h2>
@@ -539,15 +540,28 @@ class Fanfic_URL_Config {
                                             <th><?php esc_html_e( 'New Slug', 'fanfiction-manager' ); ?></th>
                                             <th><?php esc_html_e( 'Created', 'fanfiction-manager' ); ?></th>
                                             <th><?php esc_html_e( 'Expires', 'fanfiction-manager' ); ?></th>
+                                            <th><?php esc_html_e( 'Actions', 'fanfiction-manager' ); ?></th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ( $redirects as $redirect ) : ?>
+                                        <?php foreach ( $redirects as $redirect ) :
+                                            $delete_url = wp_nonce_url(
+                                                admin_url( 'admin-post.php?action=fanfic_delete_redirect&old_slug=' . urlencode( $redirect['old_slug'] ) ),
+                                                'fanfic_delete_redirect'
+                                            );
+                                        ?>
                                             <tr>
                                                 <td><code><?php echo esc_html( $redirect['old_slug'] ); ?></code></td>
                                                 <td><code><?php echo esc_html( $redirect['new_slug'] ); ?></code></td>
                                                 <td><?php echo esc_html( $redirect['created'] ); ?></td>
                                                 <td><?php echo esc_html( $redirect['expires'] ); ?></td>
+                                                <td>
+                                                    <a href="<?php echo esc_url( $delete_url ); ?>"
+                                                       class="button button-small delete-redirect-btn"
+                                                       onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to delete this redirect? Old URLs will no longer redirect to new ones.', 'fanfiction-manager' ) ); ?>');">
+                                                        <?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+                                                    </a>
+                                                </td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -572,19 +586,28 @@ class Fanfic_URL_Config {
                         ?>
                     </div>
                 </div>
+                <?php endif; // End redirects section ?>
 
                 <!-- Submit Button -->
+                <?php if ( ! $in_wizard ) : ?>
                 <div class="fanfic-submit-wrapper">
                     <?php submit_button( __( 'Save All URL Settings', 'fanfiction-manager' ), 'primary large', 'submit_url_config' ); ?>
                     <p class="description">
                         <?php echo esc_html__( 'Changes take effect immediately. Old URLs will redirect automatically.', 'fanfiction-manager' ); ?>
                     </p>
                 </div>
+                <?php endif; ?>
+        <?php
+    }
 
-            </form>
-        </div>
-
-        <!-- Styles -->
+    /**
+     * Render the CSS styles for URL configuration
+     *
+     * @since 1.0.0
+     * @return void
+     */
+    public static function render_styles() {
+        ?>
         <style>
             .fanfic-url-config-wrap {
                 max-width: 1200px;
@@ -594,7 +617,6 @@ class Fanfic_URL_Config {
             .fanfic-config-section {
                 background: #fff;
                 border: 1px solid #c3c4c7;
-                border-radius: 4px;
                 margin-bottom: 25px;
                 box-shadow: 0 1px 1px rgba(0,0,0,.04);
             }
@@ -622,8 +644,8 @@ class Fanfic_URL_Config {
 
             /* Main Section - Radio Cards */
             .fanfic-section-main .fanfic-section-header {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                border: none;
+                background: #2271b1;
+                border-bottom: 1px solid #135e96;
             }
 
             .fanfic-section-main .fanfic-section-header h2,
@@ -828,7 +850,7 @@ class Fanfic_URL_Config {
 
             /* Redirects Section */
             .fanfic-section-redirects .fanfic-section-header {
-                background: #f0f6fc;
+                background: #f6f7f7;
             }
 
             .fanfic-redirect-status {
@@ -876,6 +898,537 @@ class Fanfic_URL_Config {
                 background: #f0f0f1;
                 padding: 4px 8px;
                 border-radius: 3px;
+            }
+
+            .delete-redirect-btn {
+                color: #b32d2e;
+                border-color: #b32d2e;
+            }
+
+            .delete-redirect-btn:hover {
+                color: #fff;
+                background: #b32d2e;
+                border-color: #b32d2e;
+            }
+
+            /* Submit Wrapper */
+            .fanfic-submit-wrapper {
+                background: #f6f7f7;
+                border-top: 1px solid #c3c4c7;
+                padding: 20px 25px;
+                margin: 0 -25px -25px -25px;
+                border-radius: 0 0 4px 4px;
+            }
+
+            .fanfic-submit-wrapper .button-primary {
+                height: auto;
+                padding: 12px 24px;
+                font-size: 14px;
+            }
+
+            .fanfic-submit-wrapper .description {
+                margin: 10px 0 0 0;
+                font-size: 13px;
+            }
+
+            /* Responsive */
+            @media (max-width: 782px) {
+                .fanfic-radio-cards {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+        <?php
+    }
+
+    /**
+     * Render the JavaScript for URL configuration
+     *
+     * @since 1.0.0
+     * @return void
+     */
+    public static function render_scripts() {
+        $current_slugs = self::get_current_slugs();
+        ?>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            var homeUrl = '<?php echo esc_js( home_url( '/' ) ); ?>';
+            var baseSlug = '<?php echo esc_js( $current_slugs['base'] ); ?>';
+
+            // Radio card selection visual feedback
+            $('.fanfic-radio-card input[type="radio"]').on('change', function() {
+                $('.fanfic-radio-card').removeClass('selected');
+                $(this).closest('.fanfic-radio-card').addClass('selected');
+            });
+
+            // Real-time URL preview updates
+            function updatePreviews() {
+                var newBase = $('#fanfic_base_slug').val().trim() || baseSlug;
+                var newStoryPath = $('#fanfic_story_path').val().trim() || 'stories';
+                var newArchive = $('#fanfic_archive_slug').val().trim() || 'archive';
+                var newDashboard = $('#fanfic_dashboard_slug').val().trim() || 'dashboard';
+                var newUser = $('#fanfic_user_slug').val().trim() || 'user';
+                var newSearch = $('#fanfic_search_slug').val().trim() || 'search';
+                var newPrologue = $('#fanfic_prologue_slug').val().trim() || 'prologue';
+                var newChapter = $('#fanfic_chapter_slug').val().trim() || 'chapter';
+                var newEpilogue = $('#fanfic_epilogue_slug').val().trim() || 'epilogue';
+
+                // Update base slug preview
+                $('#base-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/');
+
+                // Update story path preview
+                $('#story-path-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newStoryPath + '</span>/my-story-title/');
+
+                // Update archive preview
+                $('#archive-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newArchive + '</span>/');
+
+                // Update dashboard preview
+                $('#dashboard-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newDashboard + '</span>/');
+
+                // Update user profile preview
+                $('#user-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newUser + '</span>/username/');
+
+                // Update search preview
+                $('#search-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newSearch + '</span>/');
+
+                // Update chapter URLs with /base_slug/story_path/story-title/ pattern
+                $('#prologue-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newStoryPath + '</span>/my-story-title/' +
+                    '<span class="fanfic-dynamic-slug">' + newPrologue + '</span>/');
+
+                $('#chapter-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newStoryPath + '</span>/my-story-title/' +
+                    '<span class="fanfic-dynamic-slug">' + newChapter + '</span>-1/');
+
+                $('#epilogue-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                    '<span class="fanfic-dynamic-slug">' + newStoryPath + '</span>/my-story-title/' +
+                    '<span class="fanfic-dynamic-slug">' + newEpilogue + '</span>/');
+
+                // Update system page slugs
+                $('input[data-slug-type^="system_"]').each(function() {
+                    var $input = $(this);
+                    var slugValue = $input.val().trim();
+                    var systemKey = $input.data('slug-type').replace('system_', '');
+                    var previewId = '#system-' + systemKey + '-preview-code';
+
+                    $(previewId).html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                        '<span class="fanfic-dynamic-slug">' + slugValue + '</span>/');
+                });
+            }
+
+            // Update dynamic slug highlights
+            $('.fanfic-slug-input').on('input', function() {
+                var slugType = $(this).data('slug-type');
+                var newValue = $(this).val().trim();
+
+                // Update live previews for all URL types
+                updatePreviews();
+
+                // Validate slug
+                validateSlug($(this));
+            });
+
+            // Initial update on page load
+            updatePreviews();
+
+            // Slug validation
+            function validateSlug($input) {
+                var slug = $input.val().trim();
+                var validationDiv = $input.siblings('.fanfic-slug-validation');
+
+                if (!validationDiv.length) {
+                    validationDiv = $('<div class="fanfic-slug-validation"></div>');
+                    $input.parent().append(validationDiv);
+                }
+
+                // Check length
+                if (slug.length > 50) {
+                    validationDiv.removeClass('success').addClass('error').text('<?php echo esc_js( __( 'Too long! Maximum 50 characters.', 'fanfiction-manager' ) ); ?>');
+                    return false;
+                }
+
+                // Check format
+                if (!/^[a-z0-9\-]+$/.test(slug)) {
+                    validationDiv.removeClass('success').addClass('error').text('<?php echo esc_js( __( 'Only lowercase letters, numbers, and hyphens allowed.', 'fanfiction-manager' ) ); ?>');
+                    return false;
+                }
+
+                // Check if empty
+                if (slug.length === 0) {
+                    validationDiv.removeClass('success error').text('');
+                    return false;
+                }
+
+                validationDiv.removeClass('error').addClass('success').text('✓ <?php echo esc_js( __( 'Valid slug', 'fanfiction-manager' ) ); ?>');
+                return true;
+            }
+
+            // Form submission validation
+            $('#fanfic-url-config-form, #fanfic-wizard-form-step-2').on('submit', function(e) {
+                var isValid = true;
+
+                $('.fanfic-slug-input').each(function() {
+                    if (!validateSlug($(this))) {
+                        isValid = false;
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault();
+                    alert('<?php echo esc_js( __( 'Please fix validation errors before saving.', 'fanfiction-manager' ) ); ?>');
+                }
+            });
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * Render the URL configuration page
+     *
+     * Outputs the complete admin page with all configuration sections.
+     *
+     * @since 1.0.0
+     * @return void
+     */
+    public static function render() {
+        // Check user capabilities
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'You do not have sufficient permissions to access this page.', 'Permission Denied', array( 'response' => 403 ) );
+        }
+
+        ?>
+        <div class="wrap fanfic-url-config-wrap">
+            <h1><?php echo esc_html__( 'URL Configuration', 'fanfiction-manager' ); ?></h1>
+            <p class="description" style="font-size: 14px; margin-bottom: 25px;">
+                <?php echo esc_html__( 'Configure how your fanfiction site URLs are structured. Changes are applied immediately and old URLs will redirect automatically.', 'fanfiction-manager' ); ?>
+            </p>
+
+            <?php self::display_notices(); ?>
+
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="fanfic-url-config-form">
+                <?php self::render_form_fields( false ); ?>
+            </form>
+        </div>
+
+        <?php
+        self::render_styles();
+        self::render_scripts();
+    }
+
+    /**
+     * OLD RENDER METHOD PLACEHOLDER - DELETE THIS AFTER TESTING
+     * These styles and scripts have been moved to render_styles() and render_scripts()
+     */
+    private static function OLD_DO_NOT_USE_render_inline_assets() {
+        ?>
+        <!-- OLD STYLES - MOVED TO render_styles() -->
+        <style>
+            .fanfic-url-config-wrap {
+                max-width: 1200px;
+            }
+
+            /* Section Styling */
+            .fanfic-config-section {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                margin-bottom: 25px;
+                box-shadow: 0 1px 1px rgba(0,0,0,.04);
+            }
+
+            .fanfic-section-header {
+                background: #f6f7f7;
+                border-bottom: 1px solid #c3c4c7;
+                padding: 20px 25px;
+            }
+
+            .fanfic-section-header h2 {
+                margin: 0 0 8px 0;
+                font-size: 18px;
+                font-weight: 600;
+            }
+
+            .fanfic-section-header .description {
+                margin: 0;
+                color: #646970;
+            }
+
+            .fanfic-section-content {
+                padding: 25px;
+            }
+
+            /* Main Section - Radio Cards */
+            .fanfic-section-main .fanfic-section-header {
+                background: #2271b1;
+                border-bottom: 1px solid #135e96;
+            }
+
+            .fanfic-section-main .fanfic-section-header h2,
+            .fanfic-section-main .fanfic-section-header .description {
+                color: #fff;
+            }
+
+            .fanfic-radio-cards {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }
+
+            .fanfic-radio-card {
+                position: relative;
+                display: block;
+                padding: 20px;
+                border: 2px solid #c3c4c7;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                background: #fff;
+            }
+
+            .fanfic-radio-card:hover {
+                border-color: #2271b1;
+                box-shadow: 0 2px 8px rgba(34, 113, 177, 0.1);
+            }
+
+            .fanfic-radio-card.selected {
+                border-color: #2271b1;
+                background: #f0f6fc;
+                box-shadow: 0 0 0 1px #2271b1;
+            }
+
+            .fanfic-radio-card input[type="radio"] {
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                width: 20px;
+                height: 20px;
+                margin: 0;
+            }
+
+            .fanfic-radio-card-content {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .fanfic-radio-card-content strong {
+                font-size: 15px;
+                color: #1d2327;
+            }
+
+            .fanfic-radio-card-desc {
+                font-size: 13px;
+                color: #646970;
+            }
+
+            .fanfic-url-example-small {
+                display: inline-block;
+                padding: 6px 10px;
+                background: #f0f0f1;
+                border-radius: 3px;
+                font-size: 12px;
+                color: #2271b1;
+                margin-top: 4px;
+            }
+
+            .fanfic-url-example-small .highlight {
+                background: #fef7e0;
+                padding: 2px 4px;
+                border-radius: 2px;
+            }
+
+            /* Required Indicator */
+            .fanfic-required {
+                color: #d63638;
+                font-weight: bold;
+            }
+
+            /* TODO Badge */
+            .fanfic-todo-row {
+                opacity: 0.6;
+            }
+
+            .fanfic-todo-badge {
+                display: inline-block;
+                background: #fcf9e8;
+                color: #997404;
+                border: 1px solid #f0e9c5;
+                padding: 2px 8px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                margin-left: 8px;
+            }
+
+            /* Fieldsets */
+            .fanfic-fieldset {
+                border: 1px solid #c3c4c7;
+                border-radius: 4px;
+                padding: 20px;
+                background: #f9f9f9;
+            }
+
+            .fanfic-fieldset legend {
+                font-weight: 600;
+                font-size: 14px;
+                padding: 0 10px;
+            }
+
+            /* URL Preview Box */
+            .fanfic-url-preview-box {
+                background: #f0f6fc;
+                border: 1px solid #c3c4c7;
+                border-radius: 4px;
+                padding: 20px;
+                margin-top: 20px;
+            }
+
+            .fanfic-url-preview-box h4 {
+                margin: 0 0 15px 0;
+                font-size: 14px;
+                font-weight: 600;
+                color: #1d2327;
+            }
+
+            .fanfic-url-preview-grid {
+                display: grid;
+                gap: 12px;
+            }
+
+            .fanfic-url-preview-item {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .fanfic-url-label {
+                font-weight: 600;
+                font-size: 13px;
+                color: #646970;
+                min-width: 80px;
+            }
+
+            .fanfic-url-preview-item code {
+                background: #fff;
+                padding: 8px 12px;
+                border-radius: 3px;
+                font-size: 13px;
+                flex: 1;
+                border: 1px solid #c3c4c7;
+            }
+
+            /* Dynamic Slug Highlighting */
+            .fanfic-dynamic-slug {
+                background: #fef7e0;
+                padding: 2px 4px;
+                border-radius: 2px;
+                font-weight: 600;
+            }
+
+            /* Info Box */
+            .fanfic-info-box {
+                display: flex;
+                gap: 12px;
+                background: #f0f6fc;
+                border-left: 4px solid #2271b1;
+                padding: 15px;
+                margin-top: 20px;
+                align-items: flex-start;
+            }
+
+            .fanfic-info-box .dashicons {
+                color: #2271b1;
+                flex-shrink: 0;
+                margin-top: 2px;
+            }
+
+            .fanfic-info-box p {
+                margin: 0;
+                font-size: 13px;
+                color: #1d2327;
+            }
+
+            /* Slug Input Validation */
+            .fanfic-slug-validation {
+                margin-top: 8px;
+                font-size: 13px;
+            }
+
+            .fanfic-slug-validation.error {
+                color: #d63638;
+            }
+
+            .fanfic-slug-validation.success {
+                color: #00a32a;
+            }
+
+            /* Redirects Section */
+            .fanfic-section-redirects .fanfic-section-header {
+                background: #f6f7f7;
+            }
+
+            .fanfic-redirect-status {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                background: #dff0d8;
+                border: 1px solid #d0e9c6;
+                padding: 12px 15px;
+                border-radius: 4px;
+                margin-bottom: 15px;
+            }
+
+            .fanfic-redirect-status .dashicons {
+                color: #00a32a;
+            }
+
+            .fanfic-no-redirects {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 20px;
+                background: #f9f9f9;
+                border: 1px dashed #c3c4c7;
+                border-radius: 4px;
+            }
+
+            .fanfic-no-redirects .dashicons {
+                color: #646970;
+                font-size: 24px;
+                width: 24px;
+                height: 24px;
+            }
+
+            .fanfic-no-redirects p {
+                margin: 0;
+                color: #646970;
+            }
+
+            .fanfic-redirects-table {
+                margin-top: 0;
+            }
+
+            .fanfic-redirects-table code {
+                background: #f0f0f1;
+                padding: 4px 8px;
+                border-radius: 3px;
+            }
+
+            .delete-redirect-btn {
+                color: #b32d2e;
+                border-color: #b32d2e;
+            }
+
+            .delete-redirect-btn:hover {
+                color: #fff;
+                background: #b32d2e;
+                border-color: #b32d2e;
             }
 
             /* Submit Wrapper */
@@ -973,7 +1526,8 @@ class Fanfic_URL_Config {
                     var systemKey = $input.data('slug-type').replace('system_', '');
                     var previewId = '#system-' + systemKey + '-preview-code';
 
-                    $(previewId).html(homeUrl + '<span class="fanfic-dynamic-slug">' + slugValue + '</span>/');
+                    $(previewId).html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
+                        '<span class="fanfic-dynamic-slug">' + slugValue + '</span>/');
                 });
             }
 
@@ -1009,7 +1563,7 @@ class Fanfic_URL_Config {
                 }
 
                 // Check format
-                if (!/^[a-z0-9-]+$/.test(slug)) {
+                if (!/^[a-z0-9\-]+$/.test(slug)) {
                     validationDiv.removeClass('success').addClass('error').text('<?php echo esc_js( __( 'Only lowercase letters, numbers, and hyphens allowed.', 'fanfiction-manager' ) ); ?>');
                     return false;
                 }
@@ -1056,13 +1610,13 @@ class Fanfic_URL_Config {
     public function save_url_config() {
         // Check user capabilities
         if ( ! current_user_can( 'manage_options' ) ) {
-            wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
+            wp_die( 'You do not have sufficient permissions to access this page.', 'Permission Denied', array( 'response' => 403 ) );
         }
 
         // Verify nonce
         if ( ! isset( $_POST['fanfic_url_config_nonce'] ) ||
              ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_url_config_nonce'] ) ), 'fanfic_save_url_config' ) ) {
-            wp_die( esc_html__( 'Security check failed.', 'fanfiction-manager' ) );
+            wp_die( 'Security check failed.', 'Security Error', array( 'response' => 403 ) );
         }
 
         $errors = array();
@@ -1075,7 +1629,7 @@ class Fanfic_URL_Config {
             $main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
             if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
                 update_option( 'fanfic_main_page_mode', $main_page_mode );
-                $success_messages[] = __( 'Site organization mode saved.', 'fanfiction-manager' );
+                $success_messages[] = 'Site organization mode saved.';
             }
         }
 
@@ -1087,7 +1641,7 @@ class Fanfic_URL_Config {
             $validation = $this->validate_slug( $new_base_slug, array( 'base' ) );
 
             if ( is_wp_error( $validation ) ) {
-                $errors[] = __( 'Base Slug: ', 'fanfiction-manager' ) . $validation->get_error_message();
+                $errors[] = 'Base Slug: ' . $validation->get_error_message();
             } else {
                 $old_base_slug = get_option( self::OPTION_BASE_SLUG, 'fanfiction' );
                 if ( $old_base_slug !== $new_base_slug ) {
@@ -1097,7 +1651,20 @@ class Fanfic_URL_Config {
                     }
                 }
                 update_option( self::OPTION_BASE_SLUG, $new_base_slug );
-                $success_messages[] = __( 'Base slug saved.', 'fanfiction-manager' );
+
+                // Update main page slug to match base slug
+                $page_ids = get_option( 'fanfic_system_page_ids', array() );
+                if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
+                    $main_page = get_post( $page_ids['main'] );
+                    if ( $main_page && $main_page->post_name !== $new_base_slug ) {
+                        wp_update_post( array(
+                            'ID'        => $page_ids['main'],
+                            'post_name' => $new_base_slug,
+                        ) );
+                    }
+                }
+
+                $success_messages[] = 'Base slug saved.';
             }
         }
 
@@ -1109,7 +1676,7 @@ class Fanfic_URL_Config {
             $validation = $this->validate_slug( $new_story_path, array( 'story_path' ) );
 
             if ( is_wp_error( $validation ) ) {
-                $errors[] = __( 'Stories Slug: ', 'fanfiction-manager' ) . $validation->get_error_message();
+                $errors[] = 'Stories Slug: ' . $validation->get_error_message();
             } else {
                 $old_story_path = get_option( self::OPTION_STORY_PATH, 'stories' );
                 if ( $old_story_path !== $new_story_path ) {
@@ -1118,7 +1685,7 @@ class Fanfic_URL_Config {
                     }
                 }
                 update_option( self::OPTION_STORY_PATH, $new_story_path );
-                $success_messages[] = __( 'Stories slug saved.', 'fanfiction-manager' );
+                $success_messages[] = 'Stories slug saved.';
             }
         }
 
@@ -1133,7 +1700,7 @@ class Fanfic_URL_Config {
         // Check for duplicates among secondary paths
         $secondary_slugs = array( $dashboard_slug, $user_slug, $archive_slug, $search_slug );
         if ( count( $secondary_slugs ) !== count( array_unique( $secondary_slugs ) ) ) {
-            $errors[] = __( 'User & System URLs must be unique from each other.', 'fanfiction-manager' );
+            $errors[] = 'User & System URLs must be unique from each other.';
         } else {
             // Validate each
             $paths_to_validate = array(
@@ -1147,14 +1714,30 @@ class Fanfic_URL_Config {
             foreach ( $paths_to_validate as $name => $slug ) {
                 $validation = $this->validate_slug( $slug, array( $name ) );
                 if ( is_wp_error( $validation ) ) {
-                    $errors[] = sprintf( __( '%s: ', 'fanfiction-manager' ), ucfirst( $name ) ) . $validation->get_error_message();
+                    $errors[] = ucfirst( $name ) . ': ' . $validation->get_error_message();
                     $paths_valid = false;
                 }
             }
 
             if ( $paths_valid ) {
                 update_option( self::OPTION_SECONDARY_PATHS, $paths_to_validate );
-                $success_messages[] = __( 'User & system URLs saved.', 'fanfiction-manager' );
+
+                // Update archive page slug if in custom_homepage mode
+                $main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+                if ( $main_page_mode === 'custom_homepage' && ! empty( $archive_slug ) ) {
+                    $page_ids = get_option( 'fanfic_system_page_ids', array() );
+                    if ( isset( $page_ids['archive'] ) && $page_ids['archive'] > 0 ) {
+                        $archive_page = get_post( $page_ids['archive'] );
+                        if ( $archive_page && $archive_page->post_name !== $archive_slug ) {
+                            wp_update_post( array(
+                                'ID'        => $page_ids['archive'],
+                                'post_name' => $archive_slug,
+                            ) );
+                        }
+                    }
+                }
+
+                $success_messages[] = 'User & system URLs saved.';
             }
         }
 
@@ -1168,7 +1751,7 @@ class Fanfic_URL_Config {
         // Check for duplicates among chapter slugs
         $chapter_slugs = array( $prologue_slug, $chapter_slug, $epilogue_slug );
         if ( count( $chapter_slugs ) !== count( array_unique( $chapter_slugs ) ) ) {
-            $errors[] = __( 'Chapter type slugs must be unique from each other.', 'fanfiction-manager' );
+            $errors[] = 'Chapter type slugs must be unique from each other.';
         } else {
             // Validate each
             $validation_prologue = $this->validate_slug( $prologue_slug, array( 'prologue' ) );
@@ -1176,11 +1759,11 @@ class Fanfic_URL_Config {
             $validation_epilogue = $this->validate_slug( $epilogue_slug, array( 'epilogue' ) );
 
             if ( is_wp_error( $validation_prologue ) ) {
-                $errors[] = __( 'Prologue: ', 'fanfiction-manager' ) . $validation_prologue->get_error_message();
+                $errors[] = 'Prologue: ' . $validation_prologue->get_error_message();
             } elseif ( is_wp_error( $validation_chapter ) ) {
-                $errors[] = __( 'Chapter: ', 'fanfiction-manager' ) . $validation_chapter->get_error_message();
+                $errors[] = 'Chapter: ' . $validation_chapter->get_error_message();
             } elseif ( is_wp_error( $validation_epilogue ) ) {
-                $errors[] = __( 'Epilogue: ', 'fanfiction-manager' ) . $validation_epilogue->get_error_message();
+                $errors[] = 'Epilogue: ' . $validation_epilogue->get_error_message();
             } else {
                 $chapter_slugs_array = array(
                     'prologue' => $prologue_slug,
@@ -1188,7 +1771,7 @@ class Fanfic_URL_Config {
                     'epilogue' => $epilogue_slug,
                 );
                 update_option( self::OPTION_CHAPTER_SLUGS, $chapter_slugs_array );
-                $success_messages[] = __( 'Chapter URLs saved.', 'fanfiction-manager' );
+                $success_messages[] = 'Chapter URLs saved.';
             }
         }
 
@@ -1221,7 +1804,7 @@ class Fanfic_URL_Config {
                 Fanfic_Templates::create_system_pages( $base_slug );
             }
 
-            $success_messages[] = __( 'System page slugs saved.', 'fanfiction-manager' );
+            $success_messages[] = 'System page slugs saved.';
         }
 
         // ==========================================
@@ -1243,7 +1826,56 @@ class Fanfic_URL_Config {
         }
 
         // Redirect back
-        wp_safe_redirect( add_query_arg( 'page', 'fanfic-url-rules', admin_url( 'admin.php' ) ) );
+        wp_safe_redirect( add_query_arg( 'page', 'fanfiction-url-rules', admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    /**
+     * Delete a specific redirect
+     *
+     * Handles the deletion of a single redirect mapping.
+     *
+     * @since 1.0.0
+     * @return void
+     */
+    public function delete_redirect() {
+        // Check user capabilities
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'You do not have sufficient permissions to access this page.', 'Permission Denied', array( 'response' => 403 ) );
+        }
+
+        // Verify nonce
+        $nonce_verified = false;
+
+        if ( isset( $_GET['_wpnonce'] ) ) {
+            $nonce = sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) );
+            $nonce_verified = wp_verify_nonce( $nonce, 'fanfic_delete_redirect' );
+        }
+
+        if ( ! $nonce_verified ) {
+            wp_die( 'Security check failed.', 'Security Error', array( 'response' => 403 ) );
+        }
+
+        // Get the old slug to delete
+        if ( ! isset( $_GET['old_slug'] ) ) {
+            wp_die( 'Missing redirect identifier.', 'Invalid Request', array( 'response' => 400 ) );
+        }
+
+        $old_slug = sanitize_text_field( wp_unslash( $_GET['old_slug'] ) );
+
+        // Delete the redirect
+        if ( class_exists( 'Fanfic_Slug_Tracker' ) ) {
+            $deleted = Fanfic_Slug_Tracker::delete_redirect( $old_slug );
+
+            if ( $deleted ) {
+                set_transient( 'fanfic_url_config_success', 'Redirect deleted successfully.', 30 );
+            } else {
+                set_transient( 'fanfic_url_config_error', 'Failed to delete redirect.', 30 );
+            }
+        }
+
+        // Redirect back
+        wp_safe_redirect( add_query_arg( 'page', 'fanfiction-url-rules', admin_url( 'admin.php' ) ) );
         exit;
     }
 
@@ -1261,17 +1893,17 @@ class Fanfic_URL_Config {
     public static function validate_slug( $slug, $exclude = array() ) {
         // Check if empty
         if ( empty( $slug ) ) {
-            return new WP_Error( 'empty_slug', __( 'Slug cannot be empty.', 'fanfiction-manager' ) );
+            return new WP_Error( 'empty_slug', 'Slug cannot be empty.' );
         }
 
         // Check length
         if ( strlen( $slug ) > 50 ) {
-            return new WP_Error( 'slug_too_long', __( 'Slug must be 50 characters or less.', 'fanfiction-manager' ) );
+            return new WP_Error( 'slug_too_long', 'Slug must be 50 characters or less.' );
         }
 
         // Check format (alphanumeric and hyphens only)
         if ( ! preg_match( '/^[a-z0-9\-]+$/', $slug ) ) {
-            return new WP_Error( 'invalid_slug_format', __( 'Slug must contain only lowercase letters, numbers, and hyphens.', 'fanfiction-manager' ) );
+            return new WP_Error( 'invalid_slug_format', 'Slug must contain only lowercase letters, numbers, and hyphens.' );
         }
 
         // Check for conflicts with existing slugs (excluding the current one being edited)
@@ -1286,10 +1918,7 @@ class Fanfic_URL_Config {
             if ( $existing_slug === $slug ) {
                 return new WP_Error(
                     'slug_conflict',
-                    sprintf(
-                        __( 'This slug conflicts with the existing %s slug.', 'fanfiction-manager' ),
-                        $type
-                    )
+                    sprintf( 'This slug conflicts with the existing %s slug.', $type )
                 );
             }
         }
@@ -1302,7 +1931,7 @@ class Fanfic_URL_Config {
         );
 
         if ( in_array( $slug, $reserved_slugs, true ) ) {
-            return new WP_Error( 'reserved_slug', __( 'This slug is reserved by WordPress and cannot be used.', 'fanfiction-manager' ) );
+            return new WP_Error( 'reserved_slug', 'This slug is reserved by WordPress and cannot be used.' );
         }
 
         return true;
@@ -1323,20 +1952,24 @@ class Fanfic_URL_Config {
         // Get story path
         $story_path = get_option( self::OPTION_STORY_PATH, 'stories' );
 
-        // Get chapter slugs
-        $chapter_slugs = get_option( self::OPTION_CHAPTER_SLUGS, array(
+        // Get chapter slugs with defaults
+        $default_chapter_slugs = array(
             'prologue' => 'prologue',
             'chapter'  => 'chapter',
             'epilogue' => 'epilogue',
-        ) );
+        );
+        $saved_chapter_slugs = get_option( self::OPTION_CHAPTER_SLUGS, array() );
+        $chapter_slugs = is_array( $saved_chapter_slugs ) ? wp_parse_args( $saved_chapter_slugs, $default_chapter_slugs ) : $default_chapter_slugs;
 
-        // Get secondary paths
-        $secondary_paths = get_option( self::OPTION_SECONDARY_PATHS, array(
+        // Get secondary paths with defaults
+        $default_secondary_paths = array(
             'dashboard' => 'dashboard',
             'user'      => 'user',
             'archive'   => 'archive',
             'search'    => 'search',
-        ) );
+        );
+        $saved_secondary_paths = get_option( self::OPTION_SECONDARY_PATHS, array() );
+        $secondary_paths = is_array( $saved_secondary_paths ) ? wp_parse_args( $saved_secondary_paths, $default_secondary_paths ) : $default_secondary_paths;
 
         // Merge all slugs
         return array_merge(

@@ -122,6 +122,25 @@ class Fanfic_Slug_Tracker {
     }
 
     /**
+     * Delete a specific redirect
+     *
+     * @param string $old_slug The old slug to remove from redirects
+     * @return bool True if deleted, false otherwise
+     */
+    public static function delete_redirect( $old_slug ) {
+        $redirects = get_option( 'fanfic_slug_redirects', array() );
+
+        if ( ! isset( $redirects[ $old_slug ] ) ) {
+            return false;
+        }
+
+        unset( $redirects[ $old_slug ] );
+        update_option( 'fanfic_slug_redirects', $redirects );
+
+        return true;
+    }
+
+    /**
      * Clear all redirects (admin function)
      */
     public static function clear_all_redirects() {
