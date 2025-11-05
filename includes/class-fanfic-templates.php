@@ -547,6 +547,7 @@ class Fanfic_Templates {
 	 *
 	 * Creates a WordPress navigation menu with all plugin pages.
 	 * Menu includes public pages and conditional items for logged-in/logged-out users.
+	 * Note: This menu is automatically rebuilt and any manual changes will be lost.
 	 *
 	 * @since 1.0.0
 	 * @param array $page_ids Array of page IDs keyed by page key.
@@ -554,7 +555,7 @@ class Fanfic_Templates {
 	 */
 	public static function create_fanfiction_menu( $page_ids ) {
 		// Check if menu already exists
-		$menu_name = 'Fanfiction Menu';
+		$menu_name = 'Fanfiction Automatic Menu';
 		$menu_exists = wp_get_nav_menu_object( $menu_name );
 
 		// Create menu if it doesn't exist
