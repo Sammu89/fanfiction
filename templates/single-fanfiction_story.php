@@ -28,7 +28,7 @@ get_header(); ?>
 						printf(
 							/* translators: %s: story author link */
 							esc_html__( 'by %s', 'fanfiction-manager' ),
-							'[story-author-link]'
+							do_shortcode( '[story-author-link]' )
 						);
 						?>
 					</span>
@@ -36,50 +36,50 @@ get_header(); ?>
 						<?php echo esc_html( get_the_date() ); ?>
 					</span>
 					<span class="story-status">
-						[story-status]
+						<?php echo do_shortcode( '[story-status]' ); ?>
 					</span>
 				</div>
 			</header>
 
 			<div class="story-featured-image">
-				[story-featured-image]
+				<?php echo do_shortcode( '[story-featured-image]' ); ?>
 			</div>
 
 			<div class="story-content">
 				<div class="story-intro">
 					<h2><?php esc_html_e( 'Summary', 'fanfiction-manager' ); ?></h2>
-					[story-intro]
+					<?php echo do_shortcode( '[story-intro]' ); ?>
 				</div>
 
 				<div class="story-taxonomies">
 					<div class="story-genres">
 						<strong><?php esc_html_e( 'Genres:', 'fanfiction-manager' ); ?></strong>
-						[story-genres]
+						<?php echo do_shortcode( '[story-genres]' ); ?>
 					</div>
 				</div>
 
 				<div class="story-stats">
 					<span class="story-word-count">
 						<strong><?php esc_html_e( 'Words:', 'fanfiction-manager' ); ?></strong>
-						[story-word-count-estimate]
+						<?php echo do_shortcode( '[story-word-count-estimate]' ); ?>
 					</span>
 					<span class="story-chapters-count">
 						<strong><?php esc_html_e( 'Chapters:', 'fanfiction-manager' ); ?></strong>
-						[story-chapters]
+						<?php echo do_shortcode( '[story-chapters]' ); ?>
 					</span>
 					<span class="story-views">
 						<strong><?php esc_html_e( 'Views:', 'fanfiction-manager' ); ?></strong>
-						[story-views]
+						<?php echo do_shortcode( '[story-views]' ); ?>
 					</span>
 					<span class="story-rating">
 						<strong><?php esc_html_e( 'Rating:', 'fanfiction-manager' ); ?></strong>
-						[story-rating-form]
+						<?php echo do_shortcode( '[story-rating-form]' ); ?>
 					</span>
 				</div>
 			</div>
 
 			<div class="story-actions">
-				[story-actions]
+				<?php echo do_shortcode( '[story-actions]' ); ?>
 				<?php echo do_shortcode( '[edit-story-button]' ); ?>
 			</div>
 
@@ -91,12 +91,12 @@ get_header(); ?>
 
 			<div class="story-chapters-list">
 				<h2><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></h2>
-				[chapters-list]
+				<?php echo do_shortcode( '[chapters-list]' ); ?>
 			</div>
 
 			<?php if ( comments_open() || get_comments_number() ) : ?>
 				<div class="story-comments">
-					[story-comments]
+					<?php echo do_shortcode( '[story-comments]' ); ?>
 				</div>
 			<?php endif; ?>
 
