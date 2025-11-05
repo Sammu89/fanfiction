@@ -205,6 +205,9 @@ class Fanfic_Core {
 		// Hide content from banned users in public views
 		add_action( 'pre_get_posts', array( $this, 'hide_banned_users_content' ) );
 
+		// Modify archive query for multi-taxonomy filtering via URL parameters
+		add_action( 'pre_get_posts', array( $this, 'modify_archive_query' ) );
+
 		// Display suspension notice to banned users on frontend
 		add_action( 'wp_footer', array( $this, 'display_suspension_notice' ) );
 
@@ -267,6 +270,54 @@ class Fanfic_Core {
 		// If there are banned users, exclude their content
 		if ( ! empty( $banned_users ) ) {
 			$query->set( 'author__not_in', $banned_users );
+		}
+	}
+
+	/**
+	 * Modify archive query for multi-taxonomy filtering via URL parameters
+	 *
+	 * Allows filtering by multiple taxonomies using URL parameters like:
+	 * ?genre=romance&status=completed
+	 * ?genre=romance,fantasy (multiple values in same taxonomy)
+	 *
+	 * @since 1.0.0
+	 * @param WP_Query $query The WordPress query object.
+	 * @return void
+	 */
+	public function modify_archive_query( $query ) {
+		// Only modify main query on frontend for fanfiction_story archives
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		// Only apply to post type archive or taxonomy archives
+		if ( ! is_post_type_archive( 'fanfiction_story' ) &&
+		     ! is_tax( array( 'fanfiction_genre', 'fanfiction_status', 'fanfiction_rating', 'fanfiction_character', 'fanfiction_relationship' ) ) ) {
+			return;
+		}
+
+		// Check for URL parameters
+		$valid_taxonomies = array( 'fanfiction_genre', 'fanfiction_status', 'fanfiction_rating', 'fanfiction_character', 'fanfiction_relationship' );
+		$tax_query = array();
+
+		foreach ( $valid_taxonomies as $taxonomy ) {
+			$param_name = str_replace( 'fanfiction_', '', $taxonomy );
+
+			if ( isset( $_GET[ $param_name ] ) && ! empty( $_GET[ $param_name ] ) ) {
+				$values = explode( ',', sanitize_text_field( wp_unslash( $_GET[ $param_name ] ) ) );
+
+				$tax_query[] = array(
+					'taxonomy' => $taxonomy,
+					'field'    => 'slug',
+					'terms'    => array_map( 'trim', $values ),
+				);
+			}
+		}
+
+		// If URL filters exist, apply them to the query
+		if ( ! empty( $tax_query ) ) {
+			$tax_query['relation'] = 'AND'; // All filters must match
+			$query->set( 'tax_query', $tax_query );
 		}
 	}
 
