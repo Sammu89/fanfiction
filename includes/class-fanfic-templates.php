@@ -433,7 +433,8 @@ class Fanfic_Templates {
 
 		// Create child pages
 		foreach ( $pages as $key => $page_data ) {
-			$content = self::load_template_content( $page_data['template'] );
+			// Use shortcode-based content (WordPress will process on each page view)
+			$content = self::get_default_template_content( $key );
 			$page_id = self::create_or_update_page(
 				$key,
 				$page_data['title'],
