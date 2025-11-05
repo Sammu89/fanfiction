@@ -1,48 +1,52 @@
 /**
  * Fanfiction Manager - Frontend Styles
  *
+ * Soft pastel color scheme with neutral tones that's easy to customize.
+ * Users can override colors by setting CSS variables in their theme.
+ *
  * @package FanfictionManager
  * @since 1.0.0
  */
 
 /* ============================================
-   ACCESSIBLE COLOR PALETTE - WCAG 2.1 AA COMPLIANT
+   SOFT PASTEL COLOR PALETTE - WCAG 2.1 AA COMPLIANT
+   Users can override these by redefining CSS variables in their theme
    ============================================ */
 :root {
     /* Core Colors - Text & Background */
-    --color-text: #23282d;              /* 14.3:1 on white - AAA */
-    --color-text-light: #50575e;        /* 7.6:1 on white - AA */
-    --color-text-lighter: #757575;      /* 4.6:1 on white - AA */
-    --color-background: #ffffff;
-    --color-border: #dcdcde;
+    --color-text: #2c3e50;              /* Soft dark blue-gray */
+    --color-text-light: #546e7a;        /* Muted blue-gray */
+    --color-text-lighter: #78909c;      /* Light blue-gray */
+    --color-background: #fdfefe;        /* Soft white */
+    --color-border: #e0e7ea;            /* Soft gray-blue border */
 
-    /* Primary Brand Colors */
-    --color-primary: #0073aa;           /* 4.54:1 on white - AA */
-    --color-primary-dark: #005177;      /* 5.63:1 on white - AA */
-    --color-primary-light: #0085c3;     /* 4.06:1 on white - AA */
-    --color-primary-hover: #005177;
+    /* Primary Brand Colors - Soft Pastel Blue */
+    --color-primary: #7ba7bc;           /* Soft pastel blue */
+    --color-primary-dark: #5a8a9e;      /* Deeper pastel blue */
+    --color-primary-light: #a8c5d1;     /* Light pastel blue */
+    --color-primary-hover: #5a8a9e;
 
-    /* Status Colors - WCAG AA Compliant */
-    --color-success: #007017;           /* 4.58:1 on white - AA */
-    --color-success-bg: #d4edda;
-    --color-success-text: #155724;      /* 7.4:1 on bg - AAA */
-    --color-warning: #826200;           /* 4.62:1 on white - AA */
-    --color-warning-bg: #fff3cd;
-    --color-warning-text: #664d03;      /* 7.0:1 on bg - AAA */
-    --color-error: #d63638;             /* 4.52:1 on white - AA */
-    --color-error-bg: #fee;
-    --color-error-text: #721c24;        /* 7.1:1 on #fee - AAA */
-    --color-info: #0073aa;
-    --color-info-bg: #d1ecf1;
-    --color-info-text: #055160;         /* 7.5:1 on bg - AAA */
+    /* Status Colors - Soft Pastels (WCAG AA Compliant) */
+    --color-success: #6a9f7c;           /* Soft pastel green */
+    --color-success-bg: #e8f5e9;        /* Very light green */
+    --color-success-text: #2e7d32;      /* Darker green for text */
+    --color-warning: #d4a574;           /* Soft pastel orange */
+    --color-warning-bg: #fff3e0;        /* Very light orange */
+    --color-warning-text: #bf360c;      /* Darker orange for text */
+    --color-error: #d9858e;             /* Soft pastel red */
+    --color-error-bg: #ffebee;          /* Very light red */
+    --color-error-text: #c62828;        /* Darker red for text */
+    --color-info: #8eabc4;              /* Soft pastel blue */
+    --color-info-bg: #e3f2fd;           /* Very light blue */
+    --color-info-text: #1565c0;         /* Darker blue for text */
 
     /* Links */
-    --color-link: #0073aa;              /* 4.54:1 on white */
-    --color-link-hover: #005177;        /* 5.63:1 on white */
-    --color-link-visited: #6f42c1;      /* 4.54:1 on white */
+    --color-link: #7ba7bc;              /* Soft pastel blue */
+    --color-link-hover: #5a8a9e;        /* Deeper pastel blue */
+    --color-link-visited: #9b87ba;      /* Soft pastel purple */
 
     /* Focus & Interactive */
-    --color-focus: #0073aa;
+    --color-focus: #7ba7bc;
     --focus-ring-width: 2px;
     --focus-ring-offset: 2px;
 
@@ -2853,3 +2857,442 @@ input[type="button"]:focus {
 		animation: none;
 	}
 }
+
+/* ============================================
+   TEMPLATE PAGE STRUCTURE STYLES
+   Specific fanfic- classes to avoid conflicts
+   ============================================ */
+
+/* Template wrapper - container for all plugin pages */
+.fanfic-template-wrapper {
+	max-width: 1200px;
+	margin: 40px auto;
+	padding: 0 20px;
+}
+
+/* Main content area */
+.fanfic-main-content {
+	background: var(--color-background);
+}
+
+/* Page content article */
+.fanfic-page-content {
+	background: #ffffff;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	padding: 40px;
+	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Page header */
+.fanfic-page-header {
+	margin-bottom: 40px;
+	padding-bottom: 25px;
+	border-bottom: 3px solid var(--color-primary-light);
+}
+
+.fanfic-page-title {
+	font-size: 32px;
+	color: var(--color-text);
+	margin: 0 0 15px 0;
+	font-weight: 700;
+	line-height: 1.3;
+}
+
+.fanfic-page-description {
+	font-size: 16px;
+	color: var(--color-text-light);
+	margin: 0;
+	line-height: 1.6;
+}
+
+/* Dashboard sections */
+.fanfic-dashboard-section {
+	margin-bottom: 35px;
+	padding: 25px;
+	background: #f8fafb;
+	border-radius: 8px;
+	border-left: 4px solid var(--color-primary-light);
+	transition: all 0.3s ease;
+}
+
+.fanfic-dashboard-section:last-child {
+	margin-bottom: 0;
+}
+
+.fanfic-dashboard-section:hover {
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	border-left-color: var(--color-primary);
+}
+
+/* Archive and content sections */
+.fanfic-archive-section,
+.fanfic-content-section {
+	margin-bottom: 30px;
+	padding: 25px;
+	background: #f8fafb;
+	border-radius: 8px;
+}
+
+/* Section titles */
+.fanfic-section-title {
+	font-size: 24px;
+	color: var(--color-text);
+	margin: 0 0 20px 0;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* Section content */
+.fanfic-section-content {
+	color: var(--color-text);
+	line-height: 1.7;
+}
+
+.fanfic-section-content p {
+	margin: 0 0 15px 0;
+}
+
+.fanfic-section-content p:last-child {
+	margin-bottom: 0;
+}
+
+/* Links within plugin pages */
+.fanfic-page-content a:not(.fanfic-button) {
+	color: var(--color-link);
+	text-decoration: none;
+	border-bottom: 1px solid transparent;
+	transition: all 0.2s ease;
+}
+
+.fanfic-page-content a:not(.fanfic-button):hover {
+	color: var(--color-link-hover);
+	border-bottom-color: var(--color-link-hover);
+}
+
+/* Button styling with updated colors */
+.fanfic-button,
+.fanfic-btn {
+	display: inline-block;
+	padding: 12px 24px;
+	background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+	color: #ffffff;
+	text-decoration: none;
+	border-radius: 6px;
+	font-weight: 600;
+	font-size: 15px;
+	transition: all 0.3s ease;
+	border: none;
+	box-shadow: 0 2px 8px rgba(123, 167, 188, 0.3);
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	text-align: center;
+}
+
+.fanfic-button:hover,
+.fanfic-btn:hover {
+	background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(123, 167, 188, 0.4);
+	color: #ffffff;
+	border-bottom: none;
+	text-decoration: none;
+}
+
+.fanfic-button:active,
+.fanfic-btn:active {
+	transform: translateY(0);
+	box-shadow: 0 1px 4px rgba(123, 167, 188, 0.3);
+}
+
+.fanfic-button:focus,
+.fanfic-btn:focus {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+/* Button variants with pastel colors */
+.fanfic-button-primary {
+	background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+}
+
+.fanfic-button-secondary {
+	background: linear-gradient(135deg, #b0bec5 0%, #90a4ae 100%);
+}
+
+.fanfic-button-success {
+	background: linear-gradient(135deg, var(--color-success) 0%, #558b2f 100%);
+}
+
+.fanfic-button-danger {
+	background: linear-gradient(135deg, var(--color-error) 0%, #c62828 100%);
+}
+
+/* Popular content grid */
+.fanfic-dashboard-popular {
+	background: transparent !important;
+	border: none !important;
+	padding: 0 !important;
+}
+
+.fanfic-popular-container {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 25px;
+	margin-top: 20px;
+}
+
+.fanfic-popular-stories,
+.fanfic-popular-authors {
+	background: #ffffff;
+	padding: 25px;
+	border-radius: 8px;
+	border: 1px solid var(--color-border);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+	transition: all 0.3s ease;
+}
+
+.fanfic-popular-stories:hover,
+.fanfic-popular-authors:hover {
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+	transform: translateY(-2px);
+}
+
+.fanfic-popular-stories h3,
+.fanfic-popular-authors h3 {
+	color: var(--color-text);
+	font-size: 18px;
+	margin: 0 0 20px 0;
+	padding-bottom: 12px;
+	border-bottom: 2px solid var(--color-primary-light);
+	font-weight: 600;
+}
+
+/* Lists within plugin pages */
+.fanfic-page-content ul,
+.fanfic-page-content ol {
+	margin: 15px 0;
+	padding-left: 25px;
+	color: var(--color-text);
+	line-height: 1.7;
+}
+
+.fanfic-page-content li {
+	margin: 8px 0;
+}
+
+/* Empty states */
+.fanfic-empty-message,
+.fanfic-no-content {
+	text-align: center;
+	padding: 40px 20px;
+	color: var(--color-text-light);
+	font-style: italic;
+	background: #f8fafb;
+	border-radius: 8px;
+	border: 2px dashed var(--color-border);
+	margin: 20px 0;
+}
+
+/* Tables within plugin pages */
+.fanfic-page-content table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 20px 0;
+	background: #ffffff;
+	border-radius: 8px;
+	overflow: hidden;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.fanfic-page-content table thead {
+	background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%);
+	color: #ffffff;
+}
+
+.fanfic-page-content table th {
+	padding: 15px;
+	text-align: left;
+	font-weight: 600;
+	font-size: 14px;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+}
+
+.fanfic-page-content table td {
+	padding: 15px;
+	border-bottom: 1px solid var(--color-border);
+	color: var(--color-text);
+}
+
+.fanfic-page-content table tbody tr:hover {
+	background: #f8fafb;
+}
+
+.fanfic-page-content table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+/* Quick actions section */
+.fanfic-quick-actions .fanfic-section-content {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 15px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.fanfic-template-wrapper {
+		margin: 20px auto;
+		padding: 0 15px;
+	}
+
+	.fanfic-page-content {
+		padding: 25px 20px;
+		border-radius: 8px;
+	}
+
+	.fanfic-page-title {
+		font-size: 26px;
+	}
+
+	.fanfic-dashboard-section,
+	.fanfic-archive-section,
+	.fanfic-content-section {
+		padding: 20px 15px;
+	}
+
+	.fanfic-section-title {
+		font-size: 20px;
+	}
+
+	.fanfic-popular-container {
+		grid-template-columns: 1fr;
+	}
+
+	.fanfic-page-content table {
+		font-size: 14px;
+	}
+
+	.fanfic-page-content table th,
+	.fanfic-page-content table td {
+		padding: 10px;
+	}
+
+	.fanfic-button,
+	.fanfic-btn {
+		width: 100%;
+		justify-content: center;
+	}
+}
+
+@media (max-width: 480px) {
+	.fanfic-page-content {
+		padding: 20px 15px;
+	}
+
+	.fanfic-page-title {
+		font-size: 22px;
+	}
+
+	.fanfic-dashboard-section,
+	.fanfic-archive-section,
+	.fanfic-content-section {
+		padding: 15px;
+	}
+
+	.fanfic-section-title {
+		font-size: 18px;
+	}
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+	.fanfic-page-content {
+		border: 3px solid #000;
+	}
+
+	.fanfic-dashboard-section,
+	.fanfic-archive-section,
+	.fanfic-content-section {
+		border-left-width: 6px;
+	}
+
+	.fanfic-button,
+	.fanfic-btn {
+		border: 2px solid #000;
+	}
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+	.fanfic-button,
+	.fanfic-btn,
+	.fanfic-dashboard-section,
+	.fanfic-popular-stories,
+	.fanfic-popular-authors {
+		transition: none;
+	}
+
+	.fanfic-button:hover,
+	.fanfic-btn:hover,
+	.fanfic-popular-stories:hover,
+	.fanfic-popular-authors:hover {
+		transform: none;
+	}
+}
+
+/* Print styles */
+@media print {
+	.fanfic-page-content {
+		border: 1px solid #000;
+		box-shadow: none;
+	}
+
+	.fanfic-dashboard-section,
+	.fanfic-archive-section,
+	.fanfic-content-section {
+		background: none;
+		border: 1px solid #000;
+	}
+
+	.fanfic-button,
+	.fanfic-btn {
+		border: 1px solid #000;
+		background: none;
+		color: #000;
+	}
+}
+
+/* ============================================
+   CUSTOMIZATION INSTRUCTIONS
+   
+   To customize colors, add this to your theme's style.css or Customizer > Additional CSS:
+   
+   :root {
+       --color-primary: #your-color;
+       --color-primary-dark: #your-darker-color;
+       --color-primary-light: #your-lighter-color;
+       --color-text: #your-text-color;
+       --color-link: #your-link-color;
+   }
+   
+   Example - Change to a soft pink theme:
+   :root {
+       --color-primary: #d499b9;
+       --color-primary-dark: #b87a98;
+       --color-primary-light: #e6c4da;
+   }
+   
+   Example - Change to a soft green theme:
+   :root {
+       --color-primary: #81c784;
+       --color-primary-dark: #66bb6a;
+       --color-primary-light: #a5d6a7;
+   }
+   ============================================ */

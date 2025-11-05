@@ -1,15 +1,18 @@
-<a href="#main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
+<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
-<main id="main-content" role="main">
-	<article>
-		<header>
-			<h1><?php esc_html_e( 'Story Archive', 'fanfiction-manager' ); ?></h1>
+<div class="fanfic-template-wrapper">
+	<main id="fanfic-main-content" class="fanfic-main-content" role="main">
+		<article class="fanfic-page-content">
+			<header class="fanfic-page-header">
+				<h1 class="fanfic-page-title"><?php esc_html_e( 'Story Archive', 'fanfiction-manager' ); ?></h1>
+				<p class="fanfic-page-description"><?php esc_html_e( 'Browse all published fanfiction stories.', 'fanfiction-manager' ); ?></p>
+			</header>
 
-			<p><?php esc_html_e( 'Browse all published fanfiction stories.', 'fanfiction-manager' ); ?></p>
-		</header>
-
-		<section role="region" aria-label="<?php esc_attr_e( 'Story archive', 'fanfiction-manager' ); ?>">
-			<p>[story-list]</p>
-		</section>
-	</article>
-</main>
+			<section class="fanfic-archive-section" role="region" aria-label="<?php esc_attr_e( 'Story archive', 'fanfiction-manager' ); ?>">
+				<div class="fanfic-section-content">
+					[story-list]
+				</div>
+			</section>
+		</article>
+	</main>
+</div>
