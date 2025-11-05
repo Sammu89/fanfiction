@@ -225,36 +225,6 @@ class Fanfic_URL_Config {
                                         <div class="fanfic-slug-validation" id="story-path-validation"></div>
                                     </td>
                                 </tr>
-
-                                <!-- Archive Slug -->
-                                <tr>
-                                    <th scope="row">
-                                        <label for="fanfic_archive_slug">
-                                            <?php echo esc_html__( 'Archive Slug', 'fanfiction-manager' ); ?>
-                                            <span class="fanfic-required">*</span>
-                                        </label>
-                                    </th>
-                                    <td>
-                                        <input
-                                            type="text"
-                                            id="fanfic_archive_slug"
-                                            name="fanfic_archive_slug"
-                                            value="<?php echo esc_attr( isset( $current_slugs['archive'] ) ? $current_slugs['archive'] : 'archive' ); ?>"
-                                            class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9\-]+"
-                                            maxlength="50"
-                                            required
-                                            data-slug-type="archive"
-                                        >
-                                        <p class="description">
-                                            <?php echo esc_html__( 'The path for browsing all stories (when using Custom Homepage mode).', 'fanfiction-manager' ); ?>
-                                        </p>
-                                        <p class="description">
-                                            <code id="archive-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( isset( $current_slugs['archive'] ) ? $current_slugs['archive'] : 'archive' ); ?></span>/</code>
-                                        </p>
-                                        <div class="fanfic-slug-validation" id="archive-slug-validation"></div>
-                                    </td>
-                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -965,7 +935,6 @@ class Fanfic_URL_Config {
             function updatePreviews() {
                 var newBase = $('#fanfic_base_slug').val().trim() || baseSlug;
                 var newStoryPath = $('#fanfic_story_path').val().trim() || 'stories';
-                var newArchive = $('#fanfic_archive_slug').val().trim() || 'archive';
                 var newDashboard = $('#fanfic_dashboard_slug').val().trim() || 'dashboard';
                 var newUser = $('#fanfic_user_slug').val().trim() || 'user';
                 var newSearch = $('#fanfic_search_slug').val().trim() || 'search';
@@ -979,10 +948,6 @@ class Fanfic_URL_Config {
                 // Update story path preview
                 $('#story-path-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
                     '<span class="fanfic-dynamic-slug">' + newStoryPath + '</span>/my-story-title/');
-
-                // Update archive preview
-                $('#archive-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
-                    '<span class="fanfic-dynamic-slug">' + newArchive + '</span>/');
 
                 // Update dashboard preview
                 $('#dashboard-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
@@ -1475,7 +1440,6 @@ class Fanfic_URL_Config {
             function updatePreviews() {
                 var newBase = $('#fanfic_base_slug').val().trim() || baseSlug;
                 var newStoryPath = $('#fanfic_story_path').val().trim() || 'stories';
-                var newArchive = $('#fanfic_archive_slug').val().trim() || 'archive';
                 var newDashboard = $('#fanfic_dashboard_slug').val().trim() || 'dashboard';
                 var newUser = $('#fanfic_user_slug').val().trim() || 'user';
                 var newSearch = $('#fanfic_search_slug').val().trim() || 'search';
@@ -1489,10 +1453,6 @@ class Fanfic_URL_Config {
                 // Update story path preview
                 $('#story-path-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
                     '<span class="fanfic-dynamic-slug">' + newStoryPath + '</span>/my-story-title/');
-
-                // Update archive preview
-                $('#archive-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
-                    '<span class="fanfic-dynamic-slug">' + newArchive + '</span>/');
 
                 // Update dashboard preview
                 $('#dashboard-preview-code').html(homeUrl + '<span class="fanfic-dynamic-slug">' + newBase + '</span>/' +
@@ -1694,11 +1654,10 @@ class Fanfic_URL_Config {
         // ==========================================
         $dashboard_slug = isset( $_POST['fanfic_dashboard_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_dashboard_slug'] ) ) : '';
         $user_slug      = isset( $_POST['fanfic_user_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_user_slug'] ) ) : '';
-        $archive_slug   = isset( $_POST['fanfic_archive_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_archive_slug'] ) ) : '';
         $search_slug    = isset( $_POST['fanfic_search_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_search_slug'] ) ) : '';
 
         // Check for duplicates among secondary paths
-        $secondary_slugs = array( $dashboard_slug, $user_slug, $archive_slug, $search_slug );
+        $secondary_slugs = array( $dashboard_slug, $user_slug, $search_slug );
         if ( count( $secondary_slugs ) !== count( array_unique( $secondary_slugs ) ) ) {
             $errors[] = 'User & System URLs must be unique from each other.';
         } else {
@@ -1706,7 +1665,6 @@ class Fanfic_URL_Config {
             $paths_to_validate = array(
                 'dashboard' => $dashboard_slug,
                 'user'      => $user_slug,
-                'archive'   => $archive_slug,
                 'search'    => $search_slug,
             );
 
@@ -1721,22 +1679,6 @@ class Fanfic_URL_Config {
 
             if ( $paths_valid ) {
                 update_option( self::OPTION_SECONDARY_PATHS, $paths_to_validate );
-
-                // Update archive page slug if in custom_homepage mode
-                $main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
-                if ( $main_page_mode === 'custom_homepage' && ! empty( $archive_slug ) ) {
-                    $page_ids = get_option( 'fanfic_system_page_ids', array() );
-                    if ( isset( $page_ids['archive'] ) && $page_ids['archive'] > 0 ) {
-                        $archive_page = get_post( $page_ids['archive'] );
-                        if ( $archive_page && $archive_page->post_name !== $archive_slug ) {
-                            wp_update_post( array(
-                                'ID'        => $page_ids['archive'],
-                                'post_name' => $archive_slug,
-                            ) );
-                        }
-                    }
-                }
-
                 $success_messages[] = 'User & system URLs saved.';
             }
         }
@@ -1965,7 +1907,6 @@ class Fanfic_URL_Config {
         $default_secondary_paths = array(
             'dashboard' => 'dashboard',
             'user'      => 'user',
-            'archive'   => 'archive',
             'search'    => 'search',
         );
         $saved_secondary_paths = get_option( self::OPTION_SECONDARY_PATHS, array() );

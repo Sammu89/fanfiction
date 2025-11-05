@@ -56,7 +56,6 @@ class Fanfic_Shortcodes {
 			'taxonomy',
 			'search',
 			'actions',
-			'lists',
 			'user',
 			'forms',
 			'author-forms',
@@ -110,10 +109,6 @@ class Fanfic_Shortcodes {
 
 		if ( class_exists( 'Fanfic_Shortcodes_Actions' ) ) {
 			Fanfic_Shortcodes_Actions::register();
-		}
-
-		if ( class_exists( 'Fanfic_Shortcodes_Lists' ) ) {
-			Fanfic_Shortcodes_Lists::register();
 		}
 
 		if ( class_exists( 'Fanfic_Shortcodes_User' ) ) {

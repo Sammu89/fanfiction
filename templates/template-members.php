@@ -1,3 +1,4 @@
+<div class="fanfic-template-wrapper">
 <?php
 /**
  * Template: User Profile Page
@@ -13,10 +14,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 <main id="main-content" class="fanfic-main-content" role="main">
     <article class="fanfic-page-members">
         <header class="page-header">
-            <h1><?php esc_html_e( 'User Profile', 'fanfiction-manager' ); ?></h1>
+            <h1 class="fanfic-page-title"><?php esc_html_e( 'User Profile', 'fanfiction-manager' ); ?></h1>
         </header>
 
-        <section class="page-content">
+        <section class="fanfic-content-section" class="page-content">
             <div class="fanfic-member-profile">
                 <div class="fanfic-member-header">
                     <?php echo do_shortcode( '[user-profile]' ); ?>
@@ -49,3 +50,4 @@ if ( ! defined( 'ABSPATH' ) ) {
         </section>
     </article>
 </main>
+</div>

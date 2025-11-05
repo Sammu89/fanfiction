@@ -1,3 +1,4 @@
+<div class="fanfic-template-wrapper">
 <?php
 /**
  * Template Name: Edit Story
@@ -23,7 +24,7 @@ if ( ! is_user_logged_in() ) {
 	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
 		<p><?php esc_html_e( 'You must be logged in to edit stories.', 'fanfiction-manager' ); ?></p>
 		<p>
-			<a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>" class="button">
+			<a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
 		</p>
@@ -41,7 +42,7 @@ if ( ! $story_id || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
 		<p><?php esc_html_e( 'Access Denied: You do not have permission to edit this story, or the story does not exist.', 'fanfiction-manager' ); ?></p>
 		<p>
-			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="button">
+			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
 			</a>
 		</p>
@@ -55,9 +56,9 @@ $story = get_post( $story_id );
 $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-manager' );
 ?>
 
-<a href="#main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
+<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
-<main id="main-content" role="main">
+<main id="fanfic-main-content" class="fanfic-main-content" role="main">
 
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
@@ -116,7 +117,7 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 </div>
 
 <!-- Story Edit Form -->
-<section class="fanfic-form-section" aria-labelledby="edit-form-heading">
+<section class="fanfic-content-section" class="fanfic-form-section" aria-labelledby="edit-form-heading">
 	<h2 id="edit-form-heading"><?php esc_html_e( 'Story Details', 'fanfiction-manager' ); ?></h2>
 
 	<!-- Form Shortcode -->
@@ -124,7 +125,7 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 </section>
 
 <!-- Chapters Management Section -->
-<section class="fanfic-chapters-section" aria-labelledby="chapters-heading">
+<section class="fanfic-content-section" class="fanfic-chapters-section" aria-labelledby="chapters-heading">
 	<div class="fanfic-section-header">
 		<h2 id="chapters-heading"><?php esc_html_e( 'Chapters in This Story', 'fanfiction-manager' ); ?></h2>
 		<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button-primary">
@@ -240,7 +241,7 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 </section>
 
 <!-- Danger Zone -->
-<section class="fanfic-danger-zone" aria-labelledby="danger-heading">
+<section class="fanfic-content-section" class="fanfic-danger-zone" aria-labelledby="danger-heading">
 	<h2 id="danger-heading" class="fanfic-danger-title">
 		<span class="dashicons dashicons-warning" aria-hidden="true"></span>
 		<?php esc_html_e( 'Danger Zone', 'fanfiction-manager' ); ?>
@@ -342,3 +343,4 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 </script>
 
 </main>
+</div>

@@ -1,3 +1,4 @@
+<div class="fanfic-template-wrapper">
 <?php
 /**
  * Template Name: Create Story
@@ -23,7 +24,7 @@ if ( ! is_user_logged_in() ) {
 	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
 		<p><?php esc_html_e( 'You must be logged in to create a story.', 'fanfiction-manager' ); ?></p>
 		<p>
-			<a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>" class="button">
+			<a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
 		</p>
@@ -43,9 +44,9 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 }
 ?>
 
-<a href="#main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
+<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
-<main id="main-content" role="main">
+<main id="fanfic-main-content" class="fanfic-main-content" role="main">
 
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
@@ -104,7 +105,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 <div class="fanfic-content-layout">
 	<!-- Story Creation Form -->
 	<div class="fanfic-content-primary">
-		<section class="fanfic-form-section" aria-labelledby="form-heading">
+		<section class="fanfic-content-section" class="fanfic-form-section" aria-labelledby="form-heading">
 			<h2 id="form-heading" class="screen-reader-text"><?php esc_html_e( 'Story Creation Form', 'fanfiction-manager' ); ?></h2>
 
 			<!-- Info Box -->
@@ -125,7 +126,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 		<h2 id="help-heading"><?php esc_html_e( 'Tips & Guidelines', 'fanfiction-manager' ); ?></h2>
 
 		<!-- Tips for Good Story Titles -->
-		<section class="fanfic-help-widget" aria-labelledby="title-tips-heading">
+		<section class="fanfic-content-section" class="fanfic-help-widget" aria-labelledby="title-tips-heading">
 			<h3 id="title-tips-heading">
 				<span class="dashicons dashicons-lightbulb" aria-hidden="true"></span>
 				<?php esc_html_e( 'Tips for Good Story Titles', 'fanfiction-manager' ); ?>
@@ -139,7 +140,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 		</section>
 
 		<!-- Tips for Writing Good Introductions -->
-		<section class="fanfic-help-widget" aria-labelledby="intro-tips-heading">
+		<section class="fanfic-content-section" class="fanfic-help-widget" aria-labelledby="intro-tips-heading">
 			<h3 id="intro-tips-heading">
 				<span class="dashicons dashicons-edit" aria-hidden="true"></span>
 				<?php esc_html_e( 'Writing Good Story Descriptions', 'fanfiction-manager' ); ?>
@@ -153,7 +154,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 		</section>
 
 		<!-- Genre Information -->
-		<section class="fanfic-help-widget" aria-labelledby="genre-tips-heading">
+		<section class="fanfic-content-section" class="fanfic-help-widget" aria-labelledby="genre-tips-heading">
 			<h3 id="genre-tips-heading">
 				<span class="dashicons dashicons-category" aria-hidden="true"></span>
 				<?php esc_html_e( 'Understanding Genres', 'fanfiction-manager' ); ?>
@@ -170,7 +171,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 		</section>
 
 		<!-- Status Options -->
-		<section class="fanfic-help-widget" aria-labelledby="status-tips-heading">
+		<section class="fanfic-content-section" class="fanfic-help-widget" aria-labelledby="status-tips-heading">
 			<h3 id="status-tips-heading">
 				<span class="dashicons dashicons-flag" aria-hidden="true"></span>
 				<?php esc_html_e( 'Story Status Options', 'fanfiction-manager' ); ?>
@@ -219,3 +220,4 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 </script>
 
 </main>
+</div>

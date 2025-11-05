@@ -1,12 +1,13 @@
-<a href="#main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
+<div class="fanfic-template-wrapper">
+<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
-<main id="main-content" role="main">
-	<article>
-		<header>
-			<h1><?php esc_html_e( 'Register', 'fanfiction-manager' ); ?></h1>
+<main id="fanfic-main-content" class="fanfic-main-content" role="main">
+	<article class="fanfic-page-content">
+		<header class="fanfic-page-header">
+			<h1 class="fanfic-page-title"><?php esc_html_e( 'Register', 'fanfiction-manager' ); ?></h1>
 		</header>
 
-		<section role="region" aria-label="<?php esc_attr_e( 'Registration form', 'fanfiction-manager' ); ?>">
+		<section class="fanfic-content-section" role="region" aria-label="<?php esc_attr_e( 'Registration form', 'fanfiction-manager' ); ?>">
 			<p>[fanfic-register-form]</p>
 		</section>
 
@@ -19,3 +20,4 @@
 		?></p>
 	</article>
 </main>
+</div>
