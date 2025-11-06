@@ -1679,6 +1679,21 @@ class Fanfic_URL_Config {
 
             if ( $paths_valid ) {
                 update_option( self::OPTION_SECONDARY_PATHS, $paths_to_validate );
+
+                // Also save dashboard and search to dynamic pages option
+                $dynamic_page_updates = array();
+                if ( ! empty( $dashboard_slug ) ) {
+                    $dynamic_page_updates['dashboard'] = $dashboard_slug;
+                }
+                if ( ! empty( $search_slug ) ) {
+                    $dynamic_page_updates['search'] = $search_slug;
+                }
+                if ( ! empty( $dynamic_page_updates ) ) {
+                    $current_dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
+                    $updated_dynamic_slugs = array_merge( $current_dynamic_slugs, $dynamic_page_updates );
+                    Fanfic_Dynamic_Pages::update_slugs( $updated_dynamic_slugs );
+                }
+
                 $success_messages[] = 'User & system URLs saved.';
             }
         }
