@@ -34,8 +34,11 @@ class Fanfic_Templates {
 	public static function init() {
 		add_filter( 'template_include', array( __CLASS__, 'template_loader' ) );
 		add_action( 'init', array( __CLASS__, 'check_missing_pages' ) );
+		add_action( 'init', array( __CLASS__, 'check_missing_shortcodes' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'missing_pages_notice' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'missing_shortcodes_notice' ) );
 		add_action( 'admin_post_fanfic_rebuild_pages', array( __CLASS__, 'rebuild_pages' ) );
+		add_action( 'admin_post_fanfic_fix_page_shortcodes', array( __CLASS__, 'fix_page_shortcodes' ) );
 		add_filter( 'wp_nav_menu_objects', array( __CLASS__, 'filter_menu_items_by_login_status' ), 10, 2 );
 	}
 
@@ -306,6 +309,243 @@ class Fanfic_Templates {
 			$redirect_args['rebuilt'] = '1';
 		} else {
 			$redirect_args['rebuild_error'] = '1';
+		}
+
+		// Redirect back with success or error message
+		wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	/**
+	 * Get required shortcodes for a system page
+	 *
+	 * Returns array of shortcodes that must be present in the page content.
+	 *
+	 * @since 1.0.0
+	 * @param string $page_slug The page slug.
+	 * @return array Required shortcodes (empty array if page doesn't need specific shortcodes).
+	 */
+	public static function get_required_shortcodes_for_page( $page_slug ) {
+		$required_shortcodes = array(
+			'login'          => array( 'fanfic-login-form' ),
+			'register'       => array( 'fanfic-register-form' ),
+			'password-reset' => array( 'fanfic-password-reset-form' ),
+			'dashboard'      => array( 'user-dashboard' ),
+			'create-story'   => array( 'author-create-story-form' ),
+			'edit-story'     => array( 'author-edit-story-form' ),
+			'edit-chapter'   => array( 'author-edit-chapter-form' ),
+			'edit-profile'   => array( 'author-edit-profile-form' ),
+			'search'         => array( 'search-results' ),
+			'members'        => array( 'user-profile' ),
+			'error'          => array( 'fanfic-error-message' ),
+			'maintenance'    => array( 'fanfic-maintenance-message' ),
+		);
+
+		return isset( $required_shortcodes[ $page_slug ] ) ? $required_shortcodes[ $page_slug ] : array();
+	}
+
+	/**
+	 * Check for missing shortcodes in system pages
+	 *
+	 * Checks all system pages to ensure they contain their required shortcodes.
+	 * Stores results in a transient for use in admin notices.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function check_missing_shortcodes() {
+		// Only run for admins
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		// Only check if wizard is completed
+		if ( ! get_option( 'fanfic_wizard_completed', false ) ) {
+			return;
+		}
+
+		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+		if ( empty( $page_ids ) ) {
+			return;
+		}
+
+		$pages_with_missing_shortcodes = array();
+
+		foreach ( $page_ids as $slug => $page_id ) {
+			$page = get_post( $page_id );
+
+			// Skip if page doesn't exist
+			if ( ! $page || $page->post_status === 'trash' ) {
+				continue;
+			}
+
+			$required_shortcodes = self::get_required_shortcodes_for_page( $slug );
+
+			// Skip if no required shortcodes for this page
+			if ( empty( $required_shortcodes ) ) {
+				continue;
+			}
+
+			// Check if page content contains all required shortcodes
+			$page_content = $page->post_content;
+			$missing_shortcodes = array();
+
+			foreach ( $required_shortcodes as $shortcode ) {
+				// Check for shortcode in brackets
+				if ( strpos( $page_content, '[' . $shortcode ) === false ) {
+					$missing_shortcodes[] = $shortcode;
+				}
+			}
+
+			// If any shortcodes are missing, add to list
+			if ( ! empty( $missing_shortcodes ) ) {
+				$pages_with_missing_shortcodes[ $slug ] = array(
+					'page_id'            => $page_id,
+					'page_title'         => $page->post_title,
+					'missing_shortcodes' => $missing_shortcodes,
+				);
+			}
+		}
+
+		// Store in transient (expires in 24 hours)
+		set_transient( 'fanfic_missing_shortcodes', $pages_with_missing_shortcodes, DAY_IN_SECONDS );
+	}
+
+	/**
+	 * Display admin notice for pages with missing shortcodes
+	 *
+	 * Shows a warning notice to admins when system pages are missing required shortcodes.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function missing_shortcodes_notice() {
+		// Only show to admins
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$pages_with_issues = get_transient( 'fanfic_missing_shortcodes' );
+
+		if ( empty( $pages_with_issues ) ) {
+			return;
+		}
+
+		?>
+		<div class="notice notice-warning is-dismissible">
+			<p>
+				<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: %d: number of pages with missing shortcodes */
+						_n(
+							'%d system page is missing required shortcodes.',
+							'%d system pages are missing required shortcodes.',
+							count( $pages_with_issues ),
+							'fanfiction-manager'
+						),
+						count( $pages_with_issues )
+					)
+				);
+				?>
+			</p>
+			<ul style="list-style: disc; margin-left: 20px;">
+				<?php foreach ( $pages_with_issues as $slug => $info ) : ?>
+					<li>
+						<strong><?php echo esc_html( $info['page_title'] ); ?></strong>
+						<?php
+						/* translators: %s: comma-separated list of missing shortcode names */
+						echo esc_html( sprintf( __( 'missing: [%s]', 'fanfiction-manager' ), implode( '], [', $info['missing_shortcodes'] ) ) );
+						?>
+						-
+						<?php
+						$fix_url = admin_url( 'admin-post.php?action=fanfic_fix_page_shortcodes&page_slug=' . $slug );
+						$fix_url = wp_nonce_url( $fix_url, 'fanfic_fix_page_' . $slug );
+						?>
+						<a href="<?php echo esc_url( $fix_url ); ?>" class="button button-small">
+							<?php esc_html_e( 'Restore Default Content', 'fanfiction-manager' ); ?>
+						</a>
+						<a href="<?php echo esc_url( get_edit_post_link( $info['page_id'] ) ); ?>" class="button button-small">
+							<?php esc_html_e( 'Edit Page', 'fanfiction-manager' ); ?>
+						</a>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+			<p>
+				<em><?php esc_html_e( 'Note: You can customize page content, but required shortcodes must be present for the page to function properly.', 'fanfiction-manager' ); ?></em>
+			</p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Fix page shortcodes by restoring default content
+	 *
+	 * Handles the admin action to restore a page's content to include required shortcodes.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function fix_page_shortcodes() {
+		// Get page slug from request
+		$page_slug = isset( $_GET['page_slug'] ) ? sanitize_text_field( wp_unslash( $_GET['page_slug'] ) ) : '';
+
+		if ( empty( $page_slug ) ) {
+			wp_die( esc_html__( 'Invalid page specified.', 'fanfiction-manager' ) );
+		}
+
+		// Verify nonce
+		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'fanfic_fix_page_' . $page_slug ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'fanfiction-manager' ) );
+		}
+
+		// Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to perform this action.', 'fanfiction-manager' ) );
+		}
+
+		// Get page ID
+		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+		if ( ! isset( $page_ids[ $page_slug ] ) ) {
+			wp_die( esc_html__( 'Page not found.', 'fanfiction-manager' ) );
+		}
+
+		$page_id = $page_ids[ $page_slug ];
+		$page = get_post( $page_id );
+
+		if ( ! $page ) {
+			wp_die( esc_html__( 'Page not found.', 'fanfiction-manager' ) );
+		}
+
+		// Get default content for this page
+		$default_content = self::get_default_template_content( $page_slug );
+
+		if ( empty( $default_content ) ) {
+			wp_die( esc_html__( 'No default content available for this page.', 'fanfiction-manager' ) );
+		}
+
+		// Update page content
+		$updated = wp_update_post(
+			array(
+				'ID'           => $page_id,
+				'post_content' => $default_content,
+			)
+		);
+
+		// Clear the transient so notice updates
+		delete_transient( 'fanfic_missing_shortcodes' );
+
+		// Prepare redirect arguments
+		$redirect_args = array(
+			'page' => 'fanfiction-settings',
+		);
+
+		if ( $updated && ! is_wp_error( $updated ) ) {
+			$redirect_args['shortcode_fixed'] = '1';
+			$redirect_args['fixed_page'] = urlencode( $page->post_title );
+		} else {
+			$redirect_args['shortcode_fix_error'] = '1';
 		}
 
 		// Redirect back with success or error message
