@@ -57,6 +57,7 @@ class Fanfic_Dynamic_Pages {
 	public static function get_dynamic_pages() {
 		return array(
 			'dashboard',     // User dashboard - dynamic data
+			'create-story',  // Create story form - pure form
 			'edit-story',    // Edit story action - attached to story
 			'edit-chapter',  // Edit chapter action - attached to chapter
 			'edit-profile',  // Edit profile - pure form
@@ -74,6 +75,7 @@ class Fanfic_Dynamic_Pages {
 	public static function get_default_slugs() {
 		return array(
 			'dashboard'     => 'dashboard',
+			'create-story'  => 'create-story',
 			'edit-story'    => 'edit-story',
 			'edit-chapter'  => 'edit-chapter',
 			'edit-profile'  => 'edit-profile',
@@ -119,6 +121,13 @@ class Fanfic_Dynamic_Pages {
 		add_rewrite_rule(
 			'^' . $base . '/' . $slugs['dashboard'] . '/?$',
 			'index.php?fanfic_page=dashboard',
+			'top'
+		);
+
+		// Create Story: /fanfiction/create-story/
+		add_rewrite_rule(
+			'^' . $base . '/' . $slugs['create-story'] . '/?$',
+			'index.php?fanfic_page=create-story',
 			'top'
 		);
 
@@ -227,6 +236,14 @@ class Fanfic_Dynamic_Pages {
 		// Dashboard page
 		if ( 'dashboard' === $fanfic_page ) {
 			$new_template = self::locate_template( 'template-dashboard.php' );
+			if ( $new_template ) {
+				return $new_template;
+			}
+		}
+
+		// Create Story page
+		if ( 'create-story' === $fanfic_page ) {
+			$new_template = self::locate_template( 'template-create-story.php' );
 			if ( $new_template ) {
 				return $new_template;
 			}

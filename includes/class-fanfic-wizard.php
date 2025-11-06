@@ -324,7 +324,6 @@ class Fanfic_Wizard {
 			'login',
 			'register',
 			'password-reset',
-			'create-story',
 			'error',
 			'maintenance',
 		);
