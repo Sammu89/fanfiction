@@ -1208,7 +1208,7 @@ class Fanfic_URL_Config {
             }
         }
 
-        // 4. Save dynamic page slugs (dashboard, search, members)
+        // 4. Save dynamic page slugs (dashboard, create-story, search, members)
         $dynamic_slugs_input = array();
 
         // Dashboard
@@ -1216,12 +1216,17 @@ class Fanfic_URL_Config {
             $dynamic_slugs_input['dashboard'] = sanitize_title( wp_unslash( $_POST['fanfic_dashboard_slug'] ) );
         }
 
+        // Create Story
+        if ( isset( $_POST['fanfic_create-story_slug'] ) ) {
+            $dynamic_slugs_input['create-story'] = sanitize_title( wp_unslash( $_POST['fanfic_create-story_slug'] ) );
+        }
+
         // Search
         if ( isset( $_POST['fanfic_search_slug'] ) ) {
             $dynamic_slugs_input['search'] = sanitize_title( wp_unslash( $_POST['fanfic_search_slug'] ) );
         }
 
-        // Members (formerly 'user' slug, now 'members')
+        // Members
         if ( isset( $_POST['fanfic_members_slug'] ) ) {
             $dynamic_slugs_input['members'] = sanitize_title( wp_unslash( $_POST['fanfic_members_slug'] ) );
         }

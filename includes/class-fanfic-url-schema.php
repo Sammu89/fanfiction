@@ -112,41 +112,50 @@ class Fanfic_URL_Schema {
             ),
 
             // ========================================
-            // SECONDARY USER/SYSTEM PATHS
+            // DYNAMIC PAGE SLUGS
             // ========================================
             'dashboard' => array(
-                'type'             => 'secondary',
+                'type'             => 'dynamic',
                 'default'          => __( 'dashboard', 'fanfiction-manager' ),
                 'label'            => __( 'Dashboard', 'fanfiction-manager' ),
                 'description'      => __( 'URL for the author dashboard.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{dashboard}/',
                 'required'         => true,
-                'option_key'       => 'fanfic_secondary_paths',
-                'group'            => 'secondary',
-                'is_dynamic_page'  => true,
+                'option_key'       => 'fanfic_dynamic_page_slugs',
+                'group'            => 'dynamic',
             ),
 
-            'user' => array(
-                'type'             => 'secondary',
-                'default'          => __( 'user', 'fanfiction-manager' ),
-                'label'            => __( 'User Profile', 'fanfiction-manager' ),
-                'description'      => __( 'URL prefix for user profiles.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{user}/username/',
-                'required'         => true,
-                'option_key'       => 'fanfic_secondary_paths',
-                'group'            => 'secondary',
+            'create-story' => array(
+                'type'             => 'dynamic',
+                'default'          => __( 'create-story', 'fanfiction-manager' ),
+                'label'            => __( 'Create Story', 'fanfiction-manager' ),
+                'description'      => __( 'URL for creating new stories.', 'fanfiction-manager' ),
+                'preview_template' => '{home}{base}/{create-story}/',
+                'required'         => false,
+                'option_key'       => 'fanfic_dynamic_page_slugs',
+                'group'            => 'dynamic',
             ),
 
             'search' => array(
-                'type'             => 'secondary',
+                'type'             => 'dynamic',
                 'default'          => __( 'search', 'fanfiction-manager' ),
                 'label'            => __( 'Search', 'fanfiction-manager' ),
                 'description'      => __( 'URL for the search page.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{search}/',
                 'required'         => true,
-                'option_key'       => 'fanfic_secondary_paths',
-                'group'            => 'secondary',
-                'is_dynamic_page'  => true,
+                'option_key'       => 'fanfic_dynamic_page_slugs',
+                'group'            => 'dynamic',
+            ),
+
+            'members' => array(
+                'type'             => 'dynamic',
+                'default'          => __( 'members', 'fanfiction-manager' ),
+                'label'            => __( 'Members (Directory + Profiles)', 'fanfiction-manager' ),
+                'description'      => __( 'URL for members directory and profiles.', 'fanfiction-manager' ),
+                'preview_template' => '{home}{base}/{members}/',
+                'required'         => true,
+                'option_key'       => 'fanfic_dynamic_page_slugs',
+                'group'            => 'dynamic',
             ),
 
             // ========================================
@@ -178,26 +187,6 @@ class Fanfic_URL_Schema {
                 'label'            => __( 'Password Reset', 'fanfiction-manager' ),
                 'description'      => __( 'URL for password reset.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{password-reset}/',
-                'option_key'       => 'fanfic_system_page_slugs',
-                'group'            => 'system',
-            ),
-
-            'create-story' => array(
-                'type'             => 'system',
-                'default'          => __( 'create-story', 'fanfiction-manager' ),
-                'label'            => __( 'Create Story', 'fanfiction-manager' ),
-                'description'      => __( 'URL for creating new stories.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{create-story}/',
-                'option_key'       => 'fanfic_system_page_slugs',
-                'group'            => 'system',
-            ),
-
-            'members' => array(
-                'type'             => 'system',
-                'default'          => __( 'members', 'fanfiction-manager' ),
-                'label'            => __( 'Profile Page', 'fanfiction-manager' ),
-                'description'      => __( 'URL for the members/profile page.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{members}/',
                 'option_key'       => 'fanfic_system_page_slugs',
                 'group'            => 'system',
             ),
