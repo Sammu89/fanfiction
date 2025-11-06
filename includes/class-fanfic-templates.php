@@ -620,7 +620,7 @@ class Fanfic_Templates {
 
 		// Separate dynamic page slugs (don't create WordPress pages for these)
 		$dynamic_slugs = array();
-		$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+		$dynamic_pages = Fanfic_URL_Manager::get_instance()->get_dynamic_pages();
 
 		// Get main page mode
 		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
