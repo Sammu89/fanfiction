@@ -94,8 +94,7 @@ class Fanfic_URL_Manager {
 		// Redirects.
 		add_action( 'template_redirect', array( $this, 'handle_old_slug_redirects' ) );
 
-		// Maybe flush rewrite rules.
-		add_action( 'init', array( $this, 'maybe_flush_rewrite_rules' ), 25 );
+		// REMOVED: maybe_flush_rewrite_rules() - no longer needed, flush happens immediately
 	}
 
 	/**
@@ -110,12 +109,6 @@ class Fanfic_URL_Manager {
 			'epilogue' => 'epilogue',
 		);
 
-		$secondary_defaults = array(
-			'dashboard' => 'dashboard',
-			'user'      => 'user',
-			'search'    => 'search',
-		);
-
 		$dynamic_defaults = array(
 			'dashboard'    => 'dashboard',
 			'create-story' => 'create-story',
@@ -127,7 +120,7 @@ class Fanfic_URL_Manager {
 			'base'       => $this->sanitize_slug( get_option( 'fanfic_base_slug', self::DEFAULT_BASE_SLUG ) ),
 			'story_path' => $this->sanitize_slug( get_option( 'fanfic_story_path', 'stories' ) ),
 			'chapters'   => wp_parse_args( get_option( 'fanfic_chapter_slugs', array() ), $chapter_defaults ),
-			'secondary'  => wp_parse_args( get_option( 'fanfic_secondary_paths', array() ), $secondary_defaults ),
+			// REMOVED - no longer needed, dashboard/search/members are in dynamic_page_slugs only
 			'dynamic'    => wp_parse_args( get_option( 'fanfic_dynamic_page_slugs', array() ), $dynamic_defaults ),
 			'system'     => get_option( 'fanfic_system_page_slugs', array() ),
 		);
@@ -143,7 +136,6 @@ class Fanfic_URL_Manager {
 	public function register_rewrite_rules() {
 		$this->register_story_rules();
 		$this->register_dynamic_page_rules();
-		$this->register_secondary_path_rules();
 	}
 
 	/**
@@ -232,21 +224,7 @@ class Fanfic_URL_Manager {
 		}
 	}
 
-	/**
-	 * Register secondary path rewrite rules
-	 */
-	private function register_secondary_path_rules() {
-		$secondary = $this->slugs['secondary'];
-
-		// User profile: /user/{username}/
-		if ( isset( $secondary['user'] ) ) {
-			add_rewrite_rule(
-				'^' . $secondary['user'] . '/([^/]+)/?$',
-				'index.php?fanfic_page=user&fanfic_user=$matches[1]',
-				'top'
-			);
-		}
-	}
+	// DELETE ENTIRE METHOD - register_secondary_path_rules() removed, now using dynamic pages only
 
 	/**
 	 * Register custom query variables
@@ -651,14 +629,7 @@ class Fanfic_URL_Manager {
 		return $this->slugs['chapters'];
 	}
 
-	/**
-	 * Get secondary path slugs
-	 *
-	 * @return array Secondary slugs (dashboard, user, search).
-	 */
-	public function get_secondary_slugs() {
-		return $this->slugs['secondary'];
-	}
+	// DELETE ENTIRE METHOD - get_secondary_slugs() removed, use get_dynamic_slugs() instead
 
 	/**
 	 * Get dynamic page slugs
@@ -779,22 +750,14 @@ class Fanfic_URL_Manager {
 		}
 	}
 
-	/**
-	 * Maybe flush rewrite rules if flag is set
-	 */
-	public function maybe_flush_rewrite_rules() {
-		if ( get_transient( 'fanfic_flush_rewrite_rules' ) ) {
-			flush_rewrite_rules();
-			delete_transient( 'fanfic_flush_rewrite_rules' );
-		}
-	}
+	// DELETE ENTIRE METHOD - maybe_flush_rewrite_rules() removed, flush happens immediately in URL Config
 
 	/**
 	 * Invalidate cache (call when slugs are updated)
 	 */
 	public function flush_cache() {
 		$this->slugs = $this->load_all_slugs();
-		set_transient( 'fanfic_flush_rewrite_rules', true, 60 );
+		// REMOVED: set_transient() - flush happens immediately, no delayed flush needed
 	}
 
 	/**

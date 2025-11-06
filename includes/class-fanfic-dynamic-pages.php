@@ -18,6 +18,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Fanfic_Dynamic_Pages
  *
+ * @deprecated 1.1.0 This class is deprecated. All functionality moved to Fanfic_URL_Manager.
+ * File kept for backward compatibility only. Will be removed in version 2.0.0.
+ *
  * Manages dynamic pages that use rewrite rules and templates instead of WordPress pages.
  * This is used for action pages (edit story, edit chapter) and functional pages (dashboard,
  * search, etc.) that don't need customizable content.
