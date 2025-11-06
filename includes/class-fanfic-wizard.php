@@ -851,11 +851,13 @@ private function render_choice_screen() {
 	/**
 	 * Save URL settings step data
 	 *
+	 * Refactored to use Fanfic_URL_Schema for validation and consistency.
+	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	private function save_url_settings_step() {
-		// Save main page mode
+		// 1. Save main page mode
 		if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
 			$main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
 			if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
@@ -863,124 +865,110 @@ private function render_choice_screen() {
 			}
 		}
 
-		// Validate and save base slug
+		// 2. Validate and save base slug
 		if ( isset( $_POST['fanfic_base_slug'] ) ) {
 			$base_slug = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
+			$validation = Fanfic_URL_Schema::validate_slug( $base_slug, array( 'base' ) );
 
-			// Validate slug
-			if ( empty( $base_slug ) || strlen( $base_slug ) > 50 ) {
-				wp_send_json_error( array( 'message' => __( 'Base slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
+			if ( is_wp_error( $validation ) ) {
+				wp_send_json_error( array( 'message' => __( 'Base Slug: ', 'fanfiction-manager' ) . $validation->get_error_message() ) );
 			}
 
 			update_option( 'fanfic_base_slug', $base_slug );
 		}
 
-		// Validate and save story path
+		// 3. Validate and save story path
 		if ( isset( $_POST['fanfic_story_path'] ) ) {
 			$story_path = sanitize_title( wp_unslash( $_POST['fanfic_story_path'] ) );
+			$validation = Fanfic_URL_Schema::validate_slug( $story_path, array( 'story_path' ) );
 
-			// Validate story path
-			if ( empty( $story_path ) || strlen( $story_path ) > 50 ) {
-				wp_send_json_error( array( 'message' => __( 'Story subdirectory must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
-			}
-
-			// Check that story path doesn't match any system page slugs
-			$system_page_slugs = array(
-				'login',
-				'register',
-				'password-reset',
-				'archive',
-				'dashboard',
-				'create-story',
-				'edit-profile',
-				'search',
-				'error',
-				'maintenance',
-			);
-
-			if ( in_array( $story_path, $system_page_slugs, true ) ) {
-				wp_send_json_error( array( 'message' => __( 'Story subdirectory cannot match a system page slug.', 'fanfiction-manager' ) ) );
-			}
-
-			// Validate alphanumeric + hyphens only
-			if ( ! preg_match( '/^[a-z0-9-]+$/', $story_path ) ) {
-				wp_send_json_error( array( 'message' => __( 'Story subdirectory can only contain lowercase letters, numbers, and hyphens.', 'fanfiction-manager' ) ) );
+			if ( is_wp_error( $validation ) ) {
+				wp_send_json_error( array( 'message' => __( 'Story Path: ', 'fanfiction-manager' ) . $validation->get_error_message() ) );
 			}
 
 			update_option( 'fanfic_story_path', $story_path );
 		}
 
-		// Validate and save secondary paths (individual field names)
-		$dashboard_slug = isset( $_POST['fanfic_dashboard_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_dashboard_slug'] ) ) : '';
-		$user_slug      = isset( $_POST['fanfic_user_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_user_slug'] ) ) : '';
-		$search_slug    = isset( $_POST['fanfic_search_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_search_slug'] ) ) : '';
+		// 4. Validate and save secondary paths (dashboard, user, search)
+		$secondary_slugs_input = array();
+		$secondary_config = Fanfic_URL_Schema::get_slugs_by_group( 'secondary' );
 
-		if ( ! empty( $dashboard_slug ) || ! empty( $user_slug ) || ! empty( $search_slug ) ) {
-			// Check for duplicates among secondary paths
-			$secondary_slugs = array_filter( array( $dashboard_slug, $user_slug, $search_slug ) );
-			if ( count( $secondary_slugs ) !== count( array_unique( $secondary_slugs ) ) ) {
-				wp_send_json_error( array( 'message' => __( 'User & System URLs must be unique from each other.', 'fanfiction-manager' ) ) );
-			}
-
-			// Save secondary paths
-			$secondary_paths = array(
-				'dashboard' => $dashboard_slug,
-				'user'      => $user_slug,
-				'search'    => $search_slug,
-			);
-			update_option( 'fanfic_secondary_paths', $secondary_paths );
-
-			// Also save dashboard and search to dynamic pages option
-			$dynamic_page_updates = array();
-			if ( ! empty( $dashboard_slug ) ) {
-				$dynamic_page_updates['dashboard'] = $dashboard_slug;
-			}
-			if ( ! empty( $search_slug ) ) {
-				$dynamic_page_updates['search'] = $search_slug;
-			}
-			if ( ! empty( $dynamic_page_updates ) ) {
-				$current_dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
-				$updated_dynamic_slugs = array_merge( $current_dynamic_slugs, $dynamic_page_updates );
-				Fanfic_Dynamic_Pages::update_slugs( $updated_dynamic_slugs );
+		foreach ( $secondary_config as $key => $config ) {
+			$field_name = 'fanfic_' . $key . '_slug';
+			if ( isset( $_POST[ $field_name ] ) ) {
+				$secondary_slugs_input[ $key ] = sanitize_title( wp_unslash( $_POST[ $field_name ] ) );
 			}
 		}
 
-		// Validate and save chapter slugs
-		$prologue_slug = isset( $_POST['fanfic_prologue_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_prologue_slug'] ) ) : 'prologue';
-		$chapter_slug  = isset( $_POST['fanfic_chapter_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_chapter_slug'] ) ) : 'chapter';
-		$epilogue_slug = isset( $_POST['fanfic_epilogue_slug'] ) ? sanitize_title( wp_unslash( $_POST['fanfic_epilogue_slug'] ) ) : 'epilogue';
-
-		// Validate chapter slugs
-		if ( empty( $prologue_slug ) || strlen( $prologue_slug ) > 50 ) {
-			wp_send_json_error( array( 'message' => __( 'Prologue slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
-		}
-		if ( empty( $chapter_slug ) || strlen( $chapter_slug ) > 50 ) {
-			wp_send_json_error( array( 'message' => __( 'Chapter slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
-		}
-		if ( empty( $epilogue_slug ) || strlen( $epilogue_slug ) > 50 ) {
-			wp_send_json_error( array( 'message' => __( 'Epilogue slug must be between 1 and 50 characters.', 'fanfiction-manager' ) ) );
+		// Check for duplicates
+		if ( Fanfic_URL_Schema::has_duplicates( $secondary_slugs_input ) ) {
+			wp_send_json_error( array( 'message' => __( 'User & System URLs must be unique from each other.', 'fanfiction-manager' ) ) );
 		}
 
-		// Check for duplicate chapter slugs
-		$chapter_slugs_array = array( $prologue_slug, $chapter_slug, $epilogue_slug );
-		if ( count( $chapter_slugs_array ) !== count( array_unique( $chapter_slugs_array ) ) ) {
+		// Validate each secondary path
+		foreach ( $secondary_slugs_input as $key => $slug ) {
+			$validation = Fanfic_URL_Schema::validate_slug( $slug, array( $key ) );
+			if ( is_wp_error( $validation ) ) {
+				wp_send_json_error( array( 'message' => ucfirst( $key ) . ': ' . $validation->get_error_message() ) );
+			}
+		}
+
+		// Save secondary paths
+		if ( ! empty( $secondary_slugs_input ) ) {
+			update_option( 'fanfic_secondary_paths', $secondary_slugs_input );
+
+			// Update dynamic pages if applicable
+			if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+				$dynamic_updates = array();
+				foreach ( $secondary_config as $key => $config ) {
+					if ( isset( $config['is_dynamic_page'] ) && $config['is_dynamic_page'] && ! empty( $secondary_slugs_input[ $key ] ) ) {
+						$dynamic_updates[ $key ] = $secondary_slugs_input[ $key ];
+					}
+				}
+				if ( ! empty( $dynamic_updates ) ) {
+					$current_dynamic = Fanfic_Dynamic_Pages::get_slugs();
+					Fanfic_Dynamic_Pages::update_slugs( array_merge( $current_dynamic, $dynamic_updates ) );
+				}
+			}
+		}
+
+		// 5. Validate and save chapter slugs (prologue, chapter, epilogue)
+		$chapter_slugs_input = array();
+		$chapter_config = Fanfic_URL_Schema::get_slugs_by_group( 'chapters' );
+
+		foreach ( $chapter_config as $key => $config ) {
+			$field_name = 'fanfic_' . $key . '_slug';
+			$default_value = $config['default'];
+
+			if ( isset( $_POST[ $field_name ] ) ) {
+				$chapter_slugs_input[ $key ] = sanitize_title( wp_unslash( $_POST[ $field_name ] ) );
+			} else {
+				$chapter_slugs_input[ $key ] = $default_value;
+			}
+		}
+
+		// Check for duplicates
+		if ( Fanfic_URL_Schema::has_duplicates( $chapter_slugs_input ) ) {
 			wp_send_json_error( array( 'message' => __( 'Chapter type slugs must be unique from each other.', 'fanfiction-manager' ) ) );
 		}
 
-		// Save chapter slugs
-		update_option( 'fanfic_chapter_slugs', array(
-			'prologue' => $prologue_slug,
-			'chapter'  => $chapter_slug,
-			'epilogue' => $epilogue_slug,
-		) );
+		// Validate each chapter slug
+		foreach ( $chapter_slugs_input as $key => $slug ) {
+			$validation = Fanfic_URL_Schema::validate_slug( $slug, array( $key ) );
+			if ( is_wp_error( $validation ) ) {
+				wp_send_json_error( array( 'message' => ucfirst( $key ) . ': ' . $validation->get_error_message() ) );
+			}
+		}
 
-		// Validate and save system page slugs
+		// Save chapter slugs
+		update_option( 'fanfic_chapter_slugs', $chapter_slugs_input );
+
+		// 6. Validate and save system page slugs
 		if ( isset( $_POST['fanfic_system_page_slugs'] ) && is_array( $_POST['fanfic_system_page_slugs'] ) ) {
 			$slugs = array_map( 'sanitize_title', wp_unslash( $_POST['fanfic_system_page_slugs'] ) );
 
-			// Validate no duplicate page slugs
-			$slug_counts = array_count_values( array_filter( $slugs ) ); // Filter out empty values
-
+			// Check for duplicates
+			$slug_counts = array_count_values( array_filter( $slugs ) );
 			foreach ( $slug_counts as $slug => $count ) {
 				if ( $count > 1 ) {
 					wp_send_json_error( array(
@@ -993,46 +981,62 @@ private function render_choice_screen() {
 				}
 			}
 
-			// Save valid page slugs
+			// Save page slugs and handle dynamic pages
 			$page_slugs = array();
 			$dynamic_page_slugs = array();
-			$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
 
-			// Get already-saved dynamic slugs (from secondary paths section)
-			$current_dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
+			if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+				$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+				$current_dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
+			} else {
+				$dynamic_pages = array();
+				$current_dynamic_slugs = array();
+			}
 
 			foreach ( $slugs as $key => $slug ) {
 				if ( ! empty( $slug ) ) {
 					$page_slugs[ $key ] = $slug;
 
-					// If this is a dynamic page, also save it to the dynamic pages option
-					// But skip dashboard and search if they were already set from secondary paths
+					// Handle dynamic pages
 					if ( in_array( $key, $dynamic_pages, true ) ) {
-						// For dashboard and search, prefer the value from secondary paths section
+						// Skip dashboard/search if already set from secondary paths
 						if ( ( $key === 'dashboard' || $key === 'search' ) && ! empty( $current_dynamic_slugs[ $key ] ) && $current_dynamic_slugs[ $key ] !== $slug ) {
-							// Secondary paths value already saved, skip this one
 							continue;
 						}
 						$dynamic_page_slugs[ $key ] = $slug;
 					}
 				}
 			}
+
 			update_option( 'fanfic_system_page_slugs', $page_slugs );
 
-			// Save dynamic page slugs separately (merge with existing)
-			if ( ! empty( $dynamic_page_slugs ) ) {
-				$merged_dynamic_slugs = array_merge( $current_dynamic_slugs, $dynamic_page_slugs );
-				Fanfic_Dynamic_Pages::update_slugs( $merged_dynamic_slugs );
+			// Update dynamic pages
+			if ( ! empty( $dynamic_page_slugs ) && class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+				Fanfic_Dynamic_Pages::update_slugs( array_merge( $current_dynamic_slugs, $dynamic_page_slugs ) );
 			}
 		}
 
-		// Create or update pages with new slugs
+		// 7. Create/update system pages with new slugs
 		if ( class_exists( 'Fanfic_Templates' ) ) {
 			$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
 			Fanfic_Templates::create_system_pages( $base_slug );
 		}
 
-		// Manually register all rewrite rules before flushing (AJAX context)
+		// 8. Flush rewrite rules
+		$this->flush_rewrite_rules();
+	}
+
+	/**
+	 * Flush all rewrite rules
+	 *
+	 * Helper method to register and flush rewrite rules.
+	 * Shared logic to avoid duplication.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private function flush_rewrite_rules() {
+		// Register all rewrite rules before flushing
 		if ( class_exists( 'Fanfic_Post_Types' ) ) {
 			Fanfic_Post_Types::register_post_types();
 		}
@@ -1046,10 +1050,7 @@ private function render_choice_screen() {
 			Fanfic_Dynamic_Pages::add_rewrite_rules();
 		}
 
-		// Now flush rewrite rules with all rules registered
 		flush_rewrite_rules();
-
-		// Also set transient as backup for next page load
 		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
 	}
 
@@ -1147,26 +1148,8 @@ private function render_choice_screen() {
 		// Assign user roles
 		$this->assign_user_roles();
 
-		// Manually register all rewrite rules before flushing (AJAX context)
-		// This ensures rules are in memory before flush_rewrite_rules() runs
-		if ( class_exists( 'Fanfic_Post_Types' ) ) {
-			Fanfic_Post_Types::register_post_types();
-		}
-		if ( class_exists( 'Fanfic_Taxonomies' ) ) {
-			Fanfic_Taxonomies::register_taxonomies();
-		}
-		if ( class_exists( 'Fanfic_Rewrite' ) ) {
-			Fanfic_Rewrite::add_rewrite_rules();
-		}
-		if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
-			Fanfic_Dynamic_Pages::add_rewrite_rules();
-		}
-
-		// Now flush rewrite rules with all rules registered
-		flush_rewrite_rules();
-
-		// Also set transient as backup for next page load
-		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
+		// Flush rewrite rules using shared helper method
+		$this->flush_rewrite_rules();
 
 		// Double-check that all pages exist using existing validation method
 		if ( ! $this->all_pages_exist() ) {

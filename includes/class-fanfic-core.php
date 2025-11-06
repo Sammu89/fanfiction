@@ -98,6 +98,9 @@ class Fanfic_Core {
 		// Load Settings class (needed by cron jobs in all contexts)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-settings.php';
 
+		// Load URL Schema (shared by admin and frontend)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-schema.php';
+
 		// Load admin classes
 		if ( is_admin() ) {
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-cache-admin.php';

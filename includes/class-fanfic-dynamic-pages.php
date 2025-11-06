@@ -72,12 +72,11 @@ class Fanfic_Dynamic_Pages {
 		return array(
 			'dashboard',     // User dashboard - dynamic data
 			'create-story',  // Create story form - pure form
-			'edit-story',    // Edit story action - attached to story
-			'edit-chapter',  // Edit chapter action - attached to chapter
-			'edit-profile',  // Edit profile - pure form
 			'search',        // Search results - dynamic results
 			'members',       // Members/profiles - dynamic listings
 		);
+		// Note: Edit pages removed - now using query parameters (?action=edit) instead
+		// Old: 'edit-story', 'edit-chapter', 'edit-profile'
 	}
 
 	/**
@@ -90,12 +89,11 @@ class Fanfic_Dynamic_Pages {
 		return array(
 			'dashboard'     => 'dashboard',
 			'create-story'  => 'create-story',
-			'edit-story'    => 'edit-story',
-			'edit-chapter'  => 'edit-chapter',
-			'edit-profile'  => 'edit-profile',
 			'search'        => 'search',
 			'members'       => 'members',
 		);
+		// Note: Edit page defaults removed - now using query parameters (?action=edit) instead
+		// Old: 'edit-story' => 'edit-story', 'edit-chapter' => 'edit-chapter', 'edit-profile' => 'edit-profile'
 	}
 
 	/**
