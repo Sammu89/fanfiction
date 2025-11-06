@@ -143,12 +143,8 @@ class Fanfic_Dynamic_Pages {
 			'top'
 		);
 
-		// Edit Profile: /fanfiction/edit-profile/
-		add_rewrite_rule(
-			'^' . $base . '/' . $slugs['edit-profile'] . '/?$',
-			'index.php?fanfic_page=edit-profile',
-			'top'
-		);
+		// REMOVED: Edit Profile now uses query parameters (?action=edit)
+		// Old: /fanfiction/edit-profile/ → Now: /fanfiction/user/username/?action=edit
 
 		// Search: /fanfiction/search/
 		// Note: This also handles query params like ?s=keyword&fandom=123
@@ -170,39 +166,22 @@ class Fanfic_Dynamic_Pages {
 			'top'
 		);
 
-		// Edit Story: /fanfiction/stories/story-slug/edit/
-		// This is attached to the story URL structure
-		$story_path = get_option( 'fanfic_story_path', 'stories' );
-		add_rewrite_rule(
-			'^' . $base . '/' . $story_path . '/([^/]+)/' . $slugs['edit-story'] . '/?$',
-			'index.php?fanfiction_story=$matches[1]&story_action=edit',
-			'top'
-		);
-
-		// Edit Chapter: /fanfiction/stories/story-slug/chapter-1/edit/
-		// This is attached to the chapter URL structure
-		$chapter_slug = get_option( 'fanfic_chapter_slug', 'chapter' );
-		add_rewrite_rule(
-			'^' . $base . '/' . $story_path . '/([^/]+)/' . $chapter_slug . '-([0-9]+)/' . $slugs['edit-chapter'] . '/?$',
-			'index.php?fanfiction_story=$matches[1]&chapter_number=$matches[2]&chapter_action=edit',
-			'top'
-		);
-
-		// Also support prologue/epilogue edit
-		$prologue_slug = get_option( 'fanfic_prologue_slug', 'prologue' );
-		$epilogue_slug = get_option( 'fanfic_epilogue_slug', 'epilogue' );
-
-		add_rewrite_rule(
-			'^' . $base . '/' . $story_path . '/([^/]+)/' . $prologue_slug . '/' . $slugs['edit-chapter'] . '/?$',
-			'index.php?fanfiction_story=$matches[1]&chapter_type=prologue&chapter_action=edit',
-			'top'
-		);
-
-		add_rewrite_rule(
-			'^' . $base . '/' . $story_path . '/([^/]+)/' . $epilogue_slug . '/' . $slugs['edit-chapter'] . '/?$',
-			'index.php?fanfiction_story=$matches[1]&chapter_type=epilogue&chapter_action=edit',
-			'top'
-		);
+		// REMOVED: Edit Story and Edit Chapter now use query parameters (?action=edit)
+		// Old approach used separate edit URLs:
+		//   - Edit Story: /fanfiction/stories/story-slug/edit/
+		//   - Edit Chapter: /fanfiction/stories/story-slug/chapter-1/edit/
+		//   - Edit Prologue: /fanfiction/stories/story-slug/prologue/edit/
+		//   - Edit Epilogue: /fanfiction/stories/story-slug/epilogue/edit/
+		//
+		// New approach uses query parameters on the same URL:
+		//   - Edit Story: /fanfiction/stories/story-slug/?action=edit
+		//   - Edit Chapter: /fanfiction/stories/story-slug/chapter-1/?action=edit
+		//   - Edit Prologue: /fanfiction/stories/story-slug/prologue/?action=edit
+		//   - Edit Epilogue: /fanfiction/stories/story-slug/epilogue/?action=edit
+		//
+		// This is simpler and uses the helper functions:
+		//   - fanfic_get_story_edit_url($story_id)
+		//   - fanfic_get_chapter_edit_url($chapter_id)
 	}
 
 	/**
@@ -261,13 +240,9 @@ class Fanfic_Dynamic_Pages {
 			}
 		}
 
-		// Edit Profile page
-		if ( 'edit-profile' === $fanfic_page ) {
-			$new_template = self::locate_template( 'template-edit-profile.php' );
-			if ( $new_template ) {
-				return $new_template;
-			}
-		}
+		// REMOVED: Edit Profile now handled via query parameter on profile page
+		// Templates should check fanfic_is_edit_mode() instead
+		// See functions.php for helper functions
 
 		// Search page
 		if ( 'search' === $fanfic_page ) {
@@ -285,21 +260,13 @@ class Fanfic_Dynamic_Pages {
 			}
 		}
 
-		// Edit Story action
-		if ( 'edit' === $story_action ) {
-			$new_template = self::locate_template( 'template-edit-story.php' );
-			if ( $new_template ) {
-				return $new_template;
-			}
-		}
-
-		// Edit Chapter action
-		if ( 'edit' === $chapter_action ) {
-			$new_template = self::locate_template( 'template-edit-chapter.php' );
-			if ( $new_template ) {
-				return $new_template;
-			}
-		}
+		// REMOVED: Edit Story and Edit Chapter now handled via query parameter
+		// Single-story and single-chapter templates should check fanfic_is_edit_mode() instead
+		// Use helper functions:
+		//   - fanfic_get_story_edit_url($story_id) to generate edit URLs
+		//   - fanfic_get_chapter_edit_url($chapter_id) to generate edit URLs
+		//   - fanfic_is_edit_mode() to detect edit mode in templates
+		//   - fanfic_current_user_can_edit($type, $id) to check permissions
 
 		return $template;
 	}
@@ -369,56 +336,34 @@ class Fanfic_Dynamic_Pages {
 	/**
 	 * Get edit story URL for a story
 	 *
+	 * @deprecated Use fanfic_get_story_edit_url() instead (see functions.php)
 	 * @since 1.0.0
 	 * @param int|WP_Post $story Story ID or post object.
 	 * @return string Edit story URL
 	 */
 	public static function get_edit_story_url( $story ) {
-		$story = get_post( $story );
-		if ( ! $story ) {
-			return '';
-		}
-
-		$base       = get_option( 'fanfic_base_slug', 'fanfiction' );
-		$story_path = get_option( 'fanfic_story_path', 'stories' );
-		$slugs      = self::get_slugs();
-
-		return home_url( '/' . $base . '/' . $story_path . '/' . $story->post_name . '/' . $slugs['edit-story'] . '/' );
+		// Redirect to new helper function that uses query parameters
+		return function_exists( 'fanfic_get_story_edit_url' )
+			? fanfic_get_story_edit_url( $story )
+			: '';
 	}
 
 	/**
 	 * Get edit chapter URL for a chapter
 	 *
+	 * @deprecated Use fanfic_get_chapter_edit_url() instead (see functions.php)
 	 * @since 1.0.0
-	 * @param int|WP_Post $story Story ID or post object.
-	 * @param int         $chapter_number Chapter number (1-based).
-	 * @param string      $chapter_type Optional chapter type (prologue, epilogue).
+	 * @param int|WP_Post $story Story ID or post object (now treated as chapter).
+	 * @param int         $chapter_number Chapter number (IGNORED - kept for backwards compatibility).
+	 * @param string      $chapter_type Optional chapter type (IGNORED - kept for backwards compatibility).
 	 * @return string Edit chapter URL
 	 */
 	public static function get_edit_chapter_url( $story, $chapter_number = 1, $chapter_type = '' ) {
-		$story = get_post( $story );
-		if ( ! $story ) {
-			return '';
-		}
-
-		$base         = get_option( 'fanfic_base_slug', 'fanfiction' );
-		$story_path   = get_option( 'fanfic_story_path', 'stories' );
-		$chapter_slug = get_option( 'fanfic_chapter_slug', 'chapter' );
-		$slugs        = self::get_slugs();
-
-		// Handle special chapter types
-		if ( 'prologue' === $chapter_type ) {
-			$prologue_slug = get_option( 'fanfic_prologue_slug', 'prologue' );
-			return home_url( '/' . $base . '/' . $story_path . '/' . $story->post_name . '/' . $prologue_slug . '/' . $slugs['edit-chapter'] . '/' );
-		}
-
-		if ( 'epilogue' === $chapter_type ) {
-			$epilogue_slug = get_option( 'fanfic_epilogue_slug', 'epilogue' );
-			return home_url( '/' . $base . '/' . $story_path . '/' . $story->post_name . '/' . $epilogue_slug . '/' . $slugs['edit-chapter'] . '/' );
-		}
-
-		// Regular chapter
-		return home_url( '/' . $base . '/' . $story_path . '/' . $story->post_name . '/' . $chapter_slug . '-' . $chapter_number . '/' . $slugs['edit-chapter'] . '/' );
+		// Note: $story parameter is actually expected to be a chapter post object or ID
+		// Redirect to new helper function that uses query parameters
+		return function_exists( 'fanfic_get_chapter_edit_url' )
+			? fanfic_get_chapter_edit_url( $story )
+			: '';
 	}
 
 	/**
