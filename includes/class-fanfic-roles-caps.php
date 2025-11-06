@@ -279,35 +279,56 @@ class Fanfic_Roles_Caps {
 
 		// Handle story capabilities
 		if ( in_array( $cap, array( 'edit_fanfiction_story', 'delete_fanfiction_story' ), true ) ) {
+			error_log( '=== MAP_META_CAP DEBUG (Story) ===' );
+			error_log( 'Capability requested: ' . $cap );
+			error_log( 'User ID: ' . $user_id );
+			error_log( 'Post ID (args[0]): ' . ( isset( $args[0] ) ? $args[0] : 'NOT SET' ) );
+
 			// WordPress admins should have already been granted access above,
 			// but double-check here as a safety net
 			if ( user_can( $user_id, 'manage_options' ) ) {
+				error_log( 'User has manage_options - GRANTED' );
 				return array( 'manage_options' );
 			}
+			error_log( 'User does NOT have manage_options' );
 
 			$post = get_post( $args[0] );
+			error_log( 'get_post() returned: ' . ( $post ? 'POST OBJECT' : 'NULL/FALSE' ) );
+
+			if ( $post ) {
+				error_log( 'Post type: ' . $post->post_type );
+				error_log( 'Post author: ' . $post->post_author );
+			}
 
 			// If post doesn't exist or isn't a fanfiction story, require the "others" capability
 			// This allows moderators/admins to access, but prevents authors from accessing invalid stories
 			if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
+				error_log( 'Post invalid or wrong type - requiring "others" capability' );
 				if ( 'edit_fanfiction_story' === $cap ) {
+					error_log( 'Returning: edit_others_fanfiction_stories' );
 					return array( 'edit_others_fanfiction_stories' );
 				} elseif ( 'delete_fanfiction_story' === $cap ) {
+					error_log( 'Returning: delete_others_fanfiction_stories' );
 					return array( 'delete_others_fanfiction_stories' );
 				}
 			}
 
 			// Check if user can edit/delete others' stories
 			if ( 'edit_fanfiction_story' === $cap ) {
+				error_log( 'Checking authorship: user ' . $user_id . ' vs post_author ' . $post->post_author );
 				if ( (int) $user_id === (int) $post->post_author ) {
+					error_log( 'User IS author - Returning: edit_fanfiction_stories' );
 					$caps = array( 'edit_fanfiction_stories' );
 				} else {
+					error_log( 'User is NOT author - Returning: edit_others_fanfiction_stories' );
 					$caps = array( 'edit_others_fanfiction_stories' );
 				}
 			} elseif ( 'delete_fanfiction_story' === $cap ) {
 				if ( (int) $user_id === (int) $post->post_author ) {
+					error_log( 'User IS author - Returning: delete_fanfiction_stories' );
 					$caps = array( 'delete_fanfiction_stories' );
 				} else {
+					error_log( 'User is NOT author - Returning: delete_others_fanfiction_stories' );
 					$caps = array( 'delete_others_fanfiction_stories' );
 				}
 			}
