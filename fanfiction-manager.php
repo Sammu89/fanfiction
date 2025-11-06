@@ -29,6 +29,9 @@ define( 'FANFIC_INCLUDES_DIR', FANFIC_PLUGIN_DIR . 'includes/' );
 // Load core class
 require_once FANFIC_INCLUDES_DIR . 'class-fanfic-core.php';
 
+// Load permalinks check class (must be loaded early for admin notices)
+require_once FANFIC_INCLUDES_DIR . 'class-fanfic-permalinks-check.php';
+
 // Initialize the plugin on 'init' hook (WordPress 6.7+ requires textdomain loading at init or later)
 function fanfic_init() {
 	Fanfic_Core::get_instance();

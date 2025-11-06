@@ -45,6 +45,11 @@ class Fanfic_Admin {
 	 * @return void
 	 */
 	public static function add_admin_menu() {
+		// Don't register admin menus if Pretty Permalinks are disabled
+		if ( Fanfic_Permalinks_Check::should_disable_plugin() ) {
+			return;
+		}
+
 		// Add top-level menu
 		add_menu_page(
 			__( 'Fanfiction', 'fanfiction-manager' ),

@@ -248,6 +248,11 @@ class Fanfic_Templates {
 			return;
 		}
 
+		// Don't show if Pretty Permalinks are disabled (permalink notice takes priority)
+		if ( Fanfic_Permalinks_Check::should_disable_plugin() ) {
+			return;
+		}
+
 		// Only show to admins
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
@@ -460,6 +465,11 @@ class Fanfic_Templates {
 	 * @return void
 	 */
 	public static function missing_shortcodes_notice() {
+		// Don't show if Pretty Permalinks are disabled (permalink notice takes priority)
+		if ( Fanfic_Permalinks_Check::should_disable_plugin() ) {
+			return;
+		}
+
 		// Only show to admins
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
