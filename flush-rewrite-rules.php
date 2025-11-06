@@ -13,10 +13,10 @@ require_once('../../../wp-load.php');
 
 // Manually register all rewrite rules before flushing
 if ( class_exists( 'Fanfic_Post_Types' ) ) {
-	Fanfic_Post_Types::register_post_types();
+	Fanfic_Post_Types::register();
 }
 if ( class_exists( 'Fanfic_Taxonomies' ) ) {
-	Fanfic_Taxonomies::register_taxonomies();
+	Fanfic_Taxonomies::register();
 }
 if ( class_exists( 'Fanfic_Rewrite' ) ) {
 	Fanfic_Rewrite::add_rewrite_rules();

@@ -225,7 +225,7 @@ class Fanfic_Admin {
 		}
 
 		// Get current tab with validation
-		$allowed_tabs = array( 'dashboard', 'general', 'email-templates', 'custom-css' );
+		$allowed_tabs = array( 'dashboard', 'general', 'email-templates', 'page-templates', 'custom-css' );
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'dashboard';
 		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'dashboard';
 
@@ -246,6 +246,9 @@ class Fanfic_Admin {
 				<a href="?page=fanfiction-settings&tab=email-templates" class="nav-tab <?php echo $current_tab === 'email-templates' ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Email Templates', 'fanfiction-manager' ); ?>
 				</a>
+				<a href="?page=fanfiction-settings&tab=page-templates" class="nav-tab <?php echo $current_tab === 'page-templates' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Page Templates', 'fanfiction-manager' ); ?>
+				</a>
 				<a href="?page=fanfiction-settings&tab=custom-css" class="nav-tab <?php echo $current_tab === 'custom-css' ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Custom CSS', 'fanfiction-manager' ); ?>
 				</a>
@@ -259,6 +262,9 @@ class Fanfic_Admin {
 						break;
 					case 'email-templates':
 						Fanfic_Settings::render_email_templates_tab();
+						break;
+					case 'page-templates':
+						Fanfic_Settings::render_page_templates_tab();
 						break;
 					case 'custom-css':
 						Fanfic_Settings::render_custom_css_tab();

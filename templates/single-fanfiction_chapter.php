@@ -3,71 +3,43 @@
  * Template for single chapter display
  *
  * This template is used when viewing a single chapter.
+ * The template content is loaded from the Page Templates settings tab.
  * Theme developers can override this by copying to their theme directory.
  *
  * @package FanfictionManager
  * @subpackage Templates
  */
 
-get_header(); ?>
+get_header();
 
-<div class="fanfic-chapter-single">
-	<?php
-	while ( have_posts() ) :
-		the_post();
-		?>
+while ( have_posts() ) :
+	the_post();
 
-		<article id="chapter-<?php the_ID(); ?>" <?php post_class( 'fanfic-chapter' ); ?>>
+	// Get custom template from settings
+	$template = get_option( 'fanfic_chapter_view_template', '' );
 
-			<nav class="fanfic-chapter-breadcrumb">
-				[chapter-breadcrumb]
-			</nav>
+	// If no custom template, use default from settings class
+	if ( empty( $template ) && class_exists( 'Fanfic_Settings' ) ) {
+		// Get default via reflection since the method is private
+		$reflection = new ReflectionClass( 'Fanfic_Settings' );
+		if ( $reflection->hasMethod( 'get_default_chapter_template' ) ) {
+			$method = $reflection->getMethod( 'get_default_chapter_template' );
+			$method->setAccessible( true );
+			$template = $method->invoke( null );
+		}
+	}
 
-			<header class="fanfic-chapter-header">
-				<h1 class="fanfic-chapter-title"><?php echo esc_html( get_the_title() ); ?></h1>
+	// Get chapter content
+	ob_start();
+	the_content();
+	$chapter_content = ob_get_clean();
 
-				<div class="fanfic-chapter-meta">
-					<span class="fanfic-chapter-story">
-						[chapter-story]
-					</span>
-					<span class="fanfic-chapter-date">
-						<?php echo esc_html( get_the_date() ); ?>
-					</span>
-				</div>
-			</header>
+	// Replace the comment placeholder with actual content
+	$template = str_replace( '<!-- Chapter content is automatically displayed here -->', $chapter_content, $template );
 
-			<nav class="fanfic-chapter-navigation chapter-navigation-top">
-				[chapters-nav]
-			</nav>
+	// Process shortcodes in the template
+	echo do_shortcode( $template );
 
-			<div class="fanfic-chapter-actions">
-				[chapter-actions]
-				<?php echo do_shortcode( '[edit-chapter-button]' ); ?>
-			</div>
+endwhile;
 
-			<div class="fanfic-chapter-content">
-				<?php the_content(); ?>
-			</div>
-
-			<div class="fanfic-chapter-rating">
-				<h3><?php esc_html_e( 'Rate this chapter', 'fanfiction-manager' ); ?></h3>
-				[chapter-rating-form]
-			</div>
-
-			<nav class="fanfic-chapter-navigation chapter-navigation-bottom">
-				[chapters-nav]
-			</nav>
-
-			<?php if ( comments_open() || get_comments_number() ) : ?>
-				<div class="fanfic-chapter-comments">
-					<h2><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h2>
-					[chapter-comments]
-				</div>
-			<?php endif; ?>
-
-		</article>
-
-	<?php endwhile; ?>
-</div>
-
-<?php get_footer(); ?>
+get_footer(); ?>

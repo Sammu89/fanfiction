@@ -57,6 +57,7 @@ class Fanfic_Settings {
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
 		add_action( 'admin_post_fanfic_save_general_settings', array( __CLASS__, 'save_general_settings' ) );
 		add_action( 'admin_post_fanfic_save_email_templates', array( __CLASS__, 'save_email_templates' ) );
+		add_action( 'admin_post_fanfic_save_page_templates', array( __CLASS__, 'save_page_templates' ) );
 		add_action( 'admin_post_fanfic_save_custom_css', array( __CLASS__, 'save_custom_css' ) );
 		add_action( 'admin_post_fanfic_run_cron_now', array( __CLASS__, 'run_cron_now' ) );
 		add_action( 'admin_post_fanfic_run_demotion_now', array( __CLASS__, 'run_demotion_now' ) );
@@ -1067,6 +1068,252 @@ class Fanfic_Settings {
 	}
 
 	/**
+	 * Render Page Templates settings tab
+	 *
+	 * Allows admins to customize templates for viewing stories, chapters, and profiles.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function render_page_templates_tab() {
+		// Get current templates
+		$story_template = get_option( 'fanfic_story_view_template', self::get_default_story_template() );
+		$chapter_template = get_option( 'fanfic_chapter_view_template', self::get_default_chapter_template() );
+		$profile_template = get_option( 'fanfic_profile_view_template', self::get_default_profile_template() );
+		?>
+		<div class="fanfiction-settings-tab">
+			<h2><?php esc_html_e( 'Page Templates', 'fanfiction-manager' ); ?></h2>
+			<p><?php esc_html_e( 'Customize the templates used to display stories, chapters, and user profiles. Use shortcodes to build your templates.', 'fanfiction-manager' ); ?></p>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="fanfic_save_page_templates">
+				<?php wp_nonce_field( 'fanfic_page_templates_nonce', 'fanfic_page_templates_nonce' ); ?>
+
+				<table class="form-table" role="presentation">
+					<tbody>
+						<!-- Story View Template -->
+						<tr>
+							<th scope="row">
+								<label for="story_view_template"><?php esc_html_e( 'Story View Template', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<textarea id="story_view_template" name="fanfic_story_view_template" rows="15" class="large-text code" style="font-family: Consolas, Monaco, monospace;"><?php echo esc_textarea( $story_template ); ?></textarea>
+								<p class="description">
+									<?php esc_html_e( 'Template used to display individual story pages. Available shortcodes:', 'fanfiction-manager' ); ?>
+									<br><code>[story-title]</code> <code>[story-author-link]</code> <code>[story-intro]</code> <code>[story-genres]</code>
+									<code>[story-status]</code> <code>[story-word-count-estimate]</code> <code>[story-chapters]</code> <code>[story-views]</code>
+									<code>[story-rating-form]</code> <code>[story-actions]</code> <code>[edit-story-button]</code> <code>[chapters-list]</code>
+									<code>[story-chapters-dropdown]</code> <code>[story-featured-image]</code> <code>[story-comments]</code>
+								</p>
+								<p>
+									<button type="button" class="button" onclick="document.getElementById('story_view_template').value = '<?php echo esc_js( self::get_default_story_template() ); ?>'">
+										<?php esc_html_e( 'Reset to Default', 'fanfiction-manager' ); ?>
+									</button>
+								</p>
+							</td>
+						</tr>
+
+						<!-- Chapter View Template -->
+						<tr>
+							<th scope="row">
+								<label for="chapter_view_template"><?php esc_html_e( 'Chapter View Template', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<textarea id="chapter_view_template" name="fanfic_chapter_view_template" rows="15" class="large-text code" style="font-family: Consolas, Monaco, monospace;"><?php echo esc_textarea( $chapter_template ); ?></textarea>
+								<p class="description">
+									<?php esc_html_e( 'Template used to display individual chapter pages. Available shortcodes:', 'fanfiction-manager' ); ?>
+									<br><code>[chapter-breadcrumb]</code> <code>[chapter-story]</code> <code>[chapters-nav]</code> <code>[chapter-actions]</code>
+									<code>[edit-chapter-button]</code> <code>[chapter-rating-form]</code> <code>[chapter-comments]</code>
+									<br><?php esc_html_e( 'Note: Chapter content is automatically displayed. Do not add it manually.', 'fanfiction-manager' ); ?>
+								</p>
+								<p>
+									<button type="button" class="button" onclick="document.getElementById('chapter_view_template').value = '<?php echo esc_js( self::get_default_chapter_template() ); ?>'">
+										<?php esc_html_e( 'Reset to Default', 'fanfiction-manager' ); ?>
+									</button>
+								</p>
+							</td>
+						</tr>
+
+						<!-- Profile View Template -->
+						<tr>
+							<th scope="row">
+								<label for="profile_view_template"><?php esc_html_e( 'User Profile Template', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<textarea id="profile_view_template" name="fanfic_profile_view_template" rows="15" class="large-text code" style="font-family: Consolas, Monaco, monospace;"><?php echo esc_textarea( $profile_template ); ?></textarea>
+								<p class="description">
+									<?php esc_html_e( 'Template used to display user profile pages. Available shortcodes:', 'fanfiction-manager' ); ?>
+									<br><code>[author-display-name]</code> <code>[author-bio]</code> <code>[author-story-list]</code>
+									<code>[author-actions]</code> <code>[edit-profile-button]</code> <code>[author-avatar]</code>
+									<code>[author-joined-date]</code> <code>[author-story-count]</code>
+								</p>
+								<p>
+									<button type="button" class="button" onclick="document.getElementById('profile_view_template').value = '<?php echo esc_js( self::get_default_profile_template() ); ?>'">
+										<?php esc_html_e( 'Reset to Default', 'fanfiction-manager' ); ?>
+									</button>
+								</p>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<p class="submit">
+					<?php submit_button( __( 'Save Page Templates', 'fanfiction-manager' ), 'primary', 'submit', false ); ?>
+				</p>
+			</form>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Get default story view template
+	 *
+	 * @since 1.0.0
+	 * @return string Default template HTML
+	 */
+	private static function get_default_story_template() {
+		return '<div class="fanfic-story-single">
+	<header class="fanfic-story-header">
+		<h1>[story-title]</h1>
+		<div class="fanfic-story-meta">
+			<span class="fanfic-story-author">by [story-author-link]</span>
+			<span class="fanfic-story-status">[story-status]</span>
+		</div>
+	</header>
+
+	<div class="fanfic-story-featured-image">
+		[story-featured-image]
+	</div>
+
+	<div class="fanfic-story-content">
+		<div class="fanfic-story-intro">
+			<h2>Summary</h2>
+			[story-intro]
+		</div>
+
+		<div class="fanfic-story-taxonomies">
+			<div class="fanfic-story-genres">
+				<strong>Genres:</strong> [story-genres]
+			</div>
+		</div>
+
+		<div class="fanfic-story-stats">
+			<span class="fanfic-story-word-count"><strong>Words:</strong> [story-word-count-estimate]</span>
+			<span class="fanfic-story-chapters-count"><strong>Chapters:</strong> [story-chapters]</span>
+			<span class="fanfic-story-views"><strong>Views:</strong> [story-views]</span>
+			<span class="fanfic-story-rating"><strong>Rating:</strong> [story-rating-form]</span>
+		</div>
+	</div>
+
+	<div class="fanfic-story-actions">
+		[story-actions]
+		[edit-story-button]
+	</div>
+
+	<div class="fanfic-story-navigation">
+		<div class="fanfic-story-chapters-dropdown">
+			[story-chapters-dropdown]
+		</div>
+	</div>
+
+	<div class="fanfic-story-chapters-list">
+		<h2>Chapters</h2>
+		[chapters-list]
+	</div>
+
+	<div class="fanfic-story-comments">
+		[story-comments]
+	</div>
+</div>';
+	}
+
+	/**
+	 * Get default chapter view template
+	 *
+	 * @since 1.0.0
+	 * @return string Default template HTML
+	 */
+	private static function get_default_chapter_template() {
+		return '<div class="fanfic-chapter-single">
+	<nav class="fanfic-chapter-breadcrumb">
+		[chapter-breadcrumb]
+	</nav>
+
+	<header class="fanfic-chapter-header">
+		<h1 class="fanfic-chapter-title">[chapter-title]</h1>
+		<div class="fanfic-chapter-meta">
+			<span class="fanfic-chapter-story">[chapter-story]</span>
+		</div>
+	</header>
+
+	<nav class="fanfic-chapter-navigation chapter-navigation-top">
+		[chapters-nav]
+	</nav>
+
+	<div class="fanfic-chapter-actions">
+		[chapter-actions]
+		[edit-chapter-button]
+	</div>
+
+	<div class="fanfic-chapter-content">
+		<!-- Chapter content is automatically displayed here -->
+	</div>
+
+	<div class="fanfic-chapter-rating">
+		<h3>Rate this chapter</h3>
+		[chapter-rating-form]
+	</div>
+
+	<nav class="fanfic-chapter-navigation chapter-navigation-bottom">
+		[chapters-nav]
+	</nav>
+
+	<div class="fanfic-chapter-comments">
+		<h2>Comments</h2>
+		[chapter-comments]
+	</div>
+</div>';
+	}
+
+	/**
+	 * Get default profile view template
+	 *
+	 * @since 1.0.0
+	 * @return string Default template HTML
+	 */
+	private static function get_default_profile_template() {
+		return '<div class="fanfic-profile-single">
+	<header class="fanfic-profile-header">
+		<div class="fanfic-profile-avatar">
+			[author-avatar]
+		</div>
+		<div class="fanfic-profile-info">
+			<h1>[author-display-name]</h1>
+			<div class="fanfic-profile-meta">
+				<span class="fanfic-profile-joined">Joined: [author-joined-date]</span>
+				<span class="fanfic-profile-stories">Stories: [author-story-count]</span>
+			</div>
+		</div>
+	</header>
+
+	<div class="fanfic-profile-actions">
+		[author-actions]
+		[edit-profile-button]
+	</div>
+
+	<div class="fanfic-profile-bio">
+		<h2>About</h2>
+		[author-bio]
+	</div>
+
+	<div class="fanfic-profile-stories">
+		<h2>Stories</h2>
+		[author-story-list]
+	</div>
+</div>';
+	}
+
+	/**
 	 * Save General Settings handler
 	 *
 	 * @since 1.0.0
@@ -1194,6 +1441,48 @@ class Fanfic_Settings {
 				array(
 					'page'    => 'fanfiction-settings',
 					'tab'     => 'custom-css',
+					'updated' => 'true',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Save Page Templates handler
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function save_page_templates() {
+		// Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
+		}
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_page_templates_nonce'] ) ||
+		     ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_page_templates_nonce'] ) ), 'fanfic_page_templates_nonce' ) ) {
+			wp_die( __( 'Security check failed.', 'fanfiction-manager' ) );
+		}
+
+		// Get and sanitize templates - allow HTML but escape unsafe tags
+		$story_template = isset( $_POST['fanfic_story_view_template'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_story_view_template'] ) ) : '';
+		$chapter_template = isset( $_POST['fanfic_chapter_view_template'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_chapter_view_template'] ) ) : '';
+		$profile_template = isset( $_POST['fanfic_profile_view_template'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_profile_view_template'] ) ) : '';
+
+		// Update templates
+		update_option( 'fanfic_story_view_template', $story_template );
+		update_option( 'fanfic_chapter_view_template', $chapter_template );
+		update_option( 'fanfic_profile_view_template', $profile_template );
+
+		// Redirect with success message
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'fanfiction-settings',
+					'tab'     => 'page-templates',
 					'updated' => 'true',
 				),
 				admin_url( 'admin.php' )

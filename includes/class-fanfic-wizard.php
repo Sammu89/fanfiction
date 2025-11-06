@@ -1036,6 +1036,16 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function flush_rewrite_rules() {
+		// Flush URL Manager cache first to ensure fresh slugs
+		if ( class_exists( 'Fanfic_URL_Manager' ) ) {
+			Fanfic_URL_Manager::get_instance()->flush_cache();
+		}
+
+		// Also call Dynamic Pages to register its rules
+		if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+			Fanfic_Dynamic_Pages::add_rewrite_rules();
+		}
+
 		// Register all rewrite rules before flushing
 		if ( class_exists( 'Fanfic_Post_Types' ) ) {
 			Fanfic_Post_Types::register();
