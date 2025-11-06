@@ -1032,7 +1032,10 @@ private function render_choice_screen() {
 			Fanfic_Templates::create_system_pages( $base_slug );
 		}
 
-		// Set flag to flush rewrite rules on next page load (more reliable than flushing in AJAX)
+		// Flush rewrite rules immediately after saving slugs
+		flush_rewrite_rules();
+
+		// Also set transient as backup for next page load
 		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
 	}
 
@@ -1130,7 +1133,10 @@ private function render_choice_screen() {
 		// Assign user roles
 		$this->assign_user_roles();
 
-		// Set flag to flush rewrite rules on next page load
+		// Flush rewrite rules immediately
+		flush_rewrite_rules();
+
+		// Also set transient as backup
 		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
 
 		// Double-check that all pages exist using existing validation method
