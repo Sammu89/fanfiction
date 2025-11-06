@@ -299,25 +299,37 @@ class Fanfic_Shortcodes_Utility {
 
 		// Get story ID from attribute or current post
 		$story_id = absint( $atts['story_id'] );
+		error_log( '=== EDIT STORY BUTTON DEBUG ===' );
+		error_log( 'story_id from attributes: ' . $story_id );
+
 		if ( empty( $story_id ) ) {
 			global $post;
+			error_log( 'No story_id in attributes, checking global $post' );
 			if ( $post && 'fanfiction_story' === $post->post_type ) {
 				$story_id = $post->ID;
+				error_log( 'Using global post ID: ' . $story_id );
+			} else {
+				error_log( 'Global post is not a fanfiction_story or is null' );
 			}
 		}
 
 		// If no story ID, return empty
 		if ( empty( $story_id ) ) {
+			error_log( 'No story_id found - button will not be shown' );
 			return '';
 		}
 
 		// Check if user can edit this story
+		error_log( 'Checking current_user_can(edit_fanfiction_story, ' . $story_id . ')' );
 		if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+			error_log( 'User cannot edit - button will not be shown' );
 			return '';
 		}
+		error_log( 'User CAN edit - generating button' );
 
 		// Get edit story URL
 		$edit_url = fanfic_get_edit_story_url( $story_id );
+		error_log( 'Edit URL generated: ' . ( $edit_url ? $edit_url : 'EMPTY' ) );
 		if ( empty( $edit_url ) ) {
 			return '';
 		}
