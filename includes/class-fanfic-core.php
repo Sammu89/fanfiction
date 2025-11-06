@@ -63,17 +63,13 @@ class Fanfic_Core {
 		// Load cache hooks class (handles automatic cache invalidation)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache-hooks.php';
 
-		// Load URL helper functions (used by shortcodes and templates)
-		require_once FANFIC_INCLUDES_DIR . 'fanfic-url-helpers.php';
-
-		// Load dynamic pages system (for pages that don't need WordPress page entries)
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-dynamic-pages.php';
+		// Load URL Manager (centralized URL management - replaces Rewrite, Dynamic_Pages, URL_Builder)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-manager.php';
 
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-post-types.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-validation.php';
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-rewrite.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-slug-tracker.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-redirects.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-templates.php';
@@ -157,11 +153,8 @@ class Fanfic_Core {
 		// Initialize validation
 		Fanfic_Validation::init();
 
-		// Initialize rewrite rules
-		Fanfic_Rewrite::init();
-
-		// Initialize dynamic pages system
-		Fanfic_Dynamic_Pages::init();
+		// Initialize URL Manager (handles rewrite rules, dynamic pages, URL building)
+		Fanfic_URL_Manager::get_instance();
 
 		// Initialize slug tracker
 		Fanfic_Slug_Tracker::init();
