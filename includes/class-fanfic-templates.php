@@ -886,6 +886,7 @@ class Fanfic_Templates {
 
 		// Define menu structure
 		// Order determines the menu item position
+		// For dynamic pages, url will be generated in the loop
 		$menu_structure = array(
 			array(
 				'page_key'   => 'main',
@@ -904,29 +905,25 @@ class Fanfic_Templates {
 				'page_key'   => 'search',
 				'title'      => __( 'Search', 'fanfiction-manager' ),
 				'visibility' => 'all',
-				'type'       => 'custom',
-				'url'        => Fanfic_Dynamic_Pages::get_page_url( 'search' ),
+				'type'       => 'dynamic', // will generate URL in loop
 			),
 			array(
 				'page_key'   => 'members',
 				'title'      => __( 'Members', 'fanfiction-manager' ),
 				'visibility' => 'all',
-				'type'       => 'custom',
-				'url'        => Fanfic_Dynamic_Pages::get_page_url( 'members' ),
+				'type'       => 'dynamic', // will generate URL in loop
 			),
 			array(
 				'page_key'   => 'dashboard',
 				'title'      => __( 'Dashboard', 'fanfiction-manager' ),
 				'visibility' => 'logged_in', // only for logged-in users
-				'type'       => 'custom',
-				'url'        => Fanfic_Dynamic_Pages::get_page_url( 'dashboard' ),
+				'type'       => 'dynamic', // will generate URL in loop
 			),
 			array(
 				'page_key'   => 'create-story',
 				'title'      => __( 'Add Story', 'fanfiction-manager' ),
 				'visibility' => 'logged_in', // only for logged-in users
-				'type'       => 'custom',
-				'url'        => Fanfic_Dynamic_Pages::get_page_url( 'create-story' ),
+				'type'       => 'dynamic', // will generate URL in loop
 			),
 			array(
 				'page_key'   => 'register',
@@ -953,6 +950,22 @@ class Fanfic_Templates {
 				continue;
 			}
 
+			// For dynamic pages, generate URL now
+			if ( 'dynamic' === $item_type ) {
+				$dynamic_url = Fanfic_Dynamic_Pages::get_page_url( $page_key );
+				// Skip if dynamic URL is empty (slugs not saved yet)
+				if ( empty( $dynamic_url ) ) {
+					continue;
+				}
+				$item_config['url'] = $dynamic_url;
+				$item_type = 'custom'; // Treat as custom URL for menu creation
+			}
+
+			// Skip if custom URL is empty (for custom type items)
+			if ( 'custom' === $item_type && empty( $item_config['url'] ) ) {
+				continue;
+			}
+
 			$position++;
 
 			// Add CSS classes based on visibility
@@ -965,7 +978,7 @@ class Fanfic_Templates {
 
 			// Build menu item data based on type
 			if ( 'custom' === $item_type ) {
-				// Custom URL menu item (e.g., post type archive)
+				// Custom URL menu item (e.g., post type archive, dynamic pages)
 				$menu_item_data = array(
 					'menu-item-url'         => $item_config['url'],
 					'menu-item-type'        => 'custom',

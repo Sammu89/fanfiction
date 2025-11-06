@@ -1032,7 +1032,24 @@ private function render_choice_screen() {
 			Fanfic_Templates::create_system_pages( $base_slug );
 		}
 
-		// Set flag to flush rewrite rules on next page load (more reliable than flushing in AJAX)
+		// Manually register all rewrite rules before flushing (AJAX context)
+		if ( class_exists( 'Fanfic_Post_Types' ) ) {
+			Fanfic_Post_Types::register_post_types();
+		}
+		if ( class_exists( 'Fanfic_Taxonomies' ) ) {
+			Fanfic_Taxonomies::register_taxonomies();
+		}
+		if ( class_exists( 'Fanfic_Rewrite' ) ) {
+			Fanfic_Rewrite::add_rewrite_rules();
+		}
+		if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+			Fanfic_Dynamic_Pages::add_rewrite_rules();
+		}
+
+		// Now flush rewrite rules with all rules registered
+		flush_rewrite_rules();
+
+		// Also set transient as backup for next page load
 		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
 	}
 
@@ -1130,7 +1147,25 @@ private function render_choice_screen() {
 		// Assign user roles
 		$this->assign_user_roles();
 
-		// Set flag to flush rewrite rules on next page load
+		// Manually register all rewrite rules before flushing (AJAX context)
+		// This ensures rules are in memory before flush_rewrite_rules() runs
+		if ( class_exists( 'Fanfic_Post_Types' ) ) {
+			Fanfic_Post_Types::register_post_types();
+		}
+		if ( class_exists( 'Fanfic_Taxonomies' ) ) {
+			Fanfic_Taxonomies::register_taxonomies();
+		}
+		if ( class_exists( 'Fanfic_Rewrite' ) ) {
+			Fanfic_Rewrite::add_rewrite_rules();
+		}
+		if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+			Fanfic_Dynamic_Pages::add_rewrite_rules();
+		}
+
+		// Now flush rewrite rules with all rules registered
+		flush_rewrite_rules();
+
+		// Also set transient as backup for next page load
 		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
 
 		// Double-check that all pages exist using existing validation method
