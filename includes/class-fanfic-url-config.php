@@ -388,16 +388,15 @@ class Fanfic_URL_Config {
                                 ) );
 
                                 // Create Story
-                                $create_story_slug = isset( $page_slugs['create-story'] ) ? $page_slugs['create-story'] : 'create-story';
                                 self::render_slug_input_row( array(
                                     'id'             => 'fanfic_create-story_slug',
-                                    'name'           => 'fanfic_system_page_slugs[create-story]',
+                                    'name'           => 'fanfic_create-story_slug',
                                     'label'          => __( 'Create Story', 'fanfiction-manager' ),
-                                    'value'          => $create_story_slug,
+                                    'value'          => isset( $current_slugs['create-story'] ) ? $current_slugs['create-story'] : 'create-story',
                                     'preview_id'     => 'create-story-preview-code',
-                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $create_story_slug ) . '</span>/',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">create-story</span>/',
                                     'required'       => false,
-                                    'data_slug_type' => 'system_create-story',
+                                    'data_slug_type' => 'create-story',
                                 ) );
 
                                 // Members (Directory + Profiles)
