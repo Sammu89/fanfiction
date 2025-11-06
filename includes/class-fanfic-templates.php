@@ -243,15 +243,41 @@ class Fanfic_Templates {
 	 * @return void
 	 */
 	public static function missing_pages_notice() {
-		// Only show notice if wizard has been completed
-		$wizard_completed = get_option( 'fanfic_wizard_completed', false );
-		if ( ! $wizard_completed ) {
+		// Don't show during wizard run
+		if ( isset( $_GET['page'] ) && 'fanfic-setup-wizard' === $_GET['page'] ) {
 			return;
 		}
 
+		// Only show to admins
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$wizard_completed = get_option( 'fanfic_wizard_completed', false );
+
+		// If wizard hasn't been completed, show yellow notice to run wizard
+		if ( ! $wizard_completed ) {
+			$wizard_url = admin_url( 'admin.php?page=fanfic-setup-wizard' );
+			?>
+			<div class="notice notice-warning is-dismissible">
+				<p>
+					<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
+					<?php esc_html_e( 'Please run the setup wizard to configure the plugin and create system pages.', 'fanfiction-manager' ); ?>
+				</p>
+				<p>
+					<a href="<?php echo esc_url( $wizard_url ); ?>" class="button button-primary">
+						<?php esc_html_e( 'Run Setup Wizard', 'fanfiction-manager' ); ?>
+					</a>
+				</p>
+			</div>
+			<?php
+			return;
+		}
+
+		// Wizard completed, check for missing pages
 		$missing_pages = get_transient( 'fanfic_missing_pages' );
 
-		if ( ! $missing_pages || ! current_user_can( 'manage_options' ) ) {
+		if ( ! $missing_pages ) {
 			return;
 		}
 

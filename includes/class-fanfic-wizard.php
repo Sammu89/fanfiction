@@ -993,12 +993,25 @@ private function render_choice_screen() {
 
 			// Save valid page slugs
 			$page_slugs = array();
+			$dynamic_page_slugs = array();
+			$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+
 			foreach ( $slugs as $key => $slug ) {
 				if ( ! empty( $slug ) ) {
 					$page_slugs[ $key ] = $slug;
+
+					// If this is a dynamic page, also save it to the dynamic pages option
+					if ( in_array( $key, $dynamic_pages, true ) ) {
+						$dynamic_page_slugs[ $key ] = $slug;
+					}
 				}
 			}
 			update_option( 'fanfic_system_page_slugs', $page_slugs );
+
+			// Save dynamic page slugs separately
+			if ( ! empty( $dynamic_page_slugs ) ) {
+				Fanfic_Dynamic_Pages::update_slugs( $dynamic_page_slugs );
+			}
 		}
 
 		// Create or update pages with new slugs

@@ -296,7 +296,7 @@ class Fanfic_Dynamic_Pages {
 		}
 
 		// Use plugin template
-		$plugin_template = FANFIC_PATH . 'templates/' . $template_name;
+		$plugin_template = FANFIC_PLUGIN_DIR . 'templates/' . $template_name;
 		if ( file_exists( $plugin_template ) ) {
 			return $plugin_template;
 		}
