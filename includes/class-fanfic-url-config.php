@@ -1239,7 +1239,7 @@ class Fanfic_URL_Config {
                 update_option( self::OPTION_SECONDARY_PATHS, $secondary_slugs_input );
 
                 // Update dynamic pages if applicable
-                if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+                if ( class_exists( 'Fanfic_URL_Manager' ) ) {
                     $dynamic_updates = array();
                     foreach ( $secondary_config as $key => $config ) {
                         if ( isset( $config['is_dynamic_page'] ) && $config['is_dynamic_page'] && ! empty( $secondary_slugs_input[ $key ] ) ) {
@@ -1247,8 +1247,8 @@ class Fanfic_URL_Config {
                         }
                     }
                     if ( ! empty( $dynamic_updates ) ) {
-                        $current_dynamic = Fanfic_Dynamic_Pages::get_slugs();
-                        Fanfic_Dynamic_Pages::update_slugs( array_merge( $current_dynamic, $dynamic_updates ) );
+                        $current_dynamic = Fanfic_URL_Manager::get_instance()->get_slugs();
+                        Fanfic_URL_Manager::get_instance()->update_slugs( array_merge( $current_dynamic, $dynamic_updates ) );
                     }
                 }
 
@@ -1293,9 +1293,9 @@ class Fanfic_URL_Config {
             $page_slugs = array();
             $dynamic_page_slugs = array();
 
-            if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
-                $dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
-                $current_dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
+            if ( class_exists( 'Fanfic_URL_Manager' ) ) {
+                $dynamic_pages = Fanfic_URL_Manager::get_instance()->get_dynamic_pages();
+                $current_dynamic_slugs = Fanfic_URL_Manager::get_instance()->get_slugs();
             } else {
                 $dynamic_pages = array();
                 $current_dynamic_slugs = array();
@@ -1324,8 +1324,8 @@ class Fanfic_URL_Config {
             update_option( 'fanfic_system_page_slugs', $page_slugs );
 
             // Update dynamic pages
-            if ( ! empty( $dynamic_page_slugs ) && class_exists( 'Fanfic_Dynamic_Pages' ) ) {
-                Fanfic_Dynamic_Pages::update_slugs( array_merge( $current_dynamic_slugs, $dynamic_page_slugs ) );
+            if ( ! empty( $dynamic_page_slugs ) && class_exists( 'Fanfic_URL_Manager' ) ) {
+                Fanfic_URL_Manager::get_instance()->update_slugs( array_merge( $current_dynamic_slugs, $dynamic_page_slugs ) );
             }
 
             // Recreate system pages with new slugs
@@ -1364,6 +1364,11 @@ class Fanfic_URL_Config {
      * @return void
      */
     private function flush_all_rewrite_rules() {
+        // Flush URL Manager cache (reloads all slugs)
+        if ( class_exists( 'Fanfic_URL_Manager' ) ) {
+            Fanfic_URL_Manager::get_instance()->flush_cache();
+        }
+
         // Register all rewrite rules before flushing
         if ( class_exists( 'Fanfic_Post_Types' ) ) {
             Fanfic_Post_Types::register_post_types();
@@ -1371,11 +1376,8 @@ class Fanfic_URL_Config {
         if ( class_exists( 'Fanfic_Taxonomies' ) ) {
             Fanfic_Taxonomies::register_taxonomies();
         }
-        if ( class_exists( 'Fanfic_Rewrite' ) ) {
-            Fanfic_Rewrite::add_rewrite_rules();
-        }
-        if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
-            Fanfic_Dynamic_Pages::add_rewrite_rules();
+        if ( class_exists( 'Fanfic_URL_Manager' ) ) {
+            Fanfic_URL_Manager::get_instance()->register_rewrite_rules();
         }
 
         flush_rewrite_rules();

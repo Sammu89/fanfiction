@@ -151,27 +151,18 @@ function fanfic_get_chapter_edit_url( $chapter ) {
  *
  * @since 1.0.0
  * @param int $user_id User ID (defaults to current user)
- * @return string Edit profile URL
+ * @return string|false Edit profile URL or false on failure
  */
 function fanfic_get_profile_edit_url( $user_id = 0 ) {
 	if ( ! $user_id ) {
 		$user_id = get_current_user_id();
 	}
 
-	$user = get_userdata( $user_id );
-	if ( ! $user ) {
+	if ( ! $user_id ) {
 		return false;
 	}
 
-	// Get base slug and user slug
-	$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
-	$secondary_paths = get_option( 'fanfic_secondary_paths', array() );
-	$user_slug = isset( $secondary_paths['user'] ) ? $secondary_paths['user'] : 'user';
-
-	// Build profile URL: /base_slug/user_slug/username
-	$profile_url = home_url( '/' . $base_slug . '/' . $user_slug . '/' . $user->user_login . '/' );
-
-	return add_query_arg( 'action', 'edit', $profile_url );
+	return Fanfic_URL_Manager::get_instance()->get_edit_url( 'profile', $user_id );
 }
 
 /**
