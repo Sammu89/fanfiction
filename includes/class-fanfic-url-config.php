@@ -207,7 +207,7 @@ class Fanfic_URL_Config {
                                     <td>
                                         <input
                                             type="text"
-                                            id="fanfic_story_path"
+                                            id="fanfic_story_path_slug"
                                             name="fanfic_story_path"
                                             value="<?php echo esc_attr( $current_slugs['story_path'] ); ?>"
                                             class="regular-text fanfic-slug-input"
@@ -353,7 +353,7 @@ class Fanfic_URL_Config {
                                         ?>
                                         <tr>
                                             <th scope="row">
-                                                <label for="page_slug_<?php echo esc_attr( $key ); ?>">
+                                                <label for="fanfic_<?php echo esc_attr( $key ); ?>_slug">
                                                     <?php echo esc_html( $label ); ?>
                                                 </label>
                                             </th>
@@ -361,7 +361,7 @@ class Fanfic_URL_Config {
                                                 <input
                                                     type="text"
                                                     name="fanfic_system_page_slugs[<?php echo esc_attr( $key ); ?>]"
-                                                    id="page_slug_<?php echo esc_attr( $key ); ?>"
+                                                    id="fanfic_<?php echo esc_attr( $key ); ?>_slug"
                                                     value="<?php echo esc_attr( $current_slug ); ?>"
                                                     pattern="[a-z0-9\-]+"
                                                     maxlength="50"
@@ -369,7 +369,7 @@ class Fanfic_URL_Config {
                                                     data-slug-type="system_<?php echo esc_attr( $key ); ?>"
                                                 />
                                                 <p class="description">
-                                                    <code id="system-<?php echo esc_attr( $key ); ?>-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slug ); ?></span>/</code>
+                                                    <code id="<?php echo esc_attr( str_replace( '_', '-', $key ) ); ?>-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slug ); ?></span>/</code>
                                                 </p>
                                             </td>
                                         </tr>
@@ -933,26 +933,16 @@ class Fanfic_URL_Config {
 
             /**
              * Get slug value from input or current value
-             * Handles multiple ID patterns for different field types
+             * All inputs now use consistent ID pattern: #fanfic_{key}_slug
              */
             function getSlugValue(key) {
-                var normalizedKey = key.replace(/-/g, '_');
-                var $input;
+                // ONE standard pattern for ALL inputs
+                var $input = $('#fanfic_' + key + '_slug');
 
-                // Try different ID patterns in order of likelihood
-                var patterns = [
-                    '#fanfic_' + normalizedKey + '_slug',  // Most common: base_slug, dashboard_slug, etc.
-                    '#fanfic_' + normalizedKey,            // Special cases: story_path (no _slug suffix)
-                    '#page_slug_' + key                    // System pages: page_slug_login, etc.
-                ];
-
-                for (var i = 0; i < patterns.length; i++) {
-                    $input = $(patterns[i]);
-                    if ($input.length) {
-                        var value = $input.val();
-                        if (value && value.trim()) {
-                            return value.trim();
-                        }
+                if ($input.length) {
+                    var value = $input.val();
+                    if (value && value.trim()) {
+                        return value.trim();
                     }
                 }
 
@@ -977,20 +967,13 @@ class Fanfic_URL_Config {
 
             /**
              * Update all URL previews
+             * All preview elements now use consistent ID pattern: #{key-with-hyphens}-preview-code
              */
             function updatePreviews() {
-                // Update all slug previews using config (handles both normal and system pages)
                 $.each(previewConfig, function(key, config) {
-                    // System pages use a different ID format: #system-{key}-preview-code
-                    // Non-system pages use: #{key}-preview-code
-                    var previewId = '#' + key + '-preview-code';
-                    var systemPreviewId = '#system-' + key + '-preview-code';
-
-                    // Try both ID patterns
-                    var $preview = $(previewId);
-                    if (!$preview.length) {
-                        $preview = $(systemPreviewId);
-                    }
+                    // Convert underscores to hyphens for HTML ID (story_path → story-path)
+                    var keyWithHyphens = key.replace(/_/g, '-');
+                    var $preview = $('#' + keyWithHyphens + '-preview-code');
 
                     if ($preview.length) {
                         var previewUrl = buildPreviewUrl(config.template);
