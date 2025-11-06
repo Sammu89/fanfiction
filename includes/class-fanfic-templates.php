@@ -761,7 +761,6 @@ class Fanfic_Templates {
 			'login',
 			'register',
 			'password-reset',
-			'create-story',
 			'error',
 			'maintenance',
 		);
