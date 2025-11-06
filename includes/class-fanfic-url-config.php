@@ -85,6 +85,73 @@ class Fanfic_URL_Config {
     }
 
     /**
+     * Helper method to render a slug input field row
+     *
+     * @since 1.0.0
+     * @param array $args {
+     *     Input field arguments
+     *     @type string $id             Input field ID
+     *     @type string $name           Input field name attribute
+     *     @type string $label          Label text
+     *     @type string $value          Current value
+     *     @type string $preview_id     Preview code element ID
+     *     @type string $preview_html   Preview HTML content
+     *     @type bool   $required       Whether field is required (default: true)
+     *     @type string $data_slug_type Data attribute for slug type
+     *     @type string $description    Optional description text (default: '')
+     * }
+     * @return void
+     */
+    private static function render_slug_input_row( $args ) {
+        $defaults = array(
+            'id'             => '',
+            'name'           => '',
+            'label'          => '',
+            'value'          => '',
+            'preview_id'     => '',
+            'preview_html'   => '',
+            'required'       => true,
+            'data_slug_type' => '',
+            'description'    => '',
+        );
+
+        $args = wp_parse_args( $args, $defaults );
+        ?>
+        <tr>
+            <th scope="row">
+                <label for="<?php echo esc_attr( $args['id'] ); ?>">
+                    <?php echo esc_html( $args['label'] ); ?>
+                    <?php if ( $args['required'] ) : ?>
+                        <span class="fanfic-required">*</span>
+                    <?php endif; ?>
+                </label>
+            </th>
+            <td>
+                <input
+                    type="text"
+                    id="<?php echo esc_attr( $args['id'] ); ?>"
+                    name="<?php echo esc_attr( $args['name'] ); ?>"
+                    value="<?php echo esc_attr( $args['value'] ); ?>"
+                    class="regular-text fanfic-slug-input"
+                    pattern="[a-z0-9\-]+"
+                    maxlength="50"
+                    <?php echo $args['required'] ? 'required' : ''; ?>
+                    data-slug-type="<?php echo esc_attr( $args['data_slug_type'] ); ?>"
+                >
+                <?php if ( ! empty( $args['description'] ) ) : ?>
+                    <p class="description">
+                        <?php echo esc_html( $args['description'] ); ?>
+                    </p>
+                <?php endif; ?>
+                <p class="description">
+                    <code id="<?php echo esc_attr( $args['preview_id'] ); ?>"><?php echo $args['preview_html']; // Already escaped in caller ?></code>
+                </p>
+            </td>
+        </tr>
+        <?php
+    }
+
+    /**
      * Render just the form fields (reusable in wizard and settings page)
      *
      * @since 1.0.0
@@ -231,157 +298,7 @@ class Fanfic_URL_Config {
                 </div>
 
                 <!-- ============================================ -->
-                <!-- SECTION 3: USER & SYSTEM URLs -->
-                <!-- ============================================ -->
-                <div class="fanfic-config-section">
-                    <div class="fanfic-section-header">
-                        <h2><?php echo esc_html__( 'User & System URLs', 'fanfiction-manager' ); ?></h2>
-                        <p class="description">
-                            <?php echo esc_html__( 'Configure URLs for user profiles, dashboard, and system pages.', 'fanfiction-manager' ); ?>
-                        </p>
-                    </div>
-
-                    <div class="fanfic-section-content">
-                        <fieldset class="fanfic-fieldset">
-                            <legend><?php echo esc_html__( 'User-Facing Paths', 'fanfiction-manager' ); ?></legend>
-                            <table class="form-table" role="presentation">
-                                <tbody>
-                                    <!-- Dashboard -->
-                                    <tr>
-                                        <th scope="row">
-                                            <label for="fanfic_dashboard_slug">
-                                                <?php echo esc_html__( 'Dashboard', 'fanfiction-manager' ); ?>
-                                            </label>
-                                        </th>
-                                        <td>
-                                            <input
-                                                type="text"
-                                                id="fanfic_dashboard_slug"
-                                                name="fanfic_dashboard_slug"
-                                                value="<?php echo esc_attr( isset( $current_slugs['dashboard'] ) ? $current_slugs['dashboard'] : 'dashboard' ); ?>"
-                                                class="regular-text fanfic-slug-input"
-                                                pattern="[a-z0-9\-]+"
-                                                maxlength="50"
-                                                required
-                                                data-slug-type="dashboard"
-                                            >
-                                            <p class="description">
-                                                <code id="dashboard-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">dashboard</span>/</code>
-                                            </p>
-                                        </td>
-                                    </tr>
-
-                                    <!-- User Profile -->
-                                    <tr>
-                                        <th scope="row">
-                                            <label for="fanfic_user_slug">
-                                                <?php echo esc_html__( 'User Profile', 'fanfiction-manager' ); ?>
-                                            </label>
-                                        </th>
-                                        <td>
-                                            <input
-                                                type="text"
-                                                id="fanfic_user_slug"
-                                                name="fanfic_user_slug"
-                                                value="<?php echo esc_attr( isset( $current_slugs['user'] ) ? $current_slugs['user'] : 'user' ); ?>"
-                                                class="regular-text fanfic-slug-input"
-                                                pattern="[a-z0-9\-]+"
-                                                maxlength="50"
-                                                required
-                                                data-slug-type="user"
-                                            >
-                                            <p class="description">
-                                                <code id="user-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">user</span>/username/</code>
-                                            </p>
-                                        </td>
-                                    </tr>
-
-                                    <!-- Search -->
-                                    <tr>
-                                        <th scope="row">
-                                            <label for="fanfic_search_slug">
-                                                <?php echo esc_html__( 'Search', 'fanfiction-manager' ); ?>
-                                            </label>
-                                        </th>
-                                        <td>
-                                            <input
-                                                type="text"
-                                                id="fanfic_search_slug"
-                                                name="fanfic_search_slug"
-                                                value="<?php echo esc_attr( isset( $current_slugs['search'] ) ? $current_slugs['search'] : 'search' ); ?>"
-                                                class="regular-text fanfic-slug-input"
-                                                pattern="[a-z0-9\-]+"
-                                                maxlength="50"
-                                                required
-                                                data-slug-type="search"
-                                            >
-                                            <p class="description">
-                                                <code id="search-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug">search</span>/</code>
-                                            </p>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </fieldset>
-
-                        <fieldset class="fanfic-fieldset" style="margin-top: 25px;">
-                            <legend><?php echo esc_html__( 'System Page Slugs', 'fanfiction-manager' ); ?></legend>
-                            <p class="description" style="margin-bottom: 15px;">
-                                <?php echo esc_html__( 'Customize URL slugs for login, registration, and management pages.', 'fanfiction-manager' ); ?>
-                            </p>
-                            
-                            <table class="form-table" role="presentation">
-                                <tbody>
-                                    <?php
-                                    $system_pages = array(
-                                        'login'          => __( 'Login Page', 'fanfiction-manager' ),
-                                        'register'       => __( 'Register Page', 'fanfiction-manager' ),
-                                        'password-reset' => __( 'Password Reset', 'fanfiction-manager' ),
-                                        'dashboard'      => __( 'Dashboard Page', 'fanfiction-manager' ),
-                                        'create-story'   => __( 'Create Story', 'fanfiction-manager' ),
-                                        'search'         => __( 'Search Page', 'fanfiction-manager' ),
-                                        'members'        => __( 'Profile Page', 'fanfiction-manager' ),
-                                        'error'          => __( 'Default Error Page', 'fanfiction-manager' ),
-                                        'maintenance'    => __( 'Maintenance Page', 'fanfiction-manager' ),
-                                    );
-                                    // Note: Edit pages removed - now using query parameters (?action=edit) instead
-
-                                    foreach ( $system_pages as $key => $label ) :
-                                        $default_slug = $key;
-                                        $current_slug = isset( $page_slugs[ $key ] ) ? $page_slugs[ $key ] : $default_slug;
-                                        $page_id      = isset( $page_ids[ $key ] ) ? $page_ids[ $key ] : 0;
-                                        ?>
-                                        <tr>
-                                            <th scope="row">
-                                                <label for="fanfic_<?php echo esc_attr( $key ); ?>_slug">
-                                                    <?php echo esc_html( $label ); ?>
-                                                </label>
-                                            </th>
-                                            <td>
-                                                <input
-                                                    type="text"
-                                                    name="fanfic_system_page_slugs[<?php echo esc_attr( $key ); ?>]"
-                                                    id="fanfic_<?php echo esc_attr( $key ); ?>_slug"
-                                                    value="<?php echo esc_attr( $current_slug ); ?>"
-                                                    pattern="[a-z0-9\-]+"
-                                                    maxlength="50"
-                                                    class="regular-text fanfic-slug-input"
-                                                    data-slug-type="system_<?php echo esc_attr( $key ); ?>"
-                                                />
-                                                <p class="description">
-                                                    <code id="<?php echo esc_attr( str_replace( '_', '-', $key ) ); ?>-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slug ); ?></span>/</code>
-                                                </p>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </fieldset>
-                    </div>
-                </div>
-
-                <!-- ============================================ -->
-                <!-- SECTION 4: CHAPTER URLs -->
+                <!-- SECTION 3: CHAPTER URLs -->
                 <!-- ============================================ -->
                 <div class="fanfic-config-section">
                     <div class="fanfic-section-header">
@@ -394,80 +311,43 @@ class Fanfic_URL_Config {
                     <div class="fanfic-section-content">
                         <table class="form-table" role="presentation">
                             <tbody>
-                                <!-- Prologue -->
-                                <tr>
-                                    <th scope="row">
-                                        <label for="fanfic_prologue_slug">
-                                            <?php echo esc_html__( 'Prologue', 'fanfiction-manager' ); ?>
-                                        </label>
-                                    </th>
-                                    <td>
-                                        <input
-                                            type="text"
-                                            id="fanfic_prologue_slug"
-                                            name="fanfic_prologue_slug"
-                                            value="<?php echo esc_attr( isset( $current_slugs['prologue'] ) ? $current_slugs['prologue'] : 'prologue' ); ?>"
-                                            class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9\-]+"
-                                            maxlength="50"
-                                            required
-                                            data-slug-type="prologue"
-                                        >
-                                        <p class="description">
-                                            <code id="prologue-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slugs['story_path'] ); ?></span>/my-story-title/<span class="fanfic-dynamic-slug">prologue</span>/</code>
-                                        </p>
-                                    </td>
-                                </tr>
+                                <?php
+                                // Prologue
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_prologue_slug',
+                                    'name'           => 'fanfic_prologue_slug',
+                                    'label'          => __( 'Prologue', 'fanfiction-manager' ),
+                                    'value'          => isset( $current_slugs['prologue'] ) ? $current_slugs['prologue'] : 'prologue',
+                                    'preview_id'     => 'prologue-preview-code',
+                                    'preview_html'   => esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ) . '<span class="fanfic-dynamic-slug">' . esc_html( $current_slugs['story_path'] ) . '</span>/my-story-title/<span class="fanfic-dynamic-slug">prologue</span>/',
+                                    'required'       => true,
+                                    'data_slug_type' => 'prologue',
+                                ) );
 
-                                <!-- Chapter -->
-                                <tr>
-                                    <th scope="row">
-                                        <label for="fanfic_chapter_slug">
-                                            <?php echo esc_html__( 'Chapter', 'fanfiction-manager' ); ?>
-                                        </label>
-                                    </th>
-                                    <td>
-                                        <input
-                                            type="text"
-                                            id="fanfic_chapter_slug"
-                                            name="fanfic_chapter_slug"
-                                            value="<?php echo esc_attr( isset( $current_slugs['chapter'] ) ? $current_slugs['chapter'] : 'chapter' ); ?>"
-                                            class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9\-]+"
-                                            maxlength="50"
-                                            required
-                                            data-slug-type="chapter"
-                                        >
-                                        <p class="description">
-                                            <code id="chapter-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slugs['story_path'] ); ?></span>/my-story-title/<span class="fanfic-dynamic-slug">chapter</span>-1/</code>
-                                        </p>
-                                    </td>
-                                </tr>
+                                // Chapter
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_chapter_slug',
+                                    'name'           => 'fanfic_chapter_slug',
+                                    'label'          => __( 'Chapter', 'fanfiction-manager' ),
+                                    'value'          => isset( $current_slugs['chapter'] ) ? $current_slugs['chapter'] : 'chapter',
+                                    'preview_id'     => 'chapter-preview-code',
+                                    'preview_html'   => esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ) . '<span class="fanfic-dynamic-slug">' . esc_html( $current_slugs['story_path'] ) . '</span>/my-story-title/<span class="fanfic-dynamic-slug">chapter</span>-1/',
+                                    'required'       => true,
+                                    'data_slug_type' => 'chapter',
+                                ) );
 
-                                <!-- Epilogue -->
-                                <tr>
-                                    <th scope="row">
-                                        <label for="fanfic_epilogue_slug">
-                                            <?php echo esc_html__( 'Epilogue', 'fanfiction-manager' ); ?>
-                                        </label>
-                                    </th>
-                                    <td>
-                                        <input
-                                            type="text"
-                                            id="fanfic_epilogue_slug"
-                                            name="fanfic_epilogue_slug"
-                                            value="<?php echo esc_attr( isset( $current_slugs['epilogue'] ) ? $current_slugs['epilogue'] : 'epilogue' ); ?>"
-                                            class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9\-]+"
-                                            maxlength="50"
-                                            required
-                                            data-slug-type="epilogue"
-                                        >
-                                        <p class="description">
-                                            <code id="epilogue-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slugs['story_path'] ); ?></span>/my-story-title/<span class="fanfic-dynamic-slug">epilogue</span>/</code>
-                                        </p>
-                                    </td>
-                                </tr>
+                                // Epilogue
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_epilogue_slug',
+                                    'name'           => 'fanfic_epilogue_slug',
+                                    'label'          => __( 'Epilogue', 'fanfiction-manager' ),
+                                    'value'          => isset( $current_slugs['epilogue'] ) ? $current_slugs['epilogue'] : 'epilogue',
+                                    'preview_id'     => 'epilogue-preview-code',
+                                    'preview_html'   => esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ) . '<span class="fanfic-dynamic-slug">' . esc_html( $current_slugs['story_path'] ) . '</span>/my-story-title/<span class="fanfic-dynamic-slug">epilogue</span>/',
+                                    'required'       => true,
+                                    'data_slug_type' => 'epilogue',
+                                ) );
+                                ?>
                             </tbody>
                         </table>
 
@@ -475,6 +355,142 @@ class Fanfic_URL_Config {
                             <span class="dashicons dashicons-info"></span>
                             <p><?php echo esc_html__( 'All chapter type slugs must be unique. Numbers will be automatically appended to chapter URLs (e.g., chapter-1, chapter-2).', 'fanfiction-manager' ); ?></p>
                         </div>
+                    </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- SECTION 4: USER & SYSTEM URLs -->
+                <!-- ============================================ -->
+                <div class="fanfic-config-section">
+                    <div class="fanfic-section-header">
+                        <h2><?php echo esc_html__( 'User & System URLs', 'fanfiction-manager' ); ?></h2>
+                        <p class="description">
+                            <?php echo esc_html__( 'Configure URLs for user profiles, dashboard, and system pages.', 'fanfiction-manager' ); ?>
+                        </p>
+                    </div>
+
+                    <div class="fanfic-section-content">
+                        <table class="form-table" role="presentation">
+                            <tbody>
+                                <?php
+                                $base_url = esc_html( home_url( '/' . $current_slugs['base'] . '/' ) );
+
+                                // Dashboard
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_dashboard_slug',
+                                    'name'           => 'fanfic_dashboard_slug',
+                                    'label'          => __( 'Dashboard', 'fanfiction-manager' ),
+                                    'value'          => isset( $current_slugs['dashboard'] ) ? $current_slugs['dashboard'] : 'dashboard',
+                                    'preview_id'     => 'dashboard-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">dashboard</span>/',
+                                    'required'       => true,
+                                    'data_slug_type' => 'dashboard',
+                                ) );
+
+                                // Create Story
+                                $create_story_slug = isset( $page_slugs['create-story'] ) ? $page_slugs['create-story'] : 'create-story';
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_create-story_slug',
+                                    'name'           => 'fanfic_system_page_slugs[create-story]',
+                                    'label'          => __( 'Create Story', 'fanfiction-manager' ),
+                                    'value'          => $create_story_slug,
+                                    'preview_id'     => 'create-story-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $create_story_slug ) . '</span>/',
+                                    'required'       => false,
+                                    'data_slug_type' => 'system_create-story',
+                                ) );
+
+                                // Member Directory
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_user_slug',
+                                    'name'           => 'fanfic_user_slug',
+                                    'label'          => __( 'Member Directory', 'fanfiction-manager' ),
+                                    'value'          => isset( $current_slugs['user'] ) ? $current_slugs['user'] : 'user',
+                                    'preview_id'     => 'user-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">user</span>/username/',
+                                    'required'       => true,
+                                    'data_slug_type' => 'user',
+                                ) );
+
+                                // Search Page
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_search_slug',
+                                    'name'           => 'fanfic_search_slug',
+                                    'label'          => __( 'Search Page', 'fanfiction-manager' ),
+                                    'value'          => isset( $current_slugs['search'] ) ? $current_slugs['search'] : 'search',
+                                    'preview_id'     => 'search-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">search</span>/',
+                                    'required'       => true,
+                                    'data_slug_type' => 'search',
+                                ) );
+
+                                // Login
+                                $login_slug = isset( $page_slugs['login'] ) ? $page_slugs['login'] : 'login';
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_login_slug',
+                                    'name'           => 'fanfic_system_page_slugs[login]',
+                                    'label'          => __( 'Login', 'fanfiction-manager' ),
+                                    'value'          => $login_slug,
+                                    'preview_id'     => 'login-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $login_slug ) . '</span>/',
+                                    'required'       => false,
+                                    'data_slug_type' => 'system_login',
+                                ) );
+
+                                // Register
+                                $register_slug = isset( $page_slugs['register'] ) ? $page_slugs['register'] : 'register';
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_register_slug',
+                                    'name'           => 'fanfic_system_page_slugs[register]',
+                                    'label'          => __( 'Register', 'fanfiction-manager' ),
+                                    'value'          => $register_slug,
+                                    'preview_id'     => 'register-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $register_slug ) . '</span>/',
+                                    'required'       => false,
+                                    'data_slug_type' => 'system_register',
+                                ) );
+
+                                // Password Reset
+                                $password_reset_slug = isset( $page_slugs['password-reset'] ) ? $page_slugs['password-reset'] : 'password-reset';
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_password-reset_slug',
+                                    'name'           => 'fanfic_system_page_slugs[password-reset]',
+                                    'label'          => __( 'Password Reset', 'fanfiction-manager' ),
+                                    'value'          => $password_reset_slug,
+                                    'preview_id'     => 'password-reset-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $password_reset_slug ) . '</span>/',
+                                    'required'       => false,
+                                    'data_slug_type' => 'system_password-reset',
+                                ) );
+
+                                // Error Page
+                                $error_slug = isset( $page_slugs['error'] ) ? $page_slugs['error'] : 'error';
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_error_slug',
+                                    'name'           => 'fanfic_system_page_slugs[error]',
+                                    'label'          => __( 'Error Page', 'fanfiction-manager' ),
+                                    'value'          => $error_slug,
+                                    'preview_id'     => 'error-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $error_slug ) . '</span>/',
+                                    'required'       => false,
+                                    'data_slug_type' => 'system_error',
+                                ) );
+
+                                // Maintenance Page
+                                $maintenance_slug = isset( $page_slugs['maintenance'] ) ? $page_slugs['maintenance'] : 'maintenance';
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_maintenance_slug',
+                                    'name'           => 'fanfic_system_page_slugs[maintenance]',
+                                    'label'          => __( 'Maintenance Page', 'fanfiction-manager' ),
+                                    'value'          => $maintenance_slug,
+                                    'preview_id'     => 'maintenance-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $maintenance_slug ) . '</span>/',
+                                    'required'       => false,
+                                    'data_slug_type' => 'system_maintenance',
+                                ) );
+                                ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
