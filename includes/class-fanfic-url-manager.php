@@ -118,7 +118,7 @@ class Fanfic_URL_Manager {
 
 		$dynamic_defaults = array(
 			'dashboard'    => 'dashboard',
-			'create_story' => 'create-story',
+			'create-story' => 'create-story',
 			'search'       => 'search',
 			'members'      => 'members',
 		);
@@ -200,10 +200,10 @@ class Fanfic_URL_Manager {
 		}
 
 		// Create Story: /fanfiction/create-story/
-		if ( isset( $slugs['create_story'] ) ) {
+		if ( isset( $slugs['create-story'] ) ) {
 			add_rewrite_rule(
-				'^' . $base . '/' . $slugs['create_story'] . '/?$',
-				'index.php?fanfic_page=create_story',
+				'^' . $base . '/' . $slugs['create-story'] . '/?$',
+				'index.php?fanfic_page=create-story',
 				'top'
 			);
 		}
@@ -569,7 +569,7 @@ class Fanfic_URL_Manager {
 
 		$template_map = array(
 			'dashboard'    => 'template-dashboard.php',
-			'create_story' => 'template-create-story.php',
+			'create-story' => 'template-create-story.php',
 			'search'       => 'template-search.php',
 			'members'      => 'template-members.php',
 		);

@@ -336,9 +336,9 @@ class Fanfic_URL_Config {
                                     $system_pages = array(
                                         'login'          => __( 'Login Page', 'fanfiction-manager' ),
                                         'register'       => __( 'Register Page', 'fanfiction-manager' ),
-                                        'password_reset' => __( 'Password Reset', 'fanfiction-manager' ),
+                                        'password-reset' => __( 'Password Reset', 'fanfiction-manager' ),
                                         'dashboard'      => __( 'Dashboard Page', 'fanfiction-manager' ),
-                                        'create_story'   => __( 'Create Story', 'fanfiction-manager' ),
+                                        'create-story'   => __( 'Create Story', 'fanfiction-manager' ),
                                         'search'         => __( 'Search Page', 'fanfiction-manager' ),
                                         'members'        => __( 'Profile Page', 'fanfiction-manager' ),
                                         'error'          => __( 'Default Error Page', 'fanfiction-manager' ),
@@ -933,16 +933,17 @@ class Fanfic_URL_Config {
 
             /**
              * Get slug value from input or current value
-             * All keys use underscores consistently
+             * Handles multiple ID patterns for different field types
              */
             function getSlugValue(key) {
+                var normalizedKey = key.replace(/-/g, '_');
                 var $input;
 
                 // Try different ID patterns in order of likelihood
                 var patterns = [
-                    '#fanfic_' + key + '_slug',  // Most common: base_slug, dashboard_slug, etc.
-                    '#fanfic_' + key,            // Special cases: story_path (no _slug suffix)
-                    '#page_slug_' + key          // System pages: page_slug_login, etc.
+                    '#fanfic_' + normalizedKey + '_slug',  // Most common: base_slug, dashboard_slug, etc.
+                    '#fanfic_' + normalizedKey,            // Special cases: story_path (no _slug suffix)
+                    '#page_slug_' + key                    // System pages: page_slug_login, etc.
                 ];
 
                 for (var i = 0; i < patterns.length; i++) {

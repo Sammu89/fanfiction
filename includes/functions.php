@@ -339,7 +339,7 @@ function fanfic_get_register_url() {
  * @return string The password reset page URL.
  */
 function fanfic_get_password_reset_url() {
-	return fanfic_get_page_url( 'password_reset' );
+	return fanfic_get_page_url( 'password-reset' );
 }
 
 /**
@@ -348,7 +348,7 @@ function fanfic_get_password_reset_url() {
  * @return string The create story page URL.
  */
 function fanfic_get_create_story_url() {
-	return fanfic_get_page_url( 'create_story' );
+	return fanfic_get_page_url( 'create-story' );
 }
 
 /**
