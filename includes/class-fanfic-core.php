@@ -66,9 +66,6 @@ class Fanfic_Core {
 		// Load URL Manager (centralized URL management - replaces Rewrite, Dynamic_Pages, URL_Builder)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-manager.php';
 
-		// Load URL helper functions (thin wrappers around URL Manager)
-		require_once FANFIC_INCLUDES_DIR . 'fanfic-url-helpers.php';
-
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-post-types.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';
