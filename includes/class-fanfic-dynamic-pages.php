@@ -42,8 +42,22 @@ class Fanfic_Dynamic_Pages {
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'add_rewrite_rules' ), 20 );
 		add_action( 'init', array( __CLASS__, 'add_query_vars' ) );
+		add_action( 'init', array( __CLASS__, 'maybe_flush_rewrite_rules' ), 25 );
 		add_filter( 'query_vars', array( __CLASS__, 'register_query_vars' ) );
 		add_filter( 'template_include', array( __CLASS__, 'template_loader' ), 99 );
+	}
+
+	/**
+	 * Maybe flush rewrite rules if flag is set
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function maybe_flush_rewrite_rules() {
+		if ( get_transient( 'fanfic_flush_rewrite_rules' ) ) {
+			flush_rewrite_rules();
+			delete_transient( 'fanfic_flush_rewrite_rules' );
+		}
 	}
 
 	/**

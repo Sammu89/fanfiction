@@ -1789,10 +1789,10 @@ class Fanfic_URL_Config {
         // ==========================================
         // FINALIZE
         // ==========================================
-        
-        // Flush rewrite rules if any changes were made
+
+        // Set flag to flush rewrite rules on next page load if any changes were made
         if ( ! empty( $success_messages ) ) {
-            flush_rewrite_rules();
+            set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
         }
 
         // Set messages
