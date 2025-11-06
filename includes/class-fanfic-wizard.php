@@ -148,6 +148,11 @@ class Fanfic_Wizard {
 	 * @return void
 	 */
 	public function add_wizard_menu() {
+		// Don't register wizard if Pretty Permalinks are disabled
+		if ( Fanfic_Permalinks_Check::should_disable_plugin() ) {
+			return;
+		}
+
 		// Use empty string instead of null to avoid deprecation warnings
 		// Empty string makes it hidden just like null, but doesn't trigger wp_normalize_path(null)
 		$hook = add_submenu_page(
@@ -221,6 +226,11 @@ class Fanfic_Wizard {
 	public function check_wizard_redirect() {
 		// Skip if not admin or doing AJAX
 		if ( ! is_admin() || wp_doing_ajax() ) {
+			return;
+		}
+
+		// Don't redirect to wizard if Pretty Permalinks are disabled
+		if ( Fanfic_Permalinks_Check::should_disable_plugin() ) {
 			return;
 		}
 

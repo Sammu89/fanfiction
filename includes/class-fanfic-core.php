@@ -460,6 +460,10 @@ class Fanfic_Core {
 		// Get the current blog ID for multisite support
 		$blog_id = get_current_blog_id();
 
+		// Check Pretty Permalinks requirement BEFORE doing anything else
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-permalinks-check.php';
+		Fanfic_Permalinks_Check::check_on_activation();
+
 		// Load all required classes for activation
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-post-types.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
