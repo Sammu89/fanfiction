@@ -904,25 +904,29 @@ class Fanfic_Templates {
 				'page_key'   => 'search',
 				'title'      => __( 'Search', 'fanfiction-manager' ),
 				'visibility' => 'all',
-				'type'       => 'page',
+				'type'       => 'custom',
+				'url'        => Fanfic_Dynamic_Pages::get_page_url( 'search' ),
 			),
 			array(
 				'page_key'   => 'members',
 				'title'      => __( 'Members', 'fanfiction-manager' ),
 				'visibility' => 'all',
-				'type'       => 'page',
+				'type'       => 'custom',
+				'url'        => Fanfic_Dynamic_Pages::get_page_url( 'members' ),
 			),
 			array(
 				'page_key'   => 'dashboard',
 				'title'      => __( 'Dashboard', 'fanfiction-manager' ),
 				'visibility' => 'logged_in', // only for logged-in users
-				'type'       => 'page',
+				'type'       => 'custom',
+				'url'        => Fanfic_Dynamic_Pages::get_page_url( 'dashboard' ),
 			),
 			array(
 				'page_key'   => 'create-story',
 				'title'      => __( 'Add Story', 'fanfiction-manager' ),
 				'visibility' => 'logged_in', // only for logged-in users
-				'type'       => 'page',
+				'type'       => 'custom',
+				'url'        => Fanfic_Dynamic_Pages::get_page_url( 'create-story' ),
 			),
 			array(
 				'page_key'   => 'register',
