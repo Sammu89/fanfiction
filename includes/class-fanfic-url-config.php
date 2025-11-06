@@ -979,25 +979,23 @@ class Fanfic_URL_Config {
              * Update all URL previews
              */
             function updatePreviews() {
-                // Update main slug previews using config
+                // Update all slug previews using config (handles both normal and system pages)
                 $.each(previewConfig, function(key, config) {
+                    // System pages use a different ID format: #system-{key}-preview-code
+                    // Non-system pages use: #{key}-preview-code
                     var previewId = '#' + key + '-preview-code';
-                    if ($(previewId).length) {
-                        var previewUrl = buildPreviewUrl(config.template);
-                        $(previewId).html(previewUrl);
+                    var systemPreviewId = '#system-' + key + '-preview-code';
+
+                    // Try both ID patterns
+                    var $preview = $(previewId);
+                    if (!$preview.length) {
+                        $preview = $(systemPreviewId);
                     }
-                });
 
-                // Update system page slugs dynamically
-                $('input[data-slug-type^="system_"]').each(function() {
-                    var $input = $(this);
-                    var slugValue = $input.val().trim() || 'slug';
-                    var systemKey = $input.data('slug-type').replace('system_', '');
-                    var previewId = '#system-' + systemKey + '-preview-code';
-                    var baseSlug = getSlugValue('base');
-
-                    $(previewId).html(homeUrl + '<span class="fanfic-dynamic-slug">' + baseSlug + '</span>/' +
-                        '<span class="fanfic-dynamic-slug">' + slugValue + '</span>/');
+                    if ($preview.length) {
+                        var previewUrl = buildPreviewUrl(config.template);
+                        $preview.html(previewUrl);
+                    }
                 });
             }
 
