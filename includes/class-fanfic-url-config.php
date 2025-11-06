@@ -1792,6 +1792,20 @@ class Fanfic_URL_Config {
 
         // Flush rewrite rules immediately if any changes were made
         if ( ! empty( $success_messages ) ) {
+            // Manually register all rewrite rules before flushing
+            if ( class_exists( 'Fanfic_Post_Types' ) ) {
+                Fanfic_Post_Types::register_post_types();
+            }
+            if ( class_exists( 'Fanfic_Taxonomies' ) ) {
+                Fanfic_Taxonomies::register_taxonomies();
+            }
+            if ( class_exists( 'Fanfic_Rewrite' ) ) {
+                Fanfic_Rewrite::add_rewrite_rules();
+            }
+            if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+                Fanfic_Dynamic_Pages::add_rewrite_rules();
+            }
+
             flush_rewrite_rules();
             // Also set transient as backup
             set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
