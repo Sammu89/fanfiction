@@ -264,6 +264,37 @@ function fanfic_get_maintenance_url() {
 }
 
 /**
+ * Get user profile URL
+ *
+ * @since 1.0.0
+ * @param mixed $user User ID, username, or WP_User object.
+ * @return string User profile URL.
+ */
+function fanfic_get_user_profile_url( $user ) {
+	$members_url = fanfic_get_page_url( 'members' );
+
+	if ( ! $members_url ) {
+		return '';
+	}
+
+	// Get username
+	if ( is_numeric( $user ) ) {
+		$user_obj = get_user_by( 'id', $user );
+		$username = $user_obj ? $user_obj->user_login : '';
+	} elseif ( is_object( $user ) && isset( $user->user_login ) ) {
+		$username = $user->user_login;
+	} else {
+		$username = $user;
+	}
+
+	if ( empty( $username ) ) {
+		return $members_url;
+	}
+
+	return add_query_arg( 'member', $username, $members_url );
+}
+
+/**
  * Get breadcrumb parent URL
  *
  * Returns the appropriate parent URL based on context.
