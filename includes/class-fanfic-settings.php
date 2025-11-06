@@ -1313,6 +1313,37 @@ class Fanfic_Settings {
 			<?php
 		}
 
+		// Success message for page shortcode fixed
+		if ( isset( $_GET['shortcode_fixed'] ) && '1' === $_GET['shortcode_fixed'] ) {
+			$fixed_page = isset( $_GET['fixed_page'] ) ? sanitize_text_field( wp_unslash( $_GET['fixed_page'] ) ) : '';
+			?>
+			<div class="notice notice-success is-dismissible">
+				<p>
+					<?php
+					if ( ! empty( $fixed_page ) ) {
+						printf(
+							/* translators: %s: page title */
+							esc_html__( 'Page "%s" has been restored to default content with required shortcodes.', 'fanfiction-manager' ),
+							esc_html( $fixed_page )
+						);
+					} else {
+						esc_html_e( 'Page has been restored to default content with required shortcodes.', 'fanfiction-manager' );
+					}
+					?>
+				</p>
+			</div>
+			<?php
+		}
+
+		// Error message for page shortcode fix
+		if ( isset( $_GET['shortcode_fix_error'] ) && '1' === $_GET['shortcode_fix_error'] ) {
+			?>
+			<div class="notice notice-error is-dismissible">
+				<p><?php esc_html_e( 'Failed to restore page content. Please try again or contact support.', 'fanfiction-manager' ); ?></p>
+			</div>
+			<?php
+		}
+
 		// Warning for missing reCAPTCHA keys (only show on settings page)
 		if ( isset( $_GET['page'] ) && 'fanfiction-settings' === $_GET['page'] ) {
 			$site_key = get_option( 'fanfic_recaptcha_site_key', '' );
