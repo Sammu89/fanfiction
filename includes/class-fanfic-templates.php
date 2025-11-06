@@ -210,7 +210,7 @@ class Fanfic_Templates {
 		$page_ids = get_option( 'fanfic_system_page_ids', array() );
 
 		// Get list of dynamic pages (don't check these as they don't have WordPress pages)
-		$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+		$dynamic_pages = Fanfic_URL_Manager::get_instance()->get_dynamic_pages();
 
 		$missing_pages = array();
 
@@ -405,7 +405,7 @@ class Fanfic_Templates {
 		}
 
 		// Get list of dynamic pages (don't check these as they don't have WordPress pages)
-		$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+		$dynamic_pages = Fanfic_URL_Manager::get_instance()->get_dynamic_pages();
 
 		$pages_with_missing_shortcodes = array();
 
@@ -746,7 +746,7 @@ class Fanfic_Templates {
 
 		// Save dynamic page slugs separately
 		if ( ! empty( $dynamic_slugs ) ) {
-			Fanfic_Dynamic_Pages::update_slugs( $dynamic_slugs );
+			Fanfic_URL_Manager::get_instance()->update_slugs( $dynamic_slugs );
 		}
 
 		// Save page IDs
@@ -779,7 +779,7 @@ class Fanfic_Templates {
 		}
 
 		// Validate dynamic page slugs are saved
-		$saved_dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
+		$saved_dynamic_slugs = Fanfic_URL_Manager::get_instance()->get_slugs();
 		foreach ( $dynamic_pages as $dynamic_page ) {
 			if ( empty( $saved_dynamic_slugs[ $dynamic_page ] ) ) {
 				// This shouldn't happen, but log it
@@ -952,7 +952,7 @@ class Fanfic_Templates {
 
 			// For dynamic pages, generate URL now
 			if ( 'dynamic' === $item_type ) {
-				$dynamic_url = Fanfic_Dynamic_Pages::get_page_url( $page_key );
+				$dynamic_url = Fanfic_URL_Manager::get_instance()->get_page_url( $page_key );
 				// Skip if dynamic URL is empty (slugs not saved yet)
 				if ( empty( $dynamic_url ) ) {
 					continue;
