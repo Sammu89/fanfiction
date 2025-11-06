@@ -1038,10 +1038,10 @@ private function render_choice_screen() {
 	private function flush_rewrite_rules() {
 		// Register all rewrite rules before flushing
 		if ( class_exists( 'Fanfic_Post_Types' ) ) {
-			Fanfic_Post_Types::register_post_types();
+			Fanfic_Post_Types::register();
 		}
 		if ( class_exists( 'Fanfic_Taxonomies' ) ) {
-			Fanfic_Taxonomies::register_taxonomies();
+			Fanfic_Taxonomies::register();
 		}
 		if ( class_exists( 'Fanfic_URL_Manager' ) ) {
 			Fanfic_URL_Manager::get_instance()->register_rewrite_rules();
