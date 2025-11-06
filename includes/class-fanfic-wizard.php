@@ -1032,8 +1032,8 @@ private function render_choice_screen() {
 			Fanfic_Templates::create_system_pages( $base_slug );
 		}
 
-		// Flush rewrite rules to ensure new slugs work
-		flush_rewrite_rules();
+		// Set flag to flush rewrite rules on next page load (more reliable than flushing in AJAX)
+		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
 	}
 
 	/**
@@ -1130,8 +1130,8 @@ private function render_choice_screen() {
 		// Assign user roles
 		$this->assign_user_roles();
 
-		// Flush rewrite rules
-		flush_rewrite_rules();
+		// Set flag to flush rewrite rules on next page load
+		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
 
 		// Double-check that all pages exist using existing validation method
 		if ( ! $this->all_pages_exist() ) {

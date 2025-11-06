@@ -19,6 +19,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+get_header();
+
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
 	?>
@@ -31,6 +33,7 @@ if ( ! is_user_logged_in() ) {
 		</p>
 	</div>
 	<?php
+	get_footer();
 	return;
 }
 
@@ -41,6 +44,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 		<p><?php esc_html_e( 'Access Denied: You do not have permission to view the author dashboard.', 'fanfiction-manager' ); ?></p>
 	</div>
 	<?php
+	get_footer();
 	return;
 }
 
@@ -252,3 +256,5 @@ $current_user = wp_get_current_user();
 
 </main>
 </div>
+
+<?php get_footer(); ?>
