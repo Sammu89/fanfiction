@@ -270,7 +270,7 @@ class Fanfic_Wizard {
 			'fanfic-wizard',
 			FANFIC_PLUGIN_URL . 'assets/js/fanfic-wizard.js',
 			array( 'jquery' ),
-			FANFIC_VERSION,
+			time(), // Force cache bust for debugging
 			true
 		);
 
