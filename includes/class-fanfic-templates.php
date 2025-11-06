@@ -834,170 +834,113 @@ class Fanfic_Templates {
 	}
 
 	/**
-	 * Create or update the Fanfiction navigation menu
-	 *
-	 * Creates a WordPress navigation menu with all plugin pages.
-	 * Menu includes public pages and conditional items for logged-in/logged-out users.
-	 * Note: This menu is automatically rebuilt and any manual changes will be lost.
+	 * Create or recreate the Fanfiction Automatic Menu
 	 *
 	 * @since 1.0.0
-	 * @param array $page_ids Array of page IDs keyed by page key.
-	 * @return int|false Menu ID on success, false on failure.
+	 * @param array $page_ids Array of system page IDs.
+	 * @return int|WP_Error Menu ID on success, WP_Error on failure.
 	 */
 	public static function create_fanfiction_menu( $page_ids ) {
-		// Check if menu already exists
 		$menu_name = 'Fanfiction Automatic Menu';
-		$menu_exists = wp_get_nav_menu_object( $menu_name );
 
-		// Create menu if it doesn't exist
-		if ( ! $menu_exists ) {
-			$menu_id = wp_create_nav_menu( $menu_name );
-			if ( is_wp_error( $menu_id ) ) {
-				return false;
-			}
-		} else {
-			$menu_id = $menu_exists->term_id;
-			// Clear existing menu items to rebuild
-			$menu_items = wp_get_nav_menu_items( $menu_id );
-			if ( $menu_items ) {
-				foreach ( $menu_items as $menu_item ) {
-					wp_delete_post( $menu_item->ID, true );
-				}
-			}
+		// Delete existing menu if it exists
+		$existing_menu = wp_get_nav_menu_object( $menu_name );
+		if ( $existing_menu ) {
+			wp_delete_nav_menu( $existing_menu->term_id );
 		}
 
-		// Define menu structure
-		// Order determines the menu item position
-		// For dynamic pages, url will be generated in the loop
-		$menu_structure = array(
-			array(
-				'page_key'   => 'main',
-				'title'      => __( 'Home', 'fanfiction-manager' ),
-				'visibility' => 'all', // visible to everyone
-				'type'       => 'page',
-			),
-			array(
-				'page_key'   => 'archive',
-				'title'      => __( 'Stories', 'fanfiction-manager' ),
-				'visibility' => 'all',
-				'type'       => 'custom',
-				'url'        => get_post_type_archive_link( 'fanfiction_story' ),
-			),
-			array(
-				'page_key'   => 'search',
-				'title'      => __( 'Search', 'fanfiction-manager' ),
-				'visibility' => 'all',
-				'type'       => 'dynamic', // will generate URL in loop
-			),
-			array(
-				'page_key'   => 'members',
-				'title'      => __( 'Members', 'fanfiction-manager' ),
-				'visibility' => 'all',
-				'type'       => 'dynamic', // will generate URL in loop
-			),
-			array(
-				'page_key'   => 'dashboard',
-				'title'      => __( 'Dashboard', 'fanfiction-manager' ),
-				'visibility' => 'logged_in', // only for logged-in users
-				'type'       => 'dynamic', // will generate URL in loop
-			),
-			array(
-				'page_key'   => 'create-story',
-				'title'      => __( 'Add Story', 'fanfiction-manager' ),
-				'visibility' => 'logged_in', // only for logged-in users
-				'type'       => 'dynamic', // will generate URL in loop
-			),
-			array(
-				'page_key'   => 'register',
-				'title'      => __( 'Register', 'fanfiction-manager' ),
-				'visibility' => 'logged_out', // only for logged-out users
-				'type'       => 'page',
-			),
-			array(
-				'page_key'   => 'login',
-				'title'      => __( 'Login', 'fanfiction-manager' ),
-				'visibility' => 'logged_out', // only for logged-out users
-				'type'       => 'page',
-			),
-			array(
-				'page_key'   => 'logout',
-				'title'      => __( 'Logout', 'fanfiction-manager' ),
-				'visibility' => 'logged_in', // only for logged-in users
-				'type'       => 'custom',
-				'url'        => wp_logout_url( home_url( '/' ) ),
-			),
-		);
+		// Create new menu
+		$menu_id = wp_create_nav_menu( $menu_name );
 
-		// Add menu items
+		if ( is_wp_error( $menu_id ) ) {
+			return $menu_id;
+		}
+
+		// Get URL Manager instance for dynamic URLs
+		$url_manager = Fanfic_URL_Manager::get_instance();
+
+		// Menu item position counter
 		$position = 0;
-		foreach ( $menu_structure as $item_config ) {
-			$page_key = $item_config['page_key'];
-			$item_type = isset( $item_config['type'] ) ? $item_config['type'] : 'page';
 
-			// Skip if page doesn't exist (for page type items)
-			if ( 'page' === $item_type && empty( $page_ids[ $page_key ] ) ) {
-				continue;
-			}
+		// 1. HOME (always visible)
+		wp_update_nav_menu_item( $menu_id, 0, array(
+			'menu-item-title'   => __( 'Home', 'fanfiction-manager' ),
+			'menu-item-url'     => home_url( '/' ),
+			'menu-item-status'  => 'publish',
+			'menu-item-position' => ++$position,
+			'menu-item-classes' => 'fanfic-menu-home',
+		) );
 
-			// For dynamic pages, generate URL now
-			if ( 'dynamic' === $item_type ) {
-				$dynamic_url = Fanfic_URL_Manager::get_instance()->get_page_url( $page_key );
-				// Skip if dynamic URL is empty (slugs not saved yet)
-				if ( empty( $dynamic_url ) ) {
-					continue;
-				}
-				$item_config['url'] = $dynamic_url;
-				$item_type = 'custom'; // Treat as custom URL for menu creation
-			}
+		// 2. DASHBOARD (logged in only)
+		$dashboard_url = $url_manager->get_page_url( 'dashboard' );
+		if ( ! empty( $dashboard_url ) ) {
+			wp_update_nav_menu_item( $menu_id, 0, array(
+				'menu-item-title'   => __( 'Dashboard', 'fanfiction-manager' ),
+				'menu-item-url'     => $dashboard_url,
+				'menu-item-status'  => 'publish',
+				'menu-item-position' => ++$position,
+				'menu-item-classes' => 'fanfic-menu-dashboard menu-item-logged-in',
+			) );
+		}
 
-			// Skip if custom URL is empty (for custom type items)
-			if ( 'custom' === $item_type && empty( $item_config['url'] ) ) {
-				continue;
-			}
+		// 3. ADD STORY (logged in only)
+		$create_story_url = $url_manager->get_page_url( 'create-story' );
+		if ( ! empty( $create_story_url ) ) {
+			wp_update_nav_menu_item( $menu_id, 0, array(
+				'menu-item-title'   => __( 'Add Story', 'fanfiction-manager' ),
+				'menu-item-url'     => $create_story_url,
+				'menu-item-status'  => 'publish',
+				'menu-item-position' => ++$position,
+				'menu-item-classes' => 'fanfic-menu-add-story menu-item-logged-in',
+			) );
+		}
 
-			$position++;
+		// 4. STORIES ARCHIVE (always visible)
+		$archive_url = get_post_type_archive_link( 'fanfiction_story' );
+		if ( ! empty( $archive_url ) ) {
+			wp_update_nav_menu_item( $menu_id, 0, array(
+				'menu-item-title'   => __( 'Stories Archive', 'fanfiction-manager' ),
+				'menu-item-url'     => $archive_url,
+				'menu-item-status'  => 'publish',
+				'menu-item-position' => ++$position,
+				'menu-item-classes' => 'fanfic-menu-archive',
+			) );
+		}
 
-			// Add CSS classes based on visibility
-			$classes = array();
-			if ( 'logged_in' === $item_config['visibility'] ) {
-				$classes[] = 'fanfic-menu-logged-in';
-			} elseif ( 'logged_out' === $item_config['visibility'] ) {
-				$classes[] = 'fanfic-menu-logged-out';
-			}
+		// 5. MEMBERS (always visible)
+		$members_url = $url_manager->get_page_url( 'members' );
+		if ( ! empty( $members_url ) ) {
+			wp_update_nav_menu_item( $menu_id, 0, array(
+				'menu-item-title'   => __( 'Members', 'fanfiction-manager' ),
+				'menu-item-url'     => $members_url,
+				'menu-item-status'  => 'publish',
+				'menu-item-position' => ++$position,
+				'menu-item-classes' => 'fanfic-menu-members',
+			) );
+		}
 
-			// Build menu item data based on type
-			if ( 'custom' === $item_type ) {
-				// Custom URL menu item (e.g., post type archive, dynamic pages)
-				$menu_item_data = array(
-					'menu-item-url'         => $item_config['url'],
-					'menu-item-type'        => 'custom',
-					'menu-item-status'      => 'publish',
-					'menu-item-title'       => $item_config['title'],
-					'menu-item-position'    => $position,
-					'menu-item-classes'     => implode( ' ', $classes ),
-				);
-			} else {
-				// Page menu item
-				$menu_item_data = array(
-					'menu-item-object-id'   => $page_ids[ $page_key ],
-					'menu-item-object'      => 'page',
-					'menu-item-type'        => 'post_type',
-					'menu-item-status'      => 'publish',
-					'menu-item-title'       => $item_config['title'],
-					'menu-item-position'    => $position,
-					'menu-item-classes'     => implode( ' ', $classes ),
-				);
-			}
-
-			$result = wp_update_nav_menu_item( $menu_id, 0, $menu_item_data );
-
-			if ( is_wp_error( $result ) ) {
-				error_log( 'Failed to add menu item: ' . $page_key . ' - ' . $result->get_error_message() );
+		// 6. LOGIN (logged out only)
+		if ( isset( $page_ids['login'] ) && $page_ids['login'] > 0 ) {
+			$login_url = get_permalink( $page_ids['login'] );
+			if ( ! empty( $login_url ) ) {
+				wp_update_nav_menu_item( $menu_id, 0, array(
+					'menu-item-title'   => __( 'Login', 'fanfiction-manager' ),
+					'menu-item-url'     => $login_url,
+					'menu-item-status'  => 'publish',
+					'menu-item-position' => ++$position,
+					'menu-item-classes' => 'fanfic-menu-login menu-item-logged-out',
+				) );
 			}
 		}
 
-		// Store menu ID in options for reference
-		update_option( 'fanfic_menu_id', $menu_id );
+		// 7. LOGOUT (logged in only)
+		wp_update_nav_menu_item( $menu_id, 0, array(
+			'menu-item-title'   => __( 'Logout', 'fanfiction-manager' ),
+			'menu-item-url'     => wp_logout_url( home_url( '/' ) ),
+			'menu-item-status'  => 'publish',
+			'menu-item-position' => ++$position,
+			'menu-item-classes' => 'fanfic-menu-logout menu-item-logged-in',
+		) );
 
 		return $menu_id;
 	}
@@ -1005,29 +948,26 @@ class Fanfic_Templates {
 	/**
 	 * Filter menu items based on user login status
 	 *
-	 * Removes menu items that should only be visible to logged-in or logged-out users.
+	 * Hides items with 'menu-item-logged-in' class if user is logged out
+	 * Hides items with 'menu-item-logged-out' class if user is logged in
 	 *
 	 * @since 1.0.0
-	 * @param array $items Array of menu item objects.
-	 * @param object $args Menu arguments.
-	 * @return array Filtered array of menu item objects.
+	 * @param array $items Menu items.
+	 * @param mixed $menu Menu object.
+	 * @return array Filtered menu items.
 	 */
-	public static function filter_menu_items_by_login_status( $items, $args ) {
+	public static function filter_menu_items_by_login_status( $items, $menu ) {
 		$is_logged_in = is_user_logged_in();
 
 		foreach ( $items as $key => $item ) {
-			$classes = (array) $item->classes;
-
-			// Remove items that should only be visible to logged-in users
-			if ( ! $is_logged_in && in_array( 'fanfic-menu-logged-in', $classes, true ) ) {
+			// Hide logged-in items if user is logged out
+			if ( ! $is_logged_in && in_array( 'menu-item-logged-in', $item->classes, true ) ) {
 				unset( $items[ $key ] );
-				continue;
 			}
 
-			// Remove items that should only be visible to logged-out users
-			if ( $is_logged_in && in_array( 'fanfic-menu-logged-out', $classes, true ) ) {
+			// Hide logged-out items if user is logged in
+			if ( $is_logged_in && in_array( 'menu-item-logged-out', $item->classes, true ) ) {
 				unset( $items[ $key ] );
-				continue;
 			}
 		}
 

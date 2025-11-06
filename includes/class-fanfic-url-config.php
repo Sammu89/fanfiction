@@ -1208,7 +1208,7 @@ class Fanfic_URL_Config {
             }
         }
 
-        // 4. Save dynamic page slugs (dashboard, search, members)
+        // 4. Save dynamic page slugs (dashboard, search, members, create-story) directly to fanfic_dynamic_page_slugs
         $dynamic_slugs_input = array();
 
         // Dashboard
@@ -1221,9 +1221,14 @@ class Fanfic_URL_Config {
             $dynamic_slugs_input['search'] = sanitize_title( wp_unslash( $_POST['fanfic_search_slug'] ) );
         }
 
-        // Members (formerly 'user' slug, now 'members')
+        // Members
         if ( isset( $_POST['fanfic_members_slug'] ) ) {
             $dynamic_slugs_input['members'] = sanitize_title( wp_unslash( $_POST['fanfic_members_slug'] ) );
+        }
+
+        // Create Story
+        if ( isset( $_POST['fanfic_create-story_slug'] ) ) {
+            $dynamic_slugs_input['create-story'] = sanitize_title( wp_unslash( $_POST['fanfic_create-story_slug'] ) );
         }
 
         // Validate uniqueness
@@ -1241,11 +1246,8 @@ class Fanfic_URL_Config {
             }
 
             if ( $all_valid ) {
-                // Get current dynamic slugs and merge
-                $current_dynamic = get_option( 'fanfic_dynamic_page_slugs', array() );
-                $updated_dynamic = array_merge( $current_dynamic, $dynamic_slugs_input );
-
-                update_option( 'fanfic_dynamic_page_slugs', $updated_dynamic );
+                // Save directly to dynamic page slugs (no more secondary paths)
+                update_option( 'fanfic_dynamic_page_slugs', $dynamic_slugs_input );
 
                 // Immediately flush URL Manager cache
                 if ( class_exists( 'Fanfic_URL_Manager' ) ) {
@@ -1356,7 +1358,7 @@ class Fanfic_URL_Config {
     }
 
     /**
-     * Flush all rewrite rules
+     * Flush all rewrite rules immediately
      *
      * Helper method to register and flush all rewrite rules.
      *
@@ -1380,7 +1382,7 @@ class Fanfic_URL_Config {
             Fanfic_URL_Manager::get_instance()->register_rewrite_rules();
         }
 
-        // Flush immediately - no transient delay
+        // Flush immediately
         flush_rewrite_rules();
     }
 

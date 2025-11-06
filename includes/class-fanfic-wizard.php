@@ -1053,7 +1053,6 @@ private function render_choice_screen() {
 		}
 
 		flush_rewrite_rules();
-		set_transient( 'fanfic_flush_rewrite_rules', 1, 60 );
 	}
 
 	/**

@@ -111,43 +111,6 @@ class Fanfic_URL_Schema {
                 'group'            => 'chapters',
             ),
 
-            // ========================================
-            // SECONDARY USER/SYSTEM PATHS
-            // ========================================
-            'dashboard' => array(
-                'type'             => 'secondary',
-                'default'          => __( 'dashboard', 'fanfiction-manager' ),
-                'label'            => __( 'Dashboard', 'fanfiction-manager' ),
-                'description'      => __( 'URL for the author dashboard.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{dashboard}/',
-                'required'         => true,
-                'option_key'       => 'fanfic_secondary_paths',
-                'group'            => 'secondary',
-                'is_dynamic_page'  => true,
-            ),
-
-            'user' => array(
-                'type'             => 'secondary',
-                'default'          => __( 'user', 'fanfiction-manager' ),
-                'label'            => __( 'User Profile', 'fanfiction-manager' ),
-                'description'      => __( 'URL prefix for user profiles.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{user}/username/',
-                'required'         => true,
-                'option_key'       => 'fanfic_secondary_paths',
-                'group'            => 'secondary',
-            ),
-
-            'search' => array(
-                'type'             => 'secondary',
-                'default'          => __( 'search', 'fanfiction-manager' ),
-                'label'            => __( 'Search', 'fanfiction-manager' ),
-                'description'      => __( 'URL for the search page.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{search}/',
-                'required'         => true,
-                'option_key'       => 'fanfic_secondary_paths',
-                'group'            => 'secondary',
-                'is_dynamic_page'  => true,
-            ),
 
             // ========================================
             // SYSTEM PAGE SLUGS

@@ -93,8 +93,6 @@ class Fanfic_URL_Manager {
 
 		// Redirects.
 		add_action( 'template_redirect', array( $this, 'handle_old_slug_redirects' ) );
-
-		// REMOVED: maybe_flush_rewrite_rules() - no longer needed, flush happens immediately
 	}
 
 	/**
@@ -120,7 +118,6 @@ class Fanfic_URL_Manager {
 			'base'       => $this->sanitize_slug( get_option( 'fanfic_base_slug', self::DEFAULT_BASE_SLUG ) ),
 			'story_path' => $this->sanitize_slug( get_option( 'fanfic_story_path', 'stories' ) ),
 			'chapters'   => wp_parse_args( get_option( 'fanfic_chapter_slugs', array() ), $chapter_defaults ),
-			// REMOVED - no longer needed, dashboard/search/members are in dynamic_page_slugs only
 			'dynamic'    => wp_parse_args( get_option( 'fanfic_dynamic_page_slugs', array() ), $dynamic_defaults ),
 			'system'     => get_option( 'fanfic_system_page_slugs', array() ),
 		);
@@ -223,8 +220,6 @@ class Fanfic_URL_Manager {
 			);
 		}
 	}
-
-	// DELETE ENTIRE METHOD - register_secondary_path_rules() removed, now using dynamic pages only
 
 	/**
 	 * Register custom query variables
@@ -629,8 +624,6 @@ class Fanfic_URL_Manager {
 		return $this->slugs['chapters'];
 	}
 
-	// DELETE ENTIRE METHOD - get_secondary_slugs() removed, use get_dynamic_slugs() instead
-
 	/**
 	 * Get dynamic page slugs
 	 *
@@ -750,14 +743,11 @@ class Fanfic_URL_Manager {
 		}
 	}
 
-	// DELETE ENTIRE METHOD - maybe_flush_rewrite_rules() removed, flush happens immediately in URL Config
-
 	/**
 	 * Invalidate cache (call when slugs are updated)
 	 */
 	public function flush_cache() {
 		$this->slugs = $this->load_all_slugs();
-		// REMOVED: set_transient() - flush happens immediately, no delayed flush needed
 	}
 
 	/**
