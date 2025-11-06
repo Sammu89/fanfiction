@@ -208,9 +208,18 @@ class Fanfic_Templates {
 		}
 
 		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+
+		// Get list of dynamic pages (don't check these as they don't have WordPress pages)
+		$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+
 		$missing_pages = array();
 
 		foreach ( $page_ids as $slug => $page_id ) {
+			// Skip dynamic pages (they don't have WordPress page entries)
+			if ( in_array( $slug, $dynamic_pages, true ) ) {
+				continue;
+			}
+
 			$page = get_post( $page_id );
 			if ( ! $page || $page->post_status === 'trash' ) {
 				$missing_pages[] = $slug;
@@ -369,9 +378,17 @@ class Fanfic_Templates {
 			return;
 		}
 
+		// Get list of dynamic pages (don't check these as they don't have WordPress pages)
+		$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+
 		$pages_with_missing_shortcodes = array();
 
 		foreach ( $page_ids as $slug => $page_id ) {
+			// Skip dynamic pages (they don't have WordPress page content)
+			if ( in_array( $slug, $dynamic_pages, true ) ) {
+				continue;
+			}
+
 			$page = get_post( $page_id );
 
 			// Skip if page doesn't exist
@@ -575,6 +592,10 @@ class Fanfic_Templates {
 		// Get custom page slugs from settings
 		$custom_slugs = get_option( 'fanfic_system_page_slugs', array() );
 
+		// Separate dynamic page slugs (don't create WordPress pages for these)
+		$dynamic_slugs = array();
+		$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+
 		// Get main page mode
 		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
 
@@ -671,8 +692,15 @@ class Fanfic_Templates {
 			),
 		);
 
-		// Create child pages
+		// Create child pages (only for non-dynamic pages)
 		foreach ( $pages as $key => $page_data ) {
+			// Check if this page should be dynamic
+			if ( in_array( $key, $dynamic_pages, true ) ) {
+				// Store slug for dynamic page but don't create WordPress page
+				$dynamic_slugs[ $key ] = $page_data['slug'];
+				continue;
+			}
+
 			// Use shortcode-based content (WordPress will process on each page view)
 			$content = self::get_default_template_content( $key );
 			$page_id = self::create_or_update_page(
@@ -690,25 +718,24 @@ class Fanfic_Templates {
 			}
 		}
 
+		// Save dynamic page slugs separately
+		if ( ! empty( $dynamic_slugs ) ) {
+			Fanfic_Dynamic_Pages::update_slugs( $dynamic_slugs );
+		}
+
 		// Save page IDs
 		update_option( 'fanfic_system_page_ids', $page_ids );
 
 		// Flush rewrite rules
 		flush_rewrite_rules();
 
-		// Validate all required pages exist and are published
+		// Validate only physical WordPress pages (not dynamic pages)
 		$required_pages = array(
 			'main',
 			'login',
 			'register',
 			'password-reset',
-			'dashboard',
 			'create-story',
-			'edit-story',
-			'edit-chapter',
-			'edit-profile',
-			'search',
-			'members',
 			'error',
 			'maintenance',
 		);
@@ -723,6 +750,15 @@ class Fanfic_Templates {
 			$page = get_post( $page_ids[ $page_key ] );
 			if ( ! $page || 'publish' !== $page->post_status ) {
 				$validation_failed[] = $page_key;
+			}
+		}
+
+		// Validate dynamic page slugs are saved
+		$saved_dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
+		foreach ( $dynamic_pages as $dynamic_page ) {
+			if ( empty( $saved_dynamic_slugs[ $dynamic_page ] ) ) {
+				// This shouldn't happen, but log it
+				error_log( "Missing dynamic page slug for: {$dynamic_page}" );
 			}
 		}
 
