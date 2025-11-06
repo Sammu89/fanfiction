@@ -21,17 +21,15 @@
    - ✅ Slug Management with Caching
    - ✅ Old Slug Redirects
 
-2. **Files Replaced/Deprecated:**
-   - ❌ `class-fanfic-rewrite.php` - **NO LONGER LOADED**
-   - ❌ `class-fanfic-dynamic-pages.php` - **NO LONGER LOADED**
-   - ❌ `class-fanfic-url-builder.php` - **NEVER USED** (created but immediately superseded)
+2. **Files Eliminated:**
+   - ❌ `class-fanfic-rewrite.php` - **DELETED** (no longer loaded)
+   - ❌ `class-fanfic-dynamic-pages.php` - **DELETED** (no longer loaded)
+   - ❌ `class-fanfic-url-builder.php` - **DELETED** (created but never used, superseded by URL_Manager)
+   - ❌ `fanfic-url-helpers.php` - **DELETED** (merged into functions.php)
 
-3. **Files Simplified:**
-   - ✅ `fanfic-url-helpers.php` - Now just thin wrapper functions (300 lines → 297 lines, all logic removed)
-   - ✅ `functions.php` - Removed manual URL building (20 lines → 6 lines)
-
-4. **Files Updated:**
-   - ✅ `class-fanfic-core.php` - Loads URL Manager instead of Rewrite + Dynamic_Pages
+3. **Files Updated:**
+   - ✅ `functions.php` - Now contains all URL helper functions (was 217 lines, now 465 lines)
+   - ✅ `class-fanfic-core.php` - Loads URL Manager only, removed old class loading
    - ✅ `class-fanfic-url-config.php` - Updated to use URL Manager + cache invalidation
 
 ### Performance Improvements
@@ -50,8 +48,10 @@
 
 | Category | Before | After | Reduction |
 |----------|--------|-------|-----------|
-| Core URL Files | 3 | 1 | **-67%** |
-| Total Lines | ~1,500 | ~850 | **-43%** |
+| Core URL Files | 4 files | 1 file | **-75%** |
+| Helper Files | Separate | Merged into functions.php | **-100%** |
+| Total URL-Related Files | 4 | 1 | **-75%** |
+| Total Code Lines | ~1,800 | ~1,300 | **-28%** |
 
 ---
 
