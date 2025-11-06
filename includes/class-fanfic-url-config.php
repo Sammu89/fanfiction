@@ -1741,6 +1741,9 @@ class Fanfic_URL_Config {
             $dynamic_page_slugs = array();
             $dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
 
+            // Get already-saved dynamic slugs (from secondary paths section)
+            $current_dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
+
             foreach ( $_POST['fanfic_system_page_slugs'] as $key => $slug ) {
                 $slug = sanitize_title( wp_unslash( $slug ) );
                 if ( ! empty( $slug ) ) {
@@ -1754,7 +1757,13 @@ class Fanfic_URL_Config {
                     $page_slugs[ $key ] = $slug;
 
                     // If this is a dynamic page, also save it to the dynamic pages option
+                    // But skip dashboard and search if they were already set from secondary paths
                     if ( in_array( $key, $dynamic_pages, true ) ) {
+                        // For dashboard and search, prefer the value from secondary paths section
+                        if ( ( $key === 'dashboard' || $key === 'search' ) && ! empty( $current_dynamic_slugs[ $key ] ) && $current_dynamic_slugs[ $key ] !== $slug ) {
+                            // Secondary paths value already saved, skip this one
+                            continue;
+                        }
                         $dynamic_page_slugs[ $key ] = $slug;
                     }
                 }
@@ -1762,9 +1771,10 @@ class Fanfic_URL_Config {
 
             update_option( 'fanfic_system_page_slugs', $page_slugs );
 
-            // Save dynamic page slugs separately
+            // Save dynamic page slugs separately (merge with existing)
             if ( ! empty( $dynamic_page_slugs ) ) {
-                Fanfic_Dynamic_Pages::update_slugs( $dynamic_page_slugs );
+                $merged_dynamic_slugs = array_merge( $current_dynamic_slugs, $dynamic_page_slugs );
+                Fanfic_Dynamic_Pages::update_slugs( $merged_dynamic_slugs );
             }
 
             // Trigger page recreation with new slugs
