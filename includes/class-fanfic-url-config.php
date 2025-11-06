@@ -1723,6 +1723,8 @@ class Fanfic_URL_Config {
         if ( isset( $_POST['fanfic_system_page_slugs'] ) && is_array( $_POST['fanfic_system_page_slugs'] ) ) {
             $old_slugs  = get_option( 'fanfic_system_page_slugs', array() );
             $page_slugs = array();
+            $dynamic_page_slugs = array();
+            $dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
 
             foreach ( $_POST['fanfic_system_page_slugs'] as $key => $slug ) {
                 $slug = sanitize_title( wp_unslash( $slug ) );
@@ -1735,10 +1737,20 @@ class Fanfic_URL_Config {
                         }
                     }
                     $page_slugs[ $key ] = $slug;
+
+                    // If this is a dynamic page, also save it to the dynamic pages option
+                    if ( in_array( $key, $dynamic_pages, true ) ) {
+                        $dynamic_page_slugs[ $key ] = $slug;
+                    }
                 }
             }
 
             update_option( 'fanfic_system_page_slugs', $page_slugs );
+
+            // Save dynamic page slugs separately
+            if ( ! empty( $dynamic_page_slugs ) ) {
+                Fanfic_Dynamic_Pages::update_slugs( $dynamic_page_slugs );
+            }
 
             // Trigger page recreation with new slugs
             if ( class_exists( 'Fanfic_Templates' ) ) {
