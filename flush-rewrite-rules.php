@@ -21,9 +21,6 @@ if ( class_exists( 'Fanfic_Taxonomies' ) ) {
 if ( class_exists( 'Fanfic_Rewrite' ) ) {
 	Fanfic_Rewrite::add_rewrite_rules();
 }
-if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
-	Fanfic_Dynamic_Pages::add_rewrite_rules();
-}
 
 // Flush rewrite rules
 flush_rewrite_rules();

@@ -1041,11 +1041,6 @@ private function render_choice_screen() {
 			Fanfic_URL_Manager::get_instance()->flush_cache();
 		}
 
-		// Also call Dynamic Pages to register its rules
-		if ( class_exists( 'Fanfic_Dynamic_Pages' ) ) {
-			Fanfic_Dynamic_Pages::add_rewrite_rules();
-		}
-
 		// Register all rewrite rules before flushing
 		if ( class_exists( 'Fanfic_Post_Types' ) ) {
 			Fanfic_Post_Types::register();

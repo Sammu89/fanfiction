@@ -768,13 +768,11 @@ class Fanfic_URL_Manager {
 	}
 
 	// ========================================================================
-	// BACKWARDS COMPATIBILITY METHODS
+	// DYNAMIC PAGE MANAGEMENT
 	// ========================================================================
 
 	/**
-	 * Get list of dynamic pages
-	 *
-	 * Compatibility method for Fanfic_Dynamic_Pages::get_dynamic_pages()
+	 * Get list of dynamic page keys
 	 *
 	 * @return array Array of dynamic page keys.
 	 */
@@ -785,8 +783,6 @@ class Fanfic_URL_Manager {
 	/**
 	 * Get dynamic page slugs
 	 *
-	 * Compatibility method for Fanfic_Dynamic_Pages::get_slugs()
-	 *
 	 * @return array Dynamic page slugs.
 	 */
 	public function get_slugs() {
@@ -795,8 +791,6 @@ class Fanfic_URL_Manager {
 
 	/**
 	 * Update dynamic page slugs
-	 *
-	 * Compatibility method for Fanfic_Dynamic_Pages::update_slugs()
 	 *
 	 * @param array $slugs Array of slug values.
 	 * @return bool Whether update was successful.
