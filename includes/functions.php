@@ -390,10 +390,14 @@ function fanfic_get_maintenance_url() {
 /**
  * Get URL for the edit profile page
  *
+ * @param int $user_id Optional. User ID to edit. Defaults to current user.
  * @return string The edit profile page URL.
  */
-function fanfic_get_edit_profile_url() {
-	return fanfic_get_page_url( 'edit-profile' );
+function fanfic_get_edit_profile_url( $user_id = null ) {
+	if ( null === $user_id ) {
+		$user_id = get_current_user_id();
+	}
+	return Fanfic_URL_Manager::get_instance()->get_edit_url( 'profile', $user_id );
 }
 
 /**
@@ -402,28 +406,17 @@ function fanfic_get_edit_profile_url() {
  * @param int $story_id The story ID to edit.
  * @return string The edit story URL with ?action=edit.
  */
-function fanfic_get_edit_story_url( $story_id = 0 ) {
-	if ( empty( $story_id ) ) {
-		return fanfic_get_page_url( 'edit-story' );
-	}
-
+function fanfic_get_edit_story_url( $story_id ) {
 	return Fanfic_URL_Manager::get_instance()->get_edit_url( 'story', $story_id );
 }
 
 /**
  * Get edit chapter URL
  *
- * @param int    $chapter_id     The chapter ID to edit.
- * @param int    $story_id       Optional. The story ID (for backwards compatibility).
- * @param int    $chapter_number Optional. Chapter number (for backwards compatibility).
- * @param string $chapter_type   Optional. Chapter type (for backwards compatibility).
+ * @param int $chapter_id The chapter ID to edit.
  * @return string The edit chapter URL with ?action=edit.
  */
-function fanfic_get_edit_chapter_url( $chapter_id = 0, $story_id = 0, $chapter_number = 1, $chapter_type = '' ) {
-	if ( empty( $chapter_id ) ) {
-		return fanfic_get_page_url( 'edit-chapter' );
-	}
-
+function fanfic_get_edit_chapter_url( $chapter_id ) {
 	return Fanfic_URL_Manager::get_instance()->get_edit_url( 'chapter', $chapter_id );
 }
 

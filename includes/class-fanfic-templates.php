@@ -919,6 +919,13 @@ class Fanfic_Templates {
 				'visibility' => 'logged_out', // only for logged-out users
 				'type'       => 'page',
 			),
+			array(
+				'page_key'   => 'logout',
+				'title'      => __( 'Logout', 'fanfiction-manager' ),
+				'visibility' => 'logged_in', // only for logged-in users
+				'type'       => 'custom',
+				'url'        => wp_logout_url( home_url( '/' ) ),
+			),
 		);
 
 		// Add menu items
