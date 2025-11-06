@@ -172,22 +172,22 @@ class Fanfic_URL_Schema {
                 'group'            => 'system',
             ),
 
-            'password-reset' => array(
+            'password_reset' => array(
                 'type'             => 'system',
                 'default'          => __( 'password-reset', 'fanfiction-manager' ),
                 'label'            => __( 'Password Reset', 'fanfiction-manager' ),
                 'description'      => __( 'URL for password reset.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{password-reset}/',
+                'preview_template' => '{home}{base}/{password_reset}/',
                 'option_key'       => 'fanfic_system_page_slugs',
                 'group'            => 'system',
             ),
 
-            'create-story' => array(
+            'create_story' => array(
                 'type'             => 'system',
                 'default'          => __( 'create-story', 'fanfiction-manager' ),
                 'label'            => __( 'Create Story', 'fanfiction-manager' ),
                 'description'      => __( 'URL for creating new stories.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{create-story}/',
+                'preview_template' => '{home}{base}/{create_story}/',
                 'option_key'       => 'fanfic_system_page_slugs',
                 'group'            => 'system',
             ),

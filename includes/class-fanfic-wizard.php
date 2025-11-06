@@ -323,7 +323,7 @@ class Fanfic_Wizard {
 			'main',
 			'login',
 			'register',
-			'password-reset',
+			'password_reset',
 			'error',
 			'maintenance',
 		);
