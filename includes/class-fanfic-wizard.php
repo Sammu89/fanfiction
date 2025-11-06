@@ -318,20 +318,13 @@ class Fanfic_Wizard {
 	private function all_pages_exist() {
 		$page_ids = get_option( 'fanfic_system_page_ids', array() );
 
-		// Required page keys
+		// Only check physical WordPress pages (not dynamic pages)
 		$required_pages = array(
 			'main',
 			'login',
 			'register',
 			'password-reset',
-			'archive',
-			'dashboard',
 			'create-story',
-			'edit-story',
-			'edit-chapter',
-			'edit-profile',
-			'search',
-			'members',
 			'error',
 			'maintenance',
 		);
@@ -344,6 +337,15 @@ class Fanfic_Wizard {
 
 			$page = get_post( $page_ids[ $page_key ] );
 			if ( ! $page || 'publish' !== $page->post_status ) {
+				return false;
+			}
+		}
+
+		// Also verify dynamic page slugs are configured
+		$dynamic_slugs = Fanfic_Dynamic_Pages::get_slugs();
+		$dynamic_pages = Fanfic_Dynamic_Pages::get_dynamic_pages();
+		foreach ( $dynamic_pages as $page_key ) {
+			if ( empty( $dynamic_slugs[ $page_key ] ) ) {
 				return false;
 			}
 		}

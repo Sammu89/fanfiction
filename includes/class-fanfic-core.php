@@ -66,6 +66,9 @@ class Fanfic_Core {
 		// Load URL helper functions (used by shortcodes and templates)
 		require_once FANFIC_INCLUDES_DIR . 'fanfic-url-helpers.php';
 
+		// Load dynamic pages system (for pages that don't need WordPress page entries)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-dynamic-pages.php';
+
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-post-types.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';
@@ -153,6 +156,9 @@ class Fanfic_Core {
 
 		// Initialize rewrite rules
 		Fanfic_Rewrite::init();
+
+		// Initialize dynamic pages system
+		Fanfic_Dynamic_Pages::init();
 
 		// Initialize slug tracker
 		Fanfic_Slug_Tracker::init();

@@ -19,12 +19,19 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Retrieves the permalink for plugin-created pages like dashboard, login, etc.
  * Always returns the correct URL even if user changes page slugs.
+ * Automatically handles both WordPress pages and dynamic pages.
  *
  * @since 1.0.0
  * @param string $page_key The page key (e.g., 'dashboard', 'login', 'create-story').
  * @return string The page URL, or empty string if page not found.
  */
 function fanfic_get_page_url( $page_key ) {
+	// Check if this is a dynamic page
+	if ( class_exists( 'Fanfic_Dynamic_Pages' ) && Fanfic_Dynamic_Pages::is_dynamic_page( $page_key ) ) {
+		return Fanfic_Dynamic_Pages::get_page_url( $page_key );
+	}
+
+	// Otherwise get WordPress page URL
 	$page_ids = get_option( 'fanfic_system_page_ids', array() );
 
 	if ( isset( $page_ids[ $page_key ] ) && $page_ids[ $page_key ] > 0 ) {
@@ -187,30 +194,51 @@ function fanfic_get_create_story_url() {
  * @return string The edit story page URL.
  */
 function fanfic_get_edit_story_url( $story_id = 0 ) {
-	$url = fanfic_get_page_url( 'edit-story' );
-
-	if ( $story_id > 0 && $url ) {
-		$url = add_query_arg( 'story_id', $story_id, $url );
+	// Use dynamic page system for edit story URLs
+	if ( class_exists( 'Fanfic_Dynamic_Pages' ) && $story_id > 0 ) {
+		return Fanfic_Dynamic_Pages::get_edit_story_url( $story_id );
 	}
 
-	return $url;
+	// Fallback to page URL if no story ID provided
+	return fanfic_get_page_url( 'edit-story' );
 }
 
 /**
  * Get URL for the edit chapter page
  *
  * @since 1.0.0
- * @param int $chapter_id Optional. The chapter ID to edit.
+ * @param int         $chapter_id Optional. The chapter ID to edit.
+ * @param int         $story_id Optional. The story ID (required for dynamic URLs).
+ * @param int         $chapter_number Optional. Chapter number (required for dynamic URLs).
+ * @param string      $chapter_type Optional. Chapter type (prologue, epilogue, or empty for regular).
  * @return string The edit chapter page URL.
  */
-function fanfic_get_edit_chapter_url( $chapter_id = 0 ) {
-	$url = fanfic_get_page_url( 'edit-chapter' );
-
-	if ( $chapter_id > 0 && $url ) {
-		$url = add_query_arg( 'chapter_id', $chapter_id, $url );
+function fanfic_get_edit_chapter_url( $chapter_id = 0, $story_id = 0, $chapter_number = 1, $chapter_type = '' ) {
+	// Use dynamic page system for edit chapter URLs
+	if ( class_exists( 'Fanfic_Dynamic_Pages' ) && $story_id > 0 ) {
+		return Fanfic_Dynamic_Pages::get_edit_chapter_url( $story_id, $chapter_number, $chapter_type );
 	}
 
-	return $url;
+	// If we have chapter ID but not story details, try to get them
+	if ( $chapter_id > 0 && ! $story_id ) {
+		$chapter = get_post( $chapter_id );
+		if ( $chapter && 'fanfiction_chapter' === $chapter->post_type ) {
+			$story_id = wp_get_post_parent_id( $chapter_id );
+			// Try to get chapter order/number
+			$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_order', true );
+			if ( ! $chapter_number ) {
+				$chapter_number = 1;
+			}
+			$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+
+			if ( $story_id && class_exists( 'Fanfic_Dynamic_Pages' ) ) {
+				return Fanfic_Dynamic_Pages::get_edit_chapter_url( $story_id, $chapter_number, $chapter_type );
+			}
+		}
+	}
+
+	// Fallback to page URL if no chapter details provided
+	return fanfic_get_page_url( 'edit-chapter' );
 }
 
 /**
@@ -271,12 +299,6 @@ function fanfic_get_maintenance_url() {
  * @return string User profile URL.
  */
 function fanfic_get_user_profile_url( $user ) {
-	$members_url = fanfic_get_page_url( 'members' );
-
-	if ( ! $members_url ) {
-		return '';
-	}
-
 	// Get username
 	if ( is_numeric( $user ) ) {
 		$user_obj = get_user_by( 'id', $user );
@@ -288,7 +310,19 @@ function fanfic_get_user_profile_url( $user ) {
 	}
 
 	if ( empty( $username ) ) {
-		return $members_url;
+		// Return members listing page
+		return fanfic_get_page_url( 'members' );
+	}
+
+	// Use dynamic pages system for member URLs
+	if ( class_exists( 'Fanfic_Dynamic_Pages' ) && Fanfic_Dynamic_Pages::is_dynamic_page( 'members' ) ) {
+		return Fanfic_Dynamic_Pages::get_page_url( 'members', array( 'member_name' => $username ) );
+	}
+
+	// Fallback to query parameter
+	$members_url = fanfic_get_page_url( 'members' );
+	if ( ! $members_url ) {
+		return '';
 	}
 
 	return add_query_arg( 'member', $username, $members_url );
