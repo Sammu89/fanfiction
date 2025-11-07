@@ -93,8 +93,9 @@ class Fanfic_URL_Manager {
 		add_filter( 'the_posts', array( $this, 'create_virtual_page_post' ), 10, 2 );
 		add_filter( 'the_content', array( $this, 'inject_virtual_page_content' ) );
 
-		// Setup virtual page postdata at proper time (after query is resolved).
-		add_action( 'template_redirect', array( $this, 'setup_virtual_page_postdata' ), 5 );
+		// Setup virtual page postdata using 'wp' hook (most stable for persisting globals).
+		// Priority 999 ensures it runs AFTER other plugins/code that might modify globals.
+		add_action( 'wp', array( $this, 'setup_virtual_page_postdata' ), 999 );
 
 		// Redirects.
 		add_action( 'template_redirect', array( $this, 'handle_old_slug_redirects' ) );
@@ -566,7 +567,8 @@ class Fanfic_URL_Manager {
 	 * Setup virtual page postdata
 	 *
 	 * Sets up the global $post and all WordPress postdata variables at the proper time.
-	 * This runs after the query is resolved but before template loading.
+	 * This runs on the 'wp' hook at priority 999, ensuring globals persist through
+	 * template_redirect and other hooks that might reset them.
 	 *
 	 * @since 2.0.0
 	 * @return void
