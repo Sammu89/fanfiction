@@ -24,11 +24,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Page_Template {
 
 	/**
-	 * Template file name
+	 * Template file name (Classic themes)
 	 *
 	 * @var string
 	 */
 	const TEMPLATE_FILE = 'fanfiction-page-template.php';
+
+	/**
+	 * Block template slug (FSE themes)
+	 *
+	 * @var string
+	 */
+	const BLOCK_TEMPLATE_SLUG = 'fanfiction-manager//fanfiction-page-template';
 
 	/**
 	 * Initialize the page template system
@@ -40,8 +47,14 @@ class Fanfic_Page_Template {
 		// Clear theme cache to ensure our template appears
 		self::clear_theme_cache();
 
-		// Register template in WordPress
-		add_filter( 'theme_page_templates', array( __CLASS__, 'register_page_template' ), 10, 3 );
+		// Register templates based on theme type
+		if ( self::is_block_theme() ) {
+			// Register block template for FSE themes
+			add_action( 'init', array( __CLASS__, 'register_block_template' ) );
+		} else {
+			// Register classic PHP template
+			add_filter( 'theme_page_templates', array( __CLASS__, 'register_page_template' ), 10, 3 );
+		}
 
 		// Load template for pages and virtual pages
 		add_filter( 'template_include', array( __CLASS__, 'load_page_template' ), 99 );
@@ -57,6 +70,15 @@ class Fanfic_Page_Template {
 
 		// Add body class for easier styling
 		add_filter( 'body_class', array( __CLASS__, 'add_body_class' ) );
+
+		// Handle theme switches
+		add_action( 'after_switch_theme', array( __CLASS__, 'handle_theme_switch' ) );
+
+		// Admin notices
+		add_action( 'admin_notices', array( __CLASS__, 'display_admin_notices' ) );
+
+		// AJAX handler for fixing pages after theme switch
+		add_action( 'wp_ajax_fanfic_fix_pages_after_theme_switch', array( __CLASS__, 'ajax_fix_pages_after_theme_switch' ) );
 	}
 
 	/**
@@ -174,9 +196,12 @@ class Fanfic_Page_Template {
 		// Check if template is already assigned
 		$current_template = get_post_meta( $post_id, '_wp_page_template', true );
 
+		// Get the correct template identifier for current theme type
+		$template_identifier = self::get_template_identifier();
+
 		// Only assign if no template is set or if it's the default
 		if ( empty( $current_template ) || 'default' === $current_template ) {
-			update_post_meta( $post_id, '_wp_page_template', self::TEMPLATE_FILE );
+			update_post_meta( $post_id, '_wp_page_template', $template_identifier );
 		}
 	}
 
@@ -386,5 +411,315 @@ class Fanfic_Page_Template {
 		// Clear any cached templates from the current theme
 		$cache_key = 'page_templates-' . md5( $theme->get_stylesheet() );
 		wp_cache_delete( $cache_key, 'themes' );
+	}
+
+	/**
+	 * Check if the current theme is a block (FSE) theme
+	 *
+	 * @since 1.0.0
+	 * @return bool True if block theme, false if classic theme.
+	 */
+	public static function is_block_theme() {
+		return function_exists( 'wp_is_block_theme' ) && wp_is_block_theme();
+	}
+
+	/**
+	 * Register block template for FSE themes
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function register_block_template() {
+		// Only register if block theme is active
+		if ( ! self::is_block_theme() ) {
+			return;
+		}
+
+		// Get the block template content
+		$template_content = self::get_block_template_content();
+
+		// Register the block template
+		if ( function_exists( 'register_block_template' ) ) {
+			register_block_template(
+				self::BLOCK_TEMPLATE_SLUG,
+				array(
+					'title'       => __( 'Fanfiction Page Template', 'fanfiction-manager' ),
+					'description' => __( 'Block-based template for Fanfiction Manager plugin pages.', 'fanfiction-manager' ),
+					'content'     => $template_content,
+				)
+			);
+		}
+	}
+
+	/**
+	 * Get block template content
+	 *
+	 * Returns the HTML block template markup for FSE themes.
+	 *
+	 * @since 1.0.0
+	 * @return string Block template content.
+	 */
+	private static function get_block_template_content() {
+		// Check if custom block template file exists
+		$template_path = FANFIC_PLUGIN_DIR . 'templates/block/fanfiction-page-template.html';
+
+		if ( file_exists( $template_path ) ) {
+			return file_get_contents( $template_path );
+		}
+
+		// Default block template structure
+		return '<!-- wp:template-part {"slug":"header","theme":"' . get_stylesheet() . '","tagName":"header"} /-->
+
+<!-- wp:group {"tagName":"main","style":{"spacing":{"margin":{"top":"var:preset|spacing|50","bottom":"var:preset|spacing|50"}}},"layout":{"type":"constrained"}} -->
+<main class="wp-block-group" style="margin-top:var(--wp--preset--spacing--50);margin-bottom:var(--wp--preset--spacing--50)">
+	<!-- wp:post-title {"level":1} /-->
+
+	<!-- wp:post-content {"layout":{"type":"constrained"}} /-->
+</main>
+<!-- /wp:group -->
+
+<!-- wp:template-part {"slug":"footer","theme":"' . get_stylesheet() . '","tagName":"footer"} /-->';
+	}
+
+	/**
+	 * Get the appropriate template identifier for the current theme type
+	 *
+	 * @since 1.0.0
+	 * @return string Template identifier (file name for classic, slug for block).
+	 */
+	public static function get_template_identifier() {
+		return self::is_block_theme() ? self::BLOCK_TEMPLATE_SLUG : self::TEMPLATE_FILE;
+	}
+
+	/**
+	 * Handle theme switch
+	 *
+	 * Detects when the theme changes and updates page templates accordingly.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function handle_theme_switch() {
+		// Only run for administrators
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		// Get the previous theme type
+		$previous_theme_type = get_option( 'fanfic_theme_type', null );
+		$current_theme_type = self::is_block_theme() ? 'block' : 'classic';
+
+		// Store current theme type
+		update_option( 'fanfic_theme_type', $current_theme_type );
+
+		// If this is the first time, just store it and return
+		if ( null === $previous_theme_type ) {
+			return;
+		}
+
+		// If theme type hasn't changed, no action needed
+		if ( $previous_theme_type === $current_theme_type ) {
+			return;
+		}
+
+		// Try to auto-fix pages
+		$auto_fix_result = self::auto_fix_pages_for_theme_type( $current_theme_type );
+
+		if ( ! $auto_fix_result['success'] ) {
+			// Store notice for display
+			set_transient( 'fanfic_theme_switch_notice', array(
+				'type'    => 'warning',
+				'message' => sprintf(
+					/* translators: %s: theme type (Classic or Block) */
+					__( 'Your theme has changed to a %s theme. Some pages may need template reassignment.', 'fanfiction-manager' ),
+					ucfirst( $current_theme_type )
+				),
+				'details' => $auto_fix_result['message'],
+			), HOUR_IN_SECONDS );
+		} else {
+			// Store success notice
+			set_transient( 'fanfic_theme_switch_notice', array(
+				'type'    => 'success',
+				'message' => sprintf(
+					/* translators: %s: theme type (Classic or Block) */
+					__( 'Successfully updated all Fanfiction pages for the new %s theme.', 'fanfiction-manager' ),
+					ucfirst( $current_theme_type )
+				),
+				'details' => $auto_fix_result['message'],
+			), HOUR_IN_SECONDS );
+		}
+
+		// Clear theme cache
+		self::clear_theme_cache();
+	}
+
+	/**
+	 * Auto-fix pages for current theme type
+	 *
+	 * @since 1.0.0
+	 * @param string $theme_type Theme type ('classic' or 'block').
+	 * @return array Result with success status and message.
+	 */
+	private static function auto_fix_pages_for_theme_type( $theme_type ) {
+		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+
+		if ( empty( $page_ids ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'No plugin pages found to update.', 'fanfiction-manager' ),
+			);
+		}
+
+		$updated_count = 0;
+		$failed_count = 0;
+		$template_value = ( 'block' === $theme_type ) ? self::BLOCK_TEMPLATE_SLUG : self::TEMPLATE_FILE;
+
+		foreach ( $page_ids as $page_id ) {
+			if ( ! is_numeric( $page_id ) ) {
+				continue;
+			}
+
+			$page = get_post( $page_id );
+			if ( ! $page || 'page' !== $page->post_type ) {
+				$failed_count++;
+				continue;
+			}
+
+			// Update the page template
+			$result = update_post_meta( $page_id, '_wp_page_template', $template_value );
+
+			if ( false !== $result ) {
+				$updated_count++;
+			} else {
+				$failed_count++;
+			}
+		}
+
+		$success = ( $updated_count > 0 && $failed_count === 0 );
+
+		return array(
+			'success' => $success,
+			'message' => sprintf(
+				/* translators: 1: number of pages updated, 2: number of pages failed */
+				__( 'Updated %1$d page(s). Failed: %2$d.', 'fanfiction-manager' ),
+				$updated_count,
+				$failed_count
+			),
+			'updated' => $updated_count,
+			'failed'  => $failed_count,
+		);
+	}
+
+	/**
+	 * Display admin notices
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function display_admin_notices() {
+		// Check for theme switch notice
+		$notice = get_transient( 'fanfic_theme_switch_notice' );
+
+		if ( $notice && is_array( $notice ) ) {
+			$type = isset( $notice['type'] ) ? $notice['type'] : 'info';
+			$message = isset( $notice['message'] ) ? $notice['message'] : '';
+			$details = isset( $notice['details'] ) ? $notice['details'] : '';
+
+			if ( $message ) {
+				printf(
+					'<div class="notice notice-%s is-dismissible">',
+					esc_attr( $type )
+				);
+				echo '<p><strong>' . esc_html__( 'Fanfiction Manager:', 'fanfiction-manager' ) . '</strong> ' . esc_html( $message ) . '</p>';
+
+				if ( $details ) {
+					echo '<p>' . esc_html( $details ) . '</p>';
+				}
+
+				// Add fix button if it's a warning
+				if ( 'warning' === $type ) {
+					echo '<p><button class="button button-primary" id="fanfic-fix-pages-theme-switch">' . esc_html__( 'Fix Pages Now', 'fanfiction-manager' ) . '</button></p>';
+
+					// Add inline script for AJAX
+					?>
+					<script type="text/javascript">
+					jQuery(document).ready(function($) {
+						$('#fanfic-fix-pages-theme-switch').on('click', function(e) {
+							e.preventDefault();
+							var $button = $(this);
+							$button.prop('disabled', true).text('<?php echo esc_js( __( 'Fixing...', 'fanfiction-manager' ) ); ?>');
+
+							$.ajax({
+								url: ajaxurl,
+								type: 'POST',
+								data: {
+									action: 'fanfic_fix_pages_after_theme_switch',
+									nonce: '<?php echo esc_js( wp_create_nonce( 'fanfic_fix_pages_nonce' ) ); ?>'
+								},
+								success: function(response) {
+									if (response.success) {
+										$button.closest('.notice').removeClass('notice-warning').addClass('notice-success');
+										$button.closest('.notice').find('p:first').html('<strong><?php echo esc_js( __( 'Fanfiction Manager:', 'fanfiction-manager' ) ); ?></strong> ' + response.data.message);
+										$button.remove();
+									} else {
+										alert(response.data.message || '<?php echo esc_js( __( 'Failed to fix pages. Please try again.', 'fanfiction-manager' ) ); ?>');
+										$button.prop('disabled', false).text('<?php echo esc_js( __( 'Fix Pages Now', 'fanfiction-manager' ) ); ?>');
+									}
+								},
+								error: function() {
+									alert('<?php echo esc_js( __( 'An error occurred. Please try again.', 'fanfiction-manager' ) ); ?>');
+									$button.prop('disabled', false).text('<?php echo esc_js( __( 'Fix Pages Now', 'fanfiction-manager' ) ); ?>');
+								}
+							});
+						});
+					});
+					</script>
+					<?php
+				}
+
+				echo '</div>';
+
+				// Delete transient after displaying
+				delete_transient( 'fanfic_theme_switch_notice' );
+			}
+		}
+	}
+
+	/**
+	 * AJAX handler for fixing pages after theme switch
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_fix_pages_after_theme_switch() {
+		// Verify nonce
+		check_ajax_referer( 'fanfic_fix_pages_nonce', 'nonce' );
+
+		// Check permissions
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'You do not have permission to perform this action.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Get current theme type
+		$current_theme_type = self::is_block_theme() ? 'block' : 'classic';
+
+		// Attempt to fix pages
+		$result = self::auto_fix_pages_for_theme_type( $current_theme_type );
+
+		if ( $result['success'] ) {
+			wp_send_json_success( array(
+				'message' => sprintf(
+					/* translators: %d: number of pages updated */
+					__( 'Successfully updated %d page(s) for the new theme.', 'fanfiction-manager' ),
+					$result['updated']
+				),
+			) );
+		} else {
+			wp_send_json_error( array(
+				'message' => $result['message'],
+			) );
+		}
 	}
 }

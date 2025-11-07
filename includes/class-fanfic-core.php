@@ -492,6 +492,10 @@ class Fanfic_Core {
 		// Clear theme cache so template appears immediately
 		if ( class_exists( 'Fanfic_Page_Template' ) ) {
 			Fanfic_Page_Template::clear_theme_cache();
+
+			// Store initial theme type for future theme switch detection
+			$theme_type = Fanfic_Page_Template::is_block_theme() ? 'block' : 'classic';
+			update_option( 'fanfic_theme_type', $theme_type );
 		}
 
 		// Create database tables
