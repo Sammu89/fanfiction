@@ -81,6 +81,16 @@ class Fanfic_Admin {
 			array( __CLASS__, 'render_settings_page' )
 		);
 
+		// Add Layout submenu
+		add_submenu_page(
+			'fanfiction-manager',
+			__( 'Layout', 'fanfiction-manager' ),
+			__( 'Layout', 'fanfiction-manager' ),
+			'manage_options',
+			'fanfiction-layout',
+			array( __CLASS__, 'render_layout_page' )
+		);
+
 		// Add Users submenu
 		add_submenu_page(
 			'fanfiction-manager',
@@ -281,6 +291,94 @@ class Fanfic_Admin {
 				}
 				?>
 			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render Layout page
+	 *
+	 * Displays the page template and layout settings.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function render_layout_page() {
+		// Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
+		}
+
+		// Display admin notices
+		Fanfic_Settings::display_admin_notices();
+
+		?>
+		<div class="wrap">
+			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="fanfic_save_layout_settings">
+				<?php wp_nonce_field( 'fanfic_save_layout_settings_nonce', 'fanfic_layout_settings_nonce' ); ?>
+
+				<!-- Page Template Layout Settings -->
+				<h2><?php esc_html_e( 'Page Template & Layout Settings', 'fanfiction-manager' ); ?></h2>
+				<p class="description" style="margin-bottom: 15px;">
+					<?php esc_html_e( 'These settings control the layout and appearance of Fanfiction plugin pages. They are synchronized with the Customizer settings.', 'fanfiction-manager' ); ?>
+				</p>
+
+				<table class="form-table" role="presentation">
+					<tbody>
+						<!-- Show Sidebar -->
+						<tr>
+							<th scope="row">
+								<label for="fanfic_show_sidebar"><?php esc_html_e( 'Show Sidebar on Fanfiction Pages', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<?php $show_sidebar = get_option( 'fanfic_show_sidebar', '1' ); ?>
+								<label>
+									<input type="checkbox" id="fanfic_show_sidebar" name="fanfic_show_sidebar" value="1" <?php checked( '1', $show_sidebar ); ?>>
+									<?php esc_html_e( 'Display the Fanfiction Sidebar widget area on plugin pages', 'fanfiction-manager' ); ?>
+								</label>
+								<p class="description">
+									<?php
+									printf(
+										/* translators: %s: URL to widgets page */
+										esc_html__( 'Manage sidebar widgets in %s', 'fanfiction-manager' ),
+										'<a href="' . esc_url( admin_url( 'widgets.php' ) ) . '">' . esc_html__( 'Appearance → Widgets', 'fanfiction-manager' ) . '</a>'
+									);
+									?>
+								</p>
+							</td>
+						</tr>
+
+						<!-- Page Width -->
+						<tr>
+							<th scope="row">
+								<label for="fanfic_page_width"><?php esc_html_e( 'Page Width', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<?php $page_width = get_option( 'fanfic_page_width', 'theme-default' ); ?>
+								<select id="fanfic_page_width" name="fanfic_page_width">
+									<option value="theme-default" <?php selected( $page_width, 'theme-default' ); ?>>
+										<?php esc_html_e( 'Theme Default', 'fanfiction-manager' ); ?>
+									</option>
+									<option value="full-width" <?php selected( $page_width, 'full-width' ); ?>>
+										<?php esc_html_e( 'Full Width', 'fanfiction-manager' ); ?>
+									</option>
+									<option value="boxed" <?php selected( $page_width, 'boxed' ); ?>>
+										<?php esc_html_e( 'Boxed (1200px)', 'fanfiction-manager' ); ?>
+									</option>
+								</select>
+								<p class="description"><?php esc_html_e( 'Control the content width of Fanfiction pages', 'fanfiction-manager' ); ?></p>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<p class="submit">
+					<?php submit_button( __( 'Save Layout Settings', 'fanfiction-manager' ), 'primary', 'submit', false ); ?>
+				</p>
+			</form>
 		</div>
 		<?php
 	}
