@@ -1,4 +1,3 @@
-<div class="fanfic-template-wrapper">
 <?php
 /**
  * Template Name: Edit Chapter
@@ -18,6 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+get_header();
+
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
 	?>
@@ -30,6 +31,7 @@ if ( ! is_user_logged_in() ) {
 		</p>
 	</div>
 	<?php
+	get_footer();
 	return;
 }
 
@@ -69,6 +71,7 @@ if ( ! $story_id || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 		</p>
 	</div>
 	<?php
+	get_footer();
 	return;
 }
 
@@ -86,6 +89,7 @@ if ( $chapter_id ) {
 			</p>
 		</div>
 		<?php
+		get_footer();
 		return;
 	}
 }
@@ -285,4 +289,5 @@ $page_description = $chapter_id
 <?php endif; ?>
 
 </main>
-</div>
+
+<?php get_footer(); ?>
