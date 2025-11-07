@@ -328,6 +328,32 @@ class Fanfic_Admin {
 
 				<table class="form-table" role="presentation">
 					<tbody>
+						<!-- Show Page Title -->
+						<tr>
+							<th scope="row">
+								<label for="fanfic_show_page_title"><?php esc_html_e( 'Show Page Title', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<?php
+								$show_page_title = get_option( 'fanfic_show_page_title', 'auto' );
+								?>
+								<select id="fanfic_show_page_title" name="fanfic_show_page_title">
+									<option value="auto" <?php selected( $show_page_title, 'auto' ); ?>>
+										<?php esc_html_e( 'Auto-detect (recommended)', 'fanfiction-manager' ); ?>
+									</option>
+									<option value="always" <?php selected( $show_page_title, 'always' ); ?>>
+										<?php esc_html_e( 'Always show', 'fanfiction-manager' ); ?>
+									</option>
+									<option value="never" <?php selected( $show_page_title, 'never' ); ?>>
+										<?php esc_html_e( 'Never show', 'fanfiction-manager' ); ?>
+									</option>
+								</select>
+								<p class="description">
+									<?php esc_html_e( 'Controls the H1 page title in the content area. Auto-detect hides it for themes that already display page titles (OceanWP, Astra, etc.) to avoid duplicate H1 tags.', 'fanfiction-manager' ); ?>
+								</p>
+							</td>
+						</tr>
+
 						<!-- Show Sidebar -->
 						<tr>
 							<th scope="row">
