@@ -417,7 +417,7 @@ class Fanfic_URL_Config {
 
                                 // Create Story
                                 self::render_slug_input_row( array(
-                                    'id'             => 'fanfic_create_story_slug',
+                                    'id'             => 'fanfic_create-story_slug',
                                     'name'           => 'fanfic_create_story_slug',
                                     'label'          => __( 'Create Story', 'fanfiction-manager' ),
                                     'value'          => isset( $current_slugs['create-story'] ) ? $current_slugs['create-story'] : 'create-story',
