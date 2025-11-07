@@ -3780,17 +3780,19 @@ input[type="button"]:focus {
 	}
 }
 
+
 /* ========================================================================
    Fanfiction Page Template - Layout Styles
    ======================================================================== */
 
 /**
- * These minimal styles provide basic layout for the Fanfiction page template.
- * All typography, colors, spacing inherit from the active theme.
+ * Highly specific styles scoped to body.fanfiction-page to prevent theme conflicts.
+ * All selectors prefixed with body.fanfiction-page ensure they ONLY affect plugin pages.
+ * Typography, colors, and most spacing inherit from the active theme.
  */
 
-/* Template wrapper with optional sidebar */
-.fanfiction-page-wrapper {
+/* Template wrapper with optional sidebar - ONLY on fanfiction pages */
+body.fanfiction-page .fanfiction-page-wrapper {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 2rem;
@@ -3798,65 +3800,65 @@ input[type="button"]:focus {
 	width: 100%;
 }
 
-/* Main content area */
-.fanfiction-page-wrapper .fanfiction-page-main {
+/* Main content area - ONLY on fanfiction pages */
+body.fanfiction-page .fanfiction-page-wrapper .fanfiction-page-main {
 	flex: 1 1 0%;
 	min-width: 0; /* Prevent flex item overflow */
 }
 
-/* Sidebar */
-.fanfiction-page-wrapper .fanfiction-sidebar {
+/* Sidebar - ONLY on fanfiction pages */
+body.fanfiction-page .fanfiction-page-wrapper .fanfiction-sidebar {
 	flex: 0 0 300px;
 	min-width: 250px;
 }
 
 /* No sidebar layout - full width content */
-.fanfic-no-sidebar .fanfiction-page-wrapper {
+body.fanfiction-page.fanfic-no-sidebar .fanfiction-page-wrapper {
 	display: block;
 }
 
-.fanfic-no-sidebar .fanfiction-page-main {
+body.fanfiction-page.fanfic-no-sidebar .fanfiction-page-main {
 	max-width: 100%;
 }
 
 /* Full width layout option */
-.fanfiction-width-full-width .fanfiction-page-wrapper {
+body.fanfiction-page.fanfiction-width-full-width .fanfiction-page-wrapper {
 	max-width: 100%;
 }
 
 /* Boxed layout option */
-.fanfiction-width-boxed .fanfiction-page-wrapper {
+body.fanfiction-page.fanfiction-width-boxed .fanfiction-page-wrapper {
 	max-width: 1200px;
 }
 
-/* Responsive: Stack sidebar on mobile */
+/* Responsive: Stack sidebar on mobile - ONLY on fanfiction pages */
 @media (max-width: 768px) {
-	.fanfiction-page-wrapper {
+	body.fanfiction-page .fanfiction-page-wrapper {
 		flex-direction: column;
 	}
 	
-	.fanfiction-page-wrapper .fanfiction-sidebar {
+	body.fanfiction-page .fanfiction-page-wrapper .fanfiction-sidebar {
 		flex: 1 1 auto;
 		width: 100%;
 	}
 }
 
-/* Widget styling - minimal, inherits from theme */
-.fanfiction-sidebar .widget {
+/* Widget styling - minimal, inherits from theme - ONLY fanfiction sidebar */
+body.fanfiction-page .fanfiction-sidebar .widget {
 	margin-bottom: 1.5rem;
 }
 
-.fanfiction-sidebar .widget:last-child {
+body.fanfiction-page .fanfiction-sidebar .widget:last-child {
 	margin-bottom: 0;
 }
 
 /* Entry content - ensure shortcode content displays properly */
-.fanfiction-page .entry-content {
+body.fanfiction-page .entry-content {
 	overflow: visible; /* Prevent theme from cutting off content */
 }
 
 /* Clear floats inside fanfiction content */
-.fanfiction-page .entry-content::after {
+body.fanfiction-page .entry-content::after {
 	content: "";
 	display: table;
 	clear: both;
