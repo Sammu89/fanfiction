@@ -3779,3 +3779,87 @@ input[type="button"]:focus {
 		display: none;
 	}
 }
+
+
+/* ========================================================================
+   Fanfiction Page Template - Layout Styles
+   ======================================================================== */
+
+/**
+ * Highly specific styles scoped to body.fanfiction-page to prevent theme conflicts.
+ * All selectors prefixed with body.fanfiction-page ensure they ONLY affect plugin pages.
+ * Typography, colors, and most spacing inherit from the active theme.
+ */
+
+/* Template wrapper with optional sidebar - ONLY on fanfiction pages */
+body.fanfiction-page .fanfiction-page-wrapper {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2rem;
+	margin: 0 auto;
+	width: 100%;
+}
+
+/* Main content area - ONLY on fanfiction pages */
+body.fanfiction-page .fanfiction-page-wrapper .fanfiction-page-main {
+	flex: 1 1 0%;
+	min-width: 0; /* Prevent flex item overflow */
+}
+
+/* Sidebar - ONLY on fanfiction pages */
+body.fanfiction-page .fanfiction-page-wrapper .fanfiction-sidebar {
+	flex: 0 0 300px;
+	min-width: 250px;
+}
+
+/* No sidebar layout - full width content */
+body.fanfiction-page.fanfic-no-sidebar .fanfiction-page-wrapper {
+	display: block;
+}
+
+body.fanfiction-page.fanfic-no-sidebar .fanfiction-page-main {
+	max-width: 100%;
+}
+
+/* Full width layout option */
+body.fanfiction-page.fanfiction-width-full-width .fanfiction-page-wrapper {
+	max-width: 100%;
+}
+
+/* Boxed layout option */
+body.fanfiction-page.fanfiction-width-boxed .fanfiction-page-wrapper {
+	max-width: 1200px;
+}
+
+/* Responsive: Stack sidebar on mobile - ONLY on fanfiction pages */
+@media (max-width: 768px) {
+	body.fanfiction-page .fanfiction-page-wrapper {
+		flex-direction: column;
+	}
+	
+	body.fanfiction-page .fanfiction-page-wrapper .fanfiction-sidebar {
+		flex: 1 1 auto;
+		width: 100%;
+	}
+}
+
+/* Widget styling - minimal, inherits from theme - ONLY fanfiction sidebar */
+body.fanfiction-page .fanfiction-sidebar .widget {
+	margin-bottom: 1.5rem;
+}
+
+body.fanfiction-page .fanfiction-sidebar .widget:last-child {
+	margin-bottom: 0;
+}
+
+/* Entry content - ensure shortcode content displays properly */
+body.fanfiction-page .entry-content {
+	overflow: visible; /* Prevent theme from cutting off content */
+}
+
+/* Clear floats inside fanfiction content */
+body.fanfiction-page .entry-content::after {
+	content: "";
+	display: table;
+	clear: both;
+}
