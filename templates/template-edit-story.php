@@ -1,4 +1,3 @@
-<div class="fanfic-template-wrapper">
 <?php
 /**
  * Template Name: Edit Story
@@ -366,4 +365,3 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 </script>
 
 </main>
-</div>

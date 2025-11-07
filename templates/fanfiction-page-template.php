@@ -51,14 +51,46 @@ endif;
 ?>
 <div class="entry-content">
 <?php
-the_content();
-// Pagination for multi-page content
-wp_link_pages(
-    array(
-        'before' => '<div class="page-links">' . esc_html__( 'Pages:', 'fanfiction-manager' ),
-        'after'  => '</div>',
-    )
-);
+// Check if a custom content template is set (for story/chapter views)
+global $fanfic_content_template;
+
+if ( ! empty( $fanfic_content_template ) ) {
+    // Load the specified content template
+    $content_template_path = '';
+
+    // Check theme directory first
+    $theme_template = locate_template( array(
+        'fanfiction-manager/' . $fanfic_content_template,
+        $fanfic_content_template,
+    ) );
+
+    if ( $theme_template ) {
+        $content_template_path = $theme_template;
+    } else {
+        // Check plugin templates directory
+        $plugin_template = FANFIC_PLUGIN_DIR . 'templates/' . $fanfic_content_template;
+        if ( file_exists( $plugin_template ) ) {
+            $content_template_path = $plugin_template;
+        }
+    }
+
+    if ( $content_template_path ) {
+        include $content_template_path;
+    } else {
+        // Fallback to the_content() if template not found
+        the_content();
+    }
+} else {
+    // Default behavior for regular pages
+    the_content();
+    // Pagination for multi-page content
+    wp_link_pages(
+        array(
+            'before' => '<div class="page-links">' . esc_html__( 'Pages:', 'fanfiction-manager' ),
+            'after'  => '</div>',
+        )
+    );
+}
 ?>
 </div>
 </article>

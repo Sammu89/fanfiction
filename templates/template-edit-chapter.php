@@ -1,4 +1,3 @@
-<div class="fanfic-template-wrapper">
 <?php
 /**
  * Template Name: Edit Chapter
@@ -285,4 +284,3 @@ $page_description = $chapter_id
 <?php endif; ?>
 
 </main>
-</div>
