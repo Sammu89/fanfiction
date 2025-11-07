@@ -3821,15 +3821,8 @@ body.fanfiction-page.fanfic-no-sidebar .fanfiction-page-main {
 	max-width: 100%;
 }
 
-/* Full width layout option */
-body.fanfiction-page.fanfiction-width-full-width .fanfiction-page-wrapper {
-	max-width: 100%;
-}
-
-/* Boxed layout option */
-body.fanfiction-page.fanfiction-width-boxed .fanfiction-page-wrapper {
-	max-width: 1200px;
-}
+/* Custom width applied via inline styles based on user settings */
+/* Pixels use max-width (responsive), percentages use width (exact) */
 
 /* Responsive: Stack sidebar on mobile - ONLY on fanfiction pages */
 @media (max-width: 768px) {

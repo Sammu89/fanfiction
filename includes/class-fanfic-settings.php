@@ -1971,12 +1971,35 @@ class Fanfic_Settings {
 			update_option( 'fanfic_show_sidebar', '0' );
 		}
 
-		// Handle Page Width setting
-		if ( isset( $_POST['fanfic_page_width'] ) ) {
-			$page_width = sanitize_text_field( wp_unslash( $_POST['fanfic_page_width'] ) );
-			$allowed_widths = array( 'theme-default', 'full-width', 'boxed' );
-			if ( in_array( $page_width, $allowed_widths, true ) ) {
-				update_option( 'fanfic_page_width', $page_width );
+		// Handle Content Width setting
+		if ( isset( $_POST['fanfic_page_width_mode'] ) ) {
+			$width_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_page_width_mode'] ) );
+
+			if ( 'automatic' === $width_mode ) {
+				update_option( 'fanfic_page_width', 'automatic' );
+			} elseif ( 'custom' === $width_mode && isset( $_POST['fanfic_page_width_value'] ) && isset( $_POST['fanfic_page_width_unit'] ) ) {
+				$width_value = absint( $_POST['fanfic_page_width_value'] );
+				$width_unit = sanitize_text_field( wp_unslash( $_POST['fanfic_page_width_unit'] ) );
+
+				// Validate unit
+				if ( ! in_array( $width_unit, array( 'px', '%' ), true ) ) {
+					$width_unit = 'px';
+				}
+
+				// Validate percentage (max 100%)
+				if ( '%' === $width_unit && $width_value > 100 ) {
+					$width_value = 100;
+				}
+
+				// Ensure reasonable minimum for pixels
+				if ( 'px' === $width_unit && $width_value < 300 ) {
+					$width_value = 300;
+				}
+
+				// Ensure value is not 0
+				if ( $width_value > 0 ) {
+					update_option( 'fanfic_page_width', $width_value . $width_unit );
+				}
 			}
 		}
 

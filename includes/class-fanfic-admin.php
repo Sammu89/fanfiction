@@ -377,25 +377,53 @@ class Fanfic_Admin {
 							</td>
 						</tr>
 
-						<!-- Page Width -->
+						<!-- Content Width -->
 						<tr>
 							<th scope="row">
-								<label for="fanfic_page_width"><?php esc_html_e( 'Page Width', 'fanfiction-manager' ); ?></label>
+								<?php esc_html_e( 'Content Width', 'fanfiction-manager' ); ?>
 							</th>
 							<td>
-								<?php $page_width = get_option( 'fanfic_page_width', 'theme-default' ); ?>
-								<select id="fanfic_page_width" name="fanfic_page_width">
-									<option value="theme-default" <?php selected( $page_width, 'theme-default' ); ?>>
-										<?php esc_html_e( 'Theme Default', 'fanfiction-manager' ); ?>
-									</option>
-									<option value="full-width" <?php selected( $page_width, 'full-width' ); ?>>
-										<?php esc_html_e( 'Full Width', 'fanfiction-manager' ); ?>
-									</option>
-									<option value="boxed" <?php selected( $page_width, 'boxed' ); ?>>
-										<?php esc_html_e( 'Boxed (1200px)', 'fanfiction-manager' ); ?>
-									</option>
-								</select>
-								<p class="description"><?php esc_html_e( 'Control the content width of Fanfiction pages', 'fanfiction-manager' ); ?></p>
+								<?php
+								$page_width = get_option( 'fanfic_page_width', '1200px' );
+								$is_automatic = ( 'automatic' === $page_width );
+								$custom_value = '';
+								$custom_unit = 'px';
+
+								if ( ! $is_automatic && preg_match( '/^(\d+)(px|%)$/', $page_width, $matches ) ) {
+									$custom_value = $matches[1];
+									$custom_unit = $matches[2];
+								}
+								?>
+
+								<fieldset>
+									<label style="display: block; margin-bottom: 10px;">
+										<input type="radio" name="fanfic_page_width_mode" value="automatic" <?php checked( $is_automatic ); ?>>
+										<?php esc_html_e( 'Automatic (adapt to theme)', 'fanfiction-manager' ); ?>
+									</label>
+
+									<label style="display: block; margin-bottom: 5px;">
+										<input type="radio" name="fanfic_page_width_mode" value="custom" <?php checked( ! $is_automatic ); ?>>
+										<?php esc_html_e( 'Custom width:', 'fanfiction-manager' ); ?>
+									</label>
+
+									<div style="margin-left: 25px;">
+										<input type="number"
+											id="fanfic_page_width_value"
+											name="fanfic_page_width_value"
+											value="<?php echo esc_attr( $custom_value ? $custom_value : '1200' ); ?>"
+											min="1"
+											style="width: 100px;">
+
+										<select id="fanfic_page_width_unit" name="fanfic_page_width_unit" style="width: 70px;">
+											<option value="px" <?php selected( $custom_unit, 'px' ); ?>>px</option>
+											<option value="%" <?php selected( $custom_unit, '%' ); ?>>%</option>
+										</select>
+									</div>
+								</fieldset>
+
+								<p class="description">
+									<?php esc_html_e( 'Automatic uses theme\'s default width. Custom width: pixels are responsive (max-width), percentages are exact proportions.', 'fanfiction-manager' ); ?>
+								</p>
 							</td>
 						</tr>
 					</tbody>
