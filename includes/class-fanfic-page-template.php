@@ -24,18 +24,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Page_Template {
 
 	/**
-	 * Template file name (Classic themes)
+	 * Template file name
 	 *
 	 * @var string
 	 */
 	const TEMPLATE_FILE = 'fanfiction-page-template.php';
-
-	/**
-	 * Block template slug (FSE themes)
-	 *
-	 * @var string
-	 */
-	const BLOCK_TEMPLATE_SLUG = 'fanfiction-manager//fanfiction-page-template';
 
 	/**
 	 * Initialize the page template system
@@ -47,16 +40,10 @@ class Fanfic_Page_Template {
 		// Clear theme cache to ensure our template appears
 		self::clear_theme_cache();
 
-		// Register templates based on theme type
-		if ( self::is_block_theme() ) {
-			// Register block template for FSE themes
-			add_action( 'init', array( __CLASS__, 'register_block_template' ) );
-		} else {
-			// Register classic PHP template
-			add_filter( 'theme_page_templates', array( __CLASS__, 'register_page_template' ), 10, 3 );
-		}
+		// Register classic PHP template (not used for FSE themes)
+		add_filter( 'theme_page_templates', array( __CLASS__, 'register_page_template' ), 10, 3 );
 
-		// Load template for pages and virtual pages
+		// Load template for pages and virtual pages (classic themes only)
 		add_filter( 'template_include', array( __CLASS__, 'load_page_template' ), 99 );
 
 		// Auto-assign template to plugin pages
@@ -430,71 +417,13 @@ class Fanfic_Page_Template {
 	}
 
 	/**
-	 * Register block template for FSE themes
+	 * Get the template file name
 	 *
 	 * @since 1.0.0
-	 * @return void
-	 */
-	public static function register_block_template() {
-		// Only register if block theme is active
-		if ( ! self::is_block_theme() ) {
-			return;
-		}
-
-		// Get the block template content
-		$template_content = self::get_block_template_content();
-
-		// Register the block template
-		if ( function_exists( 'register_block_template' ) ) {
-			register_block_template(
-				self::BLOCK_TEMPLATE_SLUG,
-				array(
-					'title'       => __( 'Fanfiction Page Template', 'fanfiction-manager' ),
-					'description' => __( 'Block-based template for Fanfiction Manager plugin pages.', 'fanfiction-manager' ),
-					'content'     => $template_content,
-				)
-			);
-		}
-	}
-
-	/**
-	 * Get block template content
-	 *
-	 * Returns the HTML block template markup for FSE themes.
-	 *
-	 * @since 1.0.0
-	 * @return string Block template content.
-	 */
-	private static function get_block_template_content() {
-		// Check if custom block template file exists
-		$template_path = FANFIC_PLUGIN_DIR . 'templates/block/fanfiction-page-template.html';
-
-		if ( file_exists( $template_path ) ) {
-			return file_get_contents( $template_path );
-		}
-
-		// Default block template structure
-		return '<!-- wp:template-part {"slug":"header","theme":"' . get_stylesheet() . '","tagName":"header"} /-->
-
-<!-- wp:group {"tagName":"main","style":{"spacing":{"margin":{"top":"var:preset|spacing|50","bottom":"var:preset|spacing|50"}}},"layout":{"type":"constrained"}} -->
-<main class="wp-block-group" style="margin-top:var(--wp--preset--spacing--50);margin-bottom:var(--wp--preset--spacing--50)">
-	<!-- wp:post-title {"level":1} /-->
-
-	<!-- wp:post-content {"layout":{"type":"constrained"}} /-->
-</main>
-<!-- /wp:group -->
-
-<!-- wp:template-part {"slug":"footer","theme":"' . get_stylesheet() . '","tagName":"footer"} /-->';
-	}
-
-	/**
-	 * Get the appropriate template identifier for the current theme type
-	 *
-	 * @since 1.0.0
-	 * @return string Template identifier (file name for classic, slug for block).
+	 * @return string Template file name.
 	 */
 	public static function get_template_identifier() {
-		return self::is_block_theme() ? self::BLOCK_TEMPLATE_SLUG : self::TEMPLATE_FILE;
+		return self::TEMPLATE_FILE;
 	}
 
 	/**
@@ -562,6 +491,9 @@ class Fanfic_Page_Template {
 	/**
 	 * Auto-fix pages for current theme type
 	 *
+	 * For classic themes, assigns the plugin template.
+	 * For FSE themes, sets to 'default' (theme handles it).
+	 *
 	 * @since 1.0.0
 	 * @param string $theme_type Theme type ('classic' or 'block').
 	 * @return array Result with success status and message.
@@ -578,7 +510,8 @@ class Fanfic_Page_Template {
 
 		$updated_count = 0;
 		$failed_count = 0;
-		$template_value = ( 'block' === $theme_type ) ? self::BLOCK_TEMPLATE_SLUG : self::TEMPLATE_FILE;
+		// Classic themes use plugin template, FSE themes use default (theme's page template)
+		$template_value = ( 'classic' === $theme_type ) ? self::TEMPLATE_FILE : 'default';
 
 		foreach ( $page_ids as $page_id ) {
 			if ( ! is_numeric( $page_id ) ) {
