@@ -563,13 +563,60 @@ class Fanfic_URL_Manager {
 		error_log( 'This IS a virtual page: ' . $fanfic_page );
 
 		// Tell WordPress this is a page request.
-		global $wp_query;
+		global $wp_query, $post;
 		$wp_query->is_page        = true;
 		$wp_query->is_singular    = true;
 		$wp_query->is_home        = false;
 		$wp_query->is_archive     = false;
 		$wp_query->is_category    = false;
 		$wp_query->is_404         = false;
+
+		// CRITICAL FIX: Create and set global $post immediately
+		// Breadcrumbs render during template_redirect, BEFORE the main query runs
+		// So we must set global $post HERE, not wait for wp hook or the_posts filter
+		$page_config = $this->get_virtual_page_config( $fanfic_page );
+
+		if ( $page_config ) {
+			error_log( 'Creating virtual post EARLY for: ' . $fanfic_page );
+
+			// Create minimal post object for breadcrumbs/theme features
+			$virtual_post_obj = new stdClass();
+			$virtual_post_obj->ID = -999;
+			$virtual_post_obj->post_author = 1;
+			$virtual_post_obj->post_date = current_time( 'mysql' );
+			$virtual_post_obj->post_date_gmt = current_time( 'mysql', 1 );
+			$virtual_post_obj->post_content = '';
+			$virtual_post_obj->post_title = $page_config['title'];
+			$virtual_post_obj->post_excerpt = '';
+			$virtual_post_obj->post_status = 'publish';
+			$virtual_post_obj->comment_status = 'closed';
+			$virtual_post_obj->ping_status = 'closed';
+			$virtual_post_obj->post_password = '';
+			$virtual_post_obj->post_name = $fanfic_page;
+			$virtual_post_obj->to_ping = '';
+			$virtual_post_obj->pinged = '';
+			$virtual_post_obj->post_modified = current_time( 'mysql' );
+			$virtual_post_obj->post_modified_gmt = current_time( 'mysql', 1 );
+			$virtual_post_obj->post_content_filtered = '';
+			$virtual_post_obj->post_parent = 0;
+			$virtual_post_obj->guid = get_home_url( '/' . $fanfic_page );
+			$virtual_post_obj->menu_order = 0;
+			$virtual_post_obj->post_type = 'page';
+			$virtual_post_obj->post_mime_type = '';
+			$virtual_post_obj->comment_count = 0;
+			$virtual_post_obj->filter = 'raw';
+
+			// Convert to WP_Post and set custom properties
+			$post = new WP_Post( $virtual_post_obj );
+			$post->fanfic_page_key = $fanfic_page;
+
+			// Set all query vars
+			$wp_query->post = $post;
+			$wp_query->queried_object = $post;
+			$wp_query->queried_object_id = $post->ID;
+
+			error_log( 'Set global $post EARLY: ID=' . $post->ID . ', Type=' . $post->post_type );
+		}
 
 		error_log( 'Set wp_query flags for virtual page' );
 	}
