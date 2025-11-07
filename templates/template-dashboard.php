@@ -171,19 +171,14 @@ $current_user = wp_get_current_user();
 			<span><?php esc_html_e( 'Create New Story', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="<?php echo esc_url( fanfic_get_story_archive_url() ); ?>" class="fanfic-action-button fanfic-action-secondary">
-			<span class="dashicons dashicons-archive" aria-hidden="true"></span>
-			<span><?php esc_html_e( 'View Archive', 'fanfiction-manager' ); ?></span>
+		<a href="<?php echo esc_url( fanfic_get_dashboard_url() . '#my-stories' ); ?>" class="fanfic-action-button fanfic-action-secondary">
+			<span class="dashicons dashicons-portfolio" aria-hidden="true"></span>
+			<span><?php esc_html_e( 'View My Stories', 'fanfiction-manager' ); ?></span>
 		</a>
 
 		<a href="<?php echo esc_url( fanfic_get_edit_profile_url() ); ?>" class="fanfic-action-button fanfic-action-secondary">
 			<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?></span>
-		</a>
-
-		<a href="<?php echo esc_url( fanfic_get_dashboard_url() . '#my-stories' ); ?>" class="fanfic-action-button fanfic-action-secondary">
-			<span class="dashicons dashicons-portfolio" aria-hidden="true"></span>
-			<span><?php esc_html_e( 'View My Stories', 'fanfiction-manager' ); ?></span>
 		</a>
 	</div>
 </section>
@@ -191,12 +186,6 @@ $current_user = wp_get_current_user();
 <!-- Main Dashboard Content -->
 <div class="fanfic-dashboard-main">
 	<div class="fanfic-dashboard-primary">
-		<!-- Author Dashboard Home Shortcode -->
-		<section class="fanfic-dashboard-overview" aria-labelledby="overview-heading">
-			<h2 id="overview-heading"><?php esc_html_e( 'Dashboard Overview', 'fanfiction-manager' ); ?></h2>
-			<?php echo do_shortcode( '[author-dashboard-home]' ); ?>
-		</section>
-
 		<!-- Manage Stories Section -->
 		<section class="fanfic-dashboard-stories" id="my-stories" aria-labelledby="stories-heading">
 			<h2 id="stories-heading"><?php esc_html_e( 'Your Stories', 'fanfiction-manager' ); ?></h2>
@@ -211,7 +200,15 @@ $current_user = wp_get_current_user();
 		<!-- Notifications -->
 		<section class="fanfic-dashboard-widget" aria-labelledby="notifications-heading">
 			<h3 id="notifications-heading"><?php esc_html_e( 'Notifications', 'fanfiction-manager' ); ?></h3>
-			<?php echo do_shortcode( '[user-notifications]' ); ?>
+			<div class="fanfic-notifications-placeholder">
+				<p><?php esc_html_e( 'Notifications system coming soon! We will implement notifications for:', 'fanfiction-manager' ); ?></p>
+				<ul>
+					<li><?php esc_html_e( 'New chapters added to bookmarked stories', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'Updates from bookmarked authors', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'New comments on your stories', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'New ratings on your stories', 'fanfiction-manager' ); ?></li>
+				</ul>
+			</div>
 		</section>
 
 		<!-- Recent Activity -->
@@ -222,15 +219,15 @@ $current_user = wp_get_current_user();
 			</div>
 		</section>
 
-		<!-- Popular Stories -->
-		<section class="fanfic-dashboard-widget" aria-labelledby="popular-stories-heading">
-			<h3 id="popular-stories-heading"><?php esc_html_e( 'Popular Stories', 'fanfiction-manager' ); ?></h3>
+		<!-- Bookmarked Stories -->
+		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarked-stories-heading">
+			<h3 id="bookmarked-stories-heading"><?php esc_html_e( 'Bookmarked Stories', 'fanfiction-manager' ); ?></h3>
 			<?php echo do_shortcode( '[most-bookmarked-stories limit="5" timeframe="week"]' ); ?>
 		</section>
 
-		<!-- Trending Authors -->
-		<section class="fanfic-dashboard-widget" aria-labelledby="trending-authors-heading">
-			<h3 id="trending-authors-heading"><?php esc_html_e( 'Trending Authors', 'fanfiction-manager' ); ?></h3>
+		<!-- Bookmarked Authors -->
+		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarked-authors-heading">
+			<h3 id="bookmarked-authors-heading"><?php esc_html_e( 'Bookmarked Authors', 'fanfiction-manager' ); ?></h3>
 			<?php echo do_shortcode( '[most-followed-authors limit="5" timeframe="week"]' ); ?>
 		</section>
 	</aside>
