@@ -1084,6 +1084,12 @@ class Fanfic_Templates {
 			return false;
 		}
 
+		// Assign the appropriate template based on theme type
+		if ( class_exists( 'Fanfic_Page_Template' ) ) {
+			$template_identifier = Fanfic_Page_Template::get_template_identifier();
+			update_post_meta( $page_id, '_wp_page_template', $template_identifier );
+		}
+
 		// Successfully created, add to created array
 		if ( is_array( $result ) ) {
 			$result['created'][] = $key;
