@@ -33,9 +33,29 @@ if ( ! is_user_logged_in() ) {
 	return;
 }
 
-// Get story ID and chapter ID from URL parameters
-$story_id = isset( $_GET['story_id'] ) ? absint( $_GET['story_id'] ) : 0;
-$chapter_id = isset( $_GET['chapter_id'] ) ? absint( $_GET['chapter_id'] ) : 0;
+// Get story ID and chapter ID from current post or URL parameters (for backwards compatibility)
+$story_id = 0;
+$chapter_id = 0;
+
+// Check if we're on a story post with ?action=add-chapter
+if ( is_singular( 'fanfiction_story' ) ) {
+	$story_id = get_the_ID();
+	$chapter_id = 0; // Creating new chapter
+}
+// Check if we're on a chapter post with ?action=edit
+elseif ( is_singular( 'fanfiction_chapter' ) ) {
+	$chapter_id = get_the_ID();
+	$chapter_post = get_post( $chapter_id );
+	$story_id = $chapter_post ? $chapter_post->post_parent : 0;
+}
+
+// Fallback to URL parameters for backwards compatibility
+if ( ! $story_id && isset( $_GET['story_id'] ) ) {
+	$story_id = absint( $_GET['story_id'] );
+}
+if ( ! $chapter_id && isset( $_GET['chapter_id'] ) ) {
+	$chapter_id = absint( $_GET['chapter_id'] );
+}
 
 // Validate story exists and user has permission
 if ( ! $story_id || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {

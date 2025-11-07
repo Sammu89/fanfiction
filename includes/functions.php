@@ -413,10 +413,18 @@ function fanfic_get_edit_story_url( $story_id ) {
 /**
  * Get edit chapter URL
  *
- * @param int $chapter_id The chapter ID to edit.
- * @return string The edit chapter URL with ?action=edit.
+ * @param int $chapter_id The chapter ID to edit (0 for creating new chapter).
+ * @param int $story_id   Optional. The story ID when creating a new chapter.
+ * @return string The edit chapter URL with ?action=edit or add-chapter.
  */
-function fanfic_get_edit_chapter_url( $chapter_id ) {
+function fanfic_get_edit_chapter_url( $chapter_id, $story_id = 0 ) {
+	// If chapter_id is 0 and story_id is provided, return add-chapter URL
+	if ( 0 === $chapter_id && $story_id > 0 ) {
+		$story_url = get_permalink( $story_id );
+		return add_query_arg( 'action', 'add-chapter', $story_url );
+	}
+
+	// Otherwise, return edit chapter URL
 	return Fanfic_URL_Manager::get_instance()->get_edit_url( 'chapter', $chapter_id );
 }
 
