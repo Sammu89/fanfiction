@@ -541,92 +541,34 @@ class Fanfic_URL_Manager {
 	/**
 	 * Setup virtual pages for dynamic content
 	 *
-	 * Detects when we're on a dynamic page and prepares WordPress to treat it
-	 * as a normal page that will work with any theme's page.php template.
+	 * Detects when we're on a dynamic page and sets WordPress query flags.
+	 * The actual WP_Post object is created in the_posts filter.
 	 *
 	 * @since 2.0.0
 	 */
 	public function setup_virtual_pages() {
 		$fanfic_page = get_query_var( 'fanfic_page' );
 
-		// DEBUG: Always log this function
-		error_log( '=== setup_virtual_pages() CALLED ===' );
-		error_log( 'REQUEST_URI: ' . $_SERVER['REQUEST_URI'] );
-		error_log( 'fanfic_page query var: ' . var_export( $fanfic_page, true ) );
-		error_log( 'All query vars: ' . print_r( $GLOBALS['wp']->query_vars, true ) );
-
 		if ( empty( $fanfic_page ) ) {
-			error_log( 'EXIT: fanfic_page is empty - NOT a virtual page' );
 			return;
 		}
 
-		error_log( 'This IS a virtual page: ' . $fanfic_page );
-
 		// Tell WordPress this is a page request.
-		global $wp_query, $post;
+		global $wp_query;
 		$wp_query->is_page        = true;
 		$wp_query->is_singular    = true;
 		$wp_query->is_home        = false;
 		$wp_query->is_archive     = false;
 		$wp_query->is_category    = false;
 		$wp_query->is_404         = false;
-
-		// CRITICAL FIX: Create and set global $post immediately
-		// Breadcrumbs render during template_redirect, BEFORE the main query runs
-		// So we must set global $post HERE, not wait for wp hook or the_posts filter
-		$page_config = $this->get_virtual_page_config( $fanfic_page );
-
-		if ( $page_config ) {
-			error_log( 'Creating virtual post EARLY for: ' . $fanfic_page );
-
-			// Create minimal post object for breadcrumbs/theme features
-			$virtual_post_obj = new stdClass();
-			$virtual_post_obj->ID = -999;
-			$virtual_post_obj->post_author = 1;
-			$virtual_post_obj->post_date = current_time( 'mysql' );
-			$virtual_post_obj->post_date_gmt = current_time( 'mysql', 1 );
-			$virtual_post_obj->post_content = '';
-			$virtual_post_obj->post_title = $page_config['title'];
-			$virtual_post_obj->post_excerpt = '';
-			$virtual_post_obj->post_status = 'publish';
-			$virtual_post_obj->comment_status = 'closed';
-			$virtual_post_obj->ping_status = 'closed';
-			$virtual_post_obj->post_password = '';
-			$virtual_post_obj->post_name = $fanfic_page;
-			$virtual_post_obj->to_ping = '';
-			$virtual_post_obj->pinged = '';
-			$virtual_post_obj->post_modified = current_time( 'mysql' );
-			$virtual_post_obj->post_modified_gmt = current_time( 'mysql', 1 );
-			$virtual_post_obj->post_content_filtered = '';
-			$virtual_post_obj->post_parent = 0;
-			$virtual_post_obj->guid = get_home_url( '/' . $fanfic_page );
-			$virtual_post_obj->menu_order = 0;
-			$virtual_post_obj->post_type = 'page';
-			$virtual_post_obj->post_mime_type = '';
-			$virtual_post_obj->comment_count = 0;
-			$virtual_post_obj->filter = 'raw';
-
-			// Convert to WP_Post and set custom properties
-			$post = new WP_Post( $virtual_post_obj );
-			$post->fanfic_page_key = $fanfic_page;
-
-			// Set all query vars
-			$wp_query->post = $post;
-			$wp_query->queried_object = $post;
-			$wp_query->queried_object_id = $post->ID;
-
-			error_log( 'Set global $post EARLY: ID=' . $post->ID . ', Type=' . $post->post_type );
-		}
-
-		error_log( 'Set wp_query flags for virtual page' );
 	}
 
 	/**
 	 * Setup virtual page postdata
 	 *
-	 * Sets up the global $post and all WordPress postdata variables at the proper time.
-	 * This runs on the 'wp' hook at priority 999, ensuring globals persist through
-	 * template_redirect and other hooks that might reset them.
+	 * Backup function that ensures global $post is set on the 'wp' hook.
+	 * This serves as a safety net in case the_posts filter doesn't run or
+	 * something resets the globals between the_posts and template_redirect.
 	 *
 	 * @since 2.0.0
 	 * @return void
@@ -634,62 +576,38 @@ class Fanfic_URL_Manager {
 	public function setup_virtual_page_postdata() {
 		$fanfic_page = get_query_var( 'fanfic_page' );
 
-		// DEBUG: Log entry
-		error_log( '=== setup_virtual_page_postdata() START ===' );
-		error_log( 'fanfic_page query var: ' . var_export( $fanfic_page, true ) );
-
 		if ( empty( $fanfic_page ) ) {
-			error_log( 'EXIT: fanfic_page is empty' );
 			return;
 		}
 
-		global $wp_query, $post;
-
-		// DEBUG: Check what we have in $wp_query->posts
-		error_log( 'wp_query->posts count: ' . count( $wp_query->posts ) );
-		if ( ! empty( $wp_query->posts ) ) {
-			error_log( 'First post ID: ' . $wp_query->posts[0]->ID );
-			error_log( 'First post type: ' . $wp_query->posts[0]->post_type );
-			error_log( 'Has fanfic_page_key? ' . ( isset( $wp_query->posts[0]->fanfic_page_key ) ? 'YES' : 'NO' ) );
-			if ( isset( $wp_query->posts[0]->fanfic_page_key ) ) {
-				error_log( 'fanfic_page_key value: ' . $wp_query->posts[0]->fanfic_page_key );
-			}
-		}
+		global $wp_query;
 
 		// Get the virtual post that was created in the_posts filter.
 		if ( empty( $wp_query->posts ) || ! isset( $wp_query->posts[0]->fanfic_page_key ) ) {
-			error_log( 'EXIT: No posts or missing fanfic_page_key' );
 			return;
 		}
 
 		$virtual_post = $wp_query->posts[0];
 
-		error_log( 'Setting up virtual post - ID: ' . $virtual_post->ID . ', Title: ' . $virtual_post->post_title );
-
-		// Set all WordPress globals properly.
-		// This is CRITICAL for theme compatibility (breadcrumbs, nav menus, etc.).
-		$post = $virtual_post;
+		// Set all WordPress globals using $GLOBALS directly.
+		// Using $GLOBALS is more reliable than 'global' keyword for superglobals.
+		$GLOBALS['post'] = $virtual_post;
 		$wp_query->post = $virtual_post;
 		$wp_query->posts = array( $virtual_post );
 
-		// These two are essential for get_queried_object() to work.
-		// Without these, breadcrumbs and other theme features will fail.
+		// Essential for get_queried_object() to work with breadcrumbs and nav menus.
 		$wp_query->queried_object = $virtual_post;
 		$wp_query->queried_object_id = $virtual_post->ID;
 
 		// Setup postdata for template tags (the_title, the_content, etc.).
 		setup_postdata( $virtual_post );
-
-		// DEBUG: Verify global $post is set
-		error_log( 'Global $post is now: ' . ( is_object( $post ) ? get_class( $post ) . ' ID:' . $post->ID : 'NULL' ) );
-		error_log( 'queried_object is: ' . ( is_object( $wp_query->queried_object ) ? get_class( $wp_query->queried_object ) . ' ID:' . $wp_query->queried_object->ID : 'NULL' ) );
-		error_log( '=== setup_virtual_page_postdata() END ===' );
 	}
 
 	/**
 	 * Create a virtual WP_Post object for dynamic pages
 	 *
 	 * This creates a fake post that WordPress and themes will treat as a real page.
+	 * Uses wp_cache_set to prevent WordPress from querying the database.
 	 *
 	 * @since 2.0.0
 	 * @param array    $posts  Array of posts.
@@ -697,25 +615,16 @@ class Fanfic_URL_Manager {
 	 * @return array Modified posts array.
 	 */
 	public function create_virtual_page_post( $posts, $query ) {
-		// DEBUG: Log function call
-		error_log( '=== create_virtual_page_post() CALLED ===' );
-		error_log( 'Is main query: ' . ( $query->is_main_query() ? 'YES' : 'NO' ) );
-
 		// Only modify main query.
 		if ( ! $query->is_main_query() ) {
-			error_log( 'EXIT: Not main query' );
 			return $posts;
 		}
 
 		$fanfic_page = get_query_var( 'fanfic_page' );
-		error_log( 'fanfic_page query var: ' . var_export( $fanfic_page, true ) );
 
 		if ( empty( $fanfic_page ) ) {
-			error_log( 'EXIT: fanfic_page is empty' );
 			return $posts;
 		}
-
-		error_log( 'Creating virtual post for: ' . $fanfic_page );
 
 		// Get page configuration.
 		$page_config = $this->get_virtual_page_config( $fanfic_page );
@@ -754,12 +663,6 @@ class Fanfic_URL_Manager {
 		// Convert to WP_Post object.
 		$wp_post = new WP_Post( $post );
 
-		// DEBUG: Log before setting custom properties
-		error_log( '=== create_virtual_page_post() ===' );
-		error_log( 'Created WP_Post with ID: ' . $wp_post->ID );
-		error_log( 'Post type: ' . $wp_post->post_type );
-		error_log( 'Post title: ' . $wp_post->post_title );
-
 		// Store page key AFTER conversion (custom properties must be set on WP_Post object).
 		// Setting it before conversion causes it to be lost, as WP_Post only copies known properties.
 		$wp_post->fanfic_page_key = $fanfic_page;
@@ -768,22 +671,24 @@ class Fanfic_URL_Manager {
 		// For classic themes, virtual pages will use our custom template via template_include filter
 		$wp_post->page_template = 'default';
 
-		// DEBUG: Verify custom properties are set
-		error_log( 'Set fanfic_page_key to: ' . $fanfic_page );
-		error_log( 'Verify isset(fanfic_page_key): ' . ( isset( $wp_post->fanfic_page_key ) ? 'YES' : 'NO' ) );
-		if ( isset( $wp_post->fanfic_page_key ) ) {
-			error_log( 'fanfic_page_key value: ' . $wp_post->fanfic_page_key );
-		}
+		// Add to cache to prevent WordPress from firing database queries for this fake post.
+		// This is critical for performance and prevents WordPress from trying to fetch post ID -999.
+		wp_cache_set( $wp_post->ID, $wp_post, 'posts' );
+		wp_cache_set( $wp_post->ID, $wp_post, 'post_meta' );
 
 		$posts = array( $wp_post );
 
-		// Update query object (postdata will be set later in template_redirect).
-		global $wp_query;
-		$wp_query->post_count = 1;
-		$wp_query->found_posts = 1;
-		$wp_query->max_num_pages = 1;
+		// Update query object.
+		$query->post_count = 1;
+		$query->found_posts = 1;
+		$query->max_num_pages = 1;
 
-		error_log( 'Returning posts array with ' . count( $posts ) . ' post(s)' );
+		// Set query objects immediately for breadcrumbs and other early theme features.
+		// Using $GLOBALS directly is more reliable than 'global' keyword for superglobals.
+		$GLOBALS['post'] = $wp_post;
+		$query->post = $wp_post;
+		$query->queried_object = $wp_post;
+		$query->queried_object_id = $wp_post->ID;
 
 		return $posts;
 	}
@@ -798,10 +703,11 @@ class Fanfic_URL_Manager {
 	 * @return string Modified content.
 	 */
 	public function inject_virtual_page_content( $content ) {
-		global $post;
+		// Use $GLOBALS for more reliable access to superglobals.
+		$post = isset( $GLOBALS['post'] ) ? $GLOBALS['post'] : null;
 
 		// Only process our virtual pages.
-		if ( ! isset( $post->fanfic_page_key ) ) {
+		if ( ! $post || ! isset( $post->fanfic_page_key ) ) {
 			return $content;
 		}
 
