@@ -1955,6 +1955,15 @@ class Fanfic_Settings {
 			wp_die( __( 'Security check failed.', 'fanfiction-manager' ) );
 		}
 
+		// Handle Show Page Title setting
+		if ( isset( $_POST['fanfic_show_page_title'] ) ) {
+			$show_page_title = sanitize_text_field( wp_unslash( $_POST['fanfic_show_page_title'] ) );
+			$allowed_values = array( 'auto', 'always', 'never' );
+			if ( in_array( $show_page_title, $allowed_values, true ) ) {
+				update_option( 'fanfic_show_page_title', $show_page_title );
+			}
+		}
+
 		// Handle Show Sidebar setting
 		if ( isset( $_POST['fanfic_show_sidebar'] ) && '1' === $_POST['fanfic_show_sidebar'] ) {
 			update_option( 'fanfic_show_sidebar', '1' );
