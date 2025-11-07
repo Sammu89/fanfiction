@@ -574,18 +574,37 @@ class Fanfic_URL_Manager {
 	public function setup_virtual_page_postdata() {
 		$fanfic_page = get_query_var( 'fanfic_page' );
 
+		// DEBUG: Log entry
+		error_log( '=== setup_virtual_page_postdata() START ===' );
+		error_log( 'fanfic_page query var: ' . var_export( $fanfic_page, true ) );
+
 		if ( empty( $fanfic_page ) ) {
+			error_log( 'EXIT: fanfic_page is empty' );
 			return;
 		}
 
 		global $wp_query, $post;
 
+		// DEBUG: Check what we have in $wp_query->posts
+		error_log( 'wp_query->posts count: ' . count( $wp_query->posts ) );
+		if ( ! empty( $wp_query->posts ) ) {
+			error_log( 'First post ID: ' . $wp_query->posts[0]->ID );
+			error_log( 'First post type: ' . $wp_query->posts[0]->post_type );
+			error_log( 'Has fanfic_page_key? ' . ( isset( $wp_query->posts[0]->fanfic_page_key ) ? 'YES' : 'NO' ) );
+			if ( isset( $wp_query->posts[0]->fanfic_page_key ) ) {
+				error_log( 'fanfic_page_key value: ' . $wp_query->posts[0]->fanfic_page_key );
+			}
+		}
+
 		// Get the virtual post that was created in the_posts filter.
 		if ( empty( $wp_query->posts ) || ! isset( $wp_query->posts[0]->fanfic_page_key ) ) {
+			error_log( 'EXIT: No posts or missing fanfic_page_key' );
 			return;
 		}
 
 		$virtual_post = $wp_query->posts[0];
+
+		error_log( 'Setting up virtual post - ID: ' . $virtual_post->ID . ', Title: ' . $virtual_post->post_title );
 
 		// Set all WordPress globals properly.
 		// This is CRITICAL for theme compatibility (breadcrumbs, nav menus, etc.).
@@ -600,6 +619,11 @@ class Fanfic_URL_Manager {
 
 		// Setup postdata for template tags (the_title, the_content, etc.).
 		setup_postdata( $virtual_post );
+
+		// DEBUG: Verify global $post is set
+		error_log( 'Global $post is now: ' . ( is_object( $post ) ? get_class( $post ) . ' ID:' . $post->ID : 'NULL' ) );
+		error_log( 'queried_object is: ' . ( is_object( $wp_query->queried_object ) ? get_class( $wp_query->queried_object ) . ' ID:' . $wp_query->queried_object->ID : 'NULL' ) );
+		error_log( '=== setup_virtual_page_postdata() END ===' );
 	}
 
 	/**
@@ -661,6 +685,12 @@ class Fanfic_URL_Manager {
 		// Convert to WP_Post object.
 		$wp_post = new WP_Post( $post );
 
+		// DEBUG: Log before setting custom properties
+		error_log( '=== create_virtual_page_post() ===' );
+		error_log( 'Created WP_Post with ID: ' . $wp_post->ID );
+		error_log( 'Post type: ' . $wp_post->post_type );
+		error_log( 'Post title: ' . $wp_post->post_title );
+
 		// Store page key AFTER conversion (custom properties must be set on WP_Post object).
 		// Setting it before conversion causes it to be lost, as WP_Post only copies known properties.
 		$wp_post->fanfic_page_key = $fanfic_page;
@@ -669,6 +699,13 @@ class Fanfic_URL_Manager {
 		// For classic themes, virtual pages will use our custom template via template_include filter
 		$wp_post->page_template = 'default';
 
+		// DEBUG: Verify custom properties are set
+		error_log( 'Set fanfic_page_key to: ' . $fanfic_page );
+		error_log( 'Verify isset(fanfic_page_key): ' . ( isset( $wp_post->fanfic_page_key ) ? 'YES' : 'NO' ) );
+		if ( isset( $wp_post->fanfic_page_key ) ) {
+			error_log( 'fanfic_page_key value: ' . $wp_post->fanfic_page_key );
+		}
+
 		$posts = array( $wp_post );
 
 		// Update query object (postdata will be set later in template_redirect).
@@ -676,6 +713,8 @@ class Fanfic_URL_Manager {
 		$wp_query->post_count = 1;
 		$wp_query->found_posts = 1;
 		$wp_query->max_num_pages = 1;
+
+		error_log( 'Returning posts array with ' . count( $posts ) . ' post(s)' );
 
 		return $posts;
 	}
