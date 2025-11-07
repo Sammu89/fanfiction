@@ -37,6 +37,9 @@ class Fanfic_Page_Template {
 	 * @return void
 	 */
 	public static function init() {
+		// Clear theme cache to ensure our template appears
+		self::clear_theme_cache();
+
 		// Register template in WordPress
 		add_filter( 'theme_page_templates', array( __CLASS__, 'register_page_template' ), 10, 3 );
 
@@ -347,5 +350,41 @@ class Fanfic_Page_Template {
 	 */
 	public static function get_template_file() {
 		return FANFIC_PLUGIN_DIR . 'templates/' . self::TEMPLATE_FILE;
+	}
+
+	/**
+	 * Clear theme cache
+	 *
+	 * WordPress caches page templates. This clears the cache to ensure our
+	 * template appears in the dropdown immediately after plugin activation.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function clear_theme_cache() {
+		// Clear WordPress theme cache
+		$theme = wp_get_theme();
+
+		// Method 1: Clear the theme's cache directly
+		if ( method_exists( $theme, 'cache_delete' ) ) {
+			$theme->cache_delete();
+		}
+
+		// Method 2: Clear using wp_cache
+		wp_cache_delete( 'theme_files', 'themes' );
+
+		// Method 3: Clear specific cache groups
+		$stylesheet = get_stylesheet();
+		$template = get_template();
+
+		wp_cache_delete( $stylesheet . '-' . 'page', 'themes' );
+		wp_cache_delete( $template . '-' . 'page', 'themes' );
+
+		// Method 4: Force a theme cache flush
+		delete_transient( 'theme_roots' );
+
+		// Clear any cached templates from the current theme
+		$cache_key = 'page_templates-' . md5( $theme->get_stylesheet() );
+		wp_cache_delete( $cache_key, 'themes' );
 	}
 }

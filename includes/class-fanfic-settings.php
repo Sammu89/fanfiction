@@ -408,6 +408,555 @@ class Fanfic_Settings {
 	}
 
 	/**
+	 * Render System Status info box
+	 *
+	 * Displays current status of:
+	 * - Pretty Permalinks
+	 * - Page Template file existence
+	 * - Page Template registration
+	 * - System pages with template assignment
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function render_system_status_box() {
+		// Handle cache clear request
+		if ( isset( $_GET['fanfic_clear_cache'] ) && $_GET['fanfic_clear_cache'] === '1' &&
+		     isset( $_GET['_wpnonce'] ) && wp_verify_nonce( $_GET['_wpnonce'], 'fanfic_clear_cache' ) ) {
+			if ( class_exists( 'Fanfic_Page_Template' ) ) {
+				Fanfic_Page_Template::clear_theme_cache();
+				echo '<div class="notice notice-success is-dismissible"><p><strong>Theme cache cleared!</strong> Please refresh this page to see updated template status.</p></div>';
+			}
+		}
+
+		// Handle fix system pages request
+		if ( isset( $_GET['fanfic_fix_pages'] ) && $_GET['fanfic_fix_pages'] === '1' &&
+		     isset( $_GET['_wpnonce'] ) && wp_verify_nonce( $_GET['_wpnonce'], 'fanfic_fix_pages' ) ) {
+			$fixed_count = self::fix_system_pages_templates();
+			if ( $fixed_count > 0 ) {
+				echo '<div class="notice notice-success is-dismissible"><p><strong>' . sprintf( __( '%d pages updated!', 'fanfiction-manager' ), $fixed_count ) . '</strong> ' . __( 'System pages now have the correct template assigned.', 'fanfiction-manager' ) . '</p></div>';
+			} else {
+				echo '<div class="notice notice-info is-dismissible"><p>' . __( 'No pages needed updating.', 'fanfiction-manager' ) . '</p></div>';
+			}
+		}
+
+		// Check permalinks status
+		$permalinks_enabled = Fanfic_Permalinks_Check::are_permalinks_enabled();
+
+		// Check if template file exists
+		$template_file = FANFIC_PLUGIN_DIR . 'templates/fanfiction-page-template.php';
+		$template_exists = file_exists( $template_file ) && is_readable( $template_file );
+
+		// Check if template is registered
+		$template_registered = false;
+		$templates = wp_get_theme()->get_page_templates();
+		if ( isset( $templates['fanfiction-page-template.php'] ) ) {
+			$template_registered = true;
+		}
+
+		// Also check if filter is registered
+		global $wp_filter;
+		$filter_registered = false;
+		$filter_callbacks = array();
+		if ( isset( $wp_filter['theme_page_templates'] ) ) {
+			foreach ( $wp_filter['theme_page_templates']->callbacks as $priority => $callbacks ) {
+				foreach ( $callbacks as $idx => $callback ) {
+					$filter_callbacks[] = array(
+						'priority' => $priority,
+						'callback' => $callback,
+					);
+					// Check if this is our callback
+					if ( is_array( $callback['function'] ) &&
+					     isset( $callback['function'][0] ) &&
+					     ( $callback['function'][0] === 'Fanfic_Page_Template' ||
+					       ( is_object( $callback['function'][0] ) && get_class( $callback['function'][0] ) === 'Fanfic_Page_Template' ) ) ) {
+						$filter_registered = true;
+					}
+				}
+			}
+		}
+
+		// Get system pages and check their template assignment
+		$system_page_ids = get_option( 'fanfic_system_page_ids', array() );
+		$pages_with_template = array();
+		$pages_without_template = array();
+
+		foreach ( $system_page_ids as $page_key => $page_id ) {
+			if ( ! $page_id || get_post_status( $page_id ) !== 'publish' ) {
+				continue;
+			}
+
+			$page_template = get_post_meta( $page_id, '_wp_page_template', true );
+			$page_title = get_the_title( $page_id );
+
+			if ( $page_template === 'fanfiction-page-template.php' ) {
+				$pages_with_template[] = $page_title;
+			} else {
+				$pages_without_template[] = array(
+					'title' => $page_title,
+					'id'    => $page_id,
+				);
+			}
+		}
+
+		// Overall status
+		$overall_status = 'success';
+		if ( ! $permalinks_enabled || ! $template_exists ) {
+			$overall_status = 'error';
+		} elseif ( ! $template_registered || ! empty( $pages_without_template ) ) {
+			$overall_status = 'warning';
+		}
+
+		?>
+		<div class="fanfic-system-status-box" style="background: #fff; border: 1px solid #ccd0d4; border-left: 4px solid <?php echo $overall_status === 'success' ? '#46b450' : ( $overall_status === 'warning' ? '#ffb900' : '#dc3232' ); ?>; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+			<h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
+				<span class="dashicons dashicons-admin-tools" style="font-size: 24px;"></span>
+				<?php esc_html_e( 'System Status', 'fanfiction-manager' ); ?>
+			</h3>
+
+			<table class="widefat" style="margin-top: 15px;">
+				<tbody>
+					<!-- Permalinks Status -->
+					<tr>
+						<td style="width: 30%; font-weight: 600;">
+							<?php esc_html_e( 'Pretty Permalinks', 'fanfiction-manager' ); ?>
+						</td>
+						<td>
+							<?php if ( $permalinks_enabled ) : ?>
+								<span style="color: #46b450;">
+									<span class="dashicons dashicons-yes-alt"></span>
+									<?php esc_html_e( 'Enabled', 'fanfiction-manager' ); ?>
+								</span>
+							<?php else : ?>
+								<span style="color: #dc3232;">
+									<span class="dashicons dashicons-dismiss"></span>
+									<?php esc_html_e( 'Disabled', 'fanfiction-manager' ); ?>
+								</span>
+								<p style="margin: 5px 0 0 0; color: #646970;">
+									<a href="<?php echo esc_url( admin_url( 'options-permalink.php' ) ); ?>" class="button button-small">
+										<?php esc_html_e( 'Fix Permalinks', 'fanfiction-manager' ); ?>
+									</a>
+								</p>
+							<?php endif; ?>
+						</td>
+					</tr>
+
+					<!-- Template File Status -->
+					<tr>
+						<td style="font-weight: 600;">
+							<?php esc_html_e( 'Page Template File', 'fanfiction-manager' ); ?>
+						</td>
+						<td>
+							<?php if ( $template_exists ) : ?>
+								<span style="color: #46b450;">
+									<span class="dashicons dashicons-yes-alt"></span>
+									<?php esc_html_e( 'Exists', 'fanfiction-manager' ); ?>
+								</span>
+								<code style="margin-left: 10px; font-size: 11px; color: #646970;">fanfiction-page-template.php</code>
+							<?php else : ?>
+								<span style="color: #dc3232;">
+									<span class="dashicons dashicons-dismiss"></span>
+									<?php esc_html_e( 'Missing', 'fanfiction-manager' ); ?>
+								</span>
+								<p style="margin: 5px 0 0 0; color: #646970; font-size: 12px;">
+									<?php esc_html_e( 'The template file is missing from the templates directory.', 'fanfiction-manager' ); ?>
+								</p>
+							<?php endif; ?>
+						</td>
+					</tr>
+
+					<!-- Template Registration Status -->
+					<tr>
+						<td style="font-weight: 600;">
+							<?php esc_html_e( 'Template Registration', 'fanfiction-manager' ); ?>
+						</td>
+						<td>
+							<?php if ( $template_registered ) : ?>
+								<span style="color: #46b450;">
+									<span class="dashicons dashicons-yes-alt"></span>
+									<?php esc_html_e( 'Registered', 'fanfiction-manager' ); ?>
+								</span>
+							<?php else : ?>
+								<span style="color: #ffb900;">
+									<span class="dashicons dashicons-warning"></span>
+									<?php esc_html_e( 'Not Registered', 'fanfiction-manager' ); ?>
+								</span>
+								<p style="margin: 5px 0 0 0; color: #646970; font-size: 12px;">
+									<?php esc_html_e( 'Template may not appear in page template dropdown.', 'fanfiction-manager' ); ?>
+								</p>
+							<?php endif; ?>
+							<p style="margin: 10px 0 0 0;">
+								<a href="<?php echo esc_url( wp_nonce_url( add_query_arg( 'fanfic_clear_cache', '1' ), 'fanfic_clear_cache' ) ); ?>" class="button button-small">
+									<span class="dashicons dashicons-update" style="margin-top: 3px;"></span>
+									<?php esc_html_e( 'Clear Theme Cache', 'fanfiction-manager' ); ?>
+								</a>
+								<span style="font-size: 11px; color: #646970; margin-left: 10px;">
+									<?php esc_html_e( '(Click if template doesn\'t appear in dropdown)', 'fanfiction-manager' ); ?>
+								</span>
+							</p>
+						</td>
+					</tr>
+
+					<!-- System Pages Status -->
+					<tr>
+						<td style="font-weight: 600; vertical-align: top;">
+							<?php esc_html_e( 'System Pages', 'fanfiction-manager' ); ?>
+						</td>
+						<td>
+							<?php if ( empty( $system_page_ids ) ) : ?>
+								<span style="color: #ffb900;">
+									<span class="dashicons dashicons-warning"></span>
+									<?php esc_html_e( 'No system pages created', 'fanfiction-manager' ); ?>
+								</span>
+								<p style="margin: 5px 0 0 0; color: #646970; font-size: 12px;">
+									<?php esc_html_e( 'Run the setup wizard to create system pages.', 'fanfiction-manager' ); ?>
+								</p>
+							<?php else : ?>
+								<?php if ( empty( $pages_without_template ) ) : ?>
+									<span style="color: #46b450;">
+										<span class="dashicons dashicons-yes-alt"></span>
+										<?php
+										printf(
+											/* translators: %d: number of pages */
+											esc_html__( 'All %d pages have template assigned', 'fanfiction-manager' ),
+											count( $pages_with_template )
+										);
+										?>
+									</span>
+								<?php else : ?>
+									<span style="color: #ffb900;">
+										<span class="dashicons dashicons-warning"></span>
+										<?php
+										printf(
+											/* translators: 1: pages with template, 2: total pages */
+											esc_html__( '%1$d of %2$d pages have template', 'fanfiction-manager' ),
+											count( $pages_with_template ),
+											count( $pages_with_template ) + count( $pages_without_template )
+										);
+										?>
+									</span>
+									<p style="margin: 10px 0 0 0;">
+										<a href="<?php echo esc_url( wp_nonce_url( add_query_arg( 'fanfic_fix_pages', '1' ), 'fanfic_fix_pages' ) ); ?>" class="button button-primary button-small">
+											<span class="dashicons dashicons-admin-tools" style="margin-top: 3px;"></span>
+											<?php esc_html_e( 'Fix All System Pages', 'fanfiction-manager' ); ?>
+										</a>
+										<span style="font-size: 11px; color: #646970; margin-left: 10px;">
+											<?php esc_html_e( '(Assign template to all pages at once)', 'fanfiction-manager' ); ?>
+										</span>
+									</p>
+									<details style="margin-top: 10px;">
+										<summary style="cursor: pointer; color: #2271b1; font-size: 12px;">
+											<?php esc_html_e( 'View pages without template', 'fanfiction-manager' ); ?>
+										</summary>
+										<ul style="margin: 10px 0 0 20px; list-style: disc;">
+											<?php foreach ( $pages_without_template as $page ) : ?>
+												<li>
+													<a href="<?php echo esc_url( get_edit_post_link( $page['id'] ) ); ?>">
+														<?php echo esc_html( $page['title'] ); ?>
+													</a>
+												</li>
+											<?php endforeach; ?>
+										</ul>
+									</details>
+								<?php endif; ?>
+							<?php endif; ?>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<!-- Debug Information -->
+			<details style="margin-top: 20px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd;">
+				<summary style="cursor: pointer; font-weight: 600; color: #2271b1;">
+					<span class="dashicons dashicons-admin-generic"></span>
+					<?php esc_html_e( 'Debug Information (Click to expand)', 'fanfiction-manager' ); ?>
+				</summary>
+				<div style="margin-top: 15px;">
+
+					<!-- Filter Registration -->
+					<h4 style="margin-top: 0;"><?php esc_html_e( 'Filter Registration Status', 'fanfiction-manager' ); ?></h4>
+					<p>
+						<strong>Filter Registered:</strong>
+						<code><?php echo $filter_registered ? 'YES' : 'NO'; ?></code>
+					</p>
+
+					<!-- All Available Templates -->
+					<h4><?php esc_html_e( 'All Available Templates from WordPress', 'fanfiction-manager' ); ?></h4>
+					<?php if ( empty( $templates ) ) : ?>
+						<p style="color: #dc3232;">
+							<strong><?php esc_html_e( 'No templates found!', 'fanfiction-manager' ); ?></strong>
+							<?php esc_html_e( 'This means WordPress is not detecting any page templates.', 'fanfiction-manager' ); ?>
+						</p>
+					<?php else : ?>
+						<table class="widefat striped" style="margin-top: 10px;">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'Template File', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Template Name', 'fanfiction-manager' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $templates as $template_file => $template_name ) : ?>
+									<tr<?php echo $template_file === 'fanfiction-page-template.php' ? ' style="background: #d4edda;"' : ''; ?>>
+										<td><code><?php echo esc_html( $template_file ); ?></code></td>
+										<td><?php echo esc_html( $template_name ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+						<p style="margin-top: 10px; font-size: 12px; color: #646970;">
+							<?php
+							printf(
+								/* translators: %s: our template file name */
+								esc_html__( 'Looking for: %s', 'fanfiction-manager' ),
+								'<code>fanfiction-page-template.php</code>'
+							);
+							?>
+						</p>
+					<?php endif; ?>
+
+					<!-- Filter Callbacks -->
+					<h4><?php esc_html_e( 'Registered Filter Callbacks for "theme_page_templates"', 'fanfiction-manager' ); ?></h4>
+					<?php if ( empty( $filter_callbacks ) ) : ?>
+						<p style="color: #dc3232;">
+							<strong><?php esc_html_e( 'No callbacks registered!', 'fanfiction-manager' ); ?></strong>
+						</p>
+					<?php else : ?>
+						<table class="widefat striped" style="margin-top: 10px;">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'Priority', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Callback', 'fanfiction-manager' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $filter_callbacks as $cb ) : ?>
+									<tr>
+										<td><code><?php echo esc_html( $cb['priority'] ); ?></code></td>
+										<td>
+											<code>
+												<?php
+												if ( is_array( $cb['callback']['function'] ) ) {
+													$class = is_object( $cb['callback']['function'][0] ) ? get_class( $cb['callback']['function'][0] ) : $cb['callback']['function'][0];
+													echo esc_html( $class . '::' . $cb['callback']['function'][1] );
+												} elseif ( is_string( $cb['callback']['function'] ) ) {
+													echo esc_html( $cb['callback']['function'] );
+												} else {
+													echo esc_html( 'Closure or unknown' );
+												}
+												?>
+											</code>
+										</td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					<?php endif; ?>
+
+					<!-- System Pages Detail -->
+					<h4><?php esc_html_e( 'System Pages Template Assignment', 'fanfiction-manager' ); ?></h4>
+					<?php if ( empty( $system_page_ids ) ) : ?>
+						<p style="color: #ffb900;">
+							<strong><?php esc_html_e( 'No system pages created yet.', 'fanfiction-manager' ); ?></strong>
+						</p>
+					<?php else : ?>
+						<table class="widefat striped" style="margin-top: 10px;">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'Page Key', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Page ID', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Page Title', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Assigned Template', 'fanfiction-manager' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $system_page_ids as $page_key => $page_id ) : ?>
+									<?php
+									$page_status = get_post_status( $page_id );
+									$page_title = get_the_title( $page_id );
+									$assigned_template = get_post_meta( $page_id, '_wp_page_template', true );
+									$has_correct_template = $assigned_template === 'fanfiction-page-template.php';
+									?>
+									<tr<?php echo $has_correct_template ? ' style="background: #d4edda;"' : ''; ?>>
+										<td><code><?php echo esc_html( $page_key ); ?></code></td>
+										<td><?php echo esc_html( $page_id ); ?></td>
+										<td>
+											<a href="<?php echo esc_url( get_edit_post_link( $page_id ) ); ?>" target="_blank">
+												<?php echo esc_html( $page_title ?: '(No title)' ); ?>
+											</a>
+										</td>
+										<td><?php echo esc_html( $page_status ?: 'not found' ); ?></td>
+										<td>
+											<code><?php echo esc_html( $assigned_template ?: 'default' ); ?></code>
+											<?php if ( $has_correct_template ) : ?>
+												<span style="color: #46b450;">✓</span>
+											<?php endif; ?>
+										</td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					<?php endif; ?>
+
+					<!-- Class Check -->
+					<h4><?php esc_html_e( 'Class Availability', 'fanfiction-manager' ); ?></h4>
+					<table class="widefat" style="margin-top: 10px;">
+						<tbody>
+							<tr>
+								<td style="width: 40%;"><strong>Fanfic_Page_Template class exists:</strong></td>
+								<td>
+									<code><?php echo class_exists( 'Fanfic_Page_Template' ) ? 'YES' : 'NO'; ?></code>
+								</td>
+							</tr>
+							<tr>
+								<td><strong>Template file path:</strong></td>
+								<td><code><?php echo esc_html( $template_file ); ?></code></td>
+							</tr>
+							<tr>
+								<td><strong>Template file exists:</strong></td>
+								<td><code><?php echo $template_exists ? 'YES' : 'NO'; ?></code></td>
+							</tr>
+							<tr>
+								<td><strong>Current theme:</strong></td>
+								<td><code><?php echo esc_html( wp_get_theme()->get( 'Name' ) ); ?></code></td>
+							</tr>
+							<tr>
+								<td><strong>TEMPLATE_FILE constant:</strong></td>
+								<td>
+									<code>
+										<?php
+										if ( class_exists( 'Fanfic_Page_Template' ) ) {
+											$reflection = new ReflectionClass( 'Fanfic_Page_Template' );
+											$constants = $reflection->getConstants();
+											echo isset( $constants['TEMPLATE_FILE'] ) ? esc_html( $constants['TEMPLATE_FILE'] ) : 'NOT DEFINED';
+										} else {
+											echo 'Class not loaded';
+										}
+										?>
+									</code>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+
+					<!-- Manual Filter Test -->
+					<h4><?php esc_html_e( 'Manual Filter Test', 'fanfiction-manager' ); ?></h4>
+					<p style="font-size: 12px; color: #646970; margin-bottom: 10px;">
+						<?php esc_html_e( 'This simulates calling the filter to see what WordPress would return:', 'fanfiction-manager' ); ?>
+					</p>
+					<?php
+					// Manually apply the filter to see what comes back
+					$test_templates = array();
+					$test_result = apply_filters( 'theme_page_templates', $test_templates, wp_get_theme(), null );
+					?>
+					<table class="widefat" style="margin-top: 10px;">
+						<tbody>
+							<tr>
+								<td style="width: 40%;"><strong>Input to filter:</strong></td>
+								<td><code><?php echo esc_html( json_encode( $test_templates ) ); ?></code></td>
+							</tr>
+							<tr>
+								<td><strong>Output from filter:</strong></td>
+								<td>
+									<code><?php echo esc_html( json_encode( $test_result ) ); ?></code>
+								</td>
+							</tr>
+							<tr>
+								<td><strong>Our template in output:</strong></td>
+								<td>
+									<code>
+										<?php
+										echo isset( $test_result['fanfiction-page-template.php'] ) ? 'YES - ' . esc_html( $test_result['fanfiction-page-template.php'] ) : 'NO';
+										?>
+									</code>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+
+					<!-- WordPress Template Discovery -->
+					<h4><?php esc_html_e( 'WordPress Template Discovery Method', 'fanfiction-manager' ); ?></h4>
+					<p style="font-size: 12px; color: #646970; margin-bottom: 10px;">
+						<?php esc_html_e( 'WordPress finds templates in two ways:', 'fanfiction-manager' ); ?>
+					</p>
+					<ol style="font-size: 12px; color: #646970; margin-left: 20px;">
+						<li><?php esc_html_e( 'Scanning theme directory for files with "Template Name:" header', 'fanfiction-manager' ); ?></li>
+						<li><?php esc_html_e( 'Using the "theme_page_templates" filter (what our plugin does)', 'fanfiction-manager' ); ?></li>
+					</ol>
+					<?php
+					// Check if our template file is in the plugin directory and has correct headers
+					// Use the full path from FANFIC_PLUGIN_DIR
+					$full_template_path = FANFIC_PLUGIN_DIR . 'templates/fanfiction-page-template.php';
+					$template_headers = array(
+						'Template Name' => 'NOT FOUND',
+						'Template Post Type' => 'NOT FOUND',
+					);
+					if ( file_exists( $full_template_path ) ) {
+						$template_headers = get_file_data(
+							$full_template_path,
+							array(
+								'Template Name' => 'Template Name',
+								'Template Post Type' => 'Template Post Type',
+							)
+						);
+					}
+					?>
+					<table class="widefat" style="margin-top: 10px;">
+						<tbody>
+							<tr>
+								<td style="width: 40%;"><strong>Full template path used:</strong></td>
+								<td><code style="font-size: 10px;"><?php echo esc_html( $full_template_path ); ?></code></td>
+							</tr>
+							<tr>
+								<td><strong>Template Name header:</strong></td>
+								<td><code><?php echo esc_html( $template_headers['Template Name'] ?: 'NOT FOUND' ); ?></code></td>
+							</tr>
+							<tr>
+								<td><strong>Template Post Type header:</strong></td>
+								<td><code><?php echo esc_html( $template_headers['Template Post Type'] ?: 'NOT FOUND' ); ?></code></td>
+							</tr>
+						</tbody>
+					</table>
+
+				</div>
+			</details>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Fix system pages templates
+	 *
+	 * Assigns the fanfiction page template to all system pages that don't have it.
+	 *
+	 * @since 1.0.0
+	 * @return int Number of pages fixed
+	 */
+	public static function fix_system_pages_templates() {
+		$system_page_ids = get_option( 'fanfic_system_page_ids', array() );
+		$fixed_count = 0;
+
+		foreach ( $system_page_ids as $page_key => $page_id ) {
+			// Skip invalid pages
+			if ( ! $page_id || get_post_status( $page_id ) !== 'publish' ) {
+				continue;
+			}
+
+			// Check current template
+			$current_template = get_post_meta( $page_id, '_wp_page_template', true );
+
+			// If not using our template, update it
+			if ( $current_template !== 'fanfiction-page-template.php' ) {
+				update_post_meta( $page_id, '_wp_page_template', 'fanfiction-page-template.php' );
+				$fixed_count++;
+			}
+		}
+
+		return $fixed_count;
+	}
+
+	/**
 	 * Render Dashboard tab
 	 *
 	 * @since 1.0.0
@@ -424,6 +973,9 @@ class Fanfic_Settings {
 
 		?>
 		<div class="fanfiction-settings-tab fanfiction-dashboard-tab">
+
+			<?php self::render_system_status_box(); ?>
+
 			<h2><?php esc_html_e( 'Dashboard Statistics', 'fanfiction-manager' ); ?></h2>
 
 			<div class="fanfic-period-selector">

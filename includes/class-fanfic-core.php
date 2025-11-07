@@ -147,6 +147,9 @@ class Fanfic_Core {
 			Fanfic_Cache_Admin::init();
 			Fanfic_Wizard::get_instance(); // Initialize wizard singleton
 			Fanfic_Settings::init();
+
+			// Add admin notices for activation issues
+			add_action( 'admin_notices', array( __CLASS__, 'show_activation_warnings' ) );
 			Fanfic_URL_Config::init();
 			Fanfic_Taxonomies_Admin::init();
 			Fanfic_Moderation::init();
@@ -470,14 +473,26 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-permalinks-check.php';
 		Fanfic_Permalinks_Check::check_on_activation();
 
+		// Verify template files exist
+		self::verify_template_files();
+
 		// Load all required classes for activation
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-post-types.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-settings.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-templates.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-page-template.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache.php';
 		require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-cache-admin.php';
+
+		// Initialize and verify page template system
+		self::verify_page_template_system();
+
+		// Clear theme cache so template appears immediately
+		if ( class_exists( 'Fanfic_Page_Template' ) ) {
+			Fanfic_Page_Template::clear_theme_cache();
+		}
 
 		// Create database tables
 		self::create_tables();
@@ -524,6 +539,163 @@ class Fanfic_Core {
 
 		// Remove activation flag
 		delete_option( 'fanfic_activated' );
+	}
+
+	/**
+	 * Verify that required template files exist
+	 *
+	 * Checks for critical template files during activation.
+	 * Sets a transient for admin notice if files are missing.
+	 *
+	 * @since 1.0.0
+	 */
+	private static function verify_template_files() {
+		$template_dir = FANFIC_PLUGIN_DIR . 'templates/';
+		$missing_files = array();
+
+		// Critical template files that must exist
+		$required_templates = array(
+			'fanfiction-page-template.php' => 'Main page template',
+			'archive-fanfiction_story.php' => 'Story archive template',
+			'single-fanfiction_story.php'  => 'Single story template',
+			'single-fanfiction_chapter.php' => 'Single chapter template',
+		);
+
+		// Check if template directory exists
+		if ( ! file_exists( $template_dir ) || ! is_dir( $template_dir ) ) {
+			set_transient( 'fanfic_template_dir_missing', true, 60 );
+			return;
+		}
+
+		// Check each required template file
+		foreach ( $required_templates as $file => $label ) {
+			$file_path = $template_dir . $file;
+			if ( ! file_exists( $file_path ) || ! is_readable( $file_path ) ) {
+				$missing_files[ $file ] = $label;
+			}
+		}
+
+		// Set transient if any files are missing
+		if ( ! empty( $missing_files ) ) {
+			set_transient( 'fanfic_missing_templates', $missing_files, 60 );
+		}
+	}
+
+	/**
+	 * Initialize and verify page template system
+	 *
+	 * Ensures the page template system is properly initialized and registered.
+	 * Sets a transient for admin notice if registration fails.
+	 *
+	 * @since 1.0.0
+	 */
+	private static function verify_page_template_system() {
+		// Initialize the page template system
+		if ( class_exists( 'Fanfic_Page_Template' ) ) {
+			Fanfic_Page_Template::init();
+
+			// Verify the template filter was registered
+			// We check if our filter callback is registered for 'theme_page_templates'
+			global $wp_filter;
+
+			$template_registered = false;
+			if ( isset( $wp_filter['theme_page_templates'] ) ) {
+				foreach ( $wp_filter['theme_page_templates']->callbacks as $priority => $callbacks ) {
+					foreach ( $callbacks as $callback ) {
+						// Check if this is our callback
+						if ( is_array( $callback['function'] ) &&
+						     isset( $callback['function'][0] ) &&
+						     $callback['function'][0] === 'Fanfic_Page_Template' &&
+						     isset( $callback['function'][1] ) &&
+						     $callback['function'][1] === 'register_page_template' ) {
+							$template_registered = true;
+							break 2;
+						}
+					}
+				}
+			}
+
+			// Set transient if template registration failed
+			if ( ! $template_registered ) {
+				set_transient( 'fanfic_template_not_registered', true, 60 );
+			}
+		} else {
+			// Class doesn't exist - serious error
+			set_transient( 'fanfic_template_class_missing', true, 60 );
+		}
+	}
+
+	/**
+	 * Show admin notices for activation warnings
+	 *
+	 * Displays warnings if template files are missing or template system failed to register.
+	 *
+	 * @since 1.0.0
+	 */
+	public static function show_activation_warnings() {
+		// Only show to administrators
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		// Check for template directory missing
+		if ( get_transient( 'fanfic_template_dir_missing' ) ) {
+			delete_transient( 'fanfic_template_dir_missing' );
+			?>
+			<div class="notice notice-error">
+				<p>
+					<strong>Fanfiction Manager:</strong> The template directory is missing or not readable.
+					Please ensure the <code>templates/</code> directory exists in the plugin folder.
+				</p>
+			</div>
+			<?php
+		}
+
+		// Check for missing template files
+		$missing_templates = get_transient( 'fanfic_missing_templates' );
+		if ( $missing_templates ) {
+			delete_transient( 'fanfic_missing_templates' );
+			?>
+			<div class="notice notice-warning">
+				<p><strong>Fanfiction Manager:</strong> Some template files are missing:</p>
+				<ul style="list-style: disc; margin-left: 20px;">
+					<?php foreach ( $missing_templates as $file => $label ) : ?>
+						<li><code><?php echo esc_html( $file ); ?></code> - <?php echo esc_html( $label ); ?></li>
+					<?php endforeach; ?>
+				</ul>
+				<p>
+					The plugin will attempt to use fallback templates, but functionality may be limited.
+					Please ensure all template files are present in the <code>templates/</code> directory.
+				</p>
+			</div>
+			<?php
+		}
+
+		// Check for template class missing
+		if ( get_transient( 'fanfic_template_class_missing' ) ) {
+			delete_transient( 'fanfic_template_class_missing' );
+			?>
+			<div class="notice notice-error">
+				<p>
+					<strong>Fanfiction Manager:</strong> The page template system class is missing.
+					Please reinstall the plugin or contact support.
+				</p>
+			</div>
+			<?php
+		}
+
+		// Check for template not registered
+		if ( get_transient( 'fanfic_template_not_registered' ) ) {
+			delete_transient( 'fanfic_template_not_registered' );
+			?>
+			<div class="notice notice-warning">
+				<p>
+					<strong>Fanfiction Manager:</strong> The page template failed to register with WordPress.
+					This may indicate a theme compatibility issue. The plugin will still function, but page templates may not display correctly.
+				</p>
+			</div>
+			<?php
+		}
 	}
 
 	/**

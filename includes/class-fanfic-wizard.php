@@ -899,12 +899,14 @@ private function render_choice_screen() {
 			update_option( 'fanfic_story_path', $story_path );
 		}
 
-		// 4. Validate and save secondary paths (dashboard, user, search)
+		// 4. Validate and save dynamic page paths (dashboard, create-story, members, search)
 		$secondary_slugs_input = array();
-		$secondary_config = Fanfic_URL_Schema::get_slugs_by_group( 'secondary' );
+		$secondary_config = Fanfic_URL_Schema::get_slugs_by_group( 'dynamic' );
 
 		foreach ( $secondary_config as $key => $config ) {
-			$field_name = 'fanfic_' . $key . '_slug';
+			// Convert schema key (e.g., 'create-story') to field name (e.g., 'fanfic_create_story_slug')
+			$field_key = str_replace( '-', '_', $key );
+			$field_name = 'fanfic_' . $field_key . '_slug';
 			if ( isset( $_POST[ $field_name ] ) ) {
 				$secondary_slugs_input[ $key ] = sanitize_title( wp_unslash( $_POST[ $field_name ] ) );
 			}
@@ -923,22 +925,20 @@ private function render_choice_screen() {
 			}
 		}
 
-		// Save secondary paths
+		// Save dynamic page slugs to their individual options
 		if ( ! empty( $secondary_slugs_input ) ) {
-			update_option( 'fanfic_secondary_paths', $secondary_slugs_input );
+			foreach ( $secondary_slugs_input as $key => $slug_value ) {
+				// Get the option_key for this slug from the schema
+				if ( isset( $secondary_config[ $key ]['option_key'] ) ) {
+					$option_key = $secondary_config[ $key ]['option_key'];
+					update_option( $option_key, $slug_value );
+				}
+			}
 
-			// Update dynamic pages if applicable
+			// Also update the URL Manager for dynamic pages
 			if ( class_exists( 'Fanfic_URL_Manager' ) ) {
-				$dynamic_updates = array();
-				foreach ( $secondary_config as $key => $config ) {
-					if ( isset( $config['is_dynamic_page'] ) && $config['is_dynamic_page'] && ! empty( $secondary_slugs_input[ $key ] ) ) {
-						$dynamic_updates[ $key ] = $secondary_slugs_input[ $key ];
-					}
-				}
-				if ( ! empty( $dynamic_updates ) ) {
-					$current_dynamic = Fanfic_URL_Manager::get_instance()->get_slugs();
-					Fanfic_URL_Manager::get_instance()->update_slugs( array_merge( $current_dynamic, $dynamic_updates ) );
-				}
+				$current_dynamic = Fanfic_URL_Manager::get_instance()->get_slugs();
+				Fanfic_URL_Manager::get_instance()->update_slugs( array_merge( $current_dynamic, $secondary_slugs_input ) );
 			}
 		}
 

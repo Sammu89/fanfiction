@@ -4,7 +4,10 @@
       "Bash(cat:*)",
       "Bash(nul)",
       "Bash(test:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(php -r:*)",
+      "Bash(wp:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

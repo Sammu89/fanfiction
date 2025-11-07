@@ -42,7 +42,9 @@
 			$('input[name^="fanfic_secondary_paths"]').on('input', this.updateSecondaryPathPreview.bind(this));
 
 			// Form validation on input
-			$('.fanfic-wizard-form input[required]').on('blur', this.validateField.bind(this));
+			$('.fanfic-wizard-form input[required]').on('blur', function() {
+			FanficWizard.validateField.call(this);
+		});
 		},
 
 		/**
@@ -167,25 +169,7 @@
 		 * @return {boolean} True if valid
 		 */
 		validateField: function() {
-			// DEBUG: Log what 'this' actually is
-			console.log('=== validateField DEBUG ===');
-			console.log('typeof this:', typeof this);
-			console.log('this:', this);
-			console.log('this === FanficWizard:', this === FanficWizard);
-			if (this.constructor) {
-				console.log('this.constructor.name:', this.constructor.name);
-			}
-
 			var $field = $(this);
-			console.log('$field:', $field);
-			console.log('$field.length:', $field.length);
-			if ($field[0]) {
-				console.log('$field[0]:', $field[0]);
-				console.log('$field[0].tagName:', $field[0].tagName);
-			}
-			console.log('$field.val():', $field.val());
-			console.log('=== END DEBUG ===');
-
 			var value = $field.val().trim();
 			var pattern = $field.attr('pattern');
 			var maxLength = parseInt($field.attr('maxlength'), 10);

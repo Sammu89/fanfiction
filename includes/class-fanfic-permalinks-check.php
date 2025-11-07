@@ -74,29 +74,19 @@ class Fanfic_Permalinks_Check {
     /**
      * Activation check - Called during plugin activation
      *
-     * Prevents plugin activation if Pretty Permalinks are disabled.
+     * Allows plugin to activate even if Pretty Permalinks are disabled.
+     * The plugin will show admin notices and disable functionality until permalinks are enabled.
      *
-     * @throws Exception If permalinks are disabled
+     * @since 1.0.0
      */
     public static function check_on_activation() {
-        if (!self::are_permalinks_enabled()) {
-            // Deactivate the plugin immediately
-            deactivate_plugins(plugin_basename(FANFIC_PLUGIN_FILE));
+        // Allow activation to proceed even if permalinks are disabled
+        // The admin notice system will alert users and plugin functionality
+        // will be disabled via should_disable_plugin() checks throughout the codebase
 
-            // Show error and die
-            wp_die(
-                '<h1>Plugin Activation Failed</h1>' .
-                '<p><strong>This plugin requires Pretty Permalinks to be enabled.</strong></p>' .
-                '<p>Please enable them in <strong>Settings &rarr; Permalinks</strong> before activating this plugin.</p>' .
-                '<p>Choose any permalink structure other than "Plain" (e.g., Post name, Day and name, etc.).</p>' .
-                '<p><a href="' . admin_url('options-permalink.php') . '" class="button button-primary">Go to Permalink Settings</a> ' .
-                '<a href="' . admin_url('plugins.php') . '" class="button">Return to Plugins</a></p>',
-                'Pretty Permalinks Required',
-                array(
-                    'back_link' => true,
-                    'response'  => 200
-                )
-            );
+        // Set a transient to show the permalink warning immediately after activation
+        if (!self::are_permalinks_enabled()) {
+            set_transient('fanfic_show_permalink_warning', true, 60);
         }
     }
 
@@ -115,6 +105,12 @@ class Fanfic_Permalinks_Check {
             return;
         }
 
+        // Check if this is right after activation
+        $just_activated = get_transient('fanfic_show_permalink_warning');
+        if ($just_activated) {
+            delete_transient('fanfic_show_permalink_warning');
+        }
+
         // Check if permalinks are disabled
         if (!self::are_permalinks_enabled()) {
             $fix_url = wp_nonce_url(
@@ -124,24 +120,24 @@ class Fanfic_Permalinks_Check {
             );
 
             ?>
-            <div class="notice notice-error is-dismissible fanfic-permalinks-notice">
+            <div class="notice notice-error fanfic-permalinks-notice">
                 <p>
-                    <strong>Fanfiction plugin requires Pretty Permalinks to be enabled to function correctly.</strong>
+                    <strong><?php echo $just_activated ? '⚠️ ' : ''; ?>Fanfiction Manager requires Pretty Permalinks to be enabled to function correctly.</strong>
                 </p>
                 <p>
                     Your WordPress site is currently using "Plain" permalinks, which are not compatible with this plugin.
-                    The plugin is disabled until this is resolved.
+                    The plugin functionality is disabled until this is resolved.
                 </p>
                 <p>
                     <a href="<?php echo esc_url($fix_url); ?>" class="button button-primary fanfic-fix-button">
-                        Fix
+                        Auto-Fix Permalinks
                     </a>
                     <a href="<?php echo esc_url(admin_url('options-permalink.php')); ?>" class="button button-secondary">
                         Configure Manually
                     </a>
                 </p>
                 <p class="description">
-                    <strong>Note:</strong> The "Fix " button will set your permalink structure to <code>/%postname%/</code>.
+                    <strong>Note:</strong> The "Auto-Fix Permalinks" button will set your permalink structure to <code>/%postname%/</code>.
                 </p>
             </div>
             <?php
