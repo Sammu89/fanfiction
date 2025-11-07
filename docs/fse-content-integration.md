@@ -2,539 +2,242 @@
 
 ## Overview
 
-This document explains how dynamic page content (dashboard, members, search, user profiles) integrates with the plugin's page template system on both **Classic** and **FSE (Block)** themes.
+This document explains how the Fanfiction Manager plugin works with both **Classic** and **FSE (Full Site Editing / Block)** themes.
 
 ---
 
-## 🏗️ Architecture: Two-System Approach
+## 🏗️ Architecture: Two Theme Approaches
 
-The plugin uses a **hybrid page system** to maximize flexibility:
+### Classic Themes (e.g., OceanWP, Astra, GeneratePress)
 
-### 1. **Real WordPress Pages** (Database-backed)
-- Created during setup wizard
-- Stored in `wp_posts` table
-- Examples: Login, Register, Password Reset, Error, Maintenance
-- Content: Shortcodes wrapped in WordPress blocks
+**Uses:** Custom PHP template (`templates/fanfiction-page-template.php`)
 
-### 2. **Virtual Dynamic Pages** (Rewrite-based)
-- No database entries (lightweight)
-- Created via rewrite rules
-- Examples: Dashboard, Create Story, Search, Members
-- Content: Injected dynamically via filters
+**How it works:**
+- Plugin registers a custom page template in WordPress
+- Pages are assigned this template automatically
+- Template includes theme's header/footer via `get_header()` and `get_footer()`
+- Provides custom layout with optional sidebar
+- Full control over HTML structure and styling
+
+### FSE/Block Themes (e.g., Twenty Twenty-Two, Twenty Twenty-Three)
+
+**Uses:** Theme's default page template (no custom template)
+
+**How it works:**
+- Plugin does NOT provide a custom template
+- Pages use the active FSE theme's default `page.html` template
+- Content is injected via WordPress's standard content filters
+- Theme's Site Editor controls the layout
+- Users can customize appearance via Appearance > Editor
 
 ---
 
-## 📄 System 1: Real WordPress Pages
+## 📄 Content System: Two Page Types
 
-### Page Creation Process
+### 1. Real WordPress Pages (Database-backed)
 
-When pages are created (via `class-fanfic-templates.php:615`), they're populated with **block-wrapped shortcodes**:
+**Created by:** Setup wizard
+**Stored in:** `wp_posts` table
+**Examples:** Login, Register, Password Reset, Error, Maintenance
 
+**Content format:**
 ```php
-public static function get_default_template_content( $page_slug ) {
-    $templates = array(
-        'login'          => '<!-- wp:paragraph --><p>[fanfic-login-form]</p><!-- /wp:paragraph -->',
-        'register'       => '<!-- wp:paragraph --><p>[fanfic-register-form]</p><!-- /wp:paragraph -->',
-        'password-reset' => '<!-- wp:paragraph --><p>[fanfic-password-reset-form]</p><!-- /wp:paragraph -->',
-        'dashboard'      => '<!-- wp:paragraph --><p>[user-dashboard]</p><!-- /wp:paragraph -->',
-        'create-story'   => '<!-- wp:paragraph --><p>[author-create-story-form]</p><!-- /wp:paragraph -->',
-        'search'         => '<!-- wp:paragraph --><p>[search-results]</p><!-- /wp:paragraph -->',
-        'members'        => '<!-- wp:paragraph --><p>[user-profile]</p><!-- /wp:paragraph -->',
-        'error'          => '<!-- wp:paragraph --><p>[fanfic-error-message]</p><!-- /wp:paragraph -->',
-        'maintenance'    => '<!-- wp:paragraph --><p>[fanfic-maintenance-message]</p><!-- /wp:paragraph -->',
-    );
-
-    return isset( $templates[ $page_slug ] ) ? $templates[ $page_slug ] : '';
-}
+// Block-wrapped shortcodes
+'<!-- wp:paragraph --><p>[fanfic-login-form]</p><!-- /wp:paragraph -->'
 ```
 
-### How Content Renders
-
-#### **Classic Themes** (e.g., OceanWP)
-File: `templates/fanfiction-page-template.php`
-
-```php
-<div class="entry-content">
-    <?php
-    /**
-     * the_content() processes:
-     * 1. Block markup (<!-- wp:paragraph -->)
-     * 2. Shortcodes ([user-dashboard])
-     * 3. Filters (wpautop, wptexturize, etc.)
-     */
-    the_content();
-    ?>
-</div>
-```
-
-**Flow:**
-1. WordPress loads the PHP template
-2. `the_content()` is called
-3. WordPress strips block comments: `<!-- wp:paragraph --><p>[user-dashboard]</p><!-- /wp:paragraph -->` → `<p>[user-dashboard]</p>`
+**Rendering flow:**
+1. WordPress loads appropriate template (custom PHP for classic, theme's page.html for FSE)
+2. `the_content()` or `<!-- wp:post-content /-->` block renders content
+3. WordPress processes blocks and strips block comments
 4. `do_shortcode()` processes shortcodes automatically
-5. Shortcode handler (`Fanfic_Shortcodes_User::user_dashboard()`) returns HTML
-6. Final HTML is rendered
+5. Shortcode handlers return HTML
+6. Final output is rendered
 
-#### **Block (FSE) Themes** (e.g., Twenty Twenty-Two)
-File: `templates/block/fanfiction-page-template.html`
+### 2. Virtual Dynamic Pages (Rewrite-based)
 
-```html
-<!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+**Created by:** Rewrite rules (no database entry)
+**Examples:** Dashboard, Create Story, Search, Members
+**File:** `includes/class-fanfic-url-manager.php`
 
-<!-- wp:group {"tagName":"main"...} -->
-<main class="wp-block-group fanfiction-page-content" ...>
-    <!-- wp:post-title {"level":1,"className":"fanfiction-page-title"} /-->
+**How it works:**
+1. URL rewrite rules catch specific URLs (e.g., `/fanfiction/dashboard/`)
+2. Query var `fanfic_page` is set
+3. `the_posts` filter creates a fake `WP_Post` object
+4. WordPress treats it as a real page
+5. `the_content` filter injects shortcode dynamically
+6. Normal template loading applies (custom PHP or FSE theme default)
 
-    <!-- wp:post-content {"layout":{"type":"constrained"}} /-->
-</main>
-<!-- /wp:group -->
-
-<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
-```
-
-**Flow:**
-1. WordPress loads the block template
-2. `<!-- wp:post-content -->` block renders the page content
-3. WordPress processes stored blocks: `<!-- wp:paragraph --><p>[user-dashboard]</p><!-- /wp:paragraph -->`
-4. Block renderer outputs: `<p>[user-dashboard]</p>`
-5. `do_shortcode()` processes shortcodes (via `the_content` filter)
-6. Shortcode handler returns HTML
-7. Final HTML is rendered
-
----
-
-## 🌐 System 2: Virtual Dynamic Pages
-
-Virtual pages don't exist in the database. They're created on-the-fly using WordPress's rewrite and filter systems.
-
-### How Virtual Pages Work
-
-#### Step 1: Rewrite Rules
-File: `class-fanfic-url-manager.php:181`
-
+**Code example:**
 ```php
-// Dashboard: /fanfiction/dashboard/
-add_rewrite_rule(
-    '^' . $base . '/' . $slugs['dashboard'] . '/?$',
-    'index.php?fanfic_page=dashboard',
-    'top'
-);
-```
+// In create_virtual_page_post()
+$post->post_content = ''; // Empty initially
 
-When user visits `/fanfiction/dashboard/`, WordPress sets `fanfic_page=dashboard` query var.
-
-#### Step 2: Setup Virtual Page Context
-File: `class-fanfic-url-manager.php:545`
-
-```php
-public function setup_virtual_pages() {
-    $fanfic_page = get_query_var( 'fanfic_page' );
-
-    if ( empty( $fanfic_page ) ) {
-        return;
-    }
-
-    // Tell WordPress this is a page request
-    global $wp_query;
-    $wp_query->is_page     = true;
-    $wp_query->is_singular = true;
-    $wp_query->is_home     = false;
-    $wp_query->is_404      = false;
-}
-```
-
-This tricks WordPress into thinking it's loading a real page.
-
-#### Step 3: Create Fake WP_Post Object
-File: `class-fanfic-url-manager.php:572`
-
-```php
-public function create_virtual_page_post( $posts, $query ) {
-    $fanfic_page = get_query_var( 'fanfic_page' );
-
-    if ( empty( $fanfic_page ) ) {
-        return $posts;
-    }
-
-    $page_config = $this->get_virtual_page_config( $fanfic_page );
-
-    // Create fake post object
-    $post = new stdClass();
-    $post->ID           = -999; // Negative ID to avoid conflicts
-    $post->post_title   = $page_config['title'];
-    $post->post_content = ''; // Empty - will be injected
-    $post->post_type    = 'page';
-    $post->post_status  = 'publish';
-
-    // Store page key for content injection
-    $post->fanfic_page_key = $fanfic_page;
-
-    return array( new WP_Post( $post ) );
-}
-```
-
-#### Step 4: Inject Shortcode Content
-File: `class-fanfic-url-manager.php:642`
-
-```php
+// In inject_virtual_page_content()
 public function inject_virtual_page_content( $content ) {
-    global $post;
-
-    // Only process our virtual pages
     if ( ! isset( $post->fanfic_page_key ) ) {
         return $content;
     }
 
     $page_config = $this->get_virtual_page_config( $post->fanfic_page_key );
-
-    // Return the shortcode - WordPress will process it automatically
     return do_shortcode( '[' . $page_config['shortcode'] . ']' );
 }
 ```
 
-#### Step 5: Page Configuration
-File: `class-fanfic-url-manager.php:672`
+---
 
+## 🎨 Template Assignment
+
+### On Page Creation
 ```php
-private function get_virtual_page_config( $page_key ) {
-    $pages = array(
-        'dashboard'    => array(
-            'title'     => __( 'Dashboard', 'fanfiction-manager' ),
-            'shortcode' => 'user-dashboard',
-        ),
-        'create-story' => array(
-            'title'     => __( 'Create Story', 'fanfiction-manager' ),
-            'shortcode' => 'author-create-story-form',
-        ),
-        'search'       => array(
-            'title'     => __( 'Search', 'fanfiction-manager' ),
-            'shortcode' => 'search-results',
-        ),
-        'members'      => array(
-            'title'     => __( 'Members', 'fanfiction-manager' ),
-            'shortcode' => 'user-profile',
-        ),
-    );
+// In class-fanfic-templates.php
+$template_identifier = Fanfic_Page_Template::get_template_identifier();
+update_post_meta( $page_id, '_wp_page_template', $template_identifier );
+```
 
-    return isset( $pages[ $page_key ] ) ? $pages[ $page_key ] : false;
+**Result:**
+- **Classic themes:** Assigns `fanfiction-page-template.php`
+- **FSE themes:** Assigns `default` (theme handles it)
+
+### On Theme Switch
+
+When switching between classic and FSE themes:
+
+1. Plugin detects theme type change
+2. Automatically updates all plugin pages' template assignments
+3. Shows admin notice confirming update
+4. If auto-fix fails, provides "Fix Pages" button
+
+**Code:**
+```php
+// In class-fanfic-page-template.php
+public static function handle_theme_switch() {
+    $previous_theme_type = get_option( 'fanfic_theme_type' );
+    $current_theme_type = self::is_block_theme() ? 'block' : 'classic';
+
+    if ( $previous_theme_type !== $current_theme_type ) {
+        self::auto_fix_pages_for_theme_type( $current_theme_type );
+    }
 }
 ```
 
-### Template Loading for Virtual Pages
+---
 
-Virtual pages use the **same template system** as real pages.
+## 🔧 Template Loading Logic
 
-#### Classic Themes
-File: `class-fanfic-page-template.php:90`
-
+### Classic Themes
 ```php
+// In class-fanfic-page-template.php
 public static function load_page_template( $template ) {
-    global $post;
-
-    // Check if this is a virtual dynamic page
-    if ( isset( $post->fanfic_page_key ) ) {
-        return self::locate_template(); // Returns fanfiction-page-template.php
+    if ( self::is_block_theme() ) {
+        return $template; // Let FSE theme handle it
     }
 
-    // ... other checks ...
-}
-```
-
-The virtual page loads `templates/fanfiction-page-template.php`, which calls:
-- `the_content()` → processes injected shortcode → renders HTML
-
-#### Block (FSE) Themes
-Virtual pages will use the assigned block template (`fanfiction-manager//fanfiction-page-template`).
-
-The `<!-- wp:post-content -->` block will:
-1. Call `the_content()` filter chain
-2. Execute `inject_virtual_page_content()` filter
-3. Process `[user-dashboard]` shortcode
-4. Render final HTML
-
----
-
-## 🔄 Content Flow Diagram
-
-### Real WordPress Pages
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ 1. User visits /fanfiction/login/                           │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 2. WordPress loads page with template assigned              │
-│    _wp_page_template = 'fanfiction-page-template.php'       │
-│                     OR                                       │
-│    _wp_page_template = 'fanfiction-manager//fanfiction...'  │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-        ┌─────────────┴─────────────┐
-        │                           │
-┌───────▼──────────┐    ┌──────────▼────────────┐
-│ Classic Theme    │    │ Block (FSE) Theme     │
-│                  │    │                       │
-│ PHP Template     │    │ HTML Block Template   │
-│ the_content()    │    │ <!-- wp:post-content │
-└───────┬──────────┘    └──────────┬────────────┘
-        │                           │
-        └─────────────┬─────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 3. WordPress processes page content:                        │
-│    '<!-- wp:paragraph --><p>[fanfic-login-form]</p><!--..'  │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 4. Strip block comments → '<p>[fanfic-login-form]</p>'      │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 5. do_shortcode() processes [fanfic-login-form]             │
-│    Calls: Fanfic_Shortcodes_Auth::login_form()              │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 6. Shortcode returns HTML (login form markup)               │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 7. Final HTML rendered on page                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Virtual Dynamic Pages
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ 1. User visits /fanfiction/dashboard/                       │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 2. Rewrite rule matches → sets fanfic_page=dashboard        │
-│    (class-fanfic-url-manager.php:186)                       │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 3. setup_virtual_pages() sets $wp_query flags               │
-│    - is_page = true                                          │
-│    - is_singular = true                                      │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 4. create_virtual_page_post() creates fake WP_Post          │
-│    - ID: -999                                                │
-│    - post_title: 'Dashboard'                                 │
-│    - post_content: '' (empty)                                │
-│    - fanfic_page_key: 'dashboard'                            │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 5. load_page_template() detects virtual page                │
-│    Returns: fanfiction-page-template.php OR block template  │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-        ┌─────────────┴─────────────┐
-        │                           │
-┌───────▼──────────┐    ┌──────────▼────────────┐
-│ Classic Theme    │    │ Block (FSE) Theme     │
-│ the_content()    │    │ <!-- wp:post-content │
-└───────┬──────────┘    └──────────┬────────────┘
-        │                           │
-        └─────────────┬─────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 6. inject_virtual_page_content() filter injects shortcode   │
-│    Returns: '[user-dashboard]'                              │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 7. do_shortcode() processes [user-dashboard]                │
-│    Calls: Fanfic_Shortcodes_User::user_dashboard()          │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 8. Shortcode returns HTML (dashboard interface)             │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│ 9. Final HTML rendered on page                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## ✅ Why This Works in Both Theme Types
-
-### Key Compatibility Points
-
-#### 1. **Block-Wrapped Shortcodes**
-Pages are created with block markup:
-```html
-<!-- wp:paragraph --><p>[user-dashboard]</p><!-- /wp:paragraph -->
-```
-
-This works in both:
-- **Classic themes**: Block comments are stripped, shortcode is processed
-- **FSE themes**: Block is parsed, rendered as `<p>`, shortcode is processed
-
-#### 2. **Shortcode Processing**
-Both `the_content()` (classic) and `<!-- wp:post-content -->` (FSE) trigger the `the_content` filter, which includes:
-- `do_shortcode()` - processes all shortcodes
-- Block rendering (FSE only)
-- Auto-paragraph formatting
-- Other content filters
-
-#### 3. **Template Assignment**
-The updated code (`class-fanfic-page-template.php`) assigns the correct template based on theme type:
-
-```php
-public static function get_template_identifier() {
-    return self::is_block_theme() ? self::BLOCK_TEMPLATE_SLUG : self::TEMPLATE_FILE;
-}
-```
-
-**Classic themes**: `_wp_page_template = 'fanfiction-page-template.php'`
-**FSE themes**: `_wp_page_template = 'fanfiction-manager//fanfiction-page-template'`
-
-#### 4. **Content Injection Hook**
-Virtual pages inject content via the `the_content` filter:
-
-```php
-add_filter( 'the_content', array( $this, 'inject_virtual_page_content' ) );
-```
-
-This filter fires in both:
-- Classic PHP templates when `the_content()` is called
-- Block templates when `<!-- wp:post-content -->` is rendered
-
----
-
-## 🛠️ Shortcode Handler Example
-
-File: `includes/shortcodes/class-fanfic-shortcodes-user.php:78`
-
-```php
-public static function user_dashboard( $atts ) {
-    // Check if user is logged in
-    if ( ! is_user_logged_in() ) {
-        return self::login_prompt( __( 'Please log in to view your dashboard.', 'fanfiction-manager' ) );
+    // For classic themes, load our custom template
+    if ( isset( $post->fanfic_page_key ) || self::is_plugin_page( $post->ID ) ) {
+        return self::locate_template(); // Returns templates/fanfiction-page-template.php
     }
 
-    $user_id = get_current_user_id();
-    $current_user = wp_get_current_user();
-
-    // Build dashboard HTML
-    $output = '<div class="fanfic-user-dashboard">';
-    $output .= '<div class="fanfic-dashboard-header">';
-    $output .= '<h2>' . sprintf( __( 'Welcome, %s', 'fanfiction-manager' ), $current_user->display_name ) . '</h2>';
-    $output .= '</div>';
-
-    // ... dashboard content sections ...
-    // - Stories
-    // - Favorites
-    // - Notifications
-    // - etc.
-
-    $output .= '</div>';
-
-    return $output;
+    return $template;
 }
 ```
 
-The shortcode handler:
-1. Receives attributes (if any)
-2. Performs logic (check login, fetch data, etc.)
-3. Builds HTML output
-4. Returns HTML string
-5. WordPress inserts this HTML into the page content
+### FSE Themes
+
+No custom template loading. The plugin:
+1. Sets page template meta to `'default'`
+2. Returns early from `load_page_template()` filter
+3. Lets WordPress use the theme's `page.html` template
+4. Content still renders via `the_content()` filter
 
 ---
 
-## 📝 Summary
+## 🎯 Why This Approach?
 
-### Content Integration Method
+### Classic Themes: Custom Template
 
-| Aspect | Classic Themes | FSE Themes | Notes |
-|--------|---------------|------------|-------|
-| **Template File** | `fanfiction-page-template.php` | `fanfiction-page-template.html` | Auto-selected based on theme |
-| **Content Wrapper** | PHP: `the_content()` | Block: `<!-- wp:post-content -->` | Both trigger same filters |
-| **Page Content** | Block-wrapped shortcodes | Block-wrapped shortcodes | Same format in database |
-| **Shortcode Processing** | ✅ Via `the_content` filter | ✅ Via `the_content` filter | Automatic in both |
-| **Virtual Pages** | ✅ Via content injection | ✅ Via content injection | Same mechanism |
+**Advantages:**
+- Full control over layout and structure
+- Can provide custom sidebar with widgets
+- Easy to add plugin-specific styling
+- Works with all classic themes consistently
 
-### Why It's Theme-Agnostic
+**How it works:**
+```php
+get_header(); // Theme's header
+?>
+<div class="fanfiction-page-wrapper">
+    <div class="fanfiction-page-main">
+        <?php the_content(); // Shortcode content ?>
+    </div>
+    <?php if ( is_active_sidebar( 'fanfiction-sidebar' ) ) : ?>
+        <aside class="fanfiction-sidebar">
+            <?php dynamic_sidebar( 'fanfiction-sidebar' ); ?>
+        </aside>
+    <?php endif; ?>
+</div>
+<?php
+get_footer(); // Theme's footer
+```
 
-✅ **Block markup is universal** - Works in both classic and FSE
-✅ **Shortcodes are theme-independent** - Process the same way everywhere
-✅ **Content filters are standardized** - `the_content` fires in both systems
-✅ **Template assignment is automatic** - Detects theme type on activation/switch
+### FSE Themes: No Custom Template
 
----
+**Advantages:**
+- Respects user's chosen theme design
+- Users can customize via Site Editor (Appearance > Editor)
+- No maintenance of block template HTML
+- Works with any FSE theme's page template
+- Follows WordPress FSE best practices
 
-## 🚀 Testing Recommendations
-
-### Test Scenario 1: Classic Theme
-1. Activate OceanWP or another classic theme
-2. Visit `/fanfiction/dashboard/` (virtual page)
-3. Visit `/fanfiction/login/` (real page)
-4. Verify both load the PHP template and render shortcodes
-
-### Test Scenario 2: FSE Theme
-1. Activate Twenty Twenty-Two or another block theme
-2. Visit `/fanfiction/dashboard/` (virtual page)
-3. Visit `/fanfiction/login/` (real page)
-4. Verify both load the block template and render shortcodes
-
-### Test Scenario 3: Theme Switch
-1. Start with classic theme
-2. Create/view pages
-3. Switch to block theme
-4. Verify admin notice appears
-5. Click "Fix Pages Now" button
-6. Verify pages still work with block template
+**Why not use a custom block template?**
+- FSE themes are designed to be fully customizable by users
+- Custom templates would override user's design choices
+- Would require maintaining complex block markup
+- Users expect FSE themes to use Site Editor
+- Plugin content still renders perfectly via filters
 
 ---
 
 ## 🔍 Troubleshooting
 
-### Issue: Shortcodes Not Processing in FSE Theme
+### Content Not Showing (Classic Themes)
 
-**Cause**: Some custom block themes override `the_content` filter
-**Solution**: Ensure block template uses standard `<!-- wp:post-content -->` block
+**Issue:** Blank page or no content
+**Fix:** Check that `the_content()` is called in the template
 
-### Issue: Virtual Pages Show 404 in FSE Theme
+### Content Not Showing (FSE Themes)
 
-**Cause**: Rewrite rules not flushed, or template assignment issue
-**Solution**:
-1. Go to Settings → Permalinks → Save Changes
-2. Verify `$wp_query->is_page` is set to true in virtual page setup
+**Issue:** Blank page or no content
+**Fix:**
+1. Check theme has `<!-- wp:post-content /-->` block in page template
+2. Verify page template meta is set to `'default'`
+3. Check virtual page rewrite rules are flushed
 
-### Issue: Block Template Not Loading
+### Template Not Applying (Classic Themes)
 
-**Cause**: WordPress doesn't recognize the block template
-**Solution**:
-1. Verify block template file exists: `templates/block/fanfiction-page-template.html`
-2. Verify template slug is correct in page meta: `fanfiction-manager//fanfiction-page-template`
-3. Clear theme cache: `wp_cache_flush()`
+**Issue:** Using wrong template
+**Fix:**
+1. Go to Settings > Permalinks > Save (flushes rewrite rules)
+2. Edit the page, check Template dropdown shows "Fanfiction Page Template"
+3. Clear theme cache: deactivate/reactivate plugin
 
----
+### Styling Issues (FSE Themes)
 
-## 📚 Related Files
-
-- `includes/class-fanfic-page-template.php` - Template registration & assignment
-- `includes/class-fanfic-templates.php` - Page creation with shortcodes
-- `includes/class-fanfic-url-manager.php` - Virtual pages & rewrite rules
-- `includes/shortcodes/class-fanfic-shortcodes-user.php` - Dashboard shortcode
-- `includes/shortcodes/class-fanfic-shortcodes-profile.php` - Profile shortcode
-- `includes/shortcodes/class-fanfic-shortcodes-search.php` - Search shortcode
-- `includes/shortcodes/class-fanfic-shortcodes-author-forms.php` - Create story shortcode
-- `templates/fanfiction-page-template.php` - Classic theme template
-- `templates/block/fanfiction-page-template.html` - FSE theme template
+**Issue:** Layout doesn't match theme
+**Fix:** This is expected! FSE themes use Site Editor for customization.
+- Go to Appearance > Editor > Templates
+- Find the page template
+- Customize layout as desired
 
 ---
 
-**Last Updated**: 2025-11-07
-**Plugin Version**: 1.0.0+
-**WordPress Compatibility**: 5.8+ (FSE support requires 5.9+)
+## 📝 Key Takeaways
+
+1. **Classic themes:** Plugin provides custom template with full control
+2. **FSE themes:** Plugin uses theme's default template, no customization needed
+3. **Both work seamlessly:** Content renders via standard WordPress filters
+4. **Theme switching:** Automatically handled by plugin
+5. **Virtual pages:** Work identically in both theme types
+6. **Shortcodes:** Process normally in all scenarios
+
+The plugin is designed to work perfectly with both theme types while respecting WordPress conventions and user expectations.

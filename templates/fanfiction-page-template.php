@@ -25,7 +25,7 @@ get_header();
 		<?php
 		// Check if we should show sidebar (from global option)
 		$show_sidebar = get_option( 'fanfic_show_sidebar', '1' );
-		$layout_class = ( '1' === $show_sidebar ) ? 'fanfic-with-sidebar' : 'fanfic-no-sidebar';
+		$layout_class = ( '1' === $show_sidebar ) ? 'fanfiction-with-sidebar' : 'fanfiction-no-sidebar';
 		?>
 
 		<div class="fanfiction-page-wrapper <?php echo esc_attr( $layout_class ); ?>">
