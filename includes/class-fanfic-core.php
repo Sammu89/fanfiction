@@ -66,6 +66,9 @@ class Fanfic_Core {
 		// Load URL Manager (centralized URL management - replaces Rewrite, Dynamic_Pages, URL_Builder)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-manager.php';
 
+		// Load Page Template (handles custom template that integrates with themes)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-page-template.php';
+
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-post-types.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';
@@ -132,6 +135,9 @@ class Fanfic_Core {
 
 		// Initialize template system
 		Fanfic_Templates::init();
+
+		// Initialize page template system
+		Fanfic_Page_Template::init();
 
 		// Initialize shortcodes
 		Fanfic_Shortcodes::init();

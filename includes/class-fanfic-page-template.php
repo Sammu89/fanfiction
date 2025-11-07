@@ -1,0 +1,338 @@
+<?php
+/**
+ * Fanfiction Page Template Handler
+ *
+ * Manages the plugin's custom page template that integrates with themes.
+ * Handles template registration, auto-assignment, widget areas, and customizer controls.
+ *
+ * @package FanfictionManager
+ * @since 1.0.0
+ */
+
+// Exit if accessed directly
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Class Fanfic_Page_Template
+ *
+ * Manages custom page template functionality.
+ *
+ * @since 1.0.0
+ */
+class Fanfic_Page_Template {
+
+	/**
+	 * Template file name
+	 *
+	 * @var string
+	 */
+	const TEMPLATE_FILE = 'fanfiction-page-template.php';
+
+	/**
+	 * Initialize the page template system
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function init() {
+		// Register template in WordPress
+		add_filter( 'theme_page_templates', array( __CLASS__, 'register_page_template' ), 10, 3 );
+
+		// Load template for pages and virtual pages
+		add_filter( 'template_include', array( __CLASS__, 'load_page_template' ), 99 );
+
+		// Auto-assign template to plugin pages
+		add_action( 'save_post_page', array( __CLASS__, 'auto_assign_template' ), 10, 3 );
+
+		// Register widget area
+		add_action( 'widgets_init', array( __CLASS__, 'register_widget_area' ) );
+
+		// Register Customizer controls
+		add_action( 'customize_register', array( __CLASS__, 'register_customizer_controls' ) );
+
+		// Add body class for easier styling
+		add_filter( 'body_class', array( __CLASS__, 'add_body_class' ) );
+	}
+
+	/**
+	 * Register the page template in WordPress
+	 *
+	 * Makes the template appear in the Page Template dropdown.
+	 *
+	 * @since 1.0.0
+	 * @param array  $templates Array of page templates.
+	 * @param object $theme     Theme object.
+	 * @param object $post      Post object.
+	 * @return array Modified templates array.
+	 */
+	public static function register_page_template( $templates, $theme = null, $post = null ) {
+		$templates[ self::TEMPLATE_FILE ] = __( 'Fanfiction Page Template', 'fanfiction-manager' );
+		return $templates;
+	}
+
+	/**
+	 * Load the page template
+	 *
+	 * Loads the plugin template for:
+	 * 1. Pages that have selected it
+	 * 2. Plugin system pages
+	 * 3. Virtual dynamic pages
+	 *
+	 * @since 1.0.0
+	 * @param string $template Template path.
+	 * @return string Modified template path.
+	 */
+	public static function load_page_template( $template ) {
+		global $post;
+
+		// Check if this is a virtual dynamic page
+		if ( isset( $post->fanfic_page_key ) ) {
+			return self::locate_template();
+		}
+
+		// Check if post exists and is a page
+		if ( ! is_singular( 'page' ) || ! $post ) {
+			return $template;
+		}
+
+		// Check if page has our template assigned
+		$page_template = get_post_meta( $post->ID, '_wp_page_template', true );
+
+		if ( self::TEMPLATE_FILE === $page_template ) {
+			$plugin_template = self::locate_template();
+			if ( $plugin_template ) {
+				return $plugin_template;
+			}
+		}
+
+		// Check if this is a plugin system page
+		if ( self::is_plugin_page( $post->ID ) ) {
+			$plugin_template = self::locate_template();
+			if ( $plugin_template ) {
+				return $plugin_template;
+			}
+		}
+
+		return $template;
+	}
+
+	/**
+	 * Locate the template file
+	 *
+	 * Checks theme first (for overrides), then plugin directory.
+	 *
+	 * @since 1.0.0
+	 * @return string|false Template path or false if not found.
+	 */
+	private static function locate_template() {
+		// Check if theme has override
+		$theme_template = locate_template( array(
+			'fanfiction-manager/' . self::TEMPLATE_FILE,
+			self::TEMPLATE_FILE,
+		) );
+
+		if ( $theme_template ) {
+			return $theme_template;
+		}
+
+		// Use plugin template
+		$plugin_template = FANFIC_PLUGIN_DIR . 'templates/' . self::TEMPLATE_FILE;
+		if ( file_exists( $plugin_template ) ) {
+			return $plugin_template;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Auto-assign template to plugin pages
+	 *
+	 * When a plugin system page is created or updated, automatically assign our template.
+	 *
+	 * @since 1.0.0
+	 * @param int     $post_id Post ID.
+	 * @param WP_Post $post    Post object.
+	 * @param bool    $update  Whether this is an existing post being updated.
+	 * @return void
+	 */
+	public static function auto_assign_template( $post_id, $post, $update ) {
+		// Skip autosave, revisions, and trashed posts
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) || 'trash' === $post->post_status ) {
+			return;
+		}
+
+		// Only process plugin pages
+		if ( ! self::is_plugin_page( $post_id ) ) {
+			return;
+		}
+
+		// Check if template is already assigned
+		$current_template = get_post_meta( $post_id, '_wp_page_template', true );
+
+		// Only assign if no template is set or if it's the default
+		if ( empty( $current_template ) || 'default' === $current_template ) {
+			update_post_meta( $post_id, '_wp_page_template', self::TEMPLATE_FILE );
+		}
+	}
+
+	/**
+	 * Check if a page ID is a plugin system page
+	 *
+	 * @since 1.0.0
+	 * @param int $post_id Post ID.
+	 * @return bool True if plugin page, false otherwise.
+	 */
+	private static function is_plugin_page( $post_id ) {
+		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+		return in_array( $post_id, $page_ids, true );
+	}
+
+	/**
+	 * Register widget area for Fanfiction pages
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function register_widget_area() {
+		register_sidebar(
+			array(
+				'name'          => __( 'Fanfiction Sidebar', 'fanfiction-manager' ),
+				'id'            => 'fanfiction-sidebar',
+				'description'   => __( 'Widget area for Fanfiction Manager plugin pages (Dashboard, Create Story, Search, Members, etc.).', 'fanfiction-manager' ),
+				'before_widget' => '<section id="%1$s" class="widget fanfiction-widget %2$s">',
+				'after_widget'  => '</section>',
+				'before_title'  => '<h2 class="widget-title">',
+				'after_title'   => '</h2>',
+			)
+		);
+	}
+
+	/**
+	 * Register Customizer controls
+	 *
+	 * @since 1.0.0
+	 * @param WP_Customize_Manager $wp_customize Customizer manager.
+	 * @return void
+	 */
+	public static function register_customizer_controls( $wp_customize ) {
+		// Add section for Fanfiction settings
+		$wp_customize->add_section(
+			'fanfiction_layout',
+			array(
+				'title'       => __( 'Fanfiction Pages', 'fanfiction-manager' ),
+				'description' => __( 'Customize the layout and appearance of Fanfiction plugin pages.', 'fanfiction-manager' ),
+				'priority'    => 160,
+			)
+		);
+
+		// Sidebar visibility setting
+		$wp_customize->add_setting(
+			'fanfic_show_sidebar',
+			array(
+				'default'           => true,
+				'type'              => 'theme_mod',
+				'capability'        => 'edit_theme_options',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_checkbox' ),
+				'transport'         => 'refresh',
+			)
+		);
+
+		$wp_customize->add_control(
+			'fanfic_show_sidebar',
+			array(
+				'label'       => __( 'Show Sidebar on Fanfiction Pages', 'fanfiction-manager' ),
+				'description' => __( 'Display the Fanfiction Sidebar widget area on plugin pages.', 'fanfiction-manager' ),
+				'section'     => 'fanfiction_layout',
+				'type'        => 'checkbox',
+			)
+		);
+
+		// Page width setting
+		$wp_customize->add_setting(
+			'fanfic_page_width',
+			array(
+				'default'           => 'theme-default',
+				'type'              => 'theme_mod',
+				'capability'        => 'edit_theme_options',
+				'sanitize_callback' => 'sanitize_text_field',
+				'transport'         => 'refresh',
+			)
+		);
+
+		$wp_customize->add_control(
+			'fanfic_page_width',
+			array(
+				'label'       => __( 'Page Width', 'fanfiction-manager' ),
+				'description' => __( 'Control the content width of Fanfiction pages.', 'fanfiction-manager' ),
+				'section'     => 'fanfiction_layout',
+				'type'        => 'select',
+				'choices'     => array(
+					'theme-default' => __( 'Theme Default', 'fanfiction-manager' ),
+					'full-width'    => __( 'Full Width', 'fanfiction-manager' ),
+					'boxed'         => __( 'Boxed', 'fanfiction-manager' ),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Sanitize checkbox value
+	 *
+	 * @since 1.0.0
+	 * @param bool $checked Checkbox value.
+	 * @return bool Sanitized value.
+	 */
+	public static function sanitize_checkbox( $checked ) {
+		return ( isset( $checked ) && true === $checked ) ? true : false;
+	}
+
+	/**
+	 * Add body class for Fanfiction pages
+	 *
+	 * Makes it easier to style plugin pages with CSS.
+	 *
+	 * @since 1.0.0
+	 * @param array $classes Body classes.
+	 * @return array Modified body classes.
+	 */
+	public static function add_body_class( $classes ) {
+		global $post;
+
+		// Check if we're on a plugin page or virtual page
+		if ( isset( $post->fanfic_page_key ) ) {
+			$classes[] = 'fanfiction-page';
+			$classes[] = 'fanfiction-' . sanitize_html_class( $post->fanfic_page_key );
+		} elseif ( is_singular( 'page' ) && $post && self::is_plugin_page( $post->ID ) ) {
+			$classes[] = 'fanfiction-page';
+
+			// Add specific class based on page slug
+			$classes[] = 'fanfiction-' . sanitize_html_class( $post->post_name );
+		}
+
+		// Add layout class
+		$show_sidebar = get_theme_mod( 'fanfic_show_sidebar', true );
+		if ( in_array( 'fanfiction-page', $classes, true ) ) {
+			$classes[] = $show_sidebar ? 'fanfiction-with-sidebar' : 'fanfiction-no-sidebar';
+		}
+
+		// Add width class
+		$page_width = get_theme_mod( 'fanfic_page_width', 'theme-default' );
+		if ( 'theme-default' !== $page_width && in_array( 'fanfiction-page', $classes, true ) ) {
+			$classes[] = 'fanfiction-width-' . sanitize_html_class( $page_width );
+		}
+
+		return $classes;
+	}
+
+	/**
+	 * Get template file path
+	 *
+	 * @since 1.0.0
+	 * @return string Template file path.
+	 */
+	public static function get_template_file() {
+		return FANFIC_PLUGIN_DIR . 'templates/' . self::TEMPLATE_FILE;
+	}
+}
