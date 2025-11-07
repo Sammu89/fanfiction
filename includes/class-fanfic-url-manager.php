@@ -618,14 +618,25 @@ class Fanfic_URL_Manager {
 		// Store page key for later use in content injection.
 		$post->fanfic_page_key = $fanfic_page;
 
-		// Convert to WP_Post object.
-		$posts = array( new WP_Post( $post ) );
+		// For FSE themes, use default template (theme will provide page.html or similar)
+		// For classic themes, virtual pages will use our custom template via template_include filter
+		$post->page_template = 'default';
 
-		// Update global query.
-		global $wp_query;
+		// Convert to WP_Post object.
+		$wp_post = new WP_Post( $post );
+		$posts = array( $wp_post );
+
+		// Update global query and post.
+		global $wp_query, $post;
 		$wp_query->post_count = 1;
 		$wp_query->found_posts = 1;
 		$wp_query->max_num_pages = 1;
+		$wp_query->post = $wp_post;
+		$wp_query->posts = $posts;
+
+		// Set the global $post variable
+		$post = $wp_post;
+		setup_postdata( $wp_post );
 
 		return $posts;
 	}

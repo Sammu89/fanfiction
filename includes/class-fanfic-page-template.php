@@ -103,7 +103,7 @@ class Fanfic_Page_Template {
 	 * Loads the plugin template for:
 	 * 1. Pages that have selected it
 	 * 2. Plugin system pages
-	 * 3. Virtual dynamic pages
+	 * 3. Virtual dynamic pages (classic themes only)
 	 *
 	 * @since 1.0.0
 	 * @param string $template Template path.
@@ -112,7 +112,13 @@ class Fanfic_Page_Template {
 	public static function load_page_template( $template ) {
 		global $post;
 
-		// Check if this is a virtual dynamic page
+		// For FSE themes, don't intercept template loading
+		// Let WordPress handle block templates naturally
+		if ( self::is_block_theme() ) {
+			return $template;
+		}
+
+		// Check if this is a virtual dynamic page (classic themes only)
 		if ( isset( $post->fanfic_page_key ) ) {
 			return self::locate_template();
 		}
