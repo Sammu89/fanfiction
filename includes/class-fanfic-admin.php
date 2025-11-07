@@ -424,6 +424,10 @@ class Fanfic_Admin {
 								<p class="description">
 									<?php esc_html_e( 'Automatic uses theme\'s default width. Custom width: pixels are responsive (max-width), percentages are exact proportions.', 'fanfiction-manager' ); ?>
 								</p>
+								<p class="description" style="margin-top: 8px; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107;">
+									<strong><?php esc_html_e( 'Note:', 'fanfiction-manager' ); ?></strong>
+									<?php esc_html_e( 'Custom width settings can work differently depending on your theme. Some themes apply their own container widths that may constrain the plugin content.', 'fanfiction-manager' ); ?>
+								</p>
 							</td>
 						</tr>
 					</tbody>

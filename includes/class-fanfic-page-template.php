@@ -286,7 +286,7 @@ class Fanfic_Page_Template {
 			'fanfic_page_width',
 			array(
 				'label'       => __( 'Content Width', 'fanfiction-manager' ),
-				'description' => __( 'Set content width. Use "automatic" for theme default, or specify width like "1200px" or "90%". Pixels are responsive (max-width), percentages are exact.', 'fanfiction-manager' ),
+				'description' => __( 'Set content width. Use "automatic" for theme default, or specify width like "1200px" or "90%". Pixels are responsive (max-width), percentages are exact. Note: Custom width settings can work differently depending on your theme.', 'fanfiction-manager' ),
 				'section'     => 'fanfiction_layout',
 				'type'        => 'text',
 				'input_attrs' => array(
