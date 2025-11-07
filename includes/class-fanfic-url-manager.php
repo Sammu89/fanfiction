@@ -549,9 +549,18 @@ class Fanfic_URL_Manager {
 	public function setup_virtual_pages() {
 		$fanfic_page = get_query_var( 'fanfic_page' );
 
+		// DEBUG: Always log this function
+		error_log( '=== setup_virtual_pages() CALLED ===' );
+		error_log( 'REQUEST_URI: ' . $_SERVER['REQUEST_URI'] );
+		error_log( 'fanfic_page query var: ' . var_export( $fanfic_page, true ) );
+		error_log( 'All query vars: ' . print_r( $GLOBALS['wp']->query_vars, true ) );
+
 		if ( empty( $fanfic_page ) ) {
+			error_log( 'EXIT: fanfic_page is empty - NOT a virtual page' );
 			return;
 		}
+
+		error_log( 'This IS a virtual page: ' . $fanfic_page );
 
 		// Tell WordPress this is a page request.
 		global $wp_query;
@@ -561,6 +570,8 @@ class Fanfic_URL_Manager {
 		$wp_query->is_archive     = false;
 		$wp_query->is_category    = false;
 		$wp_query->is_404         = false;
+
+		error_log( 'Set wp_query flags for virtual page' );
 	}
 
 	/**
@@ -639,16 +650,25 @@ class Fanfic_URL_Manager {
 	 * @return array Modified posts array.
 	 */
 	public function create_virtual_page_post( $posts, $query ) {
+		// DEBUG: Log function call
+		error_log( '=== create_virtual_page_post() CALLED ===' );
+		error_log( 'Is main query: ' . ( $query->is_main_query() ? 'YES' : 'NO' ) );
+
 		// Only modify main query.
 		if ( ! $query->is_main_query() ) {
+			error_log( 'EXIT: Not main query' );
 			return $posts;
 		}
 
 		$fanfic_page = get_query_var( 'fanfic_page' );
+		error_log( 'fanfic_page query var: ' . var_export( $fanfic_page, true ) );
 
 		if ( empty( $fanfic_page ) ) {
+			error_log( 'EXIT: fanfic_page is empty' );
 			return $posts;
 		}
+
+		error_log( 'Creating virtual post for: ' . $fanfic_page );
 
 		// Get page configuration.
 		$page_config = $this->get_virtual_page_config( $fanfic_page );
