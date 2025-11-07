@@ -56,6 +56,7 @@ class Fanfic_Settings {
 	public static function init() {
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
 		add_action( 'admin_post_fanfic_save_general_settings', array( __CLASS__, 'save_general_settings' ) );
+		add_action( 'admin_post_fanfic_save_layout_settings', array( __CLASS__, 'save_layout_settings' ) );
 		add_action( 'admin_post_fanfic_save_email_templates', array( __CLASS__, 'save_email_templates' ) );
 		add_action( 'admin_post_fanfic_save_page_templates', array( __CLASS__, 'save_page_templates' ) );
 		add_action( 'admin_post_fanfic_save_custom_css', array( __CLASS__, 'save_custom_css' ) );
@@ -1192,63 +1193,6 @@ class Fanfic_Settings {
 					</tbody>
 				</table>
 
-				<hr style="margin: 30px 0;">
-
-				<!-- Page Template Layout Settings -->
-				<h3><?php esc_html_e( 'Page Template & Layout Settings', 'fanfiction-manager' ); ?></h3>
-				<p class="description" style="margin-bottom: 15px;">
-					<?php esc_html_e( 'These settings control the layout and appearance of Fanfiction plugin pages. They are synchronized with the Customizer settings.', 'fanfiction-manager' ); ?>
-				</p>
-
-				<table class="form-table" role="presentation">
-					<tbody>
-						<!-- Show Sidebar -->
-						<tr>
-							<th scope="row">
-								<label for="fanfic_show_sidebar"><?php esc_html_e( 'Show Sidebar on Fanfiction Pages', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<?php $show_sidebar = get_option( 'fanfic_show_sidebar', '1' ); ?>
-								<label>
-									<input type="checkbox" id="fanfic_show_sidebar" name="fanfic_show_sidebar" value="1" <?php checked( '1', $show_sidebar ); ?>>
-									<?php esc_html_e( 'Display the Fanfiction Sidebar widget area on plugin pages', 'fanfiction-manager' ); ?>
-								</label>
-								<p class="description">
-									<?php
-									printf(
-										/* translators: %s: URL to widgets page */
-										esc_html__( 'Manage sidebar widgets in %s', 'fanfiction-manager' ),
-										'<a href="' . esc_url( admin_url( 'widgets.php' ) ) . '">' . esc_html__( 'Appearance → Widgets', 'fanfiction-manager' ) . '</a>'
-									);
-									?>
-								</p>
-							</td>
-						</tr>
-
-						<!-- Page Width -->
-						<tr>
-							<th scope="row">
-								<label for="fanfic_page_width"><?php esc_html_e( 'Page Width', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<?php $page_width = get_option( 'fanfic_page_width', 'theme-default' ); ?>
-								<select id="fanfic_page_width" name="fanfic_page_width">
-									<option value="theme-default" <?php selected( $page_width, 'theme-default' ); ?>>
-										<?php esc_html_e( 'Theme Default', 'fanfiction-manager' ); ?>
-									</option>
-									<option value="full-width" <?php selected( $page_width, 'full-width' ); ?>>
-										<?php esc_html_e( 'Full Width', 'fanfiction-manager' ); ?>
-									</option>
-									<option value="boxed" <?php selected( $page_width, 'boxed' ); ?>>
-										<?php esc_html_e( 'Boxed (1200px)', 'fanfiction-manager' ); ?>
-									</option>
-								</select>
-								<p class="description"><?php esc_html_e( 'Control the content width of Fanfiction pages', 'fanfiction-manager' ); ?></p>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-
 				<p class="submit">
 					<?php submit_button( __( 'Save General Settings', 'fanfiction-manager' ), 'primary', 'submit', false ); ?>
 				</p>
@@ -1979,13 +1923,46 @@ class Fanfic_Settings {
 			update_option( 'fanfic_recaptcha_secret_key', $secret_key );
 		}
 
-		// Handle Page Template & Layout Settings (stored as separate options, synced with Customizer)
+		// Redirect with success message
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'fanfiction-settings',
+					'tab'     => 'general',
+					'updated' => 'true',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Save Layout Settings handler
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function save_layout_settings() {
+		// Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
+		}
+
+		// Verify nonce
+		if ( ! isset( $_POST['fanfic_layout_settings_nonce'] ) ||
+		     ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_layout_settings_nonce'] ) ), 'fanfic_save_layout_settings_nonce' ) ) {
+			wp_die( __( 'Security check failed.', 'fanfiction-manager' ) );
+		}
+
+		// Handle Show Sidebar setting
 		if ( isset( $_POST['fanfic_show_sidebar'] ) && '1' === $_POST['fanfic_show_sidebar'] ) {
 			update_option( 'fanfic_show_sidebar', '1' );
 		} else {
 			update_option( 'fanfic_show_sidebar', '0' );
 		}
 
+		// Handle Page Width setting
 		if ( isset( $_POST['fanfic_page_width'] ) ) {
 			$page_width = sanitize_text_field( wp_unslash( $_POST['fanfic_page_width'] ) );
 			$allowed_widths = array( 'theme-default', 'full-width', 'boxed' );
@@ -1998,8 +1975,7 @@ class Fanfic_Settings {
 		wp_safe_redirect(
 			add_query_arg(
 				array(
-					'page'    => 'fanfiction-settings',
-					'tab'     => 'general',
+					'page'    => 'fanfiction-layout',
 					'updated' => 'true',
 				),
 				admin_url( 'admin.php' )
