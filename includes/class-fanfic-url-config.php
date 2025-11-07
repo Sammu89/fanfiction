@@ -68,6 +68,34 @@ class Fanfic_URL_Config {
     const OPTION_OLD_BASE_SLUG = 'fanfic_old_base_slug';
 
     /**
+     * Option name for storing dashboard slug
+     *
+     * @var string
+     */
+    const OPTION_DASHBOARD_SLUG = 'fanfic_dashboard_slug';
+
+    /**
+     * Option name for storing create-story slug
+     *
+     * @var string
+     */
+    const OPTION_CREATE_STORY_SLUG = 'fanfic_create_story_slug';
+
+    /**
+     * Option name for storing members slug
+     *
+     * @var string
+     */
+    const OPTION_MEMBERS_SLUG = 'fanfic_members_slug';
+
+    /**
+     * Option name for storing search slug
+     *
+     * @var string
+     */
+    const OPTION_SEARCH_SLUG = 'fanfic_search_slug';
+
+    /**
      * Initialize the URL configuration functionality
      *
      * Registers action hooks for handling form submissions.
@@ -389,8 +417,8 @@ class Fanfic_URL_Config {
 
                                 // Create Story
                                 self::render_slug_input_row( array(
-                                    'id'             => 'fanfic_create-story_slug',
-                                    'name'           => 'fanfic_create-story_slug',
+                                    'id'             => 'fanfic_create_story_slug',
+                                    'name'           => 'fanfic_create_story_slug',
                                     'label'          => __( 'Create Story', 'fanfiction-manager' ),
                                     'value'          => isset( $current_slugs['create-story'] ) ? $current_slugs['create-story'] : 'create-story',
                                     'preview_id'     => 'create-story-preview-code',
@@ -1207,53 +1235,53 @@ class Fanfic_URL_Config {
             }
         }
 
-        // 4. Save dynamic page slugs (dashboard, search, members, create-story) directly to fanfic_dynamic_page_slugs
-        $dynamic_slugs_input = array();
+        // 4. Save dynamic page slugs individually (same pattern as story_path)
 
         // Dashboard
         if ( isset( $_POST['fanfic_dashboard_slug'] ) ) {
-            $dynamic_slugs_input['dashboard'] = sanitize_title( wp_unslash( $_POST['fanfic_dashboard_slug'] ) );
+            $result = $this->save_slug_field( 'fanfic_dashboard_slug', 'dashboard', self::OPTION_DASHBOARD_SLUG, __( 'Dashboard slug', 'fanfiction-manager' ) );
+            if ( $result ) {
+                if ( isset( $result['error'] ) ) {
+                    $errors[] = $result['error'];
+                } elseif ( isset( $result['success'] ) ) {
+                    $success_messages[] = $result['success'];
+                }
+            }
         }
 
-        // Search
-        if ( isset( $_POST['fanfic_search_slug'] ) ) {
-            $dynamic_slugs_input['search'] = sanitize_title( wp_unslash( $_POST['fanfic_search_slug'] ) );
+        // Create Story
+        if ( isset( $_POST['fanfic_create_story_slug'] ) ) {
+            $result = $this->save_slug_field( 'fanfic_create_story_slug', 'create-story', self::OPTION_CREATE_STORY_SLUG, __( 'Create Story slug', 'fanfiction-manager' ) );
+            if ( $result ) {
+                if ( isset( $result['error'] ) ) {
+                    $errors[] = $result['error'];
+                } elseif ( isset( $result['success'] ) ) {
+                    $success_messages[] = $result['success'];
+                }
+            }
         }
 
         // Members
         if ( isset( $_POST['fanfic_members_slug'] ) ) {
-            $dynamic_slugs_input['members'] = sanitize_title( wp_unslash( $_POST['fanfic_members_slug'] ) );
-        }
-
-        // Create Story
-        if ( isset( $_POST['fanfic_create-story_slug'] ) ) {
-            $dynamic_slugs_input['create-story'] = sanitize_title( wp_unslash( $_POST['fanfic_create-story_slug'] ) );
-        }
-
-        // Validate uniqueness
-        if ( Fanfic_URL_Schema::has_duplicates( $dynamic_slugs_input ) ) {
-            $errors[] = __( 'Dynamic page URLs must be unique from each other.', 'fanfiction-manager' );
-        } else {
-            // Validate each slug
-            $all_valid = true;
-            foreach ( $dynamic_slugs_input as $key => $slug ) {
-                $validation = $this->validate_slug( $slug, array( $key ) );
-                if ( is_wp_error( $validation ) ) {
-                    $errors[] = ucfirst( $key ) . ': ' . $validation->get_error_message();
-                    $all_valid = false;
+            $result = $this->save_slug_field( 'fanfic_members_slug', 'members', self::OPTION_MEMBERS_SLUG, __( 'Members slug', 'fanfiction-manager' ) );
+            if ( $result ) {
+                if ( isset( $result['error'] ) ) {
+                    $errors[] = $result['error'];
+                } elseif ( isset( $result['success'] ) ) {
+                    $success_messages[] = $result['success'];
                 }
             }
+        }
 
-            if ( $all_valid ) {
-                // Save directly to dynamic page slugs (no more secondary paths)
-                update_option( 'fanfic_dynamic_page_slugs', $dynamic_slugs_input );
-
-                // Immediately flush URL Manager cache
-                if ( class_exists( 'Fanfic_URL_Manager' ) ) {
-                    Fanfic_URL_Manager::get_instance()->flush_cache();
+        // Search
+        if ( isset( $_POST['fanfic_search_slug'] ) ) {
+            $result = $this->save_slug_field( 'fanfic_search_slug', 'search', self::OPTION_SEARCH_SLUG, __( 'Search slug', 'fanfiction-manager' ) );
+            if ( $result ) {
+                if ( isset( $result['error'] ) ) {
+                    $errors[] = $result['error'];
+                } elseif ( isset( $result['success'] ) ) {
+                    $success_messages[] = $result['success'];
                 }
-
-                $success_messages[] = __( 'Dynamic page URLs saved.', 'fanfiction-manager' );
             }
         }
 

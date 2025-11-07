@@ -154,7 +154,7 @@ class Fanfic_URL_Schema {
                 'label'            => __( 'Dashboard', 'fanfiction-manager' ),
                 'description'      => __( 'URL for the author dashboard.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{dashboard}/',
-                'option_key'       => 'fanfic_dynamic_page_slugs',
+                'option_key'       => 'fanfic_dashboard_slug',
                 'group'            => 'dynamic',
             ),
 
@@ -164,7 +164,7 @@ class Fanfic_URL_Schema {
                 'label'            => __( 'Create Story', 'fanfiction-manager' ),
                 'description'      => __( 'URL for creating new stories.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{create-story}/',
-                'option_key'       => 'fanfic_dynamic_page_slugs',
+                'option_key'       => 'fanfic_create_story_slug',
                 'group'            => 'dynamic',
             ),
 
@@ -174,7 +174,7 @@ class Fanfic_URL_Schema {
                 'label'            => __( 'Profile Page', 'fanfiction-manager' ),
                 'description'      => __( 'URL for the members/profile page.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{members}/',
-                'option_key'       => 'fanfic_dynamic_page_slugs',
+                'option_key'       => 'fanfic_members_slug',
                 'group'            => 'dynamic',
             ),
 
@@ -184,7 +184,7 @@ class Fanfic_URL_Schema {
                 'label'            => __( 'Search Page', 'fanfiction-manager' ),
                 'description'      => __( 'URL for the search page.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{search}/',
-                'option_key'       => 'fanfic_dynamic_page_slugs',
+                'option_key'       => 'fanfic_search_slug',
                 'group'            => 'dynamic',
             ),
 
@@ -257,7 +257,6 @@ class Fanfic_URL_Schema {
         $chapter_slugs = get_option( 'fanfic_chapter_slugs', array() );
         $secondary_paths = get_option( 'fanfic_secondary_paths', array() );
         $system_page_slugs = get_option( 'fanfic_system_page_slugs', array() );
-        $dynamic_page_slugs = get_option( 'fanfic_dynamic_page_slugs', array() );
 
         foreach ( $config as $key => $slug_config ) {
             $group = isset( $slug_config['group'] ) ? $slug_config['group'] : '';
@@ -285,9 +284,14 @@ class Fanfic_URL_Schema {
                     break;
 
                 case 'dynamic':
-                    $current_slugs[ $key ] = isset( $dynamic_page_slugs[ $key ] ) && ! empty( $dynamic_page_slugs[ $key ] )
-                        ? $dynamic_page_slugs[ $key ]
-                        : $slug_config['default'];
+                    // Load from individual option (same pattern as story_path)
+                    $option_key = isset( $slug_config['option_key'] ) ? $slug_config['option_key'] : '';
+                    if ( ! empty( $option_key ) ) {
+                        $value = get_option( $option_key, '' );
+                        $current_slugs[ $key ] = ! empty( $value ) ? $value : $slug_config['default'];
+                    } else {
+                        $current_slugs[ $key ] = $slug_config['default'];
+                    }
                     break;
 
                 case 'system':

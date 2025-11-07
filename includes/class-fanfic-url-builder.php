@@ -72,12 +72,20 @@ class Fanfic_URL_Builder {
 			'search'    => 'search',
 		);
 
+		// Load dynamic page slugs from individual options (same pattern as base and story_path)
+		$dynamic_slugs = array(
+			'dashboard'    => $this->sanitize_slug( get_option( 'fanfic_dashboard_slug', 'dashboard' ) ),
+			'create-story' => $this->sanitize_slug( get_option( 'fanfic_create_story_slug', 'create-story' ) ),
+			'search'       => $this->sanitize_slug( get_option( 'fanfic_search_slug', 'search' ) ),
+			'members'      => $this->sanitize_slug( get_option( 'fanfic_members_slug', 'members' ) ),
+		);
+
 		return array(
 			'base'       => $this->sanitize_slug( get_option( 'fanfic_base_slug', 'fanfiction' ) ),
 			'story_path' => $this->sanitize_slug( get_option( 'fanfic_story_path', 'stories' ) ),
 			'chapters'   => wp_parse_args( get_option( 'fanfic_chapter_slugs', array() ), $chapter_defaults ),
 			'secondary'  => wp_parse_args( get_option( 'fanfic_secondary_paths', array() ), $secondary_defaults ),
-			'dynamic'    => get_option( 'fanfic_dynamic_page_slugs', array() ),
+			'dynamic'    => $dynamic_slugs,
 			'system'     => get_option( 'fanfic_system_page_slugs', array() ),
 		);
 	}

@@ -125,25 +125,23 @@ class Fanfic_Permalinks_Check {
 
             ?>
             <div class="notice notice-error is-dismissible fanfic-permalinks-notice">
-                <h2>Fanfiction Manager: Pretty Permalinks Required</h2>
                 <p>
-                    <strong>This plugin requires Pretty Permalinks to be enabled to function correctly.</strong>
+                    <strong>Fanfiction plugin requires Pretty Permalinks to be enabled to function correctly.</strong>
                 </p>
                 <p>
                     Your WordPress site is currently using "Plain" permalinks, which are not compatible with this plugin.
-                    The plugin's settings, admin pages, and functionality are disabled until this is resolved.
+                    The plugin is disabled until this is resolved.
                 </p>
                 <p>
                     <a href="<?php echo esc_url($fix_url); ?>" class="button button-primary fanfic-fix-button">
-                        Fix Automatically (Set to /%postname%/)
+                        Fix
                     </a>
                     <a href="<?php echo esc_url(admin_url('options-permalink.php')); ?>" class="button button-secondary">
                         Configure Manually
                     </a>
                 </p>
                 <p class="description">
-                    <strong>Note:</strong> The "Fix Automatically" button will set your permalink structure to <code>/%postname%/</code>,
-                    which is compatible with multilingual plugins (WPML, Polylang, TranslatePress, etc.).
+                    <strong>Note:</strong> The "Fix " button will set your permalink structure to <code>/%postname%/</code>.
                 </p>
             </div>
             <?php
