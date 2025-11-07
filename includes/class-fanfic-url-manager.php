@@ -93,6 +93,9 @@ class Fanfic_URL_Manager {
 		add_filter( 'the_posts', array( $this, 'create_virtual_page_post' ), 10, 2 );
 		add_filter( 'the_content', array( $this, 'inject_virtual_page_content' ) );
 
+		// Setup virtual page postdata at proper time (after query is resolved).
+		add_action( 'template_redirect', array( $this, 'setup_virtual_page_postdata' ), 5 );
+
 		// Redirects.
 		add_action( 'template_redirect', array( $this, 'handle_old_slug_redirects' ) );
 	}
@@ -560,6 +563,46 @@ class Fanfic_URL_Manager {
 	}
 
 	/**
+	 * Setup virtual page postdata
+	 *
+	 * Sets up the global $post and all WordPress postdata variables at the proper time.
+	 * This runs after the query is resolved but before template loading.
+	 *
+	 * @since 2.0.0
+	 * @return void
+	 */
+	public function setup_virtual_page_postdata() {
+		$fanfic_page = get_query_var( 'fanfic_page' );
+
+		if ( empty( $fanfic_page ) ) {
+			return;
+		}
+
+		global $wp_query, $post;
+
+		// Get the virtual post that was created in the_posts filter.
+		if ( empty( $wp_query->posts ) || ! isset( $wp_query->posts[0]->fanfic_page_key ) ) {
+			return;
+		}
+
+		$virtual_post = $wp_query->posts[0];
+
+		// Set all WordPress globals properly.
+		// This is CRITICAL for theme compatibility (breadcrumbs, nav menus, etc.).
+		$post = $virtual_post;
+		$wp_query->post = $virtual_post;
+		$wp_query->posts = array( $virtual_post );
+
+		// These two are essential for get_queried_object() to work.
+		// Without these, breadcrumbs and other theme features will fail.
+		$wp_query->queried_object = $virtual_post;
+		$wp_query->queried_object_id = $virtual_post->ID;
+
+		// Setup postdata for template tags (the_title, the_content, etc.).
+		setup_postdata( $virtual_post );
+	}
+
+	/**
 	 * Create a virtual WP_Post object for dynamic pages
 	 *
 	 * This creates a fake post that WordPress and themes will treat as a real page.
@@ -618,10 +661,15 @@ class Fanfic_URL_Manager {
 		// Store page key for later use in content injection.
 		$post->fanfic_page_key = $fanfic_page;
 
-		// Convert to WP_Post object.
-		$posts = array( new WP_Post( $post ) );
+		// For FSE themes, use default template (theme will provide page.html or similar)
+		// For classic themes, virtual pages will use our custom template via template_include filter
+		$post->page_template = 'default';
 
-		// Update global query.
+		// Convert to WP_Post object.
+		$wp_post = new WP_Post( $post );
+		$posts = array( $wp_post );
+
+		// Update query object (postdata will be set later in template_redirect).
 		global $wp_query;
 		$wp_query->post_count = 1;
 		$wp_query->found_posts = 1;
