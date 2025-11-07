@@ -88,8 +88,10 @@ class Fanfic_URL_Manager {
 		add_filter( 'post_type_link', array( $this, 'filter_chapter_permalink' ), 10, 2 );
 		add_filter( 'preview_post_link', array( $this, 'filter_preview_link' ), 10, 2 );
 
-		// Template loading.
-		add_filter( 'template_include', array( $this, 'template_loader' ), 99 );
+		// Virtual page system - creates fake pages that work with any theme.
+		add_action( 'template_redirect', array( $this, 'setup_virtual_pages' ), 1 );
+		add_filter( 'the_posts', array( $this, 'create_virtual_page_post' ), 10, 2 );
+		add_filter( 'the_content', array( $this, 'inject_virtual_page_content' ) );
 
 		// Redirects.
 		add_action( 'template_redirect', array( $this, 'handle_old_slug_redirects' ) );
@@ -528,60 +530,166 @@ class Fanfic_URL_Manager {
 	// TEMPLATE LOADING
 	// ========================================================================
 
+	// ========================================================================
+	// VIRTUAL PAGE SYSTEM
+	// ========================================================================
+
 	/**
-	 * Load appropriate template for dynamic pages
+	 * Setup virtual pages for dynamic content
 	 *
-	 * @param string $template Default template path.
-	 * @return string Modified template path.
+	 * Detects when we're on a dynamic page and prepares WordPress to treat it
+	 * as a normal page that will work with any theme's page.php template.
+	 *
+	 * @since 2.0.0
 	 */
-	public function template_loader( $template ) {
+	public function setup_virtual_pages() {
 		$fanfic_page = get_query_var( 'fanfic_page' );
 
 		if ( empty( $fanfic_page ) ) {
-			return $template;
+			return;
 		}
 
-		$template_map = array(
-			'dashboard'    => 'template-dashboard.php',
-			'create-story' => 'template-create-story.php',
-			'search'       => 'template-search.php',
-			'members'      => 'template-members.php',
-		);
-
-		if ( isset( $template_map[ $fanfic_page ] ) ) {
-			$new_template = $this->locate_template( $template_map[ $fanfic_page ] );
-			if ( $new_template ) {
-				return $new_template;
-			}
-		}
-
-		return $template;
+		// Tell WordPress this is a page request.
+		global $wp_query;
+		$wp_query->is_page        = true;
+		$wp_query->is_singular    = true;
+		$wp_query->is_home        = false;
+		$wp_query->is_archive     = false;
+		$wp_query->is_category    = false;
+		$wp_query->is_404         = false;
 	}
 
 	/**
-	 * Locate template file
+	 * Create a virtual WP_Post object for dynamic pages
 	 *
-	 * @param string $template_name Template file name.
-	 * @return string|false Template path or false if not found.
+	 * This creates a fake post that WordPress and themes will treat as a real page.
+	 *
+	 * @since 2.0.0
+	 * @param array    $posts  Array of posts.
+	 * @param WP_Query $query  The WP_Query object.
+	 * @return array Modified posts array.
 	 */
-	private function locate_template( $template_name ) {
-		// Check if theme has override.
-		$theme_template = locate_template( array(
-			'fanfiction-manager/' . $template_name,
-			$template_name,
-		) );
-
-		if ( $theme_template ) {
-			return $theme_template;
+	public function create_virtual_page_post( $posts, $query ) {
+		// Only modify main query.
+		if ( ! $query->is_main_query() ) {
+			return $posts;
 		}
 
-		// Use plugin template.
-		$plugin_template = FANFIC_PLUGIN_DIR . 'templates/' . $template_name;
-		if ( file_exists( $plugin_template ) ) {
-			return $plugin_template;
+		$fanfic_page = get_query_var( 'fanfic_page' );
+
+		if ( empty( $fanfic_page ) ) {
+			return $posts;
 		}
 
-		return false;
+		// Get page configuration.
+		$page_config = $this->get_virtual_page_config( $fanfic_page );
+
+		if ( ! $page_config ) {
+			return $posts;
+		}
+
+		// Create fake post object.
+		$post = new stdClass();
+		$post->ID                    = -999; // Negative ID to avoid conflicts.
+		$post->post_author           = 1;
+		$post->post_date             = current_time( 'mysql' );
+		$post->post_date_gmt         = current_time( 'mysql', 1 );
+		$post->post_content          = ''; // Content will be injected via filter.
+		$post->post_title            = $page_config['title'];
+		$post->post_excerpt          = '';
+		$post->post_status           = 'publish';
+		$post->comment_status        = 'closed';
+		$post->ping_status           = 'closed';
+		$post->post_password         = '';
+		$post->post_name             = $fanfic_page;
+		$post->to_ping               = '';
+		$post->pinged                = '';
+		$post->post_modified         = current_time( 'mysql' );
+		$post->post_modified_gmt     = current_time( 'mysql', 1 );
+		$post->post_content_filtered = '';
+		$post->post_parent           = 0;
+		$post->guid                  = get_home_url( '/' . $fanfic_page );
+		$post->menu_order            = 0;
+		$post->post_type             = 'page';
+		$post->post_mime_type        = '';
+		$post->comment_count         = 0;
+		$post->filter                = 'raw';
+
+		// Store page key for later use in content injection.
+		$post->fanfic_page_key = $fanfic_page;
+
+		// Convert to WP_Post object.
+		$posts = array( new WP_Post( $post ) );
+
+		// Update global query.
+		global $wp_query;
+		$wp_query->post_count = 1;
+		$wp_query->found_posts = 1;
+		$wp_query->max_num_pages = 1;
+
+		return $posts;
+	}
+
+	/**
+	 * Inject content into virtual pages
+	 *
+	 * Replaces the empty content with the appropriate shortcode.
+	 *
+	 * @since 2.0.0
+	 * @param string $content Post content.
+	 * @return string Modified content.
+	 */
+	public function inject_virtual_page_content( $content ) {
+		global $post;
+
+		// Only process our virtual pages.
+		if ( ! isset( $post->fanfic_page_key ) ) {
+			return $content;
+		}
+
+		// Only process in the main loop.
+		if ( ! in_the_loop() || ! is_main_query() ) {
+			return $content;
+		}
+
+		$page_config = $this->get_virtual_page_config( $post->fanfic_page_key );
+
+		if ( ! $page_config || empty( $page_config['shortcode'] ) ) {
+			return $content;
+		}
+
+		// Return the shortcode - WordPress will process it automatically.
+		return do_shortcode( '[' . $page_config['shortcode'] . ']' );
+	}
+
+	/**
+	 * Get configuration for a virtual page
+	 *
+	 * @since 2.0.0
+	 * @param string $page_key Page key (dashboard, create-story, etc.).
+	 * @return array|false Page configuration or false if not found.
+	 */
+	private function get_virtual_page_config( $page_key ) {
+		$pages = array(
+			'dashboard'    => array(
+				'title'     => __( 'Dashboard', 'fanfiction-manager' ),
+				'shortcode' => 'user-dashboard',
+			),
+			'create-story' => array(
+				'title'     => __( 'Create Story', 'fanfiction-manager' ),
+				'shortcode' => 'author-create-story-form',
+			),
+			'search'       => array(
+				'title'     => __( 'Search', 'fanfiction-manager' ),
+				'shortcode' => 'search-results',
+			),
+			'members'      => array(
+				'title'     => __( 'Members', 'fanfiction-manager' ),
+				'shortcode' => 'user-profile',
+			),
+		);
+
+		return isset( $pages[ $page_key ] ) ? $pages[ $page_key ] : false;
 	}
 
 	// ========================================================================
