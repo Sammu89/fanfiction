@@ -70,45 +70,45 @@ class Fanfic_Templates {
 
 		// Check if this is a fanfiction post type
 		if ( is_singular( 'fanfiction_story' ) ) {
-			// Handle action-based templates for stories
+			// Determine which content template to load
+			$content_template = 'single-fanfiction_story.php';
+
 			if ( ! empty( $action ) ) {
 				switch ( $action ) {
 					case 'edit':
-						// Load edit story template
-						$custom_template = self::locate_template( 'template-edit-story.php' );
-						if ( $custom_template ) {
-							return $custom_template;
-						}
+						$content_template = 'template-edit-story.php';
 						break;
 					case 'add-chapter':
-						// Load create chapter template
-						$custom_template = self::locate_template( 'template-edit-chapter.php' );
-						if ( $custom_template ) {
-							return $custom_template;
-						}
+						$content_template = 'template-edit-chapter.php';
 						break;
 				}
 			}
 
-			// Default: load single story template
-			$custom_template = self::locate_template( 'single-fanfiction_story.php' );
+			// Set global variable for wrapper template to use
+			global $fanfic_content_template;
+			$fanfic_content_template = $content_template;
+
+			// Always use the wrapper template
+			$custom_template = self::locate_template( 'fanfiction-page-template.php' );
 			if ( $custom_template ) {
 				return $custom_template;
 			}
 		}
 
 		if ( is_singular( 'fanfiction_chapter' ) ) {
-			// Handle action-based templates for chapters
+			// Determine which content template to load
+			$content_template = 'single-fanfiction_chapter.php';
+
 			if ( ! empty( $action ) && 'edit' === $action ) {
-				// Load edit chapter template
-				$custom_template = self::locate_template( 'template-edit-chapter.php' );
-				if ( $custom_template ) {
-					return $custom_template;
-				}
+				$content_template = 'template-edit-chapter.php';
 			}
 
-			// Default: load single chapter template
-			$custom_template = self::locate_template( 'single-fanfiction_chapter.php' );
+			// Set global variable for wrapper template to use
+			global $fanfic_content_template;
+			$fanfic_content_template = $content_template;
+
+			// Always use the wrapper template
+			$custom_template = self::locate_template( 'fanfiction-page-template.php' );
 			if ( $custom_template ) {
 				return $custom_template;
 			}
