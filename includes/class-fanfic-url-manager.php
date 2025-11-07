@@ -658,15 +658,17 @@ class Fanfic_URL_Manager {
 		$post->comment_count         = 0;
 		$post->filter                = 'raw';
 
-		// Store page key for later use in content injection.
-		$post->fanfic_page_key = $fanfic_page;
+		// Convert to WP_Post object.
+		$wp_post = new WP_Post( $post );
+
+		// Store page key AFTER conversion (custom properties must be set on WP_Post object).
+		// Setting it before conversion causes it to be lost, as WP_Post only copies known properties.
+		$wp_post->fanfic_page_key = $fanfic_page;
 
 		// For FSE themes, use default template (theme will provide page.html or similar)
 		// For classic themes, virtual pages will use our custom template via template_include filter
-		$post->page_template = 'default';
+		$wp_post->page_template = 'default';
 
-		// Convert to WP_Post object.
-		$wp_post = new WP_Post( $post );
 		$posts = array( $wp_post );
 
 		// Update query object (postdata will be set later in template_redirect).
