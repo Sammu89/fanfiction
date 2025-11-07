@@ -227,14 +227,14 @@ class Fanfic_Page_Template {
 			)
 		);
 
-		// Sidebar visibility setting
+		// Sidebar visibility setting (stored as global option, not theme_mod)
 		$wp_customize->add_setting(
 			'fanfic_show_sidebar',
 			array(
-				'default'           => true,
-				'type'              => 'theme_mod',
-				'capability'        => 'edit_theme_options',
-				'sanitize_callback' => array( __CLASS__, 'sanitize_checkbox' ),
+				'default'           => '1',
+				'type'              => 'option',
+				'capability'        => 'manage_options',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_checkbox_option' ),
 				'transport'         => 'refresh',
 			)
 		);
@@ -249,13 +249,13 @@ class Fanfic_Page_Template {
 			)
 		);
 
-		// Page width setting
+		// Page width setting (stored as global option, not theme_mod)
 		$wp_customize->add_setting(
 			'fanfic_page_width',
 			array(
 				'default'           => 'theme-default',
-				'type'              => 'theme_mod',
-				'capability'        => 'edit_theme_options',
+				'type'              => 'option',
+				'capability'        => 'manage_options',
 				'sanitize_callback' => 'sanitize_text_field',
 				'transport'         => 'refresh',
 			)
@@ -278,7 +278,7 @@ class Fanfic_Page_Template {
 	}
 
 	/**
-	 * Sanitize checkbox value
+	 * Sanitize checkbox value (for theme_mod - backward compatibility)
 	 *
 	 * @since 1.0.0
 	 * @param bool $checked Checkbox value.
@@ -286,6 +286,19 @@ class Fanfic_Page_Template {
 	 */
 	public static function sanitize_checkbox( $checked ) {
 		return ( isset( $checked ) && true === $checked ) ? true : false;
+	}
+
+	/**
+	 * Sanitize checkbox value for option storage
+	 *
+	 * Options store as strings '1' or '0' instead of boolean
+	 *
+	 * @since 1.0.0
+	 * @param mixed $value Checkbox value.
+	 * @return string '1' for checked, '0' for unchecked.
+	 */
+	public static function sanitize_checkbox_option( $value ) {
+		return ( ! empty( $value ) && '1' === $value ) ? '1' : '0';
 	}
 
 	/**
@@ -312,13 +325,13 @@ class Fanfic_Page_Template {
 		}
 
 		// Add layout class
-		$show_sidebar = get_theme_mod( 'fanfic_show_sidebar', true );
+		$show_sidebar = get_option( 'fanfic_show_sidebar', '1' );
 		if ( in_array( 'fanfiction-page', $classes, true ) ) {
-			$classes[] = $show_sidebar ? 'fanfiction-with-sidebar' : 'fanfiction-no-sidebar';
+			$classes[] = ( '1' === $show_sidebar ) ? 'fanfiction-with-sidebar' : 'fanfiction-no-sidebar';
 		}
 
 		// Add width class
-		$page_width = get_theme_mod( 'fanfic_page_width', 'theme-default' );
+		$page_width = get_option( 'fanfic_page_width', 'theme-default' );
 		if ( 'theme-default' !== $page_width && in_array( 'fanfiction-page', $classes, true ) ) {
 			$classes[] = 'fanfiction-width-' . sanitize_html_class( $page_width );
 		}

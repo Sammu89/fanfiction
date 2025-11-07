@@ -23,9 +23,9 @@ get_header();
 	<main id="main" class="site-main" role="main">
 
 		<?php
-		// Check if we should show sidebar (from Customizer or default)
-		$show_sidebar = get_theme_mod( 'fanfic_show_sidebar', true );
-		$layout_class = $show_sidebar ? 'fanfic-with-sidebar' : 'fanfic-no-sidebar';
+		// Check if we should show sidebar (from global option)
+		$show_sidebar = get_option( 'fanfic_show_sidebar', '1' );
+		$layout_class = ( '1' === $show_sidebar ) ? 'fanfic-with-sidebar' : 'fanfic-no-sidebar';
 		?>
 
 		<div class="fanfiction-page-wrapper <?php echo esc_attr( $layout_class ); ?>">
@@ -68,7 +68,7 @@ get_header();
 				?>
 			</div>
 
-			<?php if ( $show_sidebar && is_active_sidebar( 'fanfiction-sidebar' ) ) : ?>
+			<?php if ( '1' === $show_sidebar && is_active_sidebar( 'fanfiction-sidebar' ) ) : ?>
 				<aside id="secondary" class="widget-area fanfiction-sidebar" role="complementary">
 					<?php dynamic_sidebar( 'fanfiction-sidebar' ); ?>
 				</aside>
