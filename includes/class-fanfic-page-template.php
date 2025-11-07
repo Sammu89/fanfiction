@@ -274,10 +274,10 @@ class Fanfic_Page_Template {
 		$wp_customize->add_setting(
 			'fanfic_page_width',
 			array(
-				'default'           => 'theme-default',
+				'default'           => '1200px',
 				'type'              => 'option',
 				'capability'        => 'manage_options',
-				'sanitize_callback' => 'sanitize_text_field',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_page_width' ),
 				'transport'         => 'refresh',
 			)
 		);
@@ -285,14 +285,12 @@ class Fanfic_Page_Template {
 		$wp_customize->add_control(
 			'fanfic_page_width',
 			array(
-				'label'       => __( 'Page Width', 'fanfiction-manager' ),
-				'description' => __( 'Control the content width of Fanfiction pages.', 'fanfiction-manager' ),
+				'label'       => __( 'Content Width', 'fanfiction-manager' ),
+				'description' => __( 'Set content width. Use "automatic" for theme default, or specify width like "1200px" or "90%". Pixels are responsive (max-width), percentages are exact. Note: Custom width settings can work differently depending on your theme.', 'fanfiction-manager' ),
 				'section'     => 'fanfiction_layout',
-				'type'        => 'select',
-				'choices'     => array(
-					'theme-default' => __( 'Theme Default', 'fanfiction-manager' ),
-					'full-width'    => __( 'Full Width', 'fanfiction-manager' ),
-					'boxed'         => __( 'Boxed', 'fanfiction-manager' ),
+				'type'        => 'text',
+				'input_attrs' => array(
+					'placeholder' => '1200px',
 				),
 			)
 		);
@@ -323,6 +321,45 @@ class Fanfic_Page_Template {
 	}
 
 	/**
+	 * Sanitize page width value
+	 *
+	 * Accepts "automatic" or values like "1200px" or "90%"
+	 *
+	 * @since 1.0.0
+	 * @param string $value Width value.
+	 * @return string Sanitized width value.
+	 */
+	public static function sanitize_page_width( $value ) {
+		$value = trim( $value );
+
+		// Allow "automatic"
+		if ( 'automatic' === strtolower( $value ) ) {
+			return 'automatic';
+		}
+
+		// Validate format: number + unit (px or %)
+		if ( preg_match( '/^(\d+)(px|%)$/i', $value, $matches ) ) {
+			$number = absint( $matches[1] );
+			$unit = strtolower( $matches[2] );
+
+			// Validate percentage (max 100%)
+			if ( '%' === $unit && $number > 100 ) {
+				$number = 100;
+			}
+
+			// Ensure reasonable minimum
+			if ( 'px' === $unit && $number < 300 ) {
+				$number = 300;
+			}
+
+			return $number . $unit;
+		}
+
+		// Invalid format, return default
+		return '1200px';
+	}
+
+	/**
 	 * Add body class for Fanfiction pages
 	 *
 	 * Makes it easier to style plugin pages with CSS.
@@ -349,12 +386,6 @@ class Fanfic_Page_Template {
 		$show_sidebar = get_option( 'fanfic_show_sidebar', '1' );
 		if ( in_array( 'fanfiction-page', $classes, true ) ) {
 			$classes[] = ( '1' === $show_sidebar ) ? 'fanfiction-with-sidebar' : 'fanfiction-no-sidebar';
-		}
-
-		// Add width class
-		$page_width = get_option( 'fanfic_page_width', 'theme-default' );
-		if ( 'theme-default' !== $page_width && in_array( 'fanfiction-page', $classes, true ) ) {
-			$classes[] = 'fanfiction-width-' . sanitize_html_class( $page_width );
 		}
 
 		return $classes;

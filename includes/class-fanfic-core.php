@@ -426,6 +426,22 @@ class Fanfic_Core {
 			'all'
 		);
 
+		// Add inline styles for custom width settings
+		$page_width = get_option( 'fanfic_page_width', '1200px' );
+		if ( 'automatic' !== $page_width && preg_match( '/^(\d+)(px|%)$/', $page_width, $matches ) ) {
+			$value = $matches[1];
+			$unit = $matches[2];
+
+			// Pixels use max-width (responsive), percentages use width (exact)
+			if ( 'px' === $unit ) {
+				$custom_css = "body.fanfiction-page .fanfiction-page-wrapper { max-width: {$value}px; }";
+			} else {
+				$custom_css = "body.fanfiction-page .fanfiction-page-wrapper { width: {$value}%; }";
+			}
+
+			wp_add_inline_style( 'fanfiction-frontend', $custom_css );
+		}
+
 		// Enqueue frontend JS (if exists)
 		$js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-frontend.js';
 		if ( file_exists( $js_file ) ) {
