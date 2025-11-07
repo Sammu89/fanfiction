@@ -259,20 +259,28 @@ class Fanfic_Shortcodes_URL {
 	/**
 	 * Edit Chapter URL shortcode
 	 *
-	 * [url-edit-chapter]
+	 * [url-edit-chapter chapter_id="123"]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
 	 * @return string Edit chapter page URL.
 	 */
 	public static function url_edit_chapter( $atts ) {
-		$url = fanfic_get_edit_chapter_url();
+		$atts = shortcode_atts(
+			array(
+				'chapter_id' => get_the_ID(),
+			),
+			$atts,
+			'url-edit-chapter'
+		);
 
-		if ( empty( $url ) ) {
-			$url = home_url( '/fanfiction/edit-chapter/' );
+		$chapter_id = absint( $atts['chapter_id'] );
+
+		if ( ! $chapter_id ) {
+			return '';
 		}
 
-		return esc_url( $url );
+		return esc_url( fanfic_get_edit_chapter_url( $chapter_id ) );
 	}
 
 	/**

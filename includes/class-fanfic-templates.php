@@ -65,8 +65,32 @@ class Fanfic_Templates {
 			}
 		}
 
+		// Check for action-based templates on stories and chapters
+		$action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
+
 		// Check if this is a fanfiction post type
 		if ( is_singular( 'fanfiction_story' ) ) {
+			// Handle action-based templates for stories
+			if ( ! empty( $action ) ) {
+				switch ( $action ) {
+					case 'edit':
+						// Load edit story template
+						$custom_template = self::locate_template( 'template-edit-story.php' );
+						if ( $custom_template ) {
+							return $custom_template;
+						}
+						break;
+					case 'add-chapter':
+						// Load create chapter template
+						$custom_template = self::locate_template( 'template-edit-chapter.php' );
+						if ( $custom_template ) {
+							return $custom_template;
+						}
+						break;
+				}
+			}
+
+			// Default: load single story template
 			$custom_template = self::locate_template( 'single-fanfiction_story.php' );
 			if ( $custom_template ) {
 				return $custom_template;
@@ -74,6 +98,16 @@ class Fanfic_Templates {
 		}
 
 		if ( is_singular( 'fanfiction_chapter' ) ) {
+			// Handle action-based templates for chapters
+			if ( ! empty( $action ) && 'edit' === $action ) {
+				// Load edit chapter template
+				$custom_template = self::locate_template( 'template-edit-chapter.php' );
+				if ( $custom_template ) {
+					return $custom_template;
+				}
+			}
+
+			// Default: load single chapter template
 			$custom_template = self::locate_template( 'single-fanfiction_chapter.php' );
 			if ( $custom_template ) {
 				return $custom_template;

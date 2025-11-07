@@ -287,10 +287,10 @@ class Fanfic_Shortcodes_Author_Forms {
 										</time>
 									</td>
 									<td class="fanfic-story-actions">
-										<a href="<?php echo esc_url( add_query_arg( 'story_id', $story_id, self::get_page_url_with_fallback( 'edit-story' ) ) ); ?>" class="fanfic-btn fanfic-btn-small">
+										<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-small">
 											<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
 										</a>
-										<a href="<?php echo esc_url( add_query_arg( 'story_id', $story_id, self::get_page_url_with_fallback( 'create-chapter' ) ) ); ?>" class="fanfic-btn fanfic-btn-small">
+										<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-btn fanfic-btn-small">
 											<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 										</a>
 										<form method="post" style="display: inline;" onsubmit="return confirm('<?php esc_attr_e( 'Are you sure you want to delete this story and all its chapters? This action cannot be undone.', 'fanfiction-manager' ); ?>');">
@@ -1418,14 +1418,10 @@ class Fanfic_Shortcodes_Author_Forms {
 		// Initialize view count
 		update_post_meta( $story_id, '_fanfic_views', 0 );
 
-		// Redirect to create chapter page using story slug
-		$create_chapter_url = add_query_arg(
-			array(
-				'story' => $unique_slug,
-			),
-			self::get_page_url_with_fallback( 'create-chapter' )
-		);
-		wp_redirect( $create_chapter_url );
+		// Redirect to story permalink with action parameter
+		$story_permalink = get_permalink( $story_id );
+		$add_chapter_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
+		wp_redirect( $add_chapter_url );
 		exit;
 	}
 
@@ -1608,13 +1604,14 @@ class Fanfic_Shortcodes_Author_Forms {
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
-		// Redirect to edit chapter page
+		// Redirect to chapter permalink with action=edit
+		$chapter_permalink = get_permalink( $chapter_id );
 		$edit_url = add_query_arg(
 			array(
-				'chapter_id' => $chapter_id,
-				'updated' => 'success'
+				'action' => 'edit',
+				'success' => 'true',
 			),
-			self::get_page_url_with_fallback( 'edit-chapter' )
+			$chapter_permalink
 		);
 		wp_redirect( $edit_url );
 		exit;
@@ -2112,18 +2109,14 @@ class Fanfic_Shortcodes_Author_Forms {
 		// Initialize view count
 		update_post_meta( $story_id, '_fanfic_views', 0 );
 
-		// Build redirect URL to create chapter page using story slug
-		$create_chapter_url = add_query_arg(
-			array(
-				'story' => $unique_slug,
-			),
-			self::get_page_url_with_fallback( 'create-chapter' )
-		);
+		// Build redirect URL to story permalink with action=add-chapter
+		$story_permalink = get_permalink( $story_id );
+		$add_chapter_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
 
 		// Return success response
 		wp_send_json_success( array(
 			'message' => __( 'Story created as draft. Add your first chapter to publish it.', 'fanfiction-manager' ),
-			'redirect_url' => $create_chapter_url,
+			'redirect_url' => $add_chapter_url,
 			'story_id' => $story_id,
 			'story_slug' => $unique_slug
 		) );

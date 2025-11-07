@@ -33,12 +33,15 @@ if ( ! is_user_logged_in() ) {
 	return;
 }
 
-// Get story ID from URL parameter
-$story_id = isset( $_GET['story_id'] ) ? absint( $_GET['story_id'] ) : 0;
+// Get story ID from current post or URL parameter (for backwards compatibility)
+$story_id = is_singular( 'fanfiction_story' ) ? get_the_ID() : 0;
+if ( ! $story_id && isset( $_GET['story_id'] ) ) {
+	$story_id = absint( $_GET['story_id'] );
+}
 
 // DEBUG: Log permission check details
 error_log( '=== EDIT STORY DEBUG ===' );
-error_log( 'Story ID from URL: ' . $story_id );
+error_log( 'Story ID: ' . $story_id );
 error_log( 'Current User ID: ' . get_current_user_id() );
 error_log( 'User is logged in: ' . ( is_user_logged_in() ? 'YES' : 'NO' ) );
 
@@ -52,7 +55,7 @@ if ( $story_id ) {
 	}
 	error_log( 'current_user_can(edit_fanfiction_story, ' . $story_id . '): ' . ( current_user_can( 'edit_fanfiction_story', $story_id ) ? 'TRUE' : 'FALSE' ) );
 } else {
-	error_log( 'No story_id provided in URL' );
+	error_log( 'No story_id found' );
 }
 
 // Validate story exists and user has permission
