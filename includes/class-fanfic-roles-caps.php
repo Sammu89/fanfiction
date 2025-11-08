@@ -294,16 +294,32 @@ class Fanfic_Roles_Caps {
 		// Only check fanfiction post types for edit_post/delete_post/read_post
 		if ( in_array( $cap, array( 'edit_post', 'delete_post', 'read_post' ), true ) && ! empty( $args[0] ) ) {
 			$post = get_post( $args[0] );
+			error_log( '=== CHECKING IF FANFICTION POST TYPE ===' );
+			error_log( 'Post exists: ' . ( $post ? 'YES' : 'NO' ) );
+			if ( $post ) {
+				error_log( 'Post type: ' . $post->post_type );
+			}
 			// Only apply admin bypass if this is a fanfiction post type
 			if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
 				// Not a fanfiction post, remove from the array so bypass doesn't apply
+				error_log( 'NOT a fanfiction post - removing from bypass' );
 				$fanfic_caps = array_diff( $fanfic_caps, array( 'edit_post', 'delete_post', 'read_post' ) );
+			} else {
+				error_log( 'IS a fanfiction post - keeping in bypass' );
 			}
 		}
 
+		error_log( '===  ADMIN BYPASS CHECK ===' );
+		error_log( 'Cap in fanfic_caps: ' . ( in_array( $cap, $fanfic_caps, true ) ? 'YES' : 'NO' ) );
+
 		if ( in_array( $cap, $fanfic_caps, true ) ) {
+			error_log( 'Checking user_can manage_options...' );
+			$has_manage_options = user_can( $user_id, 'manage_options' );
+			error_log( 'user_can result: ' . ( $has_manage_options ? 'YES' : 'NO' ) );
+
 			// WordPress admins bypass all checks - they have manage_options which is top-level
-			if ( user_can( $user_id, 'manage_options' ) ) {
+			if ( $has_manage_options ) {
+				error_log( 'ADMIN BYPASS - Returning manage_options' );
 				return array( 'manage_options' );
 			}
 		}
