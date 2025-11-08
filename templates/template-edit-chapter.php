@@ -15,6 +15,16 @@
 // Security check - prevent direct access
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
+}
+
+error_log( '=== EDIT CHAPTER TEMPLATE DEBUG START ===' );
+error_log( 'Template loaded for URL: ' . $_SERVER['REQUEST_URI'] );
+error_log( 'Current User ID: ' . get_current_user_id() );
+error_log( 'Is user logged in: ' . ( is_user_logged_in() ? 'YES' : 'NO' ) );
+
+get_header();
+
+?>
 <style>
 .fanfic-modal {
 	position: fixed;
@@ -129,7 +139,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	color: #fff;
 }
 </style>
-}
+
+<?php
+error_log( 'After style section' );
 
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
@@ -150,28 +162,42 @@ if ( ! is_user_logged_in() ) {
 $story_id = 0;
 $chapter_id = 0;
 
+error_log( 'Checking post type...' );
+error_log( 'is_singular(fanfiction_story): ' . ( is_singular( 'fanfiction_story' ) ? 'YES' : 'NO' ) );
+error_log( 'is_singular(fanfiction_chapter): ' . ( is_singular( 'fanfiction_chapter' ) ? 'YES' : 'NO' ) );
+error_log( 'Current post ID: ' . get_the_ID() );
+
 // Check if we're on a story post with ?action=add-chapter
 if ( is_singular( 'fanfiction_story' ) ) {
 	$story_id = get_the_ID();
 	$chapter_id = 0; // Creating new chapter
+	error_log( 'Creating new chapter for story ID: ' . $story_id );
 }
 // Check if we're on a chapter post with ?action=edit
 elseif ( is_singular( 'fanfiction_chapter' ) ) {
 	$chapter_id = get_the_ID();
 	$chapter_post = get_post( $chapter_id );
 	$story_id = $chapter_post ? $chapter_post->post_parent : 0;
+	error_log( 'Editing chapter ID: ' . $chapter_id . ', Story ID: ' . $story_id );
 }
 
 // Fallback to URL parameters for backwards compatibility
 if ( ! $story_id && isset( $_GET['story_id'] ) ) {
 	$story_id = absint( $_GET['story_id'] );
+	error_log( 'Story ID from URL parameter: ' . $story_id );
 }
 if ( ! $chapter_id && isset( $_GET['chapter_id'] ) ) {
 	$chapter_id = absint( $_GET['chapter_id'] );
+	error_log( 'Chapter ID from URL parameter: ' . $chapter_id );
 }
+
+error_log( 'Final Story ID: ' . $story_id . ', Chapter ID: ' . $chapter_id );
+error_log( 'Checking permissions for story ID: ' . $story_id );
+error_log( 'Can edit story: ' . ( current_user_can( 'edit_fanfiction_story', $story_id ) ? 'YES' : 'NO' ) );
 
 // Validate story exists and user has permission
 if ( ! $story_id || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+	error_log( 'ACCESS DENIED: story_id=' . $story_id . ', can_edit=' . ( current_user_can( 'edit_fanfiction_story', $story_id ) ? 'YES' : 'NO' ) );
 	?>
 	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
 		<p><?php esc_html_e( 'Access Denied: You do not have permission to add chapters to this story, or the story does not exist.', 'fanfiction-manager' ); ?></p>
