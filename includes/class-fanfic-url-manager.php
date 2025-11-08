@@ -500,6 +500,29 @@ class Fanfic_URL_Manager {
 			}
 		}
 
+		// Handle placeholder replacement for %fanfiction_story%.
+		if ( false !== strpos( $permalink, '%fanfiction_story%' ) ) {
+			// Get parent story.
+			$story = get_post( $post->post_parent );
+			if ( $story && 'fanfiction_story' === $story->post_type ) {
+				$story_slug = $story->post_name;
+				if ( empty( $story_slug ) ) {
+					$story_slug = 'story-' . $story->ID;
+				}
+				$permalink = str_replace(
+					'%fanfiction_story%',
+					$story_slug,
+					$permalink
+				);
+			} else {
+				// If no parent story, build the URL manually.
+				$built_url = $this->get_chapter_url( $post );
+				if ( ! empty( $built_url ) ) {
+					return $built_url;
+				}
+			}
+		}
+
 		return $permalink;
 	}
 
