@@ -228,6 +228,9 @@ class Fanfic_Core {
 		// Handle fanfiction_story query var for draft post access
 		add_action( 'parse_query', array( $this, 'handle_fanfiction_query_var' ) );
 
+		// Filter posts_where to allow draft access for authors
+		add_filter( 'posts_where', array( $this, 'filter_posts_where_for_drafts' ), 10, 2 );
+
 		// Display suspension notice to banned users on frontend
 		add_action( 'wp_footer', array( $this, 'display_suspension_notice' ) );
 
@@ -460,6 +463,62 @@ class Fanfic_Core {
 				error_log( 'Changed post_status from "' . $old_status . '" to: publish, draft, private' );
 			}
 		}
+	}
+
+	/**
+	 * Filter posts WHERE clause to allow draft access for authorized users
+	 *
+	 * WordPress by default filters out draft posts in the SQL WHERE clause.
+	 * This filter ensures draft posts are queryable for authorized users.
+	 *
+	 * @since 1.0.0
+	 * @param string   $where The WHERE clause.
+	 * @param WP_Query $query The WordPress query object.
+	 * @return string Modified WHERE clause.
+	 */
+	public function filter_posts_where_for_drafts( $where, $query ) {
+		// Only modify main query on frontend
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return $where;
+		}
+
+		// Check if this is a fanfiction query
+		$story_slug = $query->get( 'fanfiction_story' );
+		$chapter_slug = $query->get( 'fanfiction_chapter' );
+
+		if ( empty( $story_slug ) && empty( $chapter_slug ) ) {
+			return $where;
+		}
+
+		// Only apply for logged in users with edit capability
+		if ( ! is_user_logged_in() ) {
+			return $where;
+		}
+
+		$can_view_drafts = current_user_can( 'edit_fanfiction_stories' ) ||
+		                   current_user_can( 'edit_others_fanfiction_stories' );
+
+		if ( ! $can_view_drafts ) {
+			return $where;
+		}
+
+		error_log( '=== FILTER_POSTS_WHERE DEBUG ===' );
+		error_log( 'Original WHERE: ' . $where );
+
+		// WordPress adds "AND (post_status = 'publish')" to the WHERE clause
+		// We need to modify this to include draft posts
+		global $wpdb;
+
+		// Replace the post_status restriction to include draft, private, and publish
+		$where = str_replace(
+			"{$wpdb->posts}.post_status = 'publish'",
+			"({$wpdb->posts}.post_status = 'publish' OR {$wpdb->posts}.post_status = 'draft' OR {$wpdb->posts}.post_status = 'private')",
+			$where
+		);
+
+		error_log( 'Modified WHERE: ' . $where );
+
+		return $where;
 	}
 
 	/**
