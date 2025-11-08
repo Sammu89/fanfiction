@@ -1602,16 +1602,10 @@ class Fanfic_Shortcodes_Author_Forms {
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
-		// Build redirect URL using URL manager
+		// Redirect to story edit page (not chapter edit page)
 		$url_manager = Fanfic_URL_Manager::get_instance();
-		$chapter_url = $url_manager->get_chapter_url( $chapter_id );
-		$edit_url = add_query_arg(
-			array(
-				'action' => 'edit',
-				'success' => 'true',
-			),
-			$chapter_url
-		);
+		$story_url = $url_manager->get_story_url( $story_id );
+		$edit_url = add_query_arg( 'action', 'edit', $story_url );
 
 		// Check if this is an AJAX request
 		if ( wp_doing_ajax() ) {

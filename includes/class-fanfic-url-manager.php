@@ -483,6 +483,9 @@ class Fanfic_URL_Manager {
 	/**
 	 * Filter the permalink for chapter posts
 	 *
+	 * Always use custom URL structure based on chapter number/type metadata,
+	 * not WordPress's default hierarchical permalink structure.
+	 *
 	 * @param string  $permalink The post's permalink.
 	 * @param WP_Post $post      The post object.
 	 * @return string The filtered permalink.
@@ -492,38 +495,11 @@ class Fanfic_URL_Manager {
 			return $permalink;
 		}
 
-		// For draft/pending posts or posts without pretty permalinks, build one.
-		if ( false !== strpos( $permalink, '?' ) || false !== strpos( $permalink, 'post_type=' ) ) {
-			$built_url = $this->get_chapter_url( $post );
-			if ( ! empty( $built_url ) ) {
-				return $built_url;
-			}
-		}
+		// Always build chapter URLs using our custom structure (story-slug/chapter-N)
+		// instead of WordPress's hierarchical structure (story-slug/chapter-slug)
+		$built_url = $this->get_chapter_url( $post );
 
-		// Handle placeholder replacement for %fanfiction_story%.
-		if ( false !== strpos( $permalink, '%fanfiction_story%' ) ) {
-			// Get parent story.
-			$story = get_post( $post->post_parent );
-			if ( $story && 'fanfiction_story' === $story->post_type ) {
-				$story_slug = $story->post_name;
-				if ( empty( $story_slug ) ) {
-					$story_slug = 'story-' . $story->ID;
-				}
-				$permalink = str_replace(
-					'%fanfiction_story%',
-					$story_slug,
-					$permalink
-				);
-			} else {
-				// If no parent story, build the URL manually.
-				$built_url = $this->get_chapter_url( $post );
-				if ( ! empty( $built_url ) ) {
-					return $built_url;
-				}
-			}
-		}
-
-		return $permalink;
+		return ! empty( $built_url ) ? $built_url : $permalink;
 	}
 
 	/**
