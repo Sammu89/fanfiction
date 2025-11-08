@@ -56,6 +56,8 @@ class Fanfic_Shortcodes_Author_Forms {
 		add_action( 'wp_ajax_fanfic_create_chapter', array( __CLASS__, 'handle_create_chapter_submission' ) );
 		add_action( 'wp_ajax_fanfic_edit_chapter', array( __CLASS__, 'handle_edit_chapter_submission' ) );
 		add_action( 'wp_ajax_fanfic_edit_profile', array( __CLASS__, 'handle_edit_profile_submission' ) );
+	add_action( 'wp_ajax_fanfic_delete_chapter', array( __CLASS__, 'ajax_delete_chapter' ) );
+	add_action( 'wp_ajax_fanfic_publish_story', array( __CLASS__, 'ajax_publish_story' ) );
 	}
 
 	/**
@@ -561,6 +563,16 @@ class Fanfic_Shortcodes_Author_Forms {
 		$current_status_terms = wp_get_post_terms( $story_id, 'fanfiction_status' );
 		$current_status = ! empty( $current_status_terms ) ? $current_status_terms[0]->term_id : 0;
 
+		// Check if story has chapters
+		$chapter_count = get_posts( array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+		) );
+		$has_chapters = ! empty( $chapter_count );
+
 		// Get all genres and statuses
 		$genres = Fanfic_Taxonomies::get_genres();
 		$statuses = Fanfic_Taxonomies::get_statuses();
@@ -708,12 +720,29 @@ class Fanfic_Shortcodes_Author_Forms {
 				<input type="hidden" name="fanfic_edit_story_submit" value="1" />
 
 				<div class="fanfic-form-actions">
-					<button type="submit" class="fanfic-btn fanfic-btn-primary">
-						<?php esc_html_e( 'Update Story', 'fanfiction-manager' ); ?>
-					</button>
-					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
-						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
-					</a>
+					<?php if ( ! $has_chapters ) : ?>
+						<!-- New story without chapters: Only Save Draft and Cancel -->
+						<button type="submit" name="fanfic_save_action" value="draft" class="fanfic-btn fanfic-btn-primary">
+							<?php esc_html_e( 'Save Draft', 'fanfiction-manager' ); ?>
+						</button>
+						<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+							<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+						</a>
+					<?php else : ?>
+						<!-- Story with chapters: Save Draft, Publish, and Delete -->
+						<button type="submit" name="fanfic_save_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
+							<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
+						</button>
+						<button type="submit" name="fanfic_save_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+							<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
+						</button>
+						<button type="button" id="delete-story-trigger" class="fanfic-btn fanfic-btn-danger" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story->post_title ); ?>">
+							<?php esc_html_e( 'Delete Story', 'fanfiction-manager' ); ?>
+						</button>
+						<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+							<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+						</a>
+					<?php endif; ?>
 				</div>
 			</form>
 		</div>
@@ -1551,6 +1580,19 @@ class Fanfic_Shortcodes_Author_Forms {
 
 		$errors = array();
 
+		// Get save action (draft or publish)
+		$save_action = isset( $_POST['fanfic_save_action'] ) ? sanitize_text_field( $_POST['fanfic_save_action'] ) : 'draft';
+		$post_status = ( 'publish' === $save_action ) ? 'publish' : 'draft';
+
+		// Check if story currently has chapters
+		$had_chapters_before = ! empty( get_posts( array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+		) ) );
+
 		// Get and sanitize form data
 		$title = isset( $_POST['fanfic_story_title'] ) ? sanitize_text_field( $_POST['fanfic_story_title'] ) : '';
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
@@ -1583,6 +1625,7 @@ class Fanfic_Shortcodes_Author_Forms {
 			'ID'           => $story_id,
 			'post_title'   => $title,
 			'post_content' => $introduction,
+			'post_status'  => $post_status,
 		) );
 
 		if ( is_wp_error( $result ) ) {
@@ -1605,14 +1648,27 @@ class Fanfic_Shortcodes_Author_Forms {
 			delete_post_meta( $story_id, '_fanfic_featured_image' );
 		}
 
-		// Redirect back with success message
-		$redirect_url = add_query_arg(
-			array(
-				'story_id' => $story_id,
-				'updated' => 'success'
-			),
-			wp_get_referer()
-		);
+		// Determine redirect based on whether story had chapters before
+		if ( ! $had_chapters_before && 'draft' === $save_action ) {
+			// First save without chapters - redirect to add chapter page
+			$redirect_url = add_query_arg(
+				array(
+					'action'   => 'add-chapter',
+					'story_id' => $story_id,
+				),
+				self::get_page_url_with_fallback( 'manage-stories' )
+			);
+		} else {
+			// Normal save - redirect back with success message
+			$redirect_url = add_query_arg(
+				array(
+					'story_id' => $story_id,
+					'updated'  => 'success',
+				),
+				wp_get_referer()
+			);
+		}
+
 		wp_redirect( $redirect_url );
 		exit;
 	}
@@ -1716,10 +1772,35 @@ class Fanfic_Shortcodes_Author_Forms {
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
+		// Check if this is the first published chapter and story is a draft
+		$is_first_published_chapter = false;
+		if ( 'draft' === $story->post_status ) {
+			// Count published chapters (excluding the one we just created)
+			$published_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story_id,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $chapter_id ),
+			) );
+
+			// If there are no other published chapters, this is the first
+			if ( empty( $published_chapters ) ) {
+				$is_first_published_chapter = true;
+			}
+		}
+
+
 		// Redirect to story edit page (not chapter edit page)
 		$url_manager = Fanfic_URL_Manager::get_instance();
 		$story_url = $url_manager->get_story_url( $story_id );
 		$edit_url = add_query_arg( 'action', 'edit', $story_url );
+
+		// Add parameter to show publication prompt if this is first chapter
+		if ( $is_first_published_chapter ) {
+			$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
+		}
 
 		// Check if this is an AJAX request
 		if ( wp_doing_ajax() ) {
@@ -2119,6 +2200,113 @@ class Fanfic_Shortcodes_Author_Forms {
 		$redirect_url = add_query_arg( 'chapter_deleted', 'success', self::get_page_url_with_fallback( 'manage-stories' ) );
 		wp_redirect( $redirect_url );
 		exit;
+	}
+
+	/**
+	 * AJAX handler for deleting a chapter
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_delete_chapter() {
+		// Verify nonce
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_delete_chapter' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array( 'message' => __( 'You must be logged in to delete chapters.', 'fanfiction-manager' ) ) );
+		}
+
+		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
+
+		if ( ! $chapter_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid chapter ID.', 'fanfiction-manager' ) ) );
+		}
+
+		$current_user = wp_get_current_user();
+		$chapter = get_post( $chapter_id );
+
+		// Check if chapter exists
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+
+	/**
+	 * AJAX handler for publishing a story
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_publish_story() {
+		// Verify nonce
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_publish_story' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array( 'message' => __( 'You must be logged in to publish stories.', 'fanfiction-manager' ) ) );
+		}
+
+		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
+
+		if ( ! $story_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid story ID.', 'fanfiction-manager' ) ) );
+		}
+
+		$current_user = wp_get_current_user();
+		$story = get_post( $story_id );
+
+		// Check if story exists
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			wp_send_json_error( array( 'message' => __( 'Story not found.', 'fanfiction-manager' ) ) );
+		}
+
+		// Check permissions - must be author or have edit_others_posts capability
+		if ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to publish this story.', 'fanfiction-manager' ) ) );
+		}
+
+		// Update story status to publish
+		$result = wp_update_post( array(
+			'ID'          => $story_id,
+			'post_status' => 'publish',
+		) );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		wp_send_json_success( array(
+			'message' => __( 'Story published successfully.', 'fanfiction-manager' ),
+			'story_id' => $story_id
+		) );
+	}
+			wp_send_json_error( array( 'message' => __( 'Chapter not found.', 'fanfiction-manager' ) ) );
+		}
+
+		// Get the story to check permissions
+		$story = get_post( $chapter->post_parent );
+		if ( ! $story ) {
+			wp_send_json_error( array( 'message' => __( 'Parent story not found.', 'fanfiction-manager' ) ) );
+		}
+
+		// Check permissions - must be author or have delete_others_posts capability
+		if ( $story->post_author != $current_user->ID && ! current_user_can( 'delete_others_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to delete this chapter.', 'fanfiction-manager' ) ) );
+		}
+
+		// Delete the chapter
+		$result = wp_delete_post( $chapter_id, true );
+
+		if ( $result ) {
+			wp_send_json_success( array(
+				'message' => __( 'Chapter deleted successfully.', 'fanfiction-manager' ),
+				'chapter_id' => $chapter_id
+			) );
+		} else {
+			wp_send_json_error( array( 'message' => __( 'Failed to delete chapter.', 'fanfiction-manager' ) ) );
+		}
 	}
 
 	/**
