@@ -2028,14 +2028,23 @@ class Fanfic_Shortcodes_Author_Forms {
 
 					<!-- Chapter Content -->
 					<div class="fanfic-form-field">
-						<label for="fanfic_chapter_content"><?php esc_html_e( 'Chapter Content', 'fanfiction-manager' ); ?></label>
-						<textarea
-							id="fanfic_chapter_content"
-							name="fanfic_chapter_content"
-							class="fanfic-textarea"
-							rows="15"
-							required
-						><?php echo isset( $_POST['fanfic_chapter_content'] ) ? esc_textarea( $_POST['fanfic_chapter_content'] ) : ( $is_edit_mode ? esc_textarea( $chapter->post_content ) : '' ); ?></textarea>
+						<label><?php esc_html_e( 'Chapter Content', 'fanfiction-manager' ); ?></label>
+						<?php
+						$editor_content = isset( $_POST['fanfic_chapter_content'] ) ? $_POST['fanfic_chapter_content'] : ( $is_edit_mode ? $chapter->post_content : '' );
+						$editor_settings = array(
+							'textarea_name' => 'fanfic_chapter_content',
+							'media_buttons' => false,
+							'teeny' => false,
+							'quicktags' => false,
+							'tinymce' => array(
+								'toolbar1' => 'bold italic underline bullist numlist blockquote undo redo',
+								'toolbar2' => '',
+								'menubar' => false,
+								'statusbar' => false,
+							),
+						);
+						wp_editor( $editor_content, 'fanfic_chapter_content', $editor_settings );
+						?>
 						<?php if ( isset( $field_errors['chapter_content'] ) ) : ?>
 							<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_content'] ); ?></p>
 						<?php endif; ?>

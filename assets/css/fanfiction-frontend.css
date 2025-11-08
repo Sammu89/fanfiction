@@ -3856,3 +3856,12 @@ body.fanfiction-page .entry-content::after {
 	display: table;
 	clear: both;
 }
+
+/* TinyMCE Editor - Inherit site font */
+#tinymce {
+	font-family: inherit !important;
+}
+
+#tinymce * {
+	font-family: inherit !important;
+}

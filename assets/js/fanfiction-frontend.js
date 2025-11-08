@@ -1329,4 +1329,43 @@
 		console.log('Fanfiction Manager: Keyboard navigation initialized');
 	});
 
+	// TinyMCE Editor - Apply parent font to iframe
+	document.addEventListener('tinymce-editor-init', function(e) {
+		applyEditorFonts();
+	});
+
+	// Use TinyMCE's native API if available
+	if (typeof tinymce !== 'undefined') {
+		tinymce.on('AddEditor', function(e) {
+			e.editor.on('init', function() {
+				applyEditorFonts();
+			});
+		});
+	}
+
+	// Fallback - check for iframes periodically
+	setTimeout(function checkAndApplyFonts() {
+		const iframes = document.body.querySelectorAll('iframe');
+		if (iframes.length > 0) {
+			applyEditorFonts();
+		}
+		if (iframes.length === 0) {
+			setTimeout(checkAndApplyFonts, 500);
+		}
+	}, 100);
+
+	// Apply parent page fonts to all iframes
+	function applyEditorFonts() {
+		const iframes = document.body.querySelectorAll('iframe');
+		const computedFont = window.getComputedStyle(document.body).fontFamily;
+		const computedSize = window.getComputedStyle(document.body).fontSize;
+
+		iframes.forEach((iframe) => {
+			if (iframe.contentDocument && iframe.contentDocument.body) {
+				iframe.contentDocument.body.style.fontFamily = computedFont;
+				iframe.contentDocument.body.style.fontSize = computedSize;
+			}
+		});
+	}
+
 })(jQuery);

@@ -609,6 +609,9 @@ $page_description = $chapter_id
 				if (draftBtn) {
 					draftBtn.disabled = true;
 				}
+			}
+		}
+
 		// Update button states on initial load (for edit form)
 		if (form.classList.contains('fanfic-edit-chapter-form')) {
 			// On edit page, check if chapter is published

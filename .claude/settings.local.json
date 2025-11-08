@@ -1,13 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cat:*)",
-      "Bash(nul)",
-      "Bash(test:*)",
-      "Bash(git log:*)",
-      "Bash(php -r:*)",
-      "Bash(wp:*)",
-      "WebSearch"
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
