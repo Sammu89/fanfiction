@@ -279,6 +279,114 @@ $page_description = $chapter_id
 	</script>
 <?php endif; ?>
 
+
+<!-- Publish Story Prompt Modal -->
+<div id="publish-prompt-modal" class="fanfic-modal" role="dialog" aria-labelledby="publish-modal-title" aria-modal="true" style="display: none;">
+	<div class="fanfic-modal-overlay"></div>
+	<div class="fanfic-modal-content">
+		<h2 id="publish-modal-title"><?php esc_html_e( 'Ready to Publish Your Story?', 'fanfiction-manager' ); ?></h2>
+		<p><?php esc_html_e( 'Great! Your story now has its first published chapter. Would you like to publish your story to make it visible to readers?', 'fanfiction-manager' ); ?></p>
+		<div class="fanfic-modal-actions">
+			<button type="button" id="publish-story-now" class="fanfic-button-primary" data-story-id="<?php echo absint( $story_id ); ?>">
+				<?php esc_html_e( 'Yes, Publish Story', 'fanfiction-manager' ); ?>
+			</button>
+			<button type="button" id="keep-as-draft" class="fanfic-button-secondary">
+				<?php esc_html_e( 'No, Keep as Draft', 'fanfiction-manager' ); ?>
+			</button>
+		</div>
+	</div>
+</div>
+
+<!-- Publish Prompt Modal Script -->
+<script>
+(function() {
+	document.addEventListener('DOMContentLoaded', function() {
+		var publishModal = document.getElementById('publish-prompt-modal');
+		var publishNowButton = document.getElementById('publish-story-now');
+		var keepDraftButton = document.getElementById('keep-as-draft');
+
+		// Show modal if show_publish_prompt parameter is present
+		var urlParams = new URLSearchParams(window.location.search);
+		console.log('URL Params:', window.location.search);
+		console.log('show_publish_prompt value:', urlParams.get('show_publish_prompt'));
+
+		if (urlParams.get('show_publish_prompt') === '1' && publishModal) {
+			console.log('Showing publish prompt modal');
+			publishModal.style.display = 'block';
+		}
+
+		// Handle "Keep as Draft" button
+		if (keepDraftButton) {
+			keepDraftButton.addEventListener('click', function() {
+				publishModal.style.display = 'none';
+				// Remove the parameter from URL
+				urlParams.delete('show_publish_prompt');
+				var newUrl = window.location.pathname + window.location.search.replace(/[?&]show_publish_prompt=1/, '').replace(/^&/, '?');
+				if (newUrl.endsWith('?')) {
+					newUrl = newUrl.slice(0, -1);
+				}
+				window.history.replaceState({}, '', newUrl);
+			});
+		}
+
+		// Handle "Publish Story Now" button
+		if (publishNowButton) {
+			publishNowButton.addEventListener('click', function() {
+				var storyId = this.getAttribute('data-story-id');
+				
+				// Disable button to prevent double-clicks
+				publishNowButton.disabled = true;
+				publishNowButton.textContent = '<?php esc_html_e( 'Publishing...', 'fanfiction-manager' ); ?>';
+
+				// Prepare AJAX request
+				var formData = new FormData();
+				formData.append('action', 'fanfic_publish_story');
+				formData.append('story_id', storyId);
+				formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_publish_story' ); ?>');
+
+				// Send AJAX request
+				fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+					method: 'POST',
+					credentials: 'same-origin',
+					body: formData
+				})
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(data) {
+					if (data.success) {
+						// Redirect to Edit Story page
+						window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url( $story_id ) ); ?>';
+					} else {
+						// Re-enable button and show error
+						publishNowButton.disabled = false;
+						publishNowButton.textContent = '<?php esc_html_e( 'Yes, Publish Story', 'fanfiction-manager' ); ?>';
+						alert(data.data.message || '<?php esc_html_e( 'Failed to publish story.', 'fanfiction-manager' ); ?>');
+					}
+				})
+				.catch(function(error) {
+					// Re-enable button and show error
+					publishNowButton.disabled = false;
+					publishNowButton.textContent = '<?php esc_html_e( 'Yes, Publish Story', 'fanfiction-manager' ); ?>';
+					alert('<?php esc_html_e( 'An error occurred while publishing the story.', 'fanfiction-manager' ); ?>');
+					console.error('Error:', error);
+				});
+			});
+		}
+
+		// Close modal when clicking overlay
+		if (publishModal) {
+			var overlay = publishModal.querySelector('.fanfic-modal-overlay');
+			if (overlay) {
+				overlay.addEventListener('click', function() {
+					publishModal.style.display = 'none';
+				});
+			}
+		}
+	});
+})();
+</script>
+
 <!-- Breadcrumb Navigation (Bottom) -->
 <nav class="fanfic-breadcrumb fanfic-breadcrumb-bottom" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
