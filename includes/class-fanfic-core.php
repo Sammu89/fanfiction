@@ -232,7 +232,7 @@ class Fanfic_Core {
 		add_filter( 'posts_where', array( $this, 'filter_posts_where_for_drafts' ), 10, 2 );
 
 		// Handle chapter_number and chapter_type query vars
-		add_action( 'pre_get_posts', array( $this, 'handle_chapter_query_vars' ) );
+		add_action( 'template_redirect', array( $this, 'handle_chapter_query_vars' ) );
 
 		// Display suspension notice to banned users on frontend
 		add_action( 'wp_footer', array( $this, 'display_suspension_notice' ) );
@@ -498,22 +498,16 @@ class Fanfic_Core {
 	 * When accessing chapter URLs like /stories/{story-slug}/chapter-3/,
 	 * the rewrite rules set fanfiction_chapter={story-slug} and chapter_number=3.
 	 * This method queries for the actual chapter post by finding the parent story
-	 * and then the chapter with the matching number/type.
+	 * and then the chapter with the matching number/type, then sets up global post data.
 	 *
 	 * @since 1.0.0
-	 * @param WP_Query $query The WordPress query object.
 	 * @return void
 	 */
-	public function handle_chapter_query_vars( $query ) {
-		// Only modify main query on frontend
-		if ( is_admin() || ! $query->is_main_query() ) {
-			return;
-		}
-
+	public function handle_chapter_query_vars() {
 		// Check if we have chapter query vars
-		$story_slug = $query->get( 'fanfiction_chapter' );
-		$chapter_number = $query->get( 'chapter_number' );
-		$chapter_type = $query->get( 'chapter_type' );
+		$story_slug = get_query_var( 'fanfiction_chapter' );
+		$chapter_number = get_query_var( 'chapter_number' );
+		$chapter_type = get_query_var( 'chapter_type' );
 
 		// Need story slug and either chapter number or type
 		if ( empty( $story_slug ) || ( empty( $chapter_number ) && empty( $chapter_type ) ) ) {
@@ -556,17 +550,52 @@ class Fanfic_Core {
 		}
 
 		// Query for the chapter
-		$query->set( 'post_type', 'fanfiction_chapter' );
-		$query->set( 'post_parent', $story->ID );
-		$query->set( 'posts_per_page', 1 );
-		$query->set( 'meta_query', $meta_query );
+		$chapter_query = new WP_Query( array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story->ID,
+			'posts_per_page' => 1,
+			'post_status'    => 'any',
+			'meta_query'     => $meta_query,
+			'no_found_rows'  => true,
+		) );
 
-		// Remove the fanfiction_chapter query var to avoid conflicts
-		$query->set( 'fanfiction_chapter', null );
+		if ( ! $chapter_query->have_posts() ) {
+			// Chapter not found - let WordPress show 404
+			return;
+		}
 
-		// Set as singular for proper template loading
-		$query->is_singular = true;
-		$query->is_single = true;
+		// Get the chapter post
+		$chapter = $chapter_query->posts[0];
+
+		// Access global $wp_query
+		global $wp_query;
+
+		// Set the posts array with our chapter
+		$wp_query->posts = array( $chapter );
+		$wp_query->post = $chapter;
+		$wp_query->post_count = 1;
+		$wp_query->found_posts = 1;
+		$wp_query->max_num_pages = 1;
+
+		// Set query flags for singular post
+		$wp_query->is_singular = true;
+		$wp_query->is_single = true;
+		$wp_query->is_404 = false;
+		$wp_query->is_page = false;
+		$wp_query->is_archive = false;
+
+		// Set queried object
+		$wp_query->queried_object = $chapter;
+		$wp_query->queried_object_id = $chapter->ID;
+
+		// Set global $post
+		$GLOBALS['post'] = $chapter;
+
+		// Setup postdata for template tags
+		setup_postdata( $chapter );
+
+		// Send 200 OK status
+		status_header( 200 );
 	}
 
 	/**
