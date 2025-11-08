@@ -1712,6 +1712,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		}
 
 		$current_user = wp_get_current_user();
+		error_log( 'Create chapter - Action: ' . $chapter_action . ', Status: ' . $chapter_status );
 		$story = get_post( $story_id );
 
 		// Check permissions
@@ -1768,6 +1769,7 @@ class Fanfic_Shortcodes_Author_Forms {
 			exit;
 		}
 
+			error_log( 'Chapter created with ID: ' . $chapter_id . ', Status: ' . $chapter_status );
 		// Create chapter
 		$chapter_id = wp_insert_post( array(
 			'post_type'    => 'fanfiction_chapter',
@@ -1790,6 +1792,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
 		// Check if this is the first published chapter and story is a draft
+		error_log( 'Checking for first published chapter. Chapter status: ' . $chapter_status . ', Story status: ' . $story->post_status );
 		$is_first_published_chapter = false;
 		if ( 'publish' === $chapter_status && 'draft' === $story->post_status ) {
 			// Count published chapters (excluding the one we just created)
@@ -1801,9 +1804,11 @@ class Fanfic_Shortcodes_Author_Forms {
 				'fields'         => 'ids',
 				'post__not_in'   => array( $chapter_id ),
 			) );
+			error_log( 'Other published chapters count: ' . count( $published_chapters ) );
 
 			// If there are no other published chapters, this is the first
 			if ( empty( $published_chapters ) ) {
+				error_log( 'This is the FIRST published chapter! Will show prompt.' );
 				$is_first_published_chapter = true;
 			}
 		}
@@ -1816,6 +1821,7 @@ class Fanfic_Shortcodes_Author_Forms {
 
 		// Add parameter to show publication prompt if this is first chapter
 		if ( $is_first_published_chapter ) {
+		error_log( 'Redirecting to: ' . $edit_url );
 			$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
 		}
 
