@@ -1792,9 +1792,9 @@ class Fanfic_Shortcodes_Author_Forms {
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
 		// Check if this is the first published chapter and story is a draft
-		error_log( 'Checking for first published chapter. Chapter status: ' . $chapter_status . ', Story status: ' . $story->post_status );
+		error_log( 'Checking for first published chapter. Chapter status: ' . $chapter_status . ', Story status: ' . $story->post_status . ', Chapter type: ' . $chapter_type );
 		$is_first_published_chapter = false;
-		if ( 'publish' === $chapter_status && 'draft' === $story->post_status ) {
+		if ( 'publish' === $chapter_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
 			// Count published chapters (excluding the one we just created)
 			$published_chapters = get_posts( array(
 				'post_type'      => 'fanfiction_chapter',
@@ -1814,16 +1814,16 @@ class Fanfic_Shortcodes_Author_Forms {
 		}
 
 
-		// Redirect to story edit page (not chapter edit page)
-		$url_manager = Fanfic_URL_Manager::get_instance();
-		$story_url = $url_manager->get_story_url( $story_id );
-		$edit_url = add_query_arg( 'action', 'edit', $story_url );
 
-		// Add parameter to show publication prompt if this is first chapter
-		if ( $is_first_published_chapter ) {
+	// Redirect to chapter edit page
+	$chapter_url = get_permalink( $chapter_id );
+	$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
+
+	// Add parameter to show publication prompt if this is first chapter
+	if ( $is_first_published_chapter ) {
 		error_log( 'Redirecting to: ' . $edit_url );
-			$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
-		}
+		$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
+	}
 
 		// Check if this is an AJAX request
 		if ( wp_doing_ajax() ) {
@@ -1964,7 +1964,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		$story = get_post( $story_id );
 		
 		// Only check if we're publishing a chapter that was draft and story is also draft
-		if ( 'publish' === $chapter_status && 'draft' === $old_status && 'draft' === $story->post_status ) {
+		if ( 'publish' === $chapter_status && 'draft' === $old_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
 			// Count other published chapters
 			$published_chapters = get_posts( array(
 				'post_type'      => 'fanfiction_chapter',
