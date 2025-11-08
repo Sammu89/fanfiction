@@ -231,6 +231,9 @@ class Fanfic_Core {
 		// Filter posts_where to allow draft access for authors
 		add_filter( 'posts_where', array( $this, 'filter_posts_where_for_drafts' ), 10, 2 );
 
+		// Handle chapter_number and chapter_type query vars
+		add_action( 'pre_get_posts', array( $this, 'handle_chapter_query_vars' ) );
+
 		// Display suspension notice to banned users on frontend
 		add_action( 'wp_footer', array( $this, 'display_suspension_notice' ) );
 
@@ -487,6 +490,83 @@ class Fanfic_Core {
 		);
 
 		return $where;
+	}
+
+	/**
+	 * Handle chapter_number and chapter_type query vars for chapter URLs
+	 *
+	 * When accessing chapter URLs like /stories/{story-slug}/chapter-3/,
+	 * the rewrite rules set fanfiction_chapter={story-slug} and chapter_number=3.
+	 * This method queries for the actual chapter post by finding the parent story
+	 * and then the chapter with the matching number/type.
+	 *
+	 * @since 1.0.0
+	 * @param WP_Query $query The WordPress query object.
+	 * @return void
+	 */
+	public function handle_chapter_query_vars( $query ) {
+		// Only modify main query on frontend
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		// Check if we have chapter query vars
+		$story_slug = $query->get( 'fanfiction_chapter' );
+		$chapter_number = $query->get( 'chapter_number' );
+		$chapter_type = $query->get( 'chapter_type' );
+
+		// Need story slug and either chapter number or type
+		if ( empty( $story_slug ) || ( empty( $chapter_number ) && empty( $chapter_type ) ) ) {
+			return;
+		}
+
+		// Find the parent story by slug
+		$story_query = new WP_Query( array(
+			'post_type'      => 'fanfiction_story',
+			'name'           => $story_slug,
+			'posts_per_page' => 1,
+			'post_status'    => 'any',
+			'no_found_rows'  => true,
+		) );
+
+		if ( ! $story_query->have_posts() ) {
+			// Story not found - let WordPress show 404
+			return;
+		}
+
+		$story = $story_query->posts[0];
+
+		// Build meta query for chapter number or type
+		$meta_query = array();
+
+		if ( ! empty( $chapter_number ) ) {
+			$meta_query[] = array(
+				'key'   => '_fanfic_chapter_number',
+				'value' => absint( $chapter_number ),
+				'compare' => '=',
+			);
+		}
+
+		if ( ! empty( $chapter_type ) ) {
+			$meta_query[] = array(
+				'key'   => '_fanfic_chapter_type',
+				'value' => sanitize_text_field( $chapter_type ),
+				'compare' => '=',
+			);
+		}
+
+		// Query for the chapter
+		$query->set( 'post_type', 'fanfiction_chapter' );
+		$query->set( 'post_parent', $story->ID );
+		$query->set( 'posts_per_page', 1 );
+		$query->set( 'meta_query', $meta_query );
+
+		// Remove the fanfiction_chapter query var to avoid conflicts
+		$query->set( 'fanfiction_chapter', null );
+
+		// Set as singular for proper template loading
+		$query->is_singular = true;
+		$query->is_single = true;
 	}
 
 	/**
