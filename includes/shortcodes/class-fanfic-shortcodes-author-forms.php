@@ -59,6 +59,9 @@ class Fanfic_Shortcodes_Author_Forms {
 	add_action( 'wp_ajax_fanfic_delete_chapter', array( __CLASS__, 'ajax_delete_chapter' ) );
 	add_action( 'wp_ajax_fanfic_publish_story', array( __CLASS__, 'ajax_publish_story' ) );
 		add_action( 'wp_ajax_fanfic_check_last_chapter', array( __CLASS__, 'ajax_check_last_chapter' ) );
+
+		// Filter chapters by parent story status (hide chapters of draft stories on frontend)
+		add_action( 'pre_get_posts', array( __CLASS__, 'filter_chapters_by_story_status' ) );
 	}
 
 	/**
@@ -1982,6 +1985,35 @@ class Fanfic_Shortcodes_Author_Forms {
 			}
 		}
 
+		// Check if we're drafting the last published chapter/prologue
+		if ( 'draft' === $chapter_status && 'publish' === $old_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
+			// Count other published chapters/prologues (excluding this one)
+			$published_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story_id,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $chapter_id ),
+				'meta_query'     => array(
+					array(
+						'key'     => '_fanfic_chapter_type',
+						'value'   => array( 'prologue', 'chapter' ),
+						'compare' => 'IN',
+					),
+				),
+			) );
+
+			// If no other published chapters/prologues, auto-draft the story
+			if ( empty( $published_chapters ) ) {
+				wp_update_post( array(
+					'ID'          => $story_id,
+					'post_status' => 'draft',
+				) );
+				error_log( 'Auto-drafted story ' . $story_id . ' because last published chapter/prologue was drafted' );
+			}
+		}
+
 		// Redirect back with success message
 		$redirect_url = add_query_arg(
 			array(
@@ -2883,5 +2915,60 @@ class Fanfic_Shortcodes_Author_Forms {
 		wp_send_json_success( array(
 			'message' => __( 'Profile updated successfully!', 'fanfiction-manager' )
 		) );
+	}
+
+	/**
+	 * Filter chapters by parent story status
+	 *
+	 * Hides chapters whose parent story is in draft status from frontend queries.
+	 * This ensures that chapters are automatically hidden when their story is drafted
+	 * and automatically visible when the story is republished.
+	 *
+	 * @since 1.0.0
+	 * @param WP_Query $query The WordPress query object.
+	 * @return void
+	 */
+	public static function filter_chapters_by_story_status( $query ) {
+		// Only filter on frontend (not admin)
+		if ( is_admin() ) {
+			return;
+		}
+
+		// Only filter main queries for fanfiction_chapter post type
+		if ( ! $query->is_main_query() || $query->get( 'post_type' ) !== 'fanfiction_chapter' ) {
+			return;
+		}
+
+		// Get all draft story IDs
+		$draft_stories = get_posts( array(
+			'post_type'      => 'fanfiction_story',
+			'post_status'    => 'draft',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		) );
+
+		// If there are draft stories, exclude their chapters
+		if ( ! empty( $draft_stories ) ) {
+			// Get existing post__not_in parameter
+			$post__not_in = $query->get( 'post__not_in' );
+			if ( ! is_array( $post__not_in ) ) {
+				$post__not_in = array();
+			}
+
+			// Get all chapters that belong to draft stories
+			$draft_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent__in' => $draft_stories,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			) );
+
+			// Merge with existing exclusions
+			if ( ! empty( $draft_chapters ) ) {
+				$post__not_in = array_merge( $post__not_in, $draft_chapters );
+				$query->set( 'post__not_in', $post__not_in );
+			}
+		}
 	}
 }
