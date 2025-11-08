@@ -225,6 +225,9 @@ class Fanfic_Core {
 		// Allow authors to view their own draft stories
 		add_action( 'pre_get_posts', array( $this, 'allow_author_draft_access' ) );
 
+		// Handle fanfiction_story query var for draft post access
+		add_action( 'parse_query', array( $this, 'handle_fanfiction_query_var' ) );
+
 		// Display suspension notice to banned users on frontend
 		add_action( 'wp_footer', array( $this, 'display_suspension_notice' ) );
 
@@ -363,30 +366,26 @@ class Fanfic_Core {
 	 * @return void
 	 */
 	public function allow_author_draft_access( $query ) {
-		// Only modify main query on frontend for singular views
-		if ( is_admin() || ! $query->is_main_query() || ! $query->is_singular() ) {
+		// Only modify main query on frontend
+		if ( is_admin() || ! $query->is_main_query() ) {
 			return;
 		}
 
-		// Only apply to fanfiction post types
-		$post_type = $query->get( 'post_type' );
-		if ( ! in_array( $post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
-			// Check if this is a singular fanfiction query by checking query vars
-			$is_story = ! empty( $query->get( 'fanfiction_story' ) );
-			$is_chapter = ! empty( $query->get( 'fanfiction_chapter' ) );
+		// Check if this is a singular fanfiction query
+		$is_story = ! empty( $query->get( 'fanfiction_story' ) ) ||
+		            ( $query->is_singular() && $query->get( 'post_type' ) === 'fanfiction_story' );
+		$is_chapter = ! empty( $query->get( 'fanfiction_chapter' ) ) ||
+		              ( $query->is_singular() && $query->get( 'post_type' ) === 'fanfiction_chapter' );
 
-			if ( ! $is_story && ! $is_chapter ) {
-				return;
-			}
+		// Only apply to fanfiction post types
+		if ( ! $is_story && ! $is_chapter ) {
+			return;
 		}
 
 		// If user is not logged in, don't modify the query
 		if ( ! is_user_logged_in() ) {
 			return;
 		}
-
-		// Get current user
-		$current_user_id = get_current_user_id();
 
 		// Check if user has permission to view drafts
 		// This includes authors (who can view their own drafts) and moderators/admins
@@ -396,7 +395,43 @@ class Fanfic_Core {
 		if ( $can_view_drafts ) {
 			// Include draft and publish statuses in the query
 			// WordPress will still check read_post capability before displaying
-			$query->set( 'post_status', array( 'publish', 'draft' ) );
+			$query->set( 'post_status', array( 'publish', 'draft', 'private' ) );
+		}
+	}
+
+	/**
+	 * Handle fanfiction_story and fanfiction_chapter query vars
+	 *
+	 * WordPress uses these custom query vars to look up posts by slug.
+	 * This ensures draft posts are queryable by authorized users.
+	 *
+	 * @since 1.0.0
+	 * @param WP_Query $query The WordPress query object.
+	 * @return void
+	 */
+	public function handle_fanfiction_query_var( $query ) {
+		// Only modify main query on frontend
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		// Check if we're querying by fanfiction_story or fanfiction_chapter slug
+		$story_slug = $query->get( 'fanfiction_story' );
+		$chapter_slug = $query->get( 'fanfiction_chapter' );
+
+		if ( empty( $story_slug ) && empty( $chapter_slug ) ) {
+			return;
+		}
+
+		// If user is logged in and can edit stories, allow draft access
+		if ( is_user_logged_in() ) {
+			$can_view_drafts = current_user_can( 'edit_fanfiction_stories' ) ||
+			                   current_user_can( 'edit_others_fanfiction_stories' );
+
+			if ( $can_view_drafts ) {
+				// Set query to look for both published and draft posts
+				$query->set( 'post_status', array( 'publish', 'draft', 'private' ) );
+			}
 		}
 	}
 
