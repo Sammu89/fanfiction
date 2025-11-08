@@ -565,21 +565,20 @@ $page_description = $chapter_id
 		function updateButtonStates() {
 			var changed = hasChanges();
 			
+			// Save as Draft button is ALWAYS enabled (users can unpublish)
+			if (draftBtn) {
+				draftBtn.disabled = false;
+			}
+
 			if (changed) {
 				publishBtn.disabled = false;
 				publishBtn.textContent = '<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>';
-				if (draftBtn) {
-					draftBtn.disabled = false;
-				}
 			} else {
 				publishBtn.disabled = true;
 				publishBtn.textContent = '<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>';
 				if (draftBtn) {
 					draftBtn.disabled = true;
 				}
-			}
-		}
-
 		// Update button states on initial load (for edit form)
 		if (form.classList.contains('fanfic-edit-chapter-form')) {
 			// On edit page, check if chapter is published

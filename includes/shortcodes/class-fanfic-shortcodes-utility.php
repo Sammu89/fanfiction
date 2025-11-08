@@ -34,7 +34,8 @@ class Fanfic_Shortcodes_Utility {
 		add_shortcode( 'fanfic-maintenance-message', array( __CLASS__, 'maintenance_message' ) );
 		add_shortcode( 'edit-story-button', array( __CLASS__, 'edit_story_button' ) );
 		add_shortcode( 'edit-chapter-button', array( __CLASS__, 'edit_chapter_button' ) );
-		add_shortcode( 'fanfic-status-indicator', array( __CLASS__, 'status_indicator' ) );
+		add_shortcode( 'fanfic-story-status', array( __CLASS__, 'story_status' ) );
+		add_shortcode( 'fanfic-chapter-status', array( __CLASS__, 'chapter_status' ) );
 		add_shortcode( 'edit-author-button', array( __CLASS__, 'edit_author_button' ) );
 	}
 
@@ -451,33 +452,70 @@ class Fanfic_Shortcodes_Utility {
 			esc_url( $edit_url ),
 			esc_html__( 'Edit Profile', 'fanfiction-manager' )
 		);
-	}
 
+	}
 	/**
-	 * Display status indicator for current post (story or chapter)
+	 * Display status indicator for current story
 	 *
 	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes (story_id optional)
 	 * @return string Status badge HTML
 	 */
-	public static function status_indicator( $atts ) {
-		// Get current post
-		$post = get_queried_object();
+	public static function story_status( $atts ) {
+		$atts = shortcode_atts( array(
+			'story_id' => 0,
+		), $atts );
+
+		// Get story
+		$story_id = $atts['story_id'] ? absint( $atts['story_id'] ) : get_the_ID();
+		$story = get_post( $story_id );
 		
-		if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ) ) ) {
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
 			return '';
 		}
 
-		$status = $post->post_status;
+		$status = $story->post_status;
 		$status_class = 'fanfic-status-badge fanfic-status-' . esc_attr( $status );
 		
-		$status_labels = array(
-			'publish' => __( 'Published', 'fanfiction-manager' ),
-			'draft'   => __( 'Draft', 'fanfiction-manager' ),
-			'pending' => __( 'Pending Review', 'fanfiction-manager' ),
-			'private' => __( 'Private', 'fanfiction-manager' ),
-		);
+		// Only Draft or Published
+		$status_label = ( 'publish' === $status ) 
+			? __( 'Published', 'fanfiction-manager' )
+			: __( 'Draft', 'fanfiction-manager' );
 
-		$status_label = isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : ucfirst( $status );
+		return sprintf(
+			'<span class="%s">%s</span>',
+			esc_attr( $status_class ),
+			esc_html( $status_label )
+		);
+	}
+
+	/**
+	 * Display status indicator for current chapter
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes (chapter_id optional)
+	 * @return string Status badge HTML
+	 */
+	public static function chapter_status( $atts ) {
+		$atts = shortcode_atts( array(
+			'chapter_id' => 0,
+		), $atts );
+
+		// Get chapter
+		$chapter_id = $atts['chapter_id'] ? absint( $atts['chapter_id'] ) : get_the_ID();
+		$chapter = get_post( $chapter_id );
+		
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+			return '';
+		}
+
+		$status = $chapter->post_status;
+		$status_class = 'fanfic-status-badge fanfic-status-' . esc_attr( $status );
+		
+		// Only Draft or Published
+		$status_label = ( 'publish' === $status ) 
+			? __( 'Published', 'fanfiction-manager' )
+			: __( 'Draft', 'fanfiction-manager' );
 
 		return sprintf(
 			'<span class="%s">%s</span>',
