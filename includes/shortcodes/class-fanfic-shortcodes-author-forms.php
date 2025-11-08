@@ -49,7 +49,6 @@ class Fanfic_Shortcodes_Author_Forms {
 		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_profile_submission' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_story' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_chapter' ) );
-		add_action( 'template_redirect', array( __CLASS__, 'block_draft_story_chapter_access' ) );
 
 		// Register AJAX handlers for logged-in users
 		add_action( 'wp_ajax_fanfic_create_story', array( __CLASS__, 'ajax_create_story' ) );
@@ -2918,74 +2917,6 @@ class Fanfic_Shortcodes_Author_Forms {
 		wp_send_json_success( array(
 			'message' => __( 'Profile updated successfully!', 'fanfiction-manager' )
 		) );
-	}
-
-
-	/**
-	 * Block direct URL access to chapters whose parent story is draft
-	 *
-	 * Prevents unauthorized users from accessing chapters via direct URL when the parent story
-	 * is in draft status. Shows 403 Forbidden error with translatable message.
-	 * 
-	 * Allows access to:
-	 * - Story author (can edit their own draft chapters)
-	 * - Editors (can edit others' posts)
-	 * - Administrators (can edit everything)
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public static function block_draft_story_chapter_access() {
-		// Only apply on singular chapter views
-		if ( ! is_singular( 'fanfiction_chapter' ) ) {
-			return;
-		}
-
-		// Get the current post
-		$post = get_post();
-		if ( ! $post || 'fanfiction_chapter' !== $post->post_type ) {
-			return;
-		}
-
-		// Get parent story ID
-		$story_id = $post->post_parent;
-		if ( ! $story_id ) {
-			return;
-		}
-
-		// Get parent story
-		$story = get_post( $story_id );
-		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
-			return;
-		}
-
-		// If parent story is draft, check permissions
-		if ( 'draft' === $story->post_status ) {
-			$current_user_id = get_current_user_id();
-			
-			// Allow access if user is:
-			// 1. The story author
-			// 2. Has edit_others_posts capability (Editors and Administrators)
-			if ( $current_user_id && (int) $story->post_author === $current_user_id ) {
-				return; // Author can access their own draft chapters
-			}
-			
-			if ( current_user_can( 'edit_others_posts' ) ) {
-				return; // Editors and Admins can access all draft chapters
-			}
-
-			// Block access for everyone else - show 403 Forbidden
-			status_header( 403 );
-			wp_die(
-				'<h1>' . esc_html__( 'Access Denied', 'fanfiction-manager' ) . '</h1>' .
-				'<p>' . esc_html__( 'This chapter is part of a story that is currently in draft status and not publicly available.', 'fanfiction-manager' ) . '</p>',
-				esc_html__( 'Access Denied', 'fanfiction-manager' ),
-				array(
-					'response' => 403,
-					'back_link' => true,
-				)
-			);
-		}
 	}
 	/**
 	 * Filter chapters by parent story status
