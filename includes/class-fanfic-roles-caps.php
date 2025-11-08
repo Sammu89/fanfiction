@@ -253,12 +253,10 @@ class Fanfic_Roles_Caps {
 			error_log( 'Args: ' . print_r( $args, true ) );
 			error_log( 'Incoming $caps: ' . print_r( $caps, true ) );
 
-			// Check what capabilities the user actually has
+			// Check user roles (IMPORTANT: Don't call has_cap or user_can here - it causes infinite recursion!)
 			$user = get_userdata( $user_id );
 			if ( $user ) {
 				error_log( 'User roles: ' . print_r( $user->roles, true ) );
-				error_log( 'User has edit_fanfiction_stories: ' . ( $user->has_cap( 'edit_fanfiction_stories' ) ? 'YES' : 'NO' ) );
-				error_log( 'User has manage_options: ' . ( $user->has_cap( 'manage_options' ) ? 'YES' : 'NO' ) );
 			}
 		}
 
@@ -313,12 +311,14 @@ class Fanfic_Roles_Caps {
 		error_log( 'Cap in fanfic_caps: ' . ( in_array( $cap, $fanfic_caps, true ) ? 'YES' : 'NO' ) );
 
 		if ( in_array( $cap, $fanfic_caps, true ) ) {
-			error_log( 'Checking user_can manage_options...' );
-			$has_manage_options = user_can( $user_id, 'manage_options' );
-			error_log( 'user_can result: ' . ( $has_manage_options ? 'YES' : 'NO' ) );
+			// Check if user is WordPress administrator (has 'administrator' role)
+			// IMPORTANT: Don't use user_can() here - it causes infinite recursion!
+			$user = get_userdata( $user_id );
+			$is_admin = $user && in_array( 'administrator', $user->roles, true );
+			error_log( 'User is administrator: ' . ( $is_admin ? 'YES' : 'NO' ) );
 
 			// WordPress admins bypass all checks - they have manage_options which is top-level
-			if ( $has_manage_options ) {
+			if ( $is_admin ) {
 				error_log( 'ADMIN BYPASS - Returning manage_options' );
 				return array( 'manage_options' );
 			}
@@ -407,11 +407,14 @@ class Fanfic_Roles_Caps {
 
 			// WordPress admins should have already been granted access above,
 			// but double-check here as a safety net
-			if ( user_can( $user_id, 'manage_options' ) ) {
-				error_log( 'User has manage_options - GRANTED' );
+			// IMPORTANT: Don't use user_can() - it causes infinite recursion!
+			$user = get_userdata( $user_id );
+			$is_admin = $user && in_array( 'administrator', $user->roles, true );
+			if ( $is_admin ) {
+				error_log( 'User is administrator - GRANTED' );
 				return array( 'manage_options' );
 			}
-			error_log( 'User does NOT have manage_options' );
+			error_log( 'User is NOT administrator' );
 
 			$post = get_post( $args[0] );
 			error_log( 'get_post() returned: ' . ( $post ? 'POST OBJECT' : 'NULL/FALSE' ) );
