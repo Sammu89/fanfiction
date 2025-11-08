@@ -242,6 +242,7 @@ class Fanfic_URL_Manager {
 		$vars[] = 'story_action';
 		$vars[] = 'chapter_action';
 		$vars[] = 'member_name';
+		$vars[] = 'action'; // For ?action=edit, ?action=add-chapter, etc.
 		return $vars;
 	}
 
