@@ -140,14 +140,30 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 			'post_type'      => 'fanfiction_chapter',
 			'post_parent'    => $story_id,
 			'posts_per_page' => -1,
-			'orderby'        => 'menu_order',
+			'orderby'        => 'date',
 			'order'          => 'ASC',
 			'post_status'    => array( 'publish', 'draft', 'pending' ),
 		);
 
 		$chapters_query = new WP_Query( $chapters_args );
+		$chapters = $chapters_query->posts;
 
-		if ( $chapters_query->have_posts() ) :
+		// Sort chapters by chapter number
+		if ( ! empty( $chapters ) ) {
+			usort( $chapters, function( $a, $b ) {
+				$number_a = get_post_meta( $a->ID, '_fanfic_chapter_number', true );
+				$number_b = get_post_meta( $b->ID, '_fanfic_chapter_number', true );
+
+				// Convert to integers for proper comparison
+				$number_a = absint( $number_a );
+				$number_b = absint( $number_b );
+
+				// Prologue (0) comes first, then regular chapters (1-999), then epilogue (1000+)
+				return $number_a - $number_b;
+			} );
+		}
+
+		if ( ! empty( $chapters ) ) :
 			?>
 			<table class="fanfic-table" role="table">
 				<thead>
@@ -161,28 +177,26 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 				</thead>
 				<tbody>
 					<?php
-					$chapter_number = 0;
-					while ( $chapters_query->have_posts() ) :
-						$chapters_query->the_post();
-						$chapter_id = get_the_ID();
+					foreach ( $chapters as $chapter ) :
+						$chapter_id = $chapter->ID;
 						$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+						$stored_chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
 
-						// Display chapter number or type
-						if ( $chapter_type === 'prologue' ) {
+						// Display chapter label based on type
+						if ( 'prologue' === $chapter_type ) {
 							$display_number = __( 'Prologue', 'fanfiction-manager' );
-						} elseif ( $chapter_type === 'epilogue' ) {
+						} elseif ( 'epilogue' === $chapter_type ) {
 							$display_number = __( 'Epilogue', 'fanfiction-manager' );
 						} else {
-							$chapter_number++;
-							$display_number = sprintf( __( 'Chapter %d', 'fanfiction-manager' ), $chapter_number );
+							$display_number = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $stored_chapter_number );
 						}
 
 						// Get word count
-						$content = get_the_content();
+						$content = $chapter->post_content;
 						$word_count = str_word_count( wp_strip_all_tags( $content ) );
 
 						// Get status
-						$status = get_post_status();
+						$status = $chapter->post_status;
 						$status_labels = array(
 							'publish' => __( 'Published', 'fanfiction-manager' ),
 							'draft'   => __( 'Draft', 'fanfiction-manager' ),
@@ -195,7 +209,7 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 								<strong><?php echo esc_html( $display_number ); ?></strong>
 							</td>
 							<td data-label="<?php esc_attr_e( 'Title', 'fanfiction-manager' ); ?>">
-								<?php the_title(); ?>
+								<?php echo esc_html( $chapter->post_title ); ?>
 							</td>
 							<td data-label="<?php esc_attr_e( 'Status', 'fanfiction-manager' ); ?>">
 								<span class="fanfic-status-badge fanfic-status-<?php echo esc_attr( $status ); ?>">
@@ -213,13 +227,13 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 									<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button-small" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
 										<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 									</a>
-									<button type="button" class="fanfic-button-small fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title() ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
+									<button type="button" class="fanfic-button-small fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
 										<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 									</button>
 								</div>
 							</td>
 						</tr>
-					<?php endwhile; ?>
+					<?php endforeach; ?>
 				</tbody>
 			</table>
 			<?php
@@ -277,6 +291,24 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 		</div>
 	</div>
 </div>
+
+<!-- Publish Story Prompt Modal -->
+<div id="publish-prompt-modal" class="fanfic-modal" role="dialog" aria-labelledby="publish-modal-title" aria-modal="true" style="display: none;">
+	<div class="fanfic-modal-overlay"></div>
+	<div class="fanfic-modal-content">
+		<h2 id="publish-modal-title"><?php esc_html_e( 'Ready to Publish?', 'fanfiction-manager' ); ?></h2>
+		<p><?php esc_html_e( 'Great! Your story now has its first published chapter. You can now publish your story to make it visible to readers, or keep it as a draft to continue working on it.', 'fanfiction-manager' ); ?></p>
+		<div class="fanfic-modal-actions">
+			<button type="button" id="publish-story-now" class="fanfic-button-primary" data-story-id="<?php echo absint( $story_id ); ?>">
+				<?php esc_html_e( 'Publish Story Now', 'fanfiction-manager' ); ?>
+			</button>
+			<button type="button" id="keep-as-draft" class="fanfic-button-secondary">
+				<?php esc_html_e( 'Keep as Draft', 'fanfiction-manager' ); ?>
+			</button>
+		</div>
+	</div>
+</div>
+
 
 <!-- Breadcrumb Navigation (Bottom) -->
 <nav class="fanfic-breadcrumb fanfic-breadcrumb-bottom" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
@@ -338,19 +370,142 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 			});
 		}
 
-		// Chapter delete buttons
+		// Chapter delete buttons with AJAX
 		var chapterDeleteButtons = document.querySelectorAll('[data-chapter-id]');
 		chapterDeleteButtons.forEach(function(button) {
 			if (button.classList.contains('fanfic-button-danger')) {
 				button.addEventListener('click', function() {
 					var chapterTitle = this.getAttribute('data-chapter-title');
 					var chapterId = this.getAttribute('data-chapter-id');
+					var buttonElement = this;
+					var rowElement = buttonElement.closest('tr');
+
 					if (confirm('<?php esc_html_e( 'Are you sure you want to delete chapter', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?')) {
-						window.location.href = '<?php echo esc_js( fanfic_get_dashboard_url() ); ?>?action=delete_chapter&chapter_id=' + chapterId + '&story_id=<?php echo absint( $story_id ); ?>&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_chapter' ) ); ?>';
+						// Disable the button to prevent double-clicks
+						buttonElement.disabled = true;
+						buttonElement.textContent = '<?php esc_html_e( 'Deleting...', 'fanfiction-manager' ); ?>';
+
+						// Prepare AJAX request
+						var formData = new FormData();
+						formData.append('action', 'fanfic_delete_chapter');
+						formData.append('chapter_id', chapterId);
+						formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_delete_chapter' ); ?>');
+
+						// Send AJAX request
+						fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+							method: 'POST',
+							credentials: 'same-origin',
+							body: formData
+						})
+						.then(function(response) {
+							return response.json();
+						})
+						.then(function(data) {
+							if (data.success) {
+								// Add fade-out animation
+								rowElement.style.transition = 'opacity 0.5s ease-out';
+								rowElement.style.opacity = '0';
+
+								// Remove row after animation completes
+								setTimeout(function() {
+									rowElement.remove();
+
+									// Check if there are any chapters left
+									var tableBody = document.querySelector('.fanfic-chapters-table tbody');
+									if (tableBody && tableBody.children.length === 0) {
+										// Reload page to show "no chapters" state
+										window.location.reload();
+									}
+								}, 500);
+							} else {
+								// Re-enable button and show error
+								buttonElement.disabled = false;
+								buttonElement.textContent = '<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>';
+								alert(data.data.message || '<?php esc_html_e( 'Failed to delete chapter.', 'fanfiction-manager' ); ?>');
+							}
+						})
+						.catch(function(error) {
+							// Re-enable button and show error
+							buttonElement.disabled = false;
+							buttonElement.textContent = '<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>';
+							alert('<?php esc_html_e( 'An error occurred while deleting the chapter.', 'fanfiction-manager' ); ?>');
+							console.error('Error:', error);
+						});
 					}
 				});
 			}
 		});
+
+		// Publish prompt modal
+		var publishModal = document.getElementById('publish-prompt-modal');
+		var publishNowButton = document.getElementById('publish-story-now');
+		var keepDraftButton = document.getElementById('keep-as-draft');
+
+		// Show modal if show_publish_prompt parameter is present
+		var urlParams = new URLSearchParams(window.location.search);
+		if (urlParams.get('show_publish_prompt') === '1' && publishModal) {
+			publishModal.style.display = 'block';
+		}
+
+		// Handle "Keep as Draft" button
+		if (keepDraftButton) {
+			keepDraftButton.addEventListener('click', function() {
+				publishModal.style.display = 'none';
+				// Remove the parameter from URL
+				urlParams.delete('show_publish_prompt');
+				var newUrl = window.location.pathname;
+				if (urlParams.toString()) {
+					newUrl += '?' + urlParams.toString();
+				}
+				window.history.replaceState({}, '', newUrl);
+			});
+		}
+
+		// Handle "Publish Story Now" button
+		if (publishNowButton) {
+			publishNowButton.addEventListener('click', function() {
+				var storyId = this.getAttribute('data-story-id');
+				
+				// Disable button to prevent double-clicks
+				publishNowButton.disabled = true;
+				publishNowButton.textContent = '<?php esc_html_e( 'Publishing...', 'fanfiction-manager' ); ?>';
+
+				// Prepare AJAX request
+				var formData = new FormData();
+				formData.append('action', 'fanfic_publish_story');
+				formData.append('story_id', storyId);
+				formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_publish_story' ); ?>');
+
+				// Send AJAX request
+				fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+					method: 'POST',
+					credentials: 'same-origin',
+					body: formData
+				})
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(data) {
+					if (data.success) {
+						// Close modal and reload page to show updated status
+						publishModal.style.display = 'none';
+						window.location.reload();
+					} else {
+						// Re-enable button and show error
+						publishNowButton.disabled = false;
+						publishNowButton.textContent = '<?php esc_html_e( 'Publish Story Now', 'fanfiction-manager' ); ?>';
+						alert(data.data.message || '<?php esc_html_e( 'Failed to publish story.', 'fanfiction-manager' ); ?>');
+					}
+				})
+				.catch(function(error) {
+					// Re-enable button and show error
+					publishNowButton.disabled = false;
+					publishNowButton.textContent = '<?php esc_html_e( 'Publish Story Now', 'fanfiction-manager' ); ?>';
+					alert('<?php esc_html_e( 'An error occurred while publishing the story.', 'fanfiction-manager' ); ?>');
+					console.error('Error:', error);
+				});
+			});
+		}
 	});
 })();
 </script>

@@ -40,21 +40,42 @@ class Fanfic_Shortcodes_Navigation {
 	}
 
 	/**
-	 * Get all chapters for a story
+	 * Get all chapters for a story, sorted correctly
+	 *
+	 * Returns chapters in order: Prologue (0) -> Chapters (1-999) -> Epilogue (1000+)
 	 *
 	 * @since 1.0.0
 	 * @param int $story_id Story ID.
-	 * @return array Array of chapter posts.
+	 * @return array Array of chapter posts sorted by chapter number.
 	 */
 	private static function get_story_chapters( $story_id ) {
-		return get_posts( array(
+		$chapters = get_posts( array(
 			'post_type'      => 'fanfiction_chapter',
 			'post_parent'    => $story_id,
 			'post_status'    => 'publish',
 			'posts_per_page' => -1,
-			'orderby'        => 'menu_order',
+			'orderby'        => 'date',
 			'order'          => 'ASC',
 		) );
+
+		if ( empty( $chapters ) ) {
+			return array();
+		}
+
+		// Sort chapters by chapter number
+		usort( $chapters, function( $a, $b ) {
+			$number_a = get_post_meta( $a->ID, '_fanfic_chapter_number', true );
+			$number_b = get_post_meta( $b->ID, '_fanfic_chapter_number', true );
+
+			// Convert to integers for proper comparison
+			$number_a = absint( $number_a );
+			$number_b = absint( $number_b );
+
+			// Prologue (0) comes first, then regular chapters (1-999), then epilogue (1000+)
+			return $number_a - $number_b;
+		} );
+
+		return $chapters;
 	}
 
 	/**
@@ -115,11 +136,13 @@ class Fanfic_Shortcodes_Navigation {
 		foreach ( $chapters as $chapter ) {
 			$selected = ( $chapter->ID === $chapter_id ) ? ' selected' : '';
 			$aria_current = ( $chapter->ID === $chapter_id ) ? ' aria-current="page"' : '';
+			$chapter_label = self::get_chapter_label( $chapter->ID );
 			$output .= sprintf(
-				'<option value="%s"%s%s>%s</option>',
+				'<option value="%s"%s%s>%s: %s</option>',
 				esc_url( get_permalink( $chapter->ID ) ),
 				$selected,
 				$aria_current,
+				esc_html( $chapter_label ),
 				esc_html( $chapter->post_title )
 			);
 		}
@@ -145,6 +168,26 @@ class Fanfic_Shortcodes_Navigation {
 	}
 
 	/**
+	 * Get chapter label based on type and number
+	 *
+	 * @since 1.0.0
+	 * @param int $chapter_id Chapter ID.
+	 * @return string Chapter label (e.g., "Prologue", "Chapter 1", "Epilogue").
+	 */
+	private static function get_chapter_label( $chapter_id ) {
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+		$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+
+		if ( 'prologue' === $chapter_type ) {
+			return __( 'Prologue', 'fanfiction-manager' );
+		} elseif ( 'epilogue' === $chapter_type ) {
+			return __( 'Epilogue', 'fanfiction-manager' );
+		} else {
+			return sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number );
+		}
+	}
+
+	/**
 	 * Chapters list shortcode
 	 *
 	 * [chapters-list]
@@ -166,17 +209,19 @@ class Fanfic_Shortcodes_Navigation {
 			return '<p class="no-chapters">' . esc_html__( 'No chapters available.', 'fanfiction-manager' ) . '</p>';
 		}
 
-		$output = '<ol class="chapters-list">';
+		$output = '<ul class="chapters-list">';
 
 		foreach ( $chapters as $chapter ) {
+			$chapter_label = self::get_chapter_label( $chapter->ID );
 			$output .= sprintf(
-				'<li class="chapter-item"><a href="%s" class="chapter-link">%s</a></li>',
+				'<li class="chapter-item"><a href="%s" class="chapter-link">%s: %s</a></li>',
 				esc_url( get_permalink( $chapter->ID ) ),
+				esc_html( $chapter_label ),
 				esc_html( $chapter->post_title )
 			);
 		}
 
-		$output .= '</ol>';
+		$output .= '</ul>';
 
 		return $output;
 	}
@@ -368,11 +413,13 @@ class Fanfic_Shortcodes_Navigation {
 		foreach ( $chapters as $chapter ) {
 			$selected = ( $chapter->ID === $current_chapter_id ) ? ' selected' : '';
 			$aria_current = ( $chapter->ID === $current_chapter_id ) ? ' aria-current="page"' : '';
+			$chapter_label = self::get_chapter_label( $chapter->ID );
 			$output .= sprintf(
-				'<option value="%s"%s%s>%s</option>',
+				'<option value="%s"%s%s>%s: %s</option>',
 				esc_url( get_permalink( $chapter->ID ) ),
 				$selected,
 				$aria_current,
+				esc_html( $chapter_label ),
 				esc_html( $chapter->post_title )
 			);
 		}
