@@ -376,12 +376,14 @@ class Fanfic_URL_Manager {
 	/**
 	 * Build user profile URL
 	 *
-	 * @param int|string $user User ID or username.
+	 * @param int|string|WP_User $user User ID, username, or WP_User object.
 	 * @return string Profile URL.
 	 */
 	public function get_user_profile_url( $user ) {
 		// Get user object.
-		if ( is_numeric( $user ) ) {
+		if ( $user instanceof WP_User ) {
+			$user_obj = $user;
+		} elseif ( is_numeric( $user ) ) {
 			$user_obj = get_userdata( $user );
 		} else {
 			$user_obj = get_user_by( 'login', $user );
