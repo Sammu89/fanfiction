@@ -34,6 +34,7 @@ class Fanfic_Shortcodes_Utility {
 		add_shortcode( 'fanfic-maintenance-message', array( __CLASS__, 'maintenance_message' ) );
 		add_shortcode( 'edit-story-button', array( __CLASS__, 'edit_story_button' ) );
 		add_shortcode( 'edit-chapter-button', array( __CLASS__, 'edit_chapter_button' ) );
+		add_shortcode( 'fanfic-status-indicator', array( __CLASS__, 'status_indicator' ) );
 		add_shortcode( 'edit-author-button', array( __CLASS__, 'edit_author_button' ) );
 	}
 
@@ -449,6 +450,39 @@ class Fanfic_Shortcodes_Utility {
 			'<a href="%s" class="button fanfic-edit-button">%s</a>',
 			esc_url( $edit_url ),
 			esc_html__( 'Edit Profile', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * Display status indicator for current post (story or chapter)
+	 *
+	 * @since 1.0.0
+	 * @return string Status badge HTML
+	 */
+	public static function status_indicator( $atts ) {
+		// Get current post
+		$post = get_queried_object();
+		
+		if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ) ) ) {
+			return '';
+		}
+
+		$status = $post->post_status;
+		$status_class = 'fanfic-status-badge fanfic-status-' . esc_attr( $status );
+		
+		$status_labels = array(
+			'publish' => __( 'Published', 'fanfiction-manager' ),
+			'draft'   => __( 'Draft', 'fanfiction-manager' ),
+			'pending' => __( 'Pending Review', 'fanfiction-manager' ),
+			'private' => __( 'Private', 'fanfiction-manager' ),
+		);
+
+		$status_label = isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : ucfirst( $status );
+
+		return sprintf(
+			'<span class="%s">%s</span>',
+			esc_attr( $status_class ),
+			esc_html( $status_label )
 		);
 	}
 }

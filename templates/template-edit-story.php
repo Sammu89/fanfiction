@@ -224,9 +224,11 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 									<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( $chapter_id ) ); ?>" class="fanfic-button-small" aria-label="<?php esc_attr_e( 'Edit chapter', 'fanfiction-manager' ); ?>">
 										<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
 									</a>
-									<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button-small" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
+								<?php if ( 'publish' === $status ) : ?>
+									<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button-small" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
 										<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 									</a>
+								<?php endif; ?>
 									<button type="button" class="fanfic-button-small fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
 										<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 									</button>
