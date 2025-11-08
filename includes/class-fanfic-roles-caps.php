@@ -252,11 +252,21 @@ class Fanfic_Roles_Caps {
 			error_log( 'User ID: ' . $user_id );
 			error_log( 'Args: ' . print_r( $args, true ) );
 			error_log( 'Incoming $caps: ' . print_r( $caps, true ) );
+
+			// Check what capabilities the user actually has
+			$user = get_userdata( $user_id );
+			if ( $user ) {
+				error_log( 'User roles: ' . print_r( $user->roles, true ) );
+				error_log( 'User has edit_fanfiction_stories: ' . ( $user->has_cap( 'edit_fanfiction_stories' ) ? 'YES' : 'NO' ) );
+				error_log( 'User has manage_options: ' . ( $user->has_cap( 'manage_options' ) ? 'YES' : 'NO' ) );
+			}
 		}
 
 		// WordPress admins automatically have all fanfiction permissions (cascade system)
 		// Check if this is a fanfiction-related capability
 		$fanfic_caps = array(
+			'edit_post',
+			'delete_post',
 			'read_post',
 			'read_fanfiction_story',
 			'edit_fanfiction_story',
@@ -280,6 +290,16 @@ class Fanfic_Roles_Caps {
 			'manage_fanfiction_emails',
 			'manage_fanfiction_css',
 		);
+
+		// Only check fanfiction post types for edit_post/delete_post/read_post
+		if ( in_array( $cap, array( 'edit_post', 'delete_post', 'read_post' ), true ) && ! empty( $args[0] ) ) {
+			$post = get_post( $args[0] );
+			// Only apply admin bypass if this is a fanfiction post type
+			if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+				// Not a fanfiction post, remove from the array so bypass doesn't apply
+				$fanfic_caps = array_diff( $fanfic_caps, array( 'edit_post', 'delete_post', 'read_post' ) );
+			}
+		}
 
 		if ( in_array( $cap, $fanfic_caps, true ) ) {
 			// WordPress admins bypass all checks - they have manage_options which is top-level
@@ -351,12 +371,23 @@ class Fanfic_Roles_Caps {
 			}
 		}
 
-		// Handle story capabilities
+		// Handle story meta capabilities - edit_fanfiction_story and delete_fanfiction_story
+		// These are the singular meta capabilities that map to plural primitive capabilities
 		if ( in_array( $cap, array( 'edit_fanfiction_story', 'delete_fanfiction_story' ), true ) ) {
-			error_log( '=== MAP_META_CAP DEBUG (Story) ===' );
+			error_log( '=== MAP_META_CAP DEBUG (Story Meta Cap) ===' );
 			error_log( 'Capability requested: ' . $cap );
 			error_log( 'User ID: ' . $user_id );
 			error_log( 'Post ID (args[0]): ' . ( isset( $args[0] ) ? $args[0] : 'NOT SET' ) );
+
+			// If no post ID provided, require the base capability
+			if ( empty( $args[0] ) ) {
+				error_log( 'No post ID - returning base capability' );
+				if ( 'edit_fanfiction_story' === $cap ) {
+					return array( 'edit_fanfiction_stories' );
+				} else {
+					return array( 'delete_fanfiction_stories' );
+				}
+			}
 
 			// WordPress admins should have already been granted access above,
 			// but double-check here as a safety net
