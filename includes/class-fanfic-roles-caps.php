@@ -288,6 +288,42 @@ class Fanfic_Roles_Caps {
 			}
 		}
 
+		// Handle edit_post capability for fanfiction stories and chapters
+		// WordPress checks 'edit_post' (not 'edit_fanfiction_story') when verifying edit permissions
+		if ( 'edit_post' === $cap && ! empty( $args[0] ) ) {
+			$post = get_post( $args[0] );
+
+			// Only handle fanfiction post types
+			if ( $post && in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+				error_log( '=== HANDLING edit_post FOR FANFICTION ===' );
+				error_log( 'Post ID: ' . $post->ID );
+				error_log( 'Post status: ' . $post->post_status );
+				error_log( 'Post author: ' . $post->post_author );
+				error_log( 'Current user: ' . $user_id );
+
+				// Check if user is the post author
+				if ( (int) $user_id === (int) $post->post_author ) {
+					// Author can edit their own posts
+					if ( 'fanfiction_story' === $post->post_type ) {
+						error_log( 'User is author - returning edit_fanfiction_stories' );
+						return array( 'edit_fanfiction_stories' );
+					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+						error_log( 'User is author - returning edit_fanfiction_chapters' );
+						return array( 'edit_fanfiction_chapters' );
+					}
+				} else {
+					// Not the author - requires 'edit_others' capability
+					if ( 'fanfiction_story' === $post->post_type ) {
+						error_log( 'User is NOT author - returning edit_others_fanfiction_stories' );
+						return array( 'edit_others_fanfiction_stories' );
+					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+						error_log( 'User is NOT author - returning edit_others_fanfiction_chapters' );
+						return array( 'edit_others_fanfiction_chapters' );
+					}
+				}
+			}
+		}
+
 		// Handle read_post capability for fanfiction stories and chapters
 		// This allows authors to view their own draft stories
 		if ( 'read_post' === $cap && ! empty( $args[0] ) ) {
