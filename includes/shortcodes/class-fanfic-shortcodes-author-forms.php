@@ -1936,7 +1936,7 @@ class Fanfic_Shortcodes_Author_Forms {
 			<?php echo wp_kses_post( $message ); ?>
 			<?php self::render_error_display( $errors ); ?>
 
-			<form method="post" class="fanfic-chapter-form" id="fanfic-chapter-form">
+			<form method="post" class="fanfic-chapter-form" id="fanfic-chapter-form" novalidate>
 				<div class="fanfic-form-content">
 					<?php
 					if ( $is_edit_mode ) {
@@ -1999,9 +1999,10 @@ class Fanfic_Shortcodes_Author_Forms {
 								type="number"
 								id="fanfic_chapter_number"
 								name="fanfic_chapter_number"
-								class="fanfic-input"
+								class="fanfic-input fanfic-chapter-number-input"
 								value="<?php echo isset( $_POST['fanfic_chapter_number'] ) ? esc_attr( $_POST['fanfic_chapter_number'] ) : esc_attr( $chapter_number ); ?>"
 								min="1"
+								required
 							/>
 							<?php if ( isset( $field_errors['chapter_number'] ) ) : ?>
 								<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_number'] ); ?></p>
@@ -2017,6 +2018,7 @@ class Fanfic_Shortcodes_Author_Forms {
 								name="fanfic_chapter_title"
 								class="fanfic-input"
 								value="<?php echo isset( $_POST['fanfic_chapter_title'] ) ? esc_attr( $_POST['fanfic_chapter_title'] ) : ( $is_edit_mode ? esc_attr( $chapter->post_title ) : '' ); ?>"
+								required
 							/>
 							<?php if ( isset( $field_errors['chapter_title'] ) ) : ?>
 								<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_title'] ); ?></p>
@@ -2032,6 +2034,7 @@ class Fanfic_Shortcodes_Author_Forms {
 							name="fanfic_chapter_content"
 							class="fanfic-textarea"
 							rows="15"
+							required
 						><?php echo isset( $_POST['fanfic_chapter_content'] ) ? esc_textarea( $_POST['fanfic_chapter_content'] ) : ( $is_edit_mode ? esc_textarea( $chapter->post_content ) : '' ); ?></textarea>
 						<?php if ( isset( $field_errors['chapter_content'] ) ) : ?>
 							<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_content'] ); ?></p>
@@ -2084,13 +2087,17 @@ class Fanfic_Shortcodes_Author_Forms {
 			</form>
 		</div>
 
-		<!-- JavaScript for chapter type toggle and auto-fill -->
+		<!-- JavaScript for chapter type toggle, auto-fill, and validation -->
 		<script>
 		(function() {
 			document.addEventListener('DOMContentLoaded', function() {
 				var chapterTypeInputs = document.querySelectorAll('.fanfic-chapter-type-input');
 				var chapterNumberField = document.querySelector('.fanfic-chapter-number-field');
 				var chapterNumberInput = document.getElementById('fanfic_chapter_number');
+				var chapterTitleInput = document.getElementById('fanfic_chapter_title');
+				var chapterContentInput = document.getElementById('fanfic_chapter_content');
+				var form = document.getElementById('fanfic-chapter-form');
+				var submitButtons = form.querySelectorAll('button[type="submit"]');
 				var formWrapper = document.querySelector('.fanfic-chapter-form-create, .fanfic-chapter-form-edit');
 
 				// Get available chapter numbers from data attribute
@@ -2121,9 +2128,105 @@ class Fanfic_Shortcodes_Author_Forms {
 						chapterNumberField.style.display = 'none';
 						if (chapterNumberInput) {
 							chapterNumberInput.setAttribute('disabled', 'disabled');
+							// Clear value when field is hidden (not a regular chapter)
+							chapterNumberInput.value = '';
 						}
 					}
 				}
+
+				/**
+				 * Validate required fields before form submission
+				 * Prevents blank page errors by validating on client-side first
+				 */
+				function validateForm() {
+					var errors = [];
+					var selectedType = document.querySelector('.fanfic-chapter-type-input:checked');
+
+					// Validate chapter number (only if chapter type is selected and it's a regular chapter)
+					if (selectedType && selectedType.value === 'chapter') {
+						if (!chapterNumberInput.value || chapterNumberInput.value.trim() === '') {
+							errors.push('Chapter number is required when chapter type is "Chapter".');
+						} else if (parseInt(chapterNumberInput.value) < 1) {
+							errors.push('Chapter number must be greater than 0.');
+						}
+					}
+
+					// Validate chapter title
+					if (!chapterTitleInput.value || chapterTitleInput.value.trim() === '') {
+						errors.push('Chapter title is required.');
+					}
+
+					// Validate chapter content
+					if (!chapterContentInput.value || chapterContentInput.value.trim() === '') {
+						errors.push('Chapter content is required.');
+					}
+
+					return errors;
+				}
+
+				/**
+				 * Handle form submission - validate before submitting
+				 */
+				form.addEventListener('submit', function(e) {
+					var validationErrors = validateForm();
+
+					if (validationErrors.length > 0) {
+						e.preventDefault();
+						e.stopPropagation();
+
+						// Scroll to top of form to show validation message
+						form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+						// Create or update error message container
+						var errorContainer = form.querySelector('.fanfic-validation-errors');
+						if (!errorContainer) {
+							errorContainer = document.createElement('div');
+							errorContainer.className = 'fanfic-validation-errors';
+							form.parentNode.insertBefore(errorContainer, form);
+						}
+
+						// Build error message HTML
+						var errorHTML = '<div class="fanfic-error-message" style="background-color: #fee; border: 1px solid #fcc; color: #c33; padding: 12px 15px; margin-bottom: 20px; border-radius: 4px;"><strong>Please fix the following errors:</strong><ul style="margin: 8px 0 0 0; padding-left: 20px;">';
+						validationErrors.forEach(function(error) {
+							errorHTML += '<li style="margin: 4px 0;">' + error + '</li>';
+						});
+						errorHTML += '</ul></div>';
+
+						errorContainer.innerHTML = errorHTML;
+						return false;
+					}
+
+					// Clear any existing validation errors
+					var existingErrorContainer = form.querySelector('.fanfic-validation-errors');
+					if (existingErrorContainer) {
+						existingErrorContainer.innerHTML = '';
+					}
+
+					return true;
+				});
+
+				// Add real-time validation feedback when user interacts with fields
+				[chapterNumberInput, chapterTitleInput, chapterContentInput].forEach(function(input) {
+					if (input) {
+						input.addEventListener('blur', function() {
+							var validationErrors = validateForm();
+							var errorContainer = form.querySelector('.fanfic-validation-errors');
+
+							if (validationErrors.length > 0 && errorContainer) {
+								// User has tried to submit before, so show validation
+								if (errorContainer.innerHTML) {
+									// Re-validate and update
+									var errorHTML = '<div class="fanfic-error-message" style="background-color: #fee; border: 1px solid #fcc; color: #c33; padding: 12px 15px; margin-bottom: 20px; border-radius: 4px;"><strong>Please fix the following errors:</strong><ul style="margin: 8px 0 0 0; padding-left: 20px;">';
+									validationErrors.forEach(function(error) {
+										errorHTML += '<li style="margin: 4px 0;">' + error + '</li>';
+									});
+									errorHTML += '</ul></div>';
+									errorContainer.innerHTML = errorHTML;
+								}
+							}
+						});
+					}
+				});
 
 				chapterTypeInputs.forEach(function(input) {
 					input.addEventListener('change', toggleChapterNumberField);
