@@ -114,7 +114,7 @@ $current_user = wp_get_current_user();
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Total Stories', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value"><?php echo do_shortcode( '[author-story-count]' ); ?></p>
+				<p class="fanfic-stat-value"><?php echo Fanfic_Shortcodes_Author::get_story_count(); ?></p>
 			</div>
 		</div>
 
@@ -125,7 +125,7 @@ $current_user = wp_get_current_user();
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Total Chapters', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value"><?php echo do_shortcode( '[author-total-chapters]' ); ?></p>
+				<p class="fanfic-stat-value"><?php echo Fanfic_Shortcodes_Author::get_total_chapters(); ?></p>
 			</div>
 		</div>
 
@@ -136,7 +136,7 @@ $current_user = wp_get_current_user();
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Total Views', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value"><?php echo do_shortcode( '[author-total-views]' ); ?></p>
+				<p class="fanfic-stat-value"><?php echo Fanfic_Shortcodes_Author::get_total_views(); ?></p>
 			</div>
 		</div>
 
@@ -147,7 +147,7 @@ $current_user = wp_get_current_user();
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Stories Following', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value"><?php echo do_shortcode( '[user-favorites-count]' ); ?></p>
+				<p class="fanfic-stat-value"><?php echo Fanfic_Shortcodes_User::get_favorites_count(); ?></p>
 			</div>
 		</div>
 	</div>
@@ -181,7 +181,7 @@ $current_user = wp_get_current_user();
 		<!-- Manage Stories Section -->
 		<section class="fanfic-dashboard-stories" id="my-stories" aria-labelledby="stories-heading">
 			<h2 id="stories-heading"><?php esc_html_e( 'Your Stories', 'fanfiction-manager' ); ?></h2>
-			<?php echo do_shortcode( '[author-stories-manage]' ); ?>
+			<?php echo Fanfic_Shortcodes_Author_Forms::render_stories_manage_table(); ?>
 		</section>
 	</div>
 
@@ -207,20 +207,20 @@ $current_user = wp_get_current_user();
 		<section class="fanfic-dashboard-widget" aria-labelledby="activity-heading">
 			<h3 id="activity-heading"><?php esc_html_e( 'Recent Activity', 'fanfiction-manager' ); ?></h3>
 			<div class="fanfic-activity-list">
-				<?php echo do_shortcode( '[user-reading-history limit="5"]' ); ?>
+				<?php echo Fanfic_Shortcodes_User::render_reading_history( array( 'limit' => 5 ) ); ?>
 			</div>
 		</section>
 
 		<!-- Bookmarked Stories -->
 		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarked-stories-heading">
 			<h3 id="bookmarked-stories-heading"><?php esc_html_e( 'Bookmarked Stories', 'fanfiction-manager' ); ?></h3>
-			<?php echo do_shortcode( '[most-bookmarked-stories limit="5" timeframe="week"]' ); ?>
+			<?php echo Fanfic_Shortcodes_Stats::render_most_bookmarked( array( 'limit' => 5, 'timeframe' => 'week' ) ); ?>
 		</section>
 
 		<!-- Bookmarked Authors -->
 		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarked-authors-heading">
 			<h3 id="bookmarked-authors-heading"><?php esc_html_e( 'Bookmarked Authors', 'fanfiction-manager' ); ?></h3>
-			<?php echo do_shortcode( '[most-followed-authors limit="5" timeframe="week"]' ); ?>
+			<?php echo Fanfic_Shortcodes_Stats::render_most_followed( array( 'limit' => 5, 'timeframe' => 'week' ) ); ?>
 		</section>
 	</aside>
 </div>

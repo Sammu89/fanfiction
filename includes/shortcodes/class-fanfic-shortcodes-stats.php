@@ -1083,6 +1083,48 @@ class Fanfic_Shortcodes_Stats {
 	}
 
 	/**
+	 * Render most bookmarked stories (direct call helper)
+	 *
+	 * Helper method for direct template calls without shortcode processing overhead.
+	 *
+	 * @since 1.0.0
+	 * @param array $args Arguments array.
+	 * @return string HTML output.
+	 */
+	public static function render_most_bookmarked( $args = array() ) {
+		$defaults = array(
+			'limit'         => 5,
+			'timeframe'     => 'week',
+			'min_bookmarks' => 1,
+		);
+		$args = wp_parse_args( $args, $defaults );
+
+		// Call the existing shortcode method directly
+		return self::most_bookmarked_stories( $args );
+	}
+
+	/**
+	 * Render most followed authors (direct call helper)
+	 *
+	 * Helper method for direct template calls without shortcode processing overhead.
+	 *
+	 * @since 1.0.0
+	 * @param array $args Arguments array.
+	 * @return string HTML output.
+	 */
+	public static function render_most_followed( $args = array() ) {
+		$defaults = array(
+			'limit'         => 5,
+			'timeframe'     => 'week',
+			'min_followers' => 1,
+		);
+		$args = wp_parse_args( $args, $defaults );
+
+		// Call the existing shortcode method directly
+		return self::most_followed_authors( $args );
+	}
+
+	/**
 	 * Get date threshold for timeframe filtering
 	 *
 	 * @since 1.0.0

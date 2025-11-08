@@ -114,7 +114,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 			</div>
 
 			<!-- Form Shortcode -->
-			<?php echo do_shortcode( '[author-create-story-form]' ); ?>
+			<?php echo Fanfic_Shortcodes_Author_Forms::render_story_form(0); ?>
 		</section>
 	</div>
 

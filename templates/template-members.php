@@ -79,8 +79,8 @@ $is_profile_view = ! empty( $member_name );
                     </div>
                     <?php
                 } else {
-                    // Load edit profile template
-                    echo do_shortcode( '[author-edit-profile-form]' );
+                    // Load edit profile template - direct function call
+                    echo Fanfic_Shortcodes_Author_Forms::render_profile_form();
                 }
             } else {
                 // Display profile using dedicated template file

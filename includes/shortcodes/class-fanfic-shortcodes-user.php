@@ -1165,6 +1165,138 @@ class Fanfic_Shortcodes_User {
 	}
 
 	/**
+	 * Get current user's favorites count
+	 *
+	 * Public helper method for templates to get the favorites count.
+	 *
+	 * @since 1.0.0
+	 * @param int $user_id Optional user ID (defaults to current user).
+	 * @return int Count of favorited stories.
+	 */
+	public static function get_favorites_count( $user_id = null ) {
+		if ( ! $user_id ) {
+			$user_id = get_current_user_id();
+		}
+		if ( ! $user_id ) {
+			return 0;
+		}
+
+		// Use cached bookmarks count (5 minute cache)
+		$cache_key = 'fanfic_bookmarks_count_' . $user_id;
+		$cached = get_transient( $cache_key );
+
+		if ( false !== $cached ) {
+			return absint( $cached );
+		}
+
+		global $wpdb;
+		$bookmarks_table = $wpdb->prefix . 'fanfic_bookmarks';
+
+		// Get total count
+		$count = $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$bookmarks_table} WHERE user_id = %d",
+			$user_id
+		) );
+
+		$count = absint( $count );
+
+		// Cache for 5 minutes
+		set_transient( $cache_key, $count, 5 * MINUTE_IN_SECONDS );
+
+		return max( 0, $count );
+	}
+
+	/**
+	 * Render reading history
+	 *
+	 * Public helper method for templates to render reading history.
+	 *
+	 * @since 1.0.0
+	 * @param array $args Arguments (limit, etc).
+	 * @return string HTML output of reading history.
+	 */
+	public static function render_reading_history( $args = array() ) {
+		$defaults = array(
+			'limit' => 5,
+		);
+		$args = wp_parse_args( $args, $defaults );
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			return '<div class="fanfic-reading-history fanfic-empty-state"><p>' . esc_html__( 'Please log in to view your reading history.', 'fanfiction-manager' ) . '</p></div>';
+		}
+
+		$user_id = get_current_user_id();
+
+		// Get reading history from user meta (session-based tracking)
+		$reading_history = get_user_meta( $user_id, 'fanfic_reading_history', true );
+
+		if ( ! $reading_history || ! is_array( $reading_history ) ) {
+			return '<div class="fanfic-reading-history fanfic-empty-state"><p>' . esc_html__( 'No reading history yet. Start reading stories!', 'fanfiction-manager' ) . '</p></div>';
+		}
+
+		// Sort by timestamp (most recent first)
+		usort( $reading_history, function( $a, $b ) {
+			return $b['timestamp'] - $a['timestamp'];
+		} );
+
+		// Limit results
+		$reading_history = array_slice( $reading_history, 0, absint( $args['limit'] ) );
+
+		// Build output
+		$output = '<div class="fanfic-reading-history">';
+		$output .= '<h2>' . esc_html__( 'Recently Read', 'fanfiction-manager' ) . '</h2>';
+		$output .= '<ul class="fanfic-history-list">';
+
+		foreach ( $reading_history as $item ) {
+			$chapter_id = isset( $item['chapter_id'] ) ? absint( $item['chapter_id'] ) : 0;
+			$timestamp = isset( $item['timestamp'] ) ? absint( $item['timestamp'] ) : 0;
+
+			if ( ! $chapter_id || ! $timestamp ) {
+				continue;
+			}
+
+			$chapter = get_post( $chapter_id );
+
+			if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || 'publish' !== $chapter->post_status ) {
+				continue;
+			}
+
+			$story_id = $chapter->post_parent;
+			$story = get_post( $story_id );
+
+			if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+				continue;
+			}
+
+			$chapter_url = get_permalink( $chapter->ID );
+			$story_url = get_permalink( $story->ID );
+			$time_ago = human_time_diff( $timestamp, current_time( 'timestamp' ) );
+
+			$output .= '<li class="fanfic-history-item">';
+			$output .= '<div class="fanfic-history-info">';
+			$output .= '<h3><a href="' . esc_url( $story_url ) . '">' . esc_html( $story->post_title ) . '</a></h3>';
+			$output .= '<p class="fanfic-history-chapter">';
+			$output .= '<a href="' . esc_url( $chapter_url ) . '">' . esc_html( $chapter->post_title ) . '</a>';
+			$output .= '</p>';
+			$output .= '<p class="fanfic-history-meta">';
+			$output .= sprintf(
+				/* translators: %s: time ago */
+				esc_html__( 'Read %s ago', 'fanfiction-manager' ),
+				esc_html( $time_ago )
+			);
+			$output .= '</p>';
+			$output .= '</div>';
+			$output .= '</li>';
+		}
+
+		$output .= '</ul>';
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
 	 * AJAX: Mark notification as read
 	 *
 	 * @since 1.0.0

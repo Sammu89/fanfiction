@@ -22,7 +22,7 @@ if ( ! is_user_logged_in() ) {
 		</header>
 
 		<section class="fanfic-content-section" role="region" aria-label="<?php esc_attr_e( 'Profile edit form', 'fanfiction-manager' ); ?>">
-			<p>[author-edit-profile-form]</p>
+			<?php echo Fanfic_Shortcodes_Author_Forms::render_profile_form(); ?>
 		</section>
 
 		<nav aria-label="<?php esc_attr_e( 'Profile navigation', 'fanfiction-manager' ); ?>">

@@ -293,12 +293,16 @@ $page_description = $chapter_id
 <section class="fanfic-content-section" class="fanfic-form-section" aria-labelledby="form-heading">
 	<h2 id="form-heading"><?php echo esc_html( $chapter_id ? __( 'Chapter Details', 'fanfiction-manager' ) : __( 'New Chapter', 'fanfiction-manager' ) ); ?></h2>
 
-	<!-- Form Shortcode -->
-	<?php if ( $chapter_id ) : ?>
-		<?php echo do_shortcode( '[author-edit-chapter-form chapter_id="' . absint( $chapter_id ) . '"]' ); ?>
-	<?php else : ?>
-		<?php echo do_shortcode( '[author-create-chapter-form story_id="' . absint( $story_id ) . '"]' ); ?>
-	<?php endif; ?>
+	<!-- Chapter Form -->
+	<?php
+	if ( $chapter_id ) {
+		// Edit mode - pass chapter_id
+		echo Fanfic_Shortcodes_Author_Forms::render_chapter_form( $chapter_id );
+	} else {
+		// Create mode - pass story_id as second parameter
+		echo Fanfic_Shortcodes_Author_Forms::render_chapter_form( 0, $story_id );
+	}
+	?>
 </section>
 
 <!-- Quick Actions -->

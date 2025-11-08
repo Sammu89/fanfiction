@@ -945,4 +945,128 @@ class Fanfic_Shortcodes_Author {
 
 		return $output;
 	}
+
+	/**
+	 * Get current user's story count
+	 *
+	 * @since 1.0.0
+	 * @param int $user_id Optional user ID (defaults to current user).
+	 * @return int Story count.
+	 */
+	public static function get_story_count( $user_id = null ) {
+		if ( ! $user_id ) {
+			$user_id = get_current_user_id();
+		}
+		if ( ! $user_id ) {
+			return 0;
+		}
+
+		// Use cached story count (30 minute cache) - same logic as shortcode
+		$cache_key = Fanfic_Cache::get_key( 'user', 'story_count', $user_id );
+		$count = Fanfic_Cache::get(
+			$cache_key,
+			function() use ( $user_id ) {
+				return count_user_posts( $user_id, 'fanfiction_story', true );
+			},
+			Fanfic_Cache::LONG
+		);
+
+		return (int) $count;
+	}
+
+	/**
+	 * Get current user's total chapters count
+	 *
+	 * @since 1.0.0
+	 * @param int $user_id Optional user ID (defaults to current user).
+	 * @return int Chapter count.
+	 */
+	public static function get_total_chapters( $user_id = null ) {
+		if ( ! $user_id ) {
+			$user_id = get_current_user_id();
+		}
+		if ( ! $user_id ) {
+			return 0;
+		}
+
+		// Use cached total chapters (15 minute cache - expensive nested query) - same logic as shortcode
+		$cache_key = Fanfic_Cache::get_key( 'user', 'total_chapters', $user_id );
+		$total_chapters = Fanfic_Cache::get(
+			$cache_key,
+			function() use ( $user_id ) {
+				// Get all stories by author
+				$stories = get_posts( array(
+					'post_type'      => 'fanfiction_story',
+					'author'         => $user_id,
+					'post_status'    => 'publish',
+					'posts_per_page' => -1,
+					'fields'         => 'ids',
+				) );
+
+				$total_chapters = 0;
+
+				foreach ( $stories as $story_id ) {
+					$chapters = get_posts( array(
+						'post_type'      => 'fanfiction_chapter',
+						'post_parent'    => $story_id,
+						'post_status'    => 'publish',
+						'posts_per_page' => -1,
+						'fields'         => 'ids',
+					) );
+					$total_chapters += count( $chapters );
+				}
+
+				return $total_chapters;
+			},
+			Fanfic_Cache::MEDIUM
+		);
+
+		return (int) $total_chapters;
+	}
+
+	/**
+	 * Get current user's total views count
+	 *
+	 * @since 1.0.0
+	 * @param int $user_id Optional user ID (defaults to current user).
+	 * @return int View count.
+	 */
+	public static function get_total_views( $user_id = null ) {
+		if ( ! $user_id ) {
+			$user_id = get_current_user_id();
+		}
+		if ( ! $user_id ) {
+			return 0;
+		}
+
+		// Use cached total views (15 minute cache - expensive nested query) - same logic as shortcode
+		$cache_key = Fanfic_Cache::get_key( 'user', 'total_views', $user_id );
+		$total_views = Fanfic_Cache::get(
+			$cache_key,
+			function() use ( $user_id ) {
+				// Get all stories by author
+				$stories = get_posts( array(
+					'post_type'      => 'fanfiction_story',
+					'author'         => $user_id,
+					'post_status'    => 'publish',
+					'posts_per_page' => -1,
+					'fields'         => 'ids',
+				) );
+
+				$total_views = 0;
+
+				foreach ( $stories as $story_id ) {
+					// Use Fanfic_Views class to get story views (which sums chapter views)
+					if ( class_exists( 'Fanfic_Views' ) ) {
+						$total_views += Fanfic_Views::get_story_views( $story_id );
+					}
+				}
+
+				return $total_views;
+			},
+			Fanfic_Cache::MEDIUM
+		);
+
+		return (int) $total_views;
+	}
 }
