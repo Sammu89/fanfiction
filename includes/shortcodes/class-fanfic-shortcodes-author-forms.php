@@ -1889,6 +1889,16 @@ class Fanfic_Shortcodes_Author_Forms {
 		$has_prologue = self::story_has_prologue( $story_id, $is_edit_mode ? $chapter_id : 0 );
 		$has_epilogue = self::story_has_epilogue( $story_id, $is_edit_mode ? $chapter_id : 0 );
 
+		// Pre-fill chapter number for new chapters (create mode)
+		if ( ! $is_edit_mode && empty( $chapter_number ) && 'chapter' === $chapter_type ) {
+			// Get the lowest available chapter number
+			if ( ! empty( $available_numbers ) ) {
+				$chapter_number = min( $available_numbers );
+			} else {
+				$chapter_number = 1;
+			}
+		}
+
 		// Error/success messages
 		$message = '';
 		if ( $is_edit_mode && isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {
@@ -1900,11 +1910,25 @@ class Fanfic_Shortcodes_Author_Forms {
 			delete_transient( 'fanfic_chapter_errors_' . get_current_user_id() );
 		}
 
+		// Build error map for field-level validation display
+		$field_errors = array();
+		if ( is_array( $errors ) ) {
+			foreach ( $errors as $error ) {
+				if ( strpos( $error, 'Chapter number' ) !== false ) {
+					$field_errors['chapter_number'] = $error;
+				} elseif ( strpos( $error, 'Chapter title' ) !== false ) {
+					$field_errors['chapter_title'] = $error;
+				} elseif ( strpos( $error, 'Chapter content' ) !== false ) {
+					$field_errors['chapter_content'] = $error;
+				}
+			}
+		}
+
 		// Begin form output
 		$form_mode = $is_edit_mode ? 'edit' : 'create';
 		ob_start();
 		?>
-		<div class="fanfic-form-wrapper fanfic-chapter-form-<?php echo esc_attr( $form_mode ); ?>">
+		<div class="fanfic-form-wrapper fanfic-chapter-form-<?php echo esc_attr( $form_mode ); ?>" data-available-chapter-numbers="<?php echo esc_attr( json_encode( $available_numbers ) ); ?>">
 			<div class="fanfic-form-header">
 				<h2><?php echo $is_edit_mode ? esc_html__( 'Edit Chapter', 'fanfiction-manager' ) : sprintf( esc_html__( 'Add Chapter to "%s"', 'fanfiction-manager' ), esc_html( $story->post_title ) ); ?></h2>
 			</div>
@@ -1966,28 +1990,38 @@ class Fanfic_Shortcodes_Author_Forms {
 						</div>
 					</div>
 
-					<!-- Chapter Number -->
-					<div class="fanfic-form-field fanfic-chapter-number-field" data-field-type="number" style="<?php echo ( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'chapter' : $chapter_type === 'chapter' ) ? '' : 'display: none;'; ?>">
-						<label for="fanfic_chapter_number"><?php esc_html_e( 'Chapter Number', 'fanfiction-manager' ); ?></label>
-						<input
-							type="number"
-							id="fanfic_chapter_number"
-							name="fanfic_chapter_number"
-							class="fanfic-input"
-							value="<?php echo isset( $_POST['fanfic_chapter_number'] ) ? esc_attr( $_POST['fanfic_chapter_number'] ) : esc_attr( $chapter_number ); ?>"
-						/>
-					</div>
+					<!-- Chapter Number & Title (Row) -->
+					<div class="fanfic-form-row" style="display: flex; gap: 15px;">
+						<!-- Chapter Number -->
+						<div class="fanfic-form-field fanfic-chapter-number-field" data-field-type="number" style="<?php echo ( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'chapter' : $chapter_type === 'chapter' ) ? '' : 'display: none;'; ?>; flex: 0 0 120px;">
+							<label for="fanfic_chapter_number"><?php esc_html_e( 'Chapter #', 'fanfiction-manager' ); ?></label>
+							<input
+								type="number"
+								id="fanfic_chapter_number"
+								name="fanfic_chapter_number"
+								class="fanfic-input"
+								value="<?php echo isset( $_POST['fanfic_chapter_number'] ) ? esc_attr( $_POST['fanfic_chapter_number'] ) : esc_attr( $chapter_number ); ?>"
+								min="1"
+							/>
+							<?php if ( isset( $field_errors['chapter_number'] ) ) : ?>
+								<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_number'] ); ?></p>
+							<?php endif; ?>
+						</div>
 
-					<!-- Chapter Title -->
-					<div class="fanfic-form-field">
-						<label for="fanfic_chapter_title"><?php esc_html_e( 'Chapter Title', 'fanfiction-manager' ); ?></label>
-						<input
-							type="text"
-							id="fanfic_chapter_title"
-							name="fanfic_chapter_title"
-							class="fanfic-input"
-							value="<?php echo isset( $_POST['fanfic_chapter_title'] ) ? esc_attr( $_POST['fanfic_chapter_title'] ) : ( $is_edit_mode ? esc_attr( $chapter->post_title ) : '' ); ?>"
-						/>
+						<!-- Chapter Title -->
+						<div class="fanfic-form-field" style="flex: 1;">
+							<label for="fanfic_chapter_title"><?php esc_html_e( 'Chapter Title', 'fanfiction-manager' ); ?></label>
+							<input
+								type="text"
+								id="fanfic_chapter_title"
+								name="fanfic_chapter_title"
+								class="fanfic-input"
+								value="<?php echo isset( $_POST['fanfic_chapter_title'] ) ? esc_attr( $_POST['fanfic_chapter_title'] ) : ( $is_edit_mode ? esc_attr( $chapter->post_title ) : '' ); ?>"
+							/>
+							<?php if ( isset( $field_errors['chapter_title'] ) ) : ?>
+								<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_title'] ); ?></p>
+							<?php endif; ?>
+						</div>
 					</div>
 
 					<!-- Chapter Content -->
@@ -1999,6 +2033,9 @@ class Fanfic_Shortcodes_Author_Forms {
 							class="fanfic-textarea"
 							rows="15"
 						><?php echo isset( $_POST['fanfic_chapter_content'] ) ? esc_textarea( $_POST['fanfic_chapter_content'] ) : ( $is_edit_mode ? esc_textarea( $chapter->post_content ) : '' ); ?></textarea>
+						<?php if ( isset( $field_errors['chapter_content'] ) ) : ?>
+							<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_content'] ); ?></p>
+						<?php endif; ?>
 					</div>
 				</div>
 
@@ -2043,20 +2080,27 @@ class Fanfic_Shortcodes_Author_Forms {
 							<?php esc_html_e( 'Delete Chapter', 'fanfiction-manager' ); ?>
 						</button>
 					<?php endif; ?>
-					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
-						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
-					</a>
 				</div>
 			</form>
 		</div>
 
-		<!-- JavaScript for chapter type toggle -->
+		<!-- JavaScript for chapter type toggle and auto-fill -->
 		<script>
 		(function() {
 			document.addEventListener('DOMContentLoaded', function() {
 				var chapterTypeInputs = document.querySelectorAll('.fanfic-chapter-type-input');
 				var chapterNumberField = document.querySelector('.fanfic-chapter-number-field');
 				var chapterNumberInput = document.getElementById('fanfic_chapter_number');
+				var formWrapper = document.querySelector('.fanfic-chapter-form-create, .fanfic-chapter-form-edit');
+
+				// Get available chapter numbers from data attribute
+				var availableNumbersJson = formWrapper ? formWrapper.getAttribute('data-available-chapter-numbers') : '[]';
+				var availableNumbers = [];
+				try {
+					availableNumbers = JSON.parse(availableNumbersJson);
+				} catch(e) {
+					availableNumbers = [];
+				}
 
 				function toggleChapterNumberField() {
 					var selectedType = document.querySelector('.fanfic-chapter-type-input:checked');
@@ -2064,6 +2108,14 @@ class Fanfic_Shortcodes_Author_Forms {
 						chapterNumberField.style.display = '';
 						if (chapterNumberInput) {
 							chapterNumberInput.removeAttribute('disabled');
+
+							// Auto-fill chapter number if empty and in create mode
+							if (!chapterNumberInput.value && availableNumbers.length > 0) {
+								var minNumber = Math.min.apply(null, availableNumbers);
+								chapterNumberInput.value = minNumber;
+							} else if (!chapterNumberInput.value && availableNumbers.length === 0) {
+								chapterNumberInput.value = '1';
+							}
 						}
 					} else {
 						chapterNumberField.style.display = 'none';
