@@ -2165,6 +2165,28 @@ class Fanfic_Shortcodes_Author_Forms {
 				}
 
 				/**
+				 * Create or get error container (only once, at form init)
+				 * Prevents duplicate error messages on multiple submissions
+				 */
+				var errorContainer = null;
+				function getErrorContainer() {
+					if (!errorContainer) {
+						errorContainer = document.createElement('div');
+						errorContainer.className = 'fanfic-validation-errors';
+						errorContainer.style.cssText = 'margin-bottom: 20px;';
+
+						// Insert right after form header (inside form wrapper)
+						var formHeader = form.parentNode.querySelector('.fanfic-form-header');
+						if (formHeader && formHeader.nextSibling) {
+							formHeader.parentNode.insertBefore(errorContainer, formHeader.nextSibling);
+						} else {
+							form.parentNode.insertBefore(errorContainer, form);
+						}
+					}
+					return errorContainer;
+				}
+
+				/**
 				 * Handle form submission - validate before submitting
 				 */
 				form.addEventListener('submit', function(e) {
@@ -2174,32 +2196,27 @@ class Fanfic_Shortcodes_Author_Forms {
 						e.preventDefault();
 						e.stopPropagation();
 
-						// Scroll to top of form to show validation message
-						form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-						// Create or update error message container
-						var errorContainer = form.querySelector('.fanfic-validation-errors');
-						if (!errorContainer) {
-							errorContainer = document.createElement('div');
-							errorContainer.className = 'fanfic-validation-errors';
-							form.parentNode.insertBefore(errorContainer, form);
-						}
+						// Get or create error container (singleton)
+						var errContainer = getErrorContainer();
 
 						// Build error message HTML
-						var errorHTML = '<div class="fanfic-error-message" style="background-color: #fee; border: 1px solid #fcc; color: #c33; padding: 12px 15px; margin-bottom: 20px; border-radius: 4px;"><strong>Please fix the following errors:</strong><ul style="margin: 8px 0 0 0; padding-left: 20px;">';
+						var errorHTML = '<div class="fanfic-error-message" style="background-color: #fee; border: 1px solid #fcc; color: #c33; padding: 12px 15px; border-radius: 4px;"><strong>Please fix the following errors:</strong><ul style="margin: 8px 0 0 0; padding-left: 20px;">';
 						validationErrors.forEach(function(error) {
 							errorHTML += '<li style="margin: 4px 0;">' + error + '</li>';
 						});
 						errorHTML += '</ul></div>';
 
-						errorContainer.innerHTML = errorHTML;
+						// Update error container (clear previous and set new)
+						errContainer.innerHTML = errorHTML;
+
+						// Scroll to error message
+						errContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 						return false;
 					}
 
-					// Clear any existing validation errors
-					var existingErrorContainer = form.querySelector('.fanfic-validation-errors');
-					if (existingErrorContainer) {
-						existingErrorContainer.innerHTML = '';
+					// Clear any existing validation errors on successful submission
+					if (errorContainer) {
+						errorContainer.innerHTML = '';
 					}
 
 					return true;
@@ -2209,19 +2226,21 @@ class Fanfic_Shortcodes_Author_Forms {
 				[chapterNumberInput, chapterTitleInput, chapterContentInput].forEach(function(input) {
 					if (input) {
 						input.addEventListener('blur', function() {
-							var validationErrors = validateForm();
-							var errorContainer = form.querySelector('.fanfic-validation-errors');
+							// Only update errors if error container already exists (user tried to submit before)
+							if (errorContainer && errorContainer.innerHTML) {
+								var validationErrors = validateForm();
 
-							if (validationErrors.length > 0 && errorContainer) {
-								// User has tried to submit before, so show validation
-								if (errorContainer.innerHTML) {
-									// Re-validate and update
-									var errorHTML = '<div class="fanfic-error-message" style="background-color: #fee; border: 1px solid #fcc; color: #c33; padding: 12px 15px; margin-bottom: 20px; border-radius: 4px;"><strong>Please fix the following errors:</strong><ul style="margin: 8px 0 0 0; padding-left: 20px;">';
+								if (validationErrors.length > 0) {
+									// Re-validate and update error message in real-time
+									var errorHTML = '<div class="fanfic-error-message" style="background-color: #fee; border: 1px solid #fcc; color: #c33; padding: 12px 15px; border-radius: 4px;"><strong>Please fix the following errors:</strong><ul style="margin: 8px 0 0 0; padding-left: 20px;">';
 									validationErrors.forEach(function(error) {
 										errorHTML += '<li style="margin: 4px 0;">' + error + '</li>';
 									});
 									errorHTML += '</ul></div>';
 									errorContainer.innerHTML = errorHTML;
+								} else {
+									// All errors fixed, clear the error message
+									errorContainer.innerHTML = '';
 								}
 							}
 						});
