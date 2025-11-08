@@ -58,6 +58,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		add_action( 'wp_ajax_fanfic_edit_profile', array( __CLASS__, 'handle_edit_profile_submission' ) );
 	add_action( 'wp_ajax_fanfic_delete_chapter', array( __CLASS__, 'ajax_delete_chapter' ) );
 	add_action( 'wp_ajax_fanfic_publish_story', array( __CLASS__, 'ajax_publish_story' ) );
+		add_action( 'wp_ajax_fanfic_check_last_chapter', array( __CLASS__, 'ajax_check_last_chapter' ) );
 	}
 
 	/**
@@ -2300,17 +2301,109 @@ class Fanfic_Shortcodes_Author_Forms {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to delete this chapter.', 'fanfiction-manager' ) ) );
 		}
 
+		// Get chapter type
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+
+		// Check if this is the last chapter/prologue (epilogues don't count)
+		$is_last_publishable_chapter = false;
+		if ( in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
+			// Count other chapters/prologues (exclude epilogues and the one being deleted)
+			$other_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story->ID,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $chapter_id ),
+				'meta_query'     => array(
+					array(
+						'key'     => '_fanfic_chapter_type',
+						'value'   => array( 'prologue', 'chapter' ),
+						'compare' => 'IN',
+					),
+				),
+			) );
+
+			if ( empty( $other_chapters ) ) {
+				$is_last_publishable_chapter = true;
+				
+				// Auto-draft the story
+				wp_update_post( array(
+					'ID'          => $story->ID,
+					'post_status' => 'draft',
+				) );
+				
+				error_log( 'Auto-drafted story ' . $story->ID . ' because last chapter/prologue was deleted' );
+			}
+		}
+
 		// Delete the chapter
 		$result = wp_delete_post( $chapter_id, true );
 
 		if ( $result ) {
 			wp_send_json_success( array(
 				'message' => __( 'Chapter deleted successfully.', 'fanfiction-manager' ),
-				'chapter_id' => $chapter_id
+				'chapter_id' => $chapter_id,
+				'story_auto_drafted' => $is_last_publishable_chapter,
 			) );
 		} else {
 			wp_send_json_error( array( 'message' => __( 'Failed to delete chapter.', 'fanfiction-manager' ) ) );
 		}
+	}
+
+	/**
+	 * AJAX handler to check if chapter is the last publishable one
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_check_last_chapter() {
+		// Verify nonce
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_delete_chapter' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
+		}
+
+		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
+
+		if ( ! $chapter_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid chapter ID.', 'fanfiction-manager' ) ) );
+		}
+
+		$chapter = get_post( $chapter_id );
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+			wp_send_json_error( array( 'message' => __( 'Chapter not found.', 'fanfiction-manager' ) ) );
+		}
+
+		// Get chapter type
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+		$is_last = false;
+
+		// Only check for prologue/chapter (epilogues don't count)
+		if ( in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
+			// Count other chapters/prologues
+			$other_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $chapter->post_parent,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $chapter_id ),
+				'meta_query'     => array(
+					array(
+						'key'     => '_fanfic_chapter_type',
+						'value'   => array( 'prologue', 'chapter' ),
+						'compare' => 'IN',
+					),
+				),
+			) );
+
+			$is_last = empty( $other_chapters );
+		}
+
+		wp_send_json_success( array(
+			'is_last_chapter' => $is_last,
+			'chapter_type' => $chapter_type,
+		) );
 	}
 
 	/**

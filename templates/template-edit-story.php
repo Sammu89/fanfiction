@@ -372,17 +372,39 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 			});
 		}
 
-		// Chapter delete buttons with AJAX
-		var chapterDeleteButtons = document.querySelectorAll('[data-chapter-id]');
-		chapterDeleteButtons.forEach(function(button) {
-			if (button.classList.contains('fanfic-button-danger')) {
-				button.addEventListener('click', function() {
-					var chapterTitle = this.getAttribute('data-chapter-title');
-					var chapterId = this.getAttribute('data-chapter-id');
-					var buttonElement = this;
-					var rowElement = buttonElement.closest('tr');
+	// Chapter delete buttons with AJAX and last chapter warning
+	var chapterDeleteButtons = document.querySelectorAll('[data-chapter-id]');
+	chapterDeleteButtons.forEach(function(button) {
+		if (button.classList.contains('fanfic-button-danger')) {
+			button.addEventListener('click', function() {
+				var chapterTitle = this.getAttribute('data-chapter-title');
+				var chapterId = this.getAttribute('data-chapter-id');
+				var buttonElement = this;
+				var rowElement = buttonElement.closest('tr');
 
-					if (confirm('<?php esc_html_e( 'Are you sure you want to delete chapter', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?')) {
+				// First check if this is the last chapter/prologue
+				var checkFormData = new FormData();
+				checkFormData.append('action', 'fanfic_check_last_chapter');
+				checkFormData.append('chapter_id', chapterId);
+				checkFormData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_delete_chapter' ); ?>');
+
+				fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+					method: 'POST',
+					credentials: 'same-origin',
+					body: checkFormData
+				})
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(checkData) {
+					var isLastChapter = checkData.success && checkData.data.is_last_chapter;
+					var confirmMessage = '<?php esc_html_e( 'Are you sure you want to delete chapter', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?';
+					
+					if (isLastChapter) {
+						confirmMessage += '\n\n<?php esc_html_e( '⚠️ WARNING: This is your last chapter/prologue. Deleting it will automatically set your story to DRAFT status, making it invisible to readers. Epilogues alone are not enough to keep a story published.', 'fanfiction-manager' ); ?>';
+					}
+
+					if (confirm(confirmMessage)) {
 						// Disable the button to prevent double-clicks
 						buttonElement.disabled = true;
 						buttonElement.textContent = '<?php esc_html_e( 'Deleting...', 'fanfiction-manager' ); ?>';
@@ -404,6 +426,11 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 						})
 						.then(function(data) {
 							if (data.success) {
+								// Show message if story was auto-drafted
+								if (data.data.story_auto_drafted) {
+									alert('<?php esc_html_e( 'Chapter deleted. Your story has been set to DRAFT because it no longer has any chapters or prologues.', 'fanfiction-manager' ); ?>');
+								}
+
 								// Add fade-out animation
 								rowElement.style.transition = 'opacity 0.5s ease-out';
 								rowElement.style.opacity = '0';
@@ -434,7 +461,50 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 							console.error('Error:', error);
 						});
 					}
+				})
+				.catch(function(error) {
+					console.error('Error checking last chapter:', error);
+					// Fall back to simple confirmation
+					if (confirm('<?php esc_html_e( 'Are you sure you want to delete chapter', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?')) {
+						// Proceed with deletion
+						buttonElement.disabled = true;
+						buttonElement.textContent = '<?php esc_html_e( 'Deleting...', 'fanfiction-manager' ); ?>';
+
+						var formData = new FormData();
+						formData.append('action', 'fanfic_delete_chapter');
+						formData.append('chapter_id', chapterId);
+						formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_delete_chapter' ); ?>');
+
+						fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+							method: 'POST',
+							credentials: 'same-origin',
+							body: formData
+						})
+						.then(function(response) {
+							return response.json();
+						})
+						.then(function(data) {
+							if (data.success) {
+								rowElement.style.transition = 'opacity 0.5s ease-out';
+								rowElement.style.opacity = '0';
+								setTimeout(function() {
+									rowElement.remove();
+									var tableBody = document.querySelector('.fanfic-chapters-table tbody');
+									if (tableBody && tableBody.children.length === 0) {
+										window.location.reload();
+									}
+								}, 500);
+							} else {
+								buttonElement.disabled = false;
+								buttonElement.textContent = '<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>';
+								alert(data.data.message || '<?php esc_html_e( 'Failed to delete chapter.', 'fanfiction-manager' ); ?>');
+							}
+						});
+					}
 				});
+			});
+		}
+	});
 			}
 		});
 
