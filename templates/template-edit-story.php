@@ -140,14 +140,30 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 			'post_type'      => 'fanfiction_chapter',
 			'post_parent'    => $story_id,
 			'posts_per_page' => -1,
-			'orderby'        => 'menu_order',
+			'orderby'        => 'date',
 			'order'          => 'ASC',
 			'post_status'    => array( 'publish', 'draft', 'pending' ),
 		);
 
 		$chapters_query = new WP_Query( $chapters_args );
+		$chapters = $chapters_query->posts;
 
-		if ( $chapters_query->have_posts() ) :
+		// Sort chapters by chapter number
+		if ( ! empty( $chapters ) ) {
+			usort( $chapters, function( $a, $b ) {
+				$number_a = get_post_meta( $a->ID, '_fanfic_chapter_number', true );
+				$number_b = get_post_meta( $b->ID, '_fanfic_chapter_number', true );
+
+				// Convert to integers for proper comparison
+				$number_a = absint( $number_a );
+				$number_b = absint( $number_b );
+
+				// Prologue (0) comes first, then regular chapters (1-999), then epilogue (1000+)
+				return $number_a - $number_b;
+			} );
+		}
+
+		if ( ! empty( $chapters ) ) :
 			?>
 			<table class="fanfic-table" role="table">
 				<thead>
@@ -161,28 +177,26 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 				</thead>
 				<tbody>
 					<?php
-					$chapter_number = 0;
-					while ( $chapters_query->have_posts() ) :
-						$chapters_query->the_post();
-						$chapter_id = get_the_ID();
+					foreach ( $chapters as $chapter ) :
+						$chapter_id = $chapter->ID;
 						$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+						$stored_chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
 
-						// Display chapter number or type
-						if ( $chapter_type === 'prologue' ) {
+						// Display chapter label based on type
+						if ( 'prologue' === $chapter_type ) {
 							$display_number = __( 'Prologue', 'fanfiction-manager' );
-						} elseif ( $chapter_type === 'epilogue' ) {
+						} elseif ( 'epilogue' === $chapter_type ) {
 							$display_number = __( 'Epilogue', 'fanfiction-manager' );
 						} else {
-							$chapter_number++;
-							$display_number = sprintf( __( 'Chapter %d', 'fanfiction-manager' ), $chapter_number );
+							$display_number = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $stored_chapter_number );
 						}
 
 						// Get word count
-						$content = get_the_content();
+						$content = $chapter->post_content;
 						$word_count = str_word_count( wp_strip_all_tags( $content ) );
 
 						// Get status
-						$status = get_post_status();
+						$status = $chapter->post_status;
 						$status_labels = array(
 							'publish' => __( 'Published', 'fanfiction-manager' ),
 							'draft'   => __( 'Draft', 'fanfiction-manager' ),
@@ -195,7 +209,7 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 								<strong><?php echo esc_html( $display_number ); ?></strong>
 							</td>
 							<td data-label="<?php esc_attr_e( 'Title', 'fanfiction-manager' ); ?>">
-								<?php the_title(); ?>
+								<?php echo esc_html( $chapter->post_title ); ?>
 							</td>
 							<td data-label="<?php esc_attr_e( 'Status', 'fanfiction-manager' ); ?>">
 								<span class="fanfic-status-badge fanfic-status-<?php echo esc_attr( $status ); ?>">
@@ -213,13 +227,13 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 									<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button-small" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
 										<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 									</a>
-									<button type="button" class="fanfic-button-small fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title() ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
+									<button type="button" class="fanfic-button-small fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
 										<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 									</button>
 								</div>
 							</td>
 						</tr>
-					<?php endwhile; ?>
+					<?php endforeach; ?>
 				</tbody>
 			</table>
 			<?php
