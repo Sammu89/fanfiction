@@ -1712,7 +1712,6 @@ class Fanfic_Shortcodes_Author_Forms {
 		}
 
 		$current_user = wp_get_current_user();
-		error_log( 'Create chapter - Action: ' . $chapter_action . ', Status: ' . $chapter_status );
 		$story = get_post( $story_id );
 
 		// Check permissions
@@ -1725,6 +1724,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		// Get and sanitize form data
 		$chapter_action = isset( $_POST['fanfic_chapter_action'] ) ? sanitize_text_field( $_POST['fanfic_chapter_action'] ) : 'publish';
 		$chapter_status = ( 'draft' === $chapter_action ) ? 'draft' : 'publish';
+		error_log( 'Create chapter - Action: ' . $chapter_action . ', Status: ' . $chapter_status );
 		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
 		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
 		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
@@ -1829,7 +1829,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		if ( wp_doing_ajax() ) {
 			// Return JSON response for AJAX
 			wp_send_json_success( array(
-				'redirect' => $edit_url,
+				'redirect_url' => $edit_url,
 				'chapter_id' => $chapter_id,
 			) );
 		} else {
