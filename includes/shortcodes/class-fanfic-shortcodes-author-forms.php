@@ -49,7 +49,6 @@ class Fanfic_Shortcodes_Author_Forms {
 		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_profile_submission' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_story' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_chapter' ) );
-		add_action( 'template_redirect', array( __CLASS__, 'block_draft_story_chapter_access' ), 1 );
 
 		// Register AJAX handlers for logged-in users
 		add_action( 'wp_ajax_fanfic_create_story', array( __CLASS__, 'ajax_create_story' ) );
@@ -2918,48 +2917,6 @@ class Fanfic_Shortcodes_Author_Forms {
 		wp_send_json_success( array(
 			'message' => __( 'Profile updated successfully!', 'fanfiction-manager' )
 		) );
-	}
-
-	/**
-	 * Block direct URL access to chapters whose parent story is draft
-	 *
-	 * Prevents users from accessing chapters via direct URL when the parent story
-	 * is in draft status. Returns 404 error for such requests.
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public static function block_draft_story_chapter_access() {
-		global $wp_query, $post;
-
-		// Only apply on singular chapter views
-		if ( ! is_singular( 'fanfiction_chapter' ) ) {
-			return;
-		}
-
-		// Get the chapter post
-		if ( ! $post || 'fanfiction_chapter' !== $post->post_type ) {
-			return;
-		}
-
-		// Get parent story ID
-		$story_id = $post->post_parent;
-		if ( ! $story_id ) {
-			return;
-		}
-
-		// Get parent story
-		$story = get_post( $story_id );
-		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
-			return;
-		}
-
-		// If parent story is draft, trigger 404
-		if ( 'draft' === $story->post_status ) {
-			$wp_query->set_404();
-			status_header( 404 );
-			// WordPress will automatically load 404 template
-		}
 	}
 	/**
 	 * Filter chapters by parent story status
