@@ -245,21 +245,6 @@ class Fanfic_Roles_Caps {
 	 * @return array Modified capabilities required.
 	 */
 	public static function map_meta_cap( $caps, $cap, $user_id, $args ) {
-		// Debug: Log ALL capability checks to understand what's being called
-		if ( strpos( $cap, 'fanfiction' ) !== false || $cap === 'edit_post' || $cap === 'read_post' ) {
-			error_log( '=== MAP_META_CAP CALLED ===' );
-			error_log( 'Capability: ' . $cap );
-			error_log( 'User ID: ' . $user_id );
-			error_log( 'Args: ' . print_r( $args, true ) );
-			error_log( 'Incoming $caps: ' . print_r( $caps, true ) );
-
-			// Check user roles (IMPORTANT: Don't call has_cap or user_can here - it causes infinite recursion!)
-			$user = get_userdata( $user_id );
-			if ( $user ) {
-				error_log( 'User roles: ' . print_r( $user->roles, true ) );
-			}
-		}
-
 		// WordPress admins automatically have all fanfiction permissions (cascade system)
 		// Check if this is a fanfiction-related capability
 		$fanfic_caps = array(
@@ -292,34 +277,21 @@ class Fanfic_Roles_Caps {
 		// Only check fanfiction post types for edit_post/delete_post/read_post
 		if ( in_array( $cap, array( 'edit_post', 'delete_post', 'read_post' ), true ) && ! empty( $args[0] ) ) {
 			$post = get_post( $args[0] );
-			error_log( '=== CHECKING IF FANFICTION POST TYPE ===' );
-			error_log( 'Post exists: ' . ( $post ? 'YES' : 'NO' ) );
-			if ( $post ) {
-				error_log( 'Post type: ' . $post->post_type );
-			}
 			// Only apply admin bypass if this is a fanfiction post type
 			if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
 				// Not a fanfiction post, remove from the array so bypass doesn't apply
-				error_log( 'NOT a fanfiction post - removing from bypass' );
 				$fanfic_caps = array_diff( $fanfic_caps, array( 'edit_post', 'delete_post', 'read_post' ) );
-			} else {
-				error_log( 'IS a fanfiction post - keeping in bypass' );
 			}
 		}
-
-		error_log( '===  ADMIN BYPASS CHECK ===' );
-		error_log( 'Cap in fanfic_caps: ' . ( in_array( $cap, $fanfic_caps, true ) ? 'YES' : 'NO' ) );
 
 		if ( in_array( $cap, $fanfic_caps, true ) ) {
 			// Check if user is WordPress administrator (has 'administrator' role)
 			// IMPORTANT: Don't use user_can() here - it causes infinite recursion!
 			$user = get_userdata( $user_id );
 			$is_admin = $user && in_array( 'administrator', $user->roles, true );
-			error_log( 'User is administrator: ' . ( $is_admin ? 'YES' : 'NO' ) );
 
 			// WordPress admins bypass all checks - they have manage_options which is top-level
 			if ( $is_admin ) {
-				error_log( 'ADMIN BYPASS - Returning manage_options' );
 				return array( 'manage_options' );
 			}
 		}
@@ -331,29 +303,19 @@ class Fanfic_Roles_Caps {
 
 			// Only handle fanfiction post types
 			if ( $post && in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
-				error_log( '=== HANDLING edit_post FOR FANFICTION ===' );
-				error_log( 'Post ID: ' . $post->ID );
-				error_log( 'Post status: ' . $post->post_status );
-				error_log( 'Post author: ' . $post->post_author );
-				error_log( 'Current user: ' . $user_id );
-
 				// Check if user is the post author
 				if ( (int) $user_id === (int) $post->post_author ) {
 					// Author can edit their own posts
 					if ( 'fanfiction_story' === $post->post_type ) {
-						error_log( 'User is author - returning edit_fanfiction_stories' );
 						return array( 'edit_fanfiction_stories' );
 					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
-						error_log( 'User is author - returning edit_fanfiction_chapters' );
 						return array( 'edit_fanfiction_chapters' );
 					}
 				} else {
 					// Not the author - requires 'edit_others' capability
 					if ( 'fanfiction_story' === $post->post_type ) {
-						error_log( 'User is NOT author - returning edit_others_fanfiction_stories' );
 						return array( 'edit_others_fanfiction_stories' );
 					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
-						error_log( 'User is NOT author - returning edit_others_fanfiction_chapters' );
 						return array( 'edit_others_fanfiction_chapters' );
 					}
 				}
@@ -390,14 +352,8 @@ class Fanfic_Roles_Caps {
 		// Handle story meta capabilities - edit_fanfiction_story and delete_fanfiction_story
 		// These are the singular meta capabilities that map to plural primitive capabilities
 		if ( in_array( $cap, array( 'edit_fanfiction_story', 'delete_fanfiction_story' ), true ) ) {
-			error_log( '=== MAP_META_CAP DEBUG (Story Meta Cap) ===' );
-			error_log( 'Capability requested: ' . $cap );
-			error_log( 'User ID: ' . $user_id );
-			error_log( 'Post ID (args[0]): ' . ( isset( $args[0] ) ? $args[0] : 'NOT SET' ) );
-
 			// If no post ID provided, require the base capability
 			if ( empty( $args[0] ) ) {
-				error_log( 'No post ID - returning base capability' );
 				if ( 'edit_fanfiction_story' === $cap ) {
 					return array( 'edit_fanfiction_stories' );
 				} else {
@@ -411,18 +367,10 @@ class Fanfic_Roles_Caps {
 			$user = get_userdata( $user_id );
 			$is_admin = $user && in_array( 'administrator', $user->roles, true );
 			if ( $is_admin ) {
-				error_log( 'User is administrator - GRANTED' );
 				return array( 'manage_options' );
 			}
-			error_log( 'User is NOT administrator' );
 
 			$post = get_post( $args[0] );
-			error_log( 'get_post() returned: ' . ( $post ? 'POST OBJECT' : 'NULL/FALSE' ) );
-
-			if ( $post ) {
-				error_log( 'Post type: ' . $post->post_type );
-				error_log( 'Post author: ' . $post->post_author );
-			}
 
 			// If post doesn't exist or isn't a fanfiction story, require the "others" capability
 			// This allows moderators/admins to access, but prevents authors from accessing invalid stories

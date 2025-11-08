@@ -56,8 +56,6 @@ class Fanfic_Shortcodes_Author_Forms {
 		add_action( 'wp_ajax_fanfic_create_chapter', array( __CLASS__, 'ajax_create_chapter' ) );
 		add_action( 'wp_ajax_fanfic_edit_chapter', array( __CLASS__, 'ajax_edit_chapter' ) );
 		add_action( 'wp_ajax_fanfic_edit_profile', array( __CLASS__, 'ajax_edit_profile' ) );
-
-		error_log( 'Profile handler registered on template_redirect hook' );
 	}
 
 	/**
@@ -1713,22 +1711,9 @@ class Fanfic_Shortcodes_Author_Forms {
 	 * @return void
 	 */
 	public static function handle_edit_profile_submission() {
-		// ALWAYS log - even if no POST data
-		error_log( '=== TEMPLATE_REDIRECT HOOK FIRED - Checking for profile submission ===' );
-		error_log( 'REQUEST_METHOD: ' . $_SERVER['REQUEST_METHOD'] );
-		error_log( 'REQUEST_URI: ' . $_SERVER['REQUEST_URI'] );
-		error_log( 'POST data exists: ' . ( ! empty( $_POST ) ? 'YES' : 'NO' ) );
-
-		if ( ! empty( $_POST ) ) {
-			error_log( 'POST keys: ' . implode( ', ', array_keys( $_POST ) ) );
-		}
-
 		if ( ! isset( $_POST['fanfic_edit_profile_submit'] ) ) {
-			error_log( 'fanfic_edit_profile_submit field NOT found - exiting handler' );
 			return;
 		}
-
-		error_log( '=== PROFILE FORM SUBMITTED - PROCESSING ===' );
 
 		// Verify nonce
 		if ( ! isset( $_POST['fanfic_edit_profile_nonce'] ) ) {

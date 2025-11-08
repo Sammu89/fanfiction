@@ -38,28 +38,8 @@ if ( ! $story_id && isset( $_GET['story_id'] ) ) {
 	$story_id = absint( $_GET['story_id'] );
 }
 
-// DEBUG: Log permission check details
-error_log( '=== EDIT STORY DEBUG ===' );
-error_log( 'Story ID: ' . $story_id );
-error_log( 'Current User ID: ' . get_current_user_id() );
-error_log( 'User is logged in: ' . ( is_user_logged_in() ? 'YES' : 'NO' ) );
-
-if ( $story_id ) {
-	$story_post = get_post( $story_id );
-	error_log( 'Story exists: ' . ( $story_post ? 'YES' : 'NO' ) );
-	if ( $story_post ) {
-		error_log( 'Story post_type: ' . $story_post->post_type );
-		error_log( 'Story post_author: ' . $story_post->post_author );
-		error_log( 'Story post_status: ' . $story_post->post_status );
-	}
-	error_log( 'current_user_can(edit_fanfiction_story, ' . $story_id . '): ' . ( current_user_can( 'edit_fanfiction_story', $story_id ) ? 'TRUE' : 'FALSE' ) );
-} else {
-	error_log( 'No story_id found' );
-}
-
 // Validate story exists and user has permission
 if ( ! $story_id || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
-	error_log( 'ACCESS DENIED - Condition triggered: ' . ( ! $story_id ? 'No story_id' : 'Permission denied' ) );
 	?>
 	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
 		<p><?php esc_html_e( 'Access Denied: You do not have permission to edit this story, or the story does not exist.', 'fanfiction-manager' ); ?></p>
