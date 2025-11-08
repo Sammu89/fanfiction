@@ -24,7 +24,34 @@ $is_profile_view = ! empty( $member_name );
 <div class="fanfic-template-wrapper">
 <a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
-
+<!-- Breadcrumb Navigation -->
+<nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
+	<ol class="fanfic-breadcrumb-list">
+		<li class="fanfic-breadcrumb-item">
+			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></a>
+		</li>
+		<?php if ( $is_profile_view ) : ?>
+			<li class="fanfic-breadcrumb-item">
+				<a href="<?php echo esc_url( fanfic_get_page_url( 'members' ) ); ?>"><?php esc_html_e( 'Members', 'fanfiction-manager' ); ?></a>
+			</li>
+			<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
+				<?php
+				$is_editing = isset( $_GET['action'] ) && $_GET['action'] === 'edit';
+				if ( $is_editing ) {
+					esc_html_e( 'Edit Profile', 'fanfiction-manager' );
+				} else {
+					$user = get_user_by( 'login', $member_name );
+					echo esc_html( $user ? $user->display_name : $member_name );
+				}
+				?>
+			</li>
+		<?php else : ?>
+			<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
+				<?php esc_html_e( 'Members', 'fanfiction-manager' ); ?>
+			</li>
+		<?php endif; ?>
+	</ol>
+</nav>
 
 <?php if ( $is_profile_view ) : ?>
     <!-- INDIVIDUAL USER PROFILE -->
@@ -167,6 +194,34 @@ $is_profile_view = ! empty( $member_name );
     </article>
 <?php endif; ?>
 
+<!-- Breadcrumb Navigation (Bottom) -->
+<nav class="fanfic-breadcrumb fanfic-breadcrumb-bottom" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
+	<ol class="fanfic-breadcrumb-list">
+		<li class="fanfic-breadcrumb-item">
+			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></a>
+		</li>
+		<?php if ( $is_profile_view ) : ?>
+			<li class="fanfic-breadcrumb-item">
+				<a href="<?php echo esc_url( fanfic_get_page_url( 'members' ) ); ?>"><?php esc_html_e( 'Members', 'fanfiction-manager' ); ?></a>
+			</li>
+			<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
+				<?php
+				$is_editing = isset( $_GET['action'] ) && $_GET['action'] === 'edit';
+				if ( $is_editing ) {
+					esc_html_e( 'Edit Profile', 'fanfiction-manager' );
+				} else {
+					$user = get_user_by( 'login', $member_name );
+					echo esc_html( $user ? $user->display_name : $member_name );
+				}
+				?>
+			</li>
+		<?php else : ?>
+			<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
+				<?php esc_html_e( 'Members', 'fanfiction-manager' ); ?>
+			</li>
+		<?php endif; ?>
+	</ol>
+</nav>
 
 </div>
 
