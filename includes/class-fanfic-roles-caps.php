@@ -248,6 +248,8 @@ class Fanfic_Roles_Caps {
 		// WordPress admins automatically have all fanfiction permissions (cascade system)
 		// Check if this is a fanfiction-related capability
 		$fanfic_caps = array(
+			'read_post',
+			'read_fanfiction_story',
 			'edit_fanfiction_story',
 			'delete_fanfiction_story',
 			'edit_fanfiction_chapter',
@@ -274,6 +276,33 @@ class Fanfic_Roles_Caps {
 			// WordPress admins bypass all checks - they have manage_options which is top-level
 			if ( user_can( $user_id, 'manage_options' ) ) {
 				return array( 'manage_options' );
+			}
+		}
+
+		// Handle read_post capability for fanfiction stories and chapters
+		// This allows authors to view their own draft stories
+		if ( 'read_post' === $cap && ! empty( $args[0] ) ) {
+			$post = get_post( $args[0] );
+
+			// Only handle fanfiction post types
+			if ( $post && in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+				// Published posts are readable by everyone
+				if ( 'publish' === $post->post_status ) {
+					return array( 'read' );
+				}
+
+				// Draft/private posts:
+				// Allow the post author to read their own drafts
+				if ( (int) $user_id === (int) $post->post_author ) {
+					return array( 'read' );
+				}
+
+				// Allow moderators/admins to read any draft
+				if ( 'fanfiction_story' === $post->post_type ) {
+					return array( 'edit_others_fanfiction_stories' );
+				} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+					return array( 'edit_others_fanfiction_chapters' );
+				}
 			}
 		}
 
