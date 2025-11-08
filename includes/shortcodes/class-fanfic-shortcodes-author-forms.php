@@ -960,8 +960,11 @@ class Fanfic_Shortcodes_Author_Forms {
 				<input type="hidden" name="fanfic_create_chapter_submit" value="1" />
 
 				<div class="fanfic-form-actions">
-					<button type="submit" class="fanfic-btn fanfic-btn-primary">
-						<?php esc_html_e( 'Create Chapter', 'fanfiction-manager' ); ?>
+					<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+						<?php esc_html_e( 'Publish Chapter', 'fanfiction-manager' ); ?>
+					</button>
+					<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
+						<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
 					</button>
 					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
 						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
@@ -1221,9 +1224,21 @@ class Fanfic_Shortcodes_Author_Forms {
 				<input type="hidden" name="fanfic_edit_chapter_submit" value="1" />
 
 				<div class="fanfic-form-actions">
-					<button type="submit" class="fanfic-btn fanfic-btn-primary">
-						<?php esc_html_e( 'Update Chapter', 'fanfiction-manager' ); ?>
-					</button>
+					<?php if ( 'publish' === $chapter->post_status ) : ?>
+						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+							<?php esc_html_e( 'Update & Keep Published', 'fanfiction-manager' ); ?>
+						</button>
+						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
+							<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
+						</button>
+					<?php else : ?>
+						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+							<?php esc_html_e( 'Publish Chapter', 'fanfiction-manager' ); ?>
+						</button>
+						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
+							<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
+						</button>
+					<?php endif; ?>
 					<a href="<?php echo esc_url( self::get_page_url_with_fallback( 'manage-stories' ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
 						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 					</a>
@@ -1707,6 +1722,8 @@ class Fanfic_Shortcodes_Author_Forms {
 		$errors = array();
 
 		// Get and sanitize form data
+		$chapter_action = isset( $_POST['fanfic_chapter_action'] ) ? sanitize_text_field( $_POST['fanfic_chapter_action'] ) : 'publish';
+		$chapter_status = ( 'draft' === $chapter_action ) ? 'draft' : 'publish';
 		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
 		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
 		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
@@ -1756,7 +1773,7 @@ class Fanfic_Shortcodes_Author_Forms {
 			'post_type'    => 'fanfiction_chapter',
 			'post_title'   => $title,
 			'post_content' => $content,
-			'post_status'  => 'publish',
+			'post_status'  => $chapter_status,
 			'post_author'  => $current_user->ID,
 			'post_parent'  => $story_id,
 		) );
@@ -1774,7 +1791,7 @@ class Fanfic_Shortcodes_Author_Forms {
 
 		// Check if this is the first published chapter and story is a draft
 		$is_first_published_chapter = false;
-		if ( 'draft' === $story->post_status ) {
+		if ( 'publish' === $chapter_status && 'draft' === $story->post_status ) {
 			// Count published chapters (excluding the one we just created)
 			$published_chapters = get_posts( array(
 				'post_type'      => 'fanfiction_chapter',
@@ -1850,6 +1867,8 @@ class Fanfic_Shortcodes_Author_Forms {
 		$errors = array();
 
 		// Get and sanitize form data
+		$chapter_action = isset( $_POST['fanfic_chapter_action'] ) ? sanitize_text_field( $_POST['fanfic_chapter_action'] ) : 'publish';
+		$chapter_status = ( 'draft' === $chapter_action ) ? 'draft' : 'publish';
 		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
 		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
 		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
@@ -1918,6 +1937,7 @@ class Fanfic_Shortcodes_Author_Forms {
 			'ID'           => $chapter_id,
 			'post_title'   => $title,
 			'post_content' => $content,
+			'post_status'  => $chapter_status,
 		) );
 
 		if ( is_wp_error( $result ) ) {
@@ -1931,6 +1951,30 @@ class Fanfic_Shortcodes_Author_Forms {
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
+
+		// Check if this is becoming the first published chapter
+		$is_first_published_chapter = false;
+		$old_status = get_post_status( $chapter_id );
+		$story = get_post( $story_id );
+		
+		// Only check if we're publishing a chapter that was draft and story is also draft
+		if ( 'publish' === $chapter_status && 'draft' === $old_status && 'draft' === $story->post_status ) {
+			// Count other published chapters
+			$published_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story_id,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $chapter_id ),
+			) );
+
+			// If there are no other published chapters, this is the first
+			if ( empty( $published_chapters ) ) {
+				$is_first_published_chapter = true;
+			}
+		}
+
 		// Redirect back with success message
 		$redirect_url = add_query_arg(
 			array(
@@ -1939,6 +1983,12 @@ class Fanfic_Shortcodes_Author_Forms {
 			),
 			wp_get_referer()
 		);
+		
+		// Add parameter to show publication prompt if this is first chapter
+		if ( $is_first_published_chapter ) {
+			$redirect_url = add_query_arg( 'show_publish_prompt', '1', $redirect_url );
+		}
+		
 		wp_redirect( $redirect_url );
 		exit;
 	}
