@@ -2925,6 +2925,7 @@ class Fanfic_Shortcodes_Author_Forms {
 	 *
 	 * Prevents users from accessing chapters via direct URL when the parent story
 	 * is in draft status. Returns 404 error for such requests.
+ * Allows authors to access their own draft content for editing.
 	 *
 	 * @since 1.0.0
 	 * @return void
@@ -2954,12 +2955,19 @@ class Fanfic_Shortcodes_Author_Forms {
 			return;
 		}
 
-		// If parent story is draft, trigger 404
-		if ( 'draft' === $story->post_status ) {
-			$wp_query->set_404();
-			status_header( 404 );
-			// WordPress will automatically load 404 template
+	// If parent story is draft
+	if ( 'draft' === $story->post_status ) {
+		// Allow the author to access their own content
+		$current_user_id = get_current_user_id();
+		if ( $current_user_id && (int) $story->post_author === $current_user_id ) {
+			return; // Author can access their own draft chapters
 		}
+
+		// Block access for everyone else - trigger 404
+		$wp_query->set_404();
+		status_header( 404 );
+		// WordPress will automatically load 404 template
+	}
 	}
 	/**
 	 * Filter chapters by parent story status
