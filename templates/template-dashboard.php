@@ -49,7 +49,7 @@ $current_user = wp_get_current_user();
 
 <div class="fanfic-template-wrapper">
 <a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
-<main id="fanfic-main-content" class="fanfic-main-content" role="main">
+
 
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
@@ -246,5 +246,5 @@ $current_user = wp_get_current_user();
 })();
 </script>
 
-</main>
+
 </div>

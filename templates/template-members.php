@@ -24,7 +24,7 @@ $is_profile_view = ! empty( $member_name );
 <div class="fanfic-template-wrapper">
 <a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
-<main id="fanfic-main-content" class="fanfic-main-content" role="main">
+
 
 <?php if ( $is_profile_view ) : ?>
     <!-- INDIVIDUAL USER PROFILE -->
@@ -160,7 +160,7 @@ $is_profile_view = ! empty( $member_name );
     </article>
 <?php endif; ?>
 
-</main>
+
 </div>
 
 <?php get_footer(); ?>

@@ -102,9 +102,8 @@ $page_description = $chapter_id
 	: __( 'Create a new chapter for your story below.', 'fanfiction-manager' );
 ?>
 
+<div class="fanfic-template-wrapper">
 <a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
-
-<main id="fanfic-main-content" class="fanfic-main-content" role="main">
 
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
@@ -283,4 +282,6 @@ $page_description = $chapter_id
 	</script>
 <?php endif; ?>
 
-</main>
+</div>
+
+
