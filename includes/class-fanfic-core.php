@@ -377,25 +377,41 @@ class Fanfic_Core {
 		$is_chapter = ! empty( $query->get( 'fanfiction_chapter' ) ) ||
 		              ( $query->is_singular() && $query->get( 'post_type' ) === 'fanfiction_chapter' );
 
+		error_log( '=== ALLOW_AUTHOR_DRAFT_ACCESS DEBUG ===' );
+		error_log( 'is_story: ' . ( $is_story ? 'YES' : 'NO' ) );
+		error_log( 'is_chapter: ' . ( $is_chapter ? 'YES' : 'NO' ) );
+		error_log( 'fanfiction_story query var: ' . $query->get( 'fanfiction_story' ) );
+		error_log( 'is_singular: ' . ( $query->is_singular() ? 'YES' : 'NO' ) );
+		error_log( 'post_type query var: ' . $query->get( 'post_type' ) );
+
 		// Only apply to fanfiction post types
 		if ( ! $is_story && ! $is_chapter ) {
+			error_log( 'Not a fanfiction query - returning' );
 			return;
 		}
 
 		// If user is not logged in, don't modify the query
 		if ( ! is_user_logged_in() ) {
+			error_log( 'User not logged in - returning' );
 			return;
 		}
+
+		error_log( 'User ID: ' . get_current_user_id() );
 
 		// Check if user has permission to view drafts
 		// This includes authors (who can view their own drafts) and moderators/admins
 		$can_view_drafts = current_user_can( 'edit_fanfiction_stories' ) ||
 		                   current_user_can( 'edit_others_fanfiction_stories' );
 
+		error_log( 'edit_fanfiction_stories: ' . ( current_user_can( 'edit_fanfiction_stories' ) ? 'YES' : 'NO' ) );
+		error_log( 'edit_others_fanfiction_stories: ' . ( current_user_can( 'edit_others_fanfiction_stories' ) ? 'YES' : 'NO' ) );
+		error_log( 'can_view_drafts: ' . ( $can_view_drafts ? 'YES' : 'NO' ) );
+
 		if ( $can_view_drafts ) {
 			// Include draft and publish statuses in the query
 			// WordPress will still check read_post capability before displaying
 			$query->set( 'post_status', array( 'publish', 'draft', 'private' ) );
+			error_log( 'Set post_status to: publish, draft, private' );
 		}
 	}
 
@@ -419,18 +435,29 @@ class Fanfic_Core {
 		$story_slug = $query->get( 'fanfiction_story' );
 		$chapter_slug = $query->get( 'fanfiction_chapter' );
 
+		error_log( '=== HANDLE_FANFICTION_QUERY_VAR DEBUG ===' );
+		error_log( 'story_slug: ' . ( $story_slug ? $story_slug : 'EMPTY' ) );
+		error_log( 'chapter_slug: ' . ( $chapter_slug ? $chapter_slug : 'EMPTY' ) );
+
 		if ( empty( $story_slug ) && empty( $chapter_slug ) ) {
+			error_log( 'Both slugs empty - returning' );
 			return;
 		}
+
+		error_log( 'User logged in: ' . ( is_user_logged_in() ? 'YES' : 'NO' ) );
 
 		// If user is logged in and can edit stories, allow draft access
 		if ( is_user_logged_in() ) {
 			$can_view_drafts = current_user_can( 'edit_fanfiction_stories' ) ||
 			                   current_user_can( 'edit_others_fanfiction_stories' );
 
+			error_log( 'can_view_drafts: ' . ( $can_view_drafts ? 'YES' : 'NO' ) );
+
 			if ( $can_view_drafts ) {
 				// Set query to look for both published and draft posts
+				$old_status = $query->get( 'post_status' );
 				$query->set( 'post_status', array( 'publish', 'draft', 'private' ) );
+				error_log( 'Changed post_status from "' . $old_status . '" to: publish, draft, private' );
 			}
 		}
 	}
