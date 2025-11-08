@@ -62,6 +62,8 @@ class Fanfic_Shortcodes_Author_Forms {
 
 		// Filter chapters by parent story status (hide chapters of draft stories on frontend)
 		add_action( 'pre_get_posts', array( __CLASS__, 'filter_chapters_by_story_status' ) );
+		add_filter( 'posts_join', array( __CLASS__, 'filter_chapters_join' ), 10, 2 );
+		add_filter( 'posts_where', array( __CLASS__, 'filter_chapters_where' ), 10, 2 );
 	}
 
 	/**
@@ -2916,13 +2918,14 @@ class Fanfic_Shortcodes_Author_Forms {
 			'message' => __( 'Profile updated successfully!', 'fanfiction-manager' )
 		) );
 	}
-
 	/**
 	 * Filter chapters by parent story status
 	 *
 	 * Hides chapters whose parent story is in draft status from frontend queries.
 	 * This ensures that chapters are automatically hidden when their story is drafted
 	 * and automatically visible when the story is republished.
+	 *
+	 * Uses SQL JOIN for optimal performance instead of multiple get_posts() calls.
 	 *
 	 * @since 1.0.0
 	 * @param WP_Query $query The WordPress query object.
@@ -2939,36 +2942,56 @@ class Fanfic_Shortcodes_Author_Forms {
 			return;
 		}
 
-		// Get all draft story IDs
-		$draft_stories = get_posts( array(
-			'post_type'      => 'fanfiction_story',
-			'post_status'    => 'draft',
-			'posts_per_page' => -1,
-			'fields'         => 'ids',
-		) );
-
-		// If there are draft stories, exclude their chapters
-		if ( ! empty( $draft_stories ) ) {
-			// Get existing post__not_in parameter
-			$post__not_in = $query->get( 'post__not_in' );
-			if ( ! is_array( $post__not_in ) ) {
-				$post__not_in = array();
-			}
-
-			// Get all chapters that belong to draft stories
-			$draft_chapters = get_posts( array(
-				'post_type'      => 'fanfiction_chapter',
-				'post_parent__in' => $draft_stories,
-				'post_status'    => 'any',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-			) );
-
-			// Merge with existing exclusions
-			if ( ! empty( $draft_chapters ) ) {
-				$post__not_in = array_merge( $post__not_in, $draft_chapters );
-				$query->set( 'post__not_in', $post__not_in );
-			}
-		}
+		// Set a flag so our JOIN and WHERE filters know to apply
+		$query->set( 'fanfic_filter_by_parent_status', true );
 	}
+
+	/**
+	 * Add JOIN clause to check parent story status
+	 *
+	 * Joins the posts table with itself to access parent post data.
+	 * Only applies when fanfic_filter_by_parent_status flag is set.
+	 *
+	 * @since 1.0.0
+	 * @param string   $join  The JOIN clause of the query.
+	 * @param WP_Query $query The WP_Query instance.
+	 * @return string Modified JOIN clause.
+	 */
+	public static function filter_chapters_join( $join, $query ) {
+		global $wpdb;
+
+		// Only apply if our flag is set
+		if ( ! $query->get( 'fanfic_filter_by_parent_status' ) ) {
+			return $join;
+		}
+
+		// JOIN with parent posts table to check parent status
+		$join .= " INNER JOIN {$wpdb->posts} AS parent_story ON {$wpdb->posts}.post_parent = parent_story.ID";
+
+		return $join;
+	}
+
+	/**
+	 * Add WHERE clause to exclude chapters with draft parent stories
+	 *
+	 * Filters out chapters whose parent story has post_status = 'draft'.
+	 * Only applies when fanfic_filter_by_parent_status flag is set.
+	 *
+	 * @since 1.0.0
+	 * @param string   $where The WHERE clause of the query.
+	 * @param WP_Query $query The WP_Query instance.
+	 * @return string Modified WHERE clause.
+	 */
+	public static function filter_chapters_where( $where, $query ) {
+		// Only apply if our flag is set
+		if ( ! $query->get( 'fanfic_filter_by_parent_status' ) ) {
+			return $where;
+		}
+
+		// Exclude chapters whose parent story is draft
+		$where .= " AND parent_story.post_status = 'publish'";
+
+		return $where;
+	}
+
 }
