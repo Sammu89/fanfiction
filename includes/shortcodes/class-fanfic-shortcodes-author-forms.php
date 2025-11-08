@@ -791,6 +791,10 @@ class Fanfic_Shortcodes_Author_Forms {
 		// Get available chapter numbers
 		$available_numbers = self::get_available_chapter_numbers( $story_id );
 
+		// Check if prologue or epilogue already exist
+		$has_prologue = self::story_has_prologue( $story_id );
+		$has_epilogue = self::story_has_epilogue( $story_id );
+
 		// Check for errors
 		$errors = get_transient( 'fanfic_chapter_errors_' . get_current_user_id() );
 		if ( $errors ) {
@@ -820,62 +824,73 @@ class Fanfic_Shortcodes_Author_Forms {
 				<div class="fanfic-form-section">
 					<h3><?php esc_html_e( 'Chapter Details', 'fanfiction-manager' ); ?></h3>
 
-					<div class="fanfic-form-field" data-field-type="select">
-						<label for="fanfic_chapter_number">
-							<?php esc_html_e( 'Chapter Number', 'fanfiction-manager' ); ?>
-							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
-						</label>
-						<select
-							name="fanfic_chapter_number"
-							id="fanfic_chapter_number"
-							class="fanfic-select"
-							required
-							aria-required="true"
-						>
-							<option value=""><?php esc_html_e( '-- Select Chapter Number --', 'fanfiction-manager' ); ?></option>
-							<?php foreach ( $available_numbers as $number ) : ?>
-								<option value="<?php echo esc_attr( $number ); ?>" <?php selected( isset( $_POST['fanfic_chapter_number'] ) && $_POST['fanfic_chapter_number'] == $number ); ?>>
-									<?php echo esc_html( $number ); ?>
-								</option>
-							<?php endforeach; ?>
-						</select>
-						<p class="fanfic-field-description"><?php esc_html_e( 'Select the next available chapter number.', 'fanfiction-manager' ); ?></p>
-					</div>
-
 					<div class="fanfic-form-field" data-field-type="radio">
 						<label>
 							<?php esc_html_e( 'Chapter Type', 'fanfiction-manager' ); ?>
 							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
 						</label>
 						<div class="fanfic-radio-group">
-							<label class="fanfic-radio-label">
+							<label class="fanfic-radio-label<?php echo $has_prologue ? ' disabled' : ''; ?>">
 								<input
 									type="radio"
 									name="fanfic_chapter_type"
+									id="fanfic_chapter_type_prologue"
 									value="prologue"
+									class="fanfic-chapter-type-input"
 									<?php checked( isset( $_POST['fanfic_chapter_type'] ) && 'prologue' === $_POST['fanfic_chapter_type'] ); ?>
+									<?php disabled( $has_prologue ); ?>
 								/>
 								<?php esc_html_e( 'Prologue', 'fanfiction-manager' ); ?>
+								<?php if ( $has_prologue ) : ?>
+									<span class="fanfic-field-note"><?php esc_html_e( '(already exists)', 'fanfiction-manager' ); ?></span>
+								<?php endif; ?>
 							</label>
 							<label class="fanfic-radio-label">
 								<input
 									type="radio"
 									name="fanfic_chapter_type"
+									id="fanfic_chapter_type_chapter"
 									value="chapter"
+									class="fanfic-chapter-type-input"
 									<?php checked( ! isset( $_POST['fanfic_chapter_type'] ) || 'chapter' === $_POST['fanfic_chapter_type'] ); ?>
 								/>
 								<?php esc_html_e( 'Chapter', 'fanfiction-manager' ); ?>
 							</label>
-							<label class="fanfic-radio-label">
+							<label class="fanfic-radio-label<?php echo $has_epilogue ? ' disabled' : ''; ?>">
 								<input
 									type="radio"
 									name="fanfic_chapter_type"
+									id="fanfic_chapter_type_epilogue"
 									value="epilogue"
+									class="fanfic-chapter-type-input"
 									<?php checked( isset( $_POST['fanfic_chapter_type'] ) && 'epilogue' === $_POST['fanfic_chapter_type'] ); ?>
+									<?php disabled( $has_epilogue ); ?>
 								/>
 								<?php esc_html_e( 'Epilogue', 'fanfiction-manager' ); ?>
+								<?php if ( $has_epilogue ) : ?>
+									<span class="fanfic-field-note"><?php esc_html_e( '(already exists)', 'fanfiction-manager' ); ?></span>
+								<?php endif; ?>
 							</label>
 						</div>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Prologue and Epilogue numbers are automatically assigned. Only one of each is allowed per story.', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<div class="fanfic-form-field fanfic-chapter-number-field" data-field-type="number" style="<?php echo ( isset( $_POST['fanfic_chapter_type'] ) && 'chapter' === $_POST['fanfic_chapter_type'] ) || ! isset( $_POST['fanfic_chapter_type'] ) ? '' : 'display: none;'; ?>">
+						<label for="fanfic_chapter_number">
+							<?php esc_html_e( 'Chapter Number', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<input
+							type="number"
+							name="fanfic_chapter_number"
+							id="fanfic_chapter_number"
+							class="fanfic-input"
+							min="1"
+							max="999"
+							step="1"
+							value="<?php echo isset( $_POST['fanfic_chapter_number'] ) ? esc_attr( $_POST['fanfic_chapter_number'] ) : ( ! empty( $available_numbers ) ? esc_attr( $available_numbers[0] ) : '1' ); ?>"
+						/>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Enter the chapter number or use the default (lowest available).', 'fanfiction-manager' ); ?></p>
 					</div>
 
 					<div class="fanfic-form-field" data-field-type="text">
@@ -924,6 +939,40 @@ class Fanfic_Shortcodes_Author_Forms {
 					</a>
 				</div>
 			</form>
+
+			<!-- Chapter Type Toggle Script -->
+			<script>
+			(function() {
+				document.addEventListener('DOMContentLoaded', function() {
+					var chapterTypeInputs = document.querySelectorAll('.fanfic-chapter-type-input');
+					var chapterNumberField = document.querySelector('.fanfic-chapter-number-field');
+					var chapterNumberInput = document.getElementById('fanfic_chapter_number');
+
+					function toggleChapterNumberField() {
+						var selectedType = document.querySelector('.fanfic-chapter-type-input:checked');
+						if (selectedType && selectedType.value === 'chapter') {
+							chapterNumberField.style.display = '';
+							if (chapterNumberInput) {
+								chapterNumberInput.removeAttribute('disabled');
+							}
+						} else {
+							chapterNumberField.style.display = 'none';
+							if (chapterNumberInput) {
+								chapterNumberInput.setAttribute('disabled', 'disabled');
+							}
+						}
+					}
+
+					// Add change event listener to all chapter type radio buttons
+					chapterTypeInputs.forEach(function(input) {
+						input.addEventListener('change', toggleChapterNumberField);
+					});
+
+					// Initialize on page load
+					toggleChapterNumberField();
+				});
+			})();
+			</script>
 		</div>
 		<?php
 		return ob_get_clean();
@@ -994,6 +1043,10 @@ class Fanfic_Shortcodes_Author_Forms {
 		// Get available chapter numbers (including current)
 		$available_numbers = self::get_available_chapter_numbers( $story->ID, $chapter_id );
 
+		// Check if prologue or epilogue already exist (excluding current chapter)
+		$has_prologue = self::story_has_prologue( $story->ID, $chapter_id );
+		$has_epilogue = self::story_has_epilogue( $story->ID, $chapter_id );
+
 		// Check for success/error messages
 		$message = '';
 		if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {
@@ -1032,65 +1085,73 @@ class Fanfic_Shortcodes_Author_Forms {
 				<div class="fanfic-form-section">
 					<h3><?php esc_html_e( 'Chapter Details', 'fanfiction-manager' ); ?></h3>
 
-					<div class="fanfic-form-field" data-field-type="select">
-						<label for="fanfic_chapter_number">
-							<?php esc_html_e( 'Chapter Number', 'fanfiction-manager' ); ?>
-							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
-						</label>
-						<select
-							name="fanfic_chapter_number"
-							id="fanfic_chapter_number"
-							class="fanfic-select"
-							required
-							aria-required="true"
-						>
-							<?php foreach ( $available_numbers as $number ) : ?>
-								<?php
-								$is_selected = isset( $_POST['fanfic_chapter_number'] )
-									? $_POST['fanfic_chapter_number'] == $number
-									: $chapter_number == $number;
-								?>
-								<option value="<?php echo esc_attr( $number ); ?>" <?php selected( $is_selected ); ?>>
-									<?php echo esc_html( $number ); ?>
-								</option>
-							<?php endforeach; ?>
-						</select>
-					</div>
-
 					<div class="fanfic-form-field" data-field-type="radio">
 						<label>
 							<?php esc_html_e( 'Chapter Type', 'fanfiction-manager' ); ?>
 							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
 						</label>
 						<div class="fanfic-radio-group">
-							<label class="fanfic-radio-label">
+							<label class="fanfic-radio-label<?php echo ( $has_prologue && 'prologue' !== $chapter_type ) ? ' disabled' : ''; ?>">
 								<input
 									type="radio"
 									name="fanfic_chapter_type"
+									id="fanfic_edit_chapter_type_prologue"
 									value="prologue"
+									class="fanfic-chapter-type-input"
 									<?php checked( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'prologue' : $chapter_type === 'prologue' ); ?>
+									<?php disabled( $has_prologue && 'prologue' !== $chapter_type ); ?>
 								/>
 								<?php esc_html_e( 'Prologue', 'fanfiction-manager' ); ?>
+								<?php if ( $has_prologue && 'prologue' !== $chapter_type ) : ?>
+									<span class="fanfic-field-note"><?php esc_html_e( '(already exists)', 'fanfiction-manager' ); ?></span>
+								<?php endif; ?>
 							</label>
 							<label class="fanfic-radio-label">
 								<input
 									type="radio"
 									name="fanfic_chapter_type"
+									id="fanfic_edit_chapter_type_chapter"
 									value="chapter"
+									class="fanfic-chapter-type-input"
 									<?php checked( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'chapter' : $chapter_type === 'chapter' ); ?>
 								/>
 								<?php esc_html_e( 'Chapter', 'fanfiction-manager' ); ?>
 							</label>
-							<label class="fanfic-radio-label">
+							<label class="fanfic-radio-label<?php echo ( $has_epilogue && 'epilogue' !== $chapter_type ) ? ' disabled' : ''; ?>">
 								<input
 									type="radio"
 									name="fanfic_chapter_type"
+									id="fanfic_edit_chapter_type_epilogue"
 									value="epilogue"
+									class="fanfic-chapter-type-input"
 									<?php checked( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'epilogue' : $chapter_type === 'epilogue' ); ?>
+									<?php disabled( $has_epilogue && 'epilogue' !== $chapter_type ); ?>
 								/>
 								<?php esc_html_e( 'Epilogue', 'fanfiction-manager' ); ?>
+								<?php if ( $has_epilogue && 'epilogue' !== $chapter_type ) : ?>
+									<span class="fanfic-field-note"><?php esc_html_e( '(already exists)', 'fanfiction-manager' ); ?></span>
+								<?php endif; ?>
 							</label>
 						</div>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Prologue and Epilogue numbers are automatically assigned. Only one of each is allowed per story.', 'fanfiction-manager' ); ?></p>
+					</div>
+
+					<div class="fanfic-form-field fanfic-chapter-number-field" data-field-type="number" style="<?php echo ( isset( $_POST['fanfic_chapter_type'] ) ? $_POST['fanfic_chapter_type'] === 'chapter' : $chapter_type === 'chapter' ) ? '' : 'display: none;'; ?>">
+						<label for="fanfic_chapter_number">
+							<?php esc_html_e( 'Chapter Number', 'fanfiction-manager' ); ?>
+							<span class="required" aria-label="<?php esc_attr_e( 'required', 'fanfiction-manager' ); ?>">*</span>
+						</label>
+						<input
+							type="number"
+							name="fanfic_chapter_number"
+							id="fanfic_chapter_number"
+							class="fanfic-input"
+							min="1"
+							max="999"
+							step="1"
+							value="<?php echo isset( $_POST['fanfic_chapter_number'] ) ? esc_attr( $_POST['fanfic_chapter_number'] ) : esc_attr( $chapter_number ? $chapter_number : ( ! empty( $available_numbers ) ? $available_numbers[0] : '1' ) ); ?>"
+						/>
+						<p class="fanfic-field-description"><?php esc_html_e( 'Enter the chapter number or use the default (lowest available).', 'fanfiction-manager' ); ?></p>
 					</div>
 
 					<div class="fanfic-form-field" data-field-type="text">
@@ -1139,6 +1200,40 @@ class Fanfic_Shortcodes_Author_Forms {
 					</a>
 				</div>
 			</form>
+
+			<!-- Chapter Type Toggle Script -->
+			<script>
+			(function() {
+				document.addEventListener('DOMContentLoaded', function() {
+					var chapterTypeInputs = document.querySelectorAll('.fanfic-chapter-type-input');
+					var chapterNumberField = document.querySelector('.fanfic-chapter-number-field');
+					var chapterNumberInput = document.getElementById('fanfic_chapter_number');
+
+					function toggleChapterNumberField() {
+						var selectedType = document.querySelector('.fanfic-chapter-type-input:checked');
+						if (selectedType && selectedType.value === 'chapter') {
+							chapterNumberField.style.display = '';
+							if (chapterNumberInput) {
+								chapterNumberInput.removeAttribute('disabled');
+							}
+						} else {
+							chapterNumberField.style.display = 'none';
+							if (chapterNumberInput) {
+								chapterNumberInput.setAttribute('disabled', 'disabled');
+							}
+						}
+					}
+
+					// Add change event listener to all chapter type radio buttons
+					chapterTypeInputs.forEach(function(input) {
+						input.addEventListener('change', toggleChapterNumberField);
+					});
+
+					// Initialize on page load
+					toggleChapterNumberField();
+				});
+			})();
+			</script>
 		</div>
 		<?php
 		return ob_get_clean();
@@ -1556,13 +1651,32 @@ class Fanfic_Shortcodes_Author_Forms {
 		$errors = array();
 
 		// Get and sanitize form data
-		$chapter_number = isset( $_POST['fanfic_chapter_number'] ) ? absint( $_POST['fanfic_chapter_number'] ) : 0;
 		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
 		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
 		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
 
+		// Validate chapter type restrictions
+		if ( 'prologue' === $chapter_type && self::story_has_prologue( $story_id ) ) {
+			$errors[] = __( 'This story already has a prologue. Only one prologue is allowed per story.', 'fanfiction-manager' );
+		}
+
+		if ( 'epilogue' === $chapter_type && self::story_has_epilogue( $story_id ) ) {
+			$errors[] = __( 'This story already has an epilogue. Only one epilogue is allowed per story.', 'fanfiction-manager' );
+		}
+
+		// Auto-calculate chapter number based on type
+		$chapter_number = 0;
+		if ( 'prologue' === $chapter_type ) {
+			$chapter_number = self::get_next_prologue_number( $story_id );
+		} elseif ( 'epilogue' === $chapter_type ) {
+			$chapter_number = self::get_next_epilogue_number( $story_id );
+		} else {
+			// For regular chapters, get from form input
+			$chapter_number = isset( $_POST['fanfic_chapter_number'] ) ? absint( $_POST['fanfic_chapter_number'] ) : 0;
+		}
+
 		// Validate
-		if ( ! $chapter_number ) {
+		if ( 'chapter' === $chapter_type && ! $chapter_number ) {
 			$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
 		}
 
@@ -1655,13 +1769,51 @@ class Fanfic_Shortcodes_Author_Forms {
 		$errors = array();
 
 		// Get and sanitize form data
-		$chapter_number = isset( $_POST['fanfic_chapter_number'] ) ? absint( $_POST['fanfic_chapter_number'] ) : 0;
 		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
 		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
 		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
 
+		// Get story ID from chapter
+		$story_id = $chapter->post_parent;
+
+		// Get current chapter type
+		$old_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+		if ( empty( $old_type ) ) {
+			$old_type = 'chapter';
+		}
+
+		// Validate chapter type restrictions when changing type
+		if ( 'prologue' === $chapter_type && 'prologue' !== $old_type && self::story_has_prologue( $story_id, $chapter_id ) ) {
+			$errors[] = __( 'This story already has a prologue. Only one prologue is allowed per story.', 'fanfiction-manager' );
+		}
+
+		if ( 'epilogue' === $chapter_type && 'epilogue' !== $old_type && self::story_has_epilogue( $story_id, $chapter_id ) ) {
+			$errors[] = __( 'This story already has an epilogue. Only one epilogue is allowed per story.', 'fanfiction-manager' );
+		}
+
+		// Auto-calculate chapter number based on type
+		$chapter_number = 0;
+		if ( 'prologue' === $chapter_type ) {
+			// When editing, preserve the existing prologue number if it was already a prologue
+			if ( 'prologue' === $old_type ) {
+				$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+			} else {
+				$chapter_number = self::get_next_prologue_number( $story_id );
+			}
+		} elseif ( 'epilogue' === $chapter_type ) {
+			// When editing, preserve the existing epilogue number if it was already an epilogue
+			if ( 'epilogue' === $old_type ) {
+				$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+			} else {
+				$chapter_number = self::get_next_epilogue_number( $story_id );
+			}
+		} else {
+			// For regular chapters, get from form input
+			$chapter_number = isset( $_POST['fanfic_chapter_number'] ) ? absint( $_POST['fanfic_chapter_number'] ) : 0;
+		}
+
 		// Validate
-		if ( ! $chapter_number ) {
+		if ( 'chapter' === $chapter_type && ! $chapter_number ) {
 			$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
 		}
 
@@ -2011,6 +2163,121 @@ class Fanfic_Shortcodes_Author_Forms {
 		}
 
 		return $available_numbers;
+	}
+
+	/**
+	 * Get prologue number for a story
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @return int Prologue number (always 0).
+	 */
+	private static function get_next_prologue_number( $story_id ) {
+		// Prologue is always number 0
+		return 0;
+	}
+
+	/**
+	 * Get epilogue number for a story
+	 *
+	 * Epilogues start from 1000. If there's a conflict with an existing chapter
+	 * (e.g., a story with 1000+ chapters), the epilogue number is incremented
+	 * until a free number is found.
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @return int Epilogue number (1000 or higher if conflict exists).
+	 */
+	private static function get_next_epilogue_number( $story_id ) {
+		// Get all existing chapter numbers
+		$args = array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		);
+
+		$chapters = get_posts( $args );
+
+		// Get used chapter numbers
+		$used_numbers = array();
+		foreach ( $chapters as $chapter_id ) {
+			$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+			if ( $chapter_number ) {
+				$used_numbers[] = absint( $chapter_number );
+			}
+		}
+
+		// Start from 1000 and find the first available number
+		$epilogue_number = 1000;
+		while ( in_array( $epilogue_number, $used_numbers ) ) {
+			$epilogue_number++;
+		}
+
+		return $epilogue_number;
+	}
+
+	/**
+	 * Check if a story already has a prologue
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @param int $exclude_chapter_id Optional. Chapter ID to exclude (for editing).
+	 * @return bool True if prologue exists, false otherwise.
+	 */
+	private static function story_has_prologue( $story_id, $exclude_chapter_id = 0 ) {
+		$args = array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => array(
+				array(
+					'key'   => '_fanfic_chapter_type',
+					'value' => 'prologue',
+				),
+			),
+		);
+
+		if ( $exclude_chapter_id ) {
+			$args['post__not_in'] = array( $exclude_chapter_id );
+		}
+
+		$prologues = get_posts( $args );
+		return ! empty( $prologues );
+	}
+
+	/**
+	 * Check if a story already has an epilogue
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @param int $exclude_chapter_id Optional. Chapter ID to exclude (for editing).
+	 * @return bool True if epilogue exists, false otherwise.
+	 */
+	private static function story_has_epilogue( $story_id, $exclude_chapter_id = 0 ) {
+		$args = array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => array(
+				array(
+					'key'   => '_fanfic_chapter_type',
+					'value' => 'epilogue',
+				),
+			),
+		);
+
+		if ( $exclude_chapter_id ) {
+			$args['post__not_in'] = array( $exclude_chapter_id );
+		}
+
+		$epilogues = get_posts( $args );
+		return ! empty( $epilogues );
 	}
 
 	/**
