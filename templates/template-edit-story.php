@@ -443,8 +443,14 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 
 		// Show modal if show_publish_prompt parameter is present
 		var urlParams = new URLSearchParams(window.location.search);
+		console.log('URL Params:', window.location.search);
+		console.log('show_publish_prompt value:', urlParams.get('show_publish_prompt'));
+		console.log('publishModal element:', publishModal);
 		if (urlParams.get('show_publish_prompt') === '1' && publishModal) {
 			publishModal.style.display = 'block';
+			console.log('Showing publish prompt modal');
+		} else {
+			console.log('NOT showing modal. Param:', urlParams.get('show_publish_prompt'), 'Modal:', publishModal);
 		}
 
 		// Handle "Keep as Draft" button
