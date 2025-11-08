@@ -53,9 +53,9 @@ class Fanfic_Shortcodes_Author_Forms {
 		// Register AJAX handlers for logged-in users
 		add_action( 'wp_ajax_fanfic_create_story', array( __CLASS__, 'ajax_create_story' ) );
 		add_action( 'wp_ajax_fanfic_edit_story', array( __CLASS__, 'ajax_edit_story' ) );
-		add_action( 'wp_ajax_fanfic_create_chapter', array( __CLASS__, 'ajax_create_chapter' ) );
-		add_action( 'wp_ajax_fanfic_edit_chapter', array( __CLASS__, 'ajax_edit_chapter' ) );
-		add_action( 'wp_ajax_fanfic_edit_profile', array( __CLASS__, 'ajax_edit_profile' ) );
+		add_action( 'wp_ajax_fanfic_create_chapter', array( __CLASS__, 'handle_create_chapter_submission' ) );
+		add_action( 'wp_ajax_fanfic_edit_chapter', array( __CLASS__, 'handle_edit_chapter_submission' ) );
+		add_action( 'wp_ajax_fanfic_edit_profile', array( __CLASS__, 'handle_edit_profile_submission' ) );
 	}
 
 	/**
