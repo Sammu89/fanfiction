@@ -2230,6 +2230,32 @@ class Fanfic_Shortcodes_Author_Forms {
 
 		// Check if chapter exists
 		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+			wp_send_json_error( array( 'message' => __( 'Chapter not found.', 'fanfiction-manager' ) ) );
+		}
+
+		// Get the story to check permissions
+		$story = get_post( $chapter->post_parent );
+		if ( ! $story ) {
+			wp_send_json_error( array( 'message' => __( 'Parent story not found.', 'fanfiction-manager' ) ) );
+		}
+
+		// Check permissions - must be author or have delete_others_posts capability
+		if ( $story->post_author != $current_user->ID && ! current_user_can( 'delete_others_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to delete this chapter.', 'fanfiction-manager' ) ) );
+		}
+
+		// Delete the chapter
+		$result = wp_delete_post( $chapter_id, true );
+
+		if ( $result ) {
+			wp_send_json_success( array(
+				'message' => __( 'Chapter deleted successfully.', 'fanfiction-manager' ),
+				'chapter_id' => $chapter_id
+			) );
+		} else {
+			wp_send_json_error( array( 'message' => __( 'Failed to delete chapter.', 'fanfiction-manager' ) ) );
+		}
+	}
 
 	/**
 	 * AJAX handler for publishing a story
@@ -2281,32 +2307,6 @@ class Fanfic_Shortcodes_Author_Forms {
 			'message' => __( 'Story published successfully.', 'fanfiction-manager' ),
 			'story_id' => $story_id
 		) );
-	}
-			wp_send_json_error( array( 'message' => __( 'Chapter not found.', 'fanfiction-manager' ) ) );
-		}
-
-		// Get the story to check permissions
-		$story = get_post( $chapter->post_parent );
-		if ( ! $story ) {
-			wp_send_json_error( array( 'message' => __( 'Parent story not found.', 'fanfiction-manager' ) ) );
-		}
-
-		// Check permissions - must be author or have delete_others_posts capability
-		if ( $story->post_author != $current_user->ID && ! current_user_can( 'delete_others_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'You do not have permission to delete this chapter.', 'fanfiction-manager' ) ) );
-		}
-
-		// Delete the chapter
-		$result = wp_delete_post( $chapter_id, true );
-
-		if ( $result ) {
-			wp_send_json_success( array(
-				'message' => __( 'Chapter deleted successfully.', 'fanfiction-manager' ),
-				'chapter_id' => $chapter_id
-			) );
-		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to delete chapter.', 'fanfiction-manager' ) ) );
-		}
 	}
 
 	/**
