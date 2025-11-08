@@ -15,6 +15,120 @@
 // Security check - prevent direct access
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
+<style>
+.fanfic-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.fanfic-modal-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.6);
+	backdrop-filter: blur(5px);
+	-webkit-backdrop-filter: blur(5px);
+}
+
+.fanfic-modal-content {
+	position: relative;
+	background: #fff;
+	padding: 2rem;
+	border-radius: 8px;
+	max-width: 500px;
+	width: 90%;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+	z-index: 10000;
+}
+
+.fanfic-modal-content h2 {
+	margin-top: 0;
+	margin-bottom: 1rem;
+	font-size: 1.5rem;
+}
+
+.fanfic-modal-content p {
+	margin-bottom: 1.5rem;
+	line-height: 1.6;
+}
+
+.fanfic-modal-actions {
+	display: flex;
+	gap: 1rem;
+	justify-content: flex-end;
+}
+
+.fanfic-modal-actions button {
+	padding: 0.75rem 1.5rem;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 1rem;
+	transition: background-color 0.2s;
+}
+
+.fanfic-button-primary {
+	background-color: #0073aa;
+	color: #fff;
+}
+
+.fanfic-button-primary:hover:not(:disabled) {
+	background-color: #005a87;
+}
+
+.fanfic-button-primary:disabled {
+	background-color: #ccc;
+	cursor: not-allowed;
+}
+
+.fanfic-button-secondary {
+	background-color: #f0f0f0;
+	color: #333;
+}
+
+.fanfic-button-secondary:hover:not(:disabled) {
+	background-color: #ddd;
+}
+
+/* Status Badge Styles */
+.fanfic-status-badge {
+	display: inline-block;
+	padding: 0.25rem 0.75rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+	border-radius: 12px;
+	margin-left: 0.5rem;
+}
+
+.fanfic-status-publish {
+	background-color: #4caf50;
+	color: #fff;
+}
+
+.fanfic-status-draft {
+	background-color: #ff9800;
+	color: #fff;
+}
+
+.fanfic-status-pending {
+	background-color: #2196f3;
+	color: #fff;
+}
+
+.fanfic-status-private {
+	background-color: #9e9e9e;
+	color: #fff;
+}
+</style>
 }
 
 // Check if user is logged in
@@ -404,4 +518,81 @@ $page_description = $chapter_id
 
 </div>
 
+
+<!-- Chapter Form Change Detection and Button State Management -->
+<script>
+(function() {
+	document.addEventListener('DOMContentLoaded', function() {
+		var form = document.querySelector('.fanfic-create-chapter-form, .fanfic-edit-chapter-form');
+		if (!form) return;
+
+		var publishBtn = form.querySelector('button[name="fanfic_chapter_action"][value="publish"]');
+		var draftBtn = form.querySelector('button[name="fanfic_chapter_action"][value="draft"]');
+		
+		if (!publishBtn) return;
+
+		// Store original values
+		var originalValues = {};
+		var inputs = form.querySelectorAll('input[type="text"], input[type="number"], textarea, select, input[type="radio"]:checked');
+		inputs.forEach(function(input) {
+			if (input.type === 'radio') {
+				originalValues[input.name] = input.value;
+			} else {
+				originalValues[input.name] = input.value;
+			}
+		});
+
+		// Function to check if form has changes
+		function hasChanges() {
+			var changed = false;
+			inputs = form.querySelectorAll('input[type="text"], input[type="number"], textarea, select, input[type="radio"]:checked');
+			inputs.forEach(function(input) {
+				var currentValue;
+				if (input.type === 'radio') {
+					currentValue = input.value;
+				} else {
+					currentValue = input.value;
+				}
+				
+				if (originalValues[input.name] !== currentValue) {
+					changed = true;
+				}
+			});
+			return changed;
+		}
+
+		// Function to update button states
+		function updateButtonStates() {
+			var changed = hasChanges();
+			
+			// Save as Draft button is ALWAYS enabled (users can unpublish)
+			if (draftBtn) {
+				draftBtn.disabled = false;
+			}
+
+			if (changed) {
+				publishBtn.disabled = false;
+				publishBtn.textContent = '<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>';
+			} else {
+				publishBtn.disabled = true;
+				publishBtn.textContent = '<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>';
+				if (draftBtn) {
+					draftBtn.disabled = true;
+				}
+		// Update button states on initial load (for edit form)
+		if (form.classList.contains('fanfic-edit-chapter-form')) {
+			// On edit page, check if chapter is published
+			var chapterStatus = '<?php echo isset($chapter) ? $chapter->post_status : ""; ?>';
+			if (chapterStatus === 'publish') {
+				publishBtn.textContent = '<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>';
+			}
+			updateButtonStates();
+		}
+
+		// Listen for changes
+		form.addEventListener('input', updateButtonStates);
+		form.addEventListener('change', updateButtonStates);
+	});
+})();
+</script>
 

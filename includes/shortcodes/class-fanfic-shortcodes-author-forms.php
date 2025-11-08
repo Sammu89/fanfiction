@@ -49,6 +49,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_profile_submission' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_story' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_chapter' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'block_draft_story_chapter_access' ), 1 );
 
 		// Register AJAX handlers for logged-in users
 		add_action( 'wp_ajax_fanfic_create_story', array( __CLASS__, 'ajax_create_story' ) );
@@ -58,6 +59,12 @@ class Fanfic_Shortcodes_Author_Forms {
 		add_action( 'wp_ajax_fanfic_edit_profile', array( __CLASS__, 'handle_edit_profile_submission' ) );
 	add_action( 'wp_ajax_fanfic_delete_chapter', array( __CLASS__, 'ajax_delete_chapter' ) );
 	add_action( 'wp_ajax_fanfic_publish_story', array( __CLASS__, 'ajax_publish_story' ) );
+		add_action( 'wp_ajax_fanfic_check_last_chapter', array( __CLASS__, 'ajax_check_last_chapter' ) );
+
+		// Filter chapters by parent story status (hide chapters of draft stories on frontend)
+		add_action( 'pre_get_posts', array( __CLASS__, 'filter_chapters_by_story_status' ) );
+		add_filter( 'posts_join', array( __CLASS__, 'filter_chapters_join' ), 10, 2 );
+		add_filter( 'posts_where', array( __CLASS__, 'filter_chapters_where' ), 10, 2 );
 	}
 
 	/**
@@ -1981,6 +1988,35 @@ class Fanfic_Shortcodes_Author_Forms {
 			}
 		}
 
+		// Check if we're drafting the last published chapter/prologue
+		if ( 'draft' === $chapter_status && 'publish' === $old_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
+			// Count other published chapters/prologues (excluding this one)
+			$published_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story_id,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $chapter_id ),
+				'meta_query'     => array(
+					array(
+						'key'     => '_fanfic_chapter_type',
+						'value'   => array( 'prologue', 'chapter' ),
+						'compare' => 'IN',
+					),
+				),
+			) );
+
+			// If no other published chapters/prologues, auto-draft the story
+			if ( empty( $published_chapters ) ) {
+				wp_update_post( array(
+					'ID'          => $story_id,
+					'post_status' => 'draft',
+				) );
+				error_log( 'Auto-drafted story ' . $story_id . ' because last published chapter/prologue was drafted' );
+			}
+		}
+
 		// Redirect back with success message
 		$redirect_url = add_query_arg(
 			array(
@@ -2300,17 +2336,109 @@ class Fanfic_Shortcodes_Author_Forms {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to delete this chapter.', 'fanfiction-manager' ) ) );
 		}
 
+		// Get chapter type
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+
+		// Check if this is the last chapter/prologue (epilogues don't count)
+		$is_last_publishable_chapter = false;
+		if ( in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
+			// Count other chapters/prologues (exclude epilogues and the one being deleted)
+			$other_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story->ID,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $chapter_id ),
+				'meta_query'     => array(
+					array(
+						'key'     => '_fanfic_chapter_type',
+						'value'   => array( 'prologue', 'chapter' ),
+						'compare' => 'IN',
+					),
+				),
+			) );
+
+			if ( empty( $other_chapters ) ) {
+				$is_last_publishable_chapter = true;
+				
+				// Auto-draft the story
+				wp_update_post( array(
+					'ID'          => $story->ID,
+					'post_status' => 'draft',
+				) );
+				
+				error_log( 'Auto-drafted story ' . $story->ID . ' because last chapter/prologue was deleted' );
+			}
+		}
+
 		// Delete the chapter
 		$result = wp_delete_post( $chapter_id, true );
 
 		if ( $result ) {
 			wp_send_json_success( array(
 				'message' => __( 'Chapter deleted successfully.', 'fanfiction-manager' ),
-				'chapter_id' => $chapter_id
+				'chapter_id' => $chapter_id,
+				'story_auto_drafted' => $is_last_publishable_chapter,
 			) );
 		} else {
 			wp_send_json_error( array( 'message' => __( 'Failed to delete chapter.', 'fanfiction-manager' ) ) );
 		}
+	}
+
+	/**
+	 * AJAX handler to check if chapter is the last publishable one
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_check_last_chapter() {
+		// Verify nonce
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_delete_chapter' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
+		}
+
+		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
+
+		if ( ! $chapter_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid chapter ID.', 'fanfiction-manager' ) ) );
+		}
+
+		$chapter = get_post( $chapter_id );
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+			wp_send_json_error( array( 'message' => __( 'Chapter not found.', 'fanfiction-manager' ) ) );
+		}
+
+		// Get chapter type
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+		$is_last = false;
+
+		// Only check for prologue/chapter (epilogues don't count)
+		if ( in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
+			// Count other chapters/prologues
+			$other_chapters = get_posts( array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $chapter->post_parent,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => array( $chapter_id ),
+				'meta_query'     => array(
+					array(
+						'key'     => '_fanfic_chapter_type',
+						'value'   => array( 'prologue', 'chapter' ),
+						'compare' => 'IN',
+					),
+				),
+			) );
+
+			$is_last = empty( $other_chapters );
+		}
+
+		wp_send_json_success( array(
+			'is_last_chapter' => $is_last,
+			'chapter_type' => $chapter_type,
+		) );
 	}
 
 	/**
@@ -2791,4 +2919,122 @@ class Fanfic_Shortcodes_Author_Forms {
 			'message' => __( 'Profile updated successfully!', 'fanfiction-manager' )
 		) );
 	}
+
+	/**
+	 * Block direct URL access to chapters whose parent story is draft
+	 *
+	 * Prevents users from accessing chapters via direct URL when the parent story
+	 * is in draft status. Returns 404 error for such requests.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function block_draft_story_chapter_access() {
+		global $wp_query, $post;
+
+		// Only apply on singular chapter views
+		if ( ! is_singular( 'fanfiction_chapter' ) ) {
+			return;
+		}
+
+		// Get the chapter post
+		if ( ! $post || 'fanfiction_chapter' !== $post->post_type ) {
+			return;
+		}
+
+		// Get parent story ID
+		$story_id = $post->post_parent;
+		if ( ! $story_id ) {
+			return;
+		}
+
+		// Get parent story
+		$story = get_post( $story_id );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			return;
+		}
+
+		// If parent story is draft, trigger 404
+		if ( 'draft' === $story->post_status ) {
+			$wp_query->set_404();
+			status_header( 404 );
+			// WordPress will automatically load 404 template
+		}
+	}
+	/**
+	 * Filter chapters by parent story status
+	 *
+	 * Hides chapters whose parent story is in draft status from frontend queries.
+	 * This ensures that chapters are automatically hidden when their story is drafted
+	 * and automatically visible when the story is republished.
+	 *
+	 * Uses SQL JOIN for optimal performance instead of multiple get_posts() calls.
+	 *
+	 * @since 1.0.0
+	 * @param WP_Query $query The WordPress query object.
+	 * @return void
+	 */
+	public static function filter_chapters_by_story_status( $query ) {
+		// Only filter on frontend (not admin)
+		if ( is_admin() ) {
+			return;
+		}
+
+		// Only filter main queries for fanfiction_chapter post type
+		if ( ! $query->is_main_query() || $query->get( 'post_type' ) !== 'fanfiction_chapter' ) {
+			return;
+		}
+
+		// Set a flag so our JOIN and WHERE filters know to apply
+		$query->set( 'fanfic_filter_by_parent_status', true );
+	}
+
+	/**
+	 * Add JOIN clause to check parent story status
+	 *
+	 * Joins the posts table with itself to access parent post data.
+	 * Only applies when fanfic_filter_by_parent_status flag is set.
+	 *
+	 * @since 1.0.0
+	 * @param string   $join  The JOIN clause of the query.
+	 * @param WP_Query $query The WP_Query instance.
+	 * @return string Modified JOIN clause.
+	 */
+	public static function filter_chapters_join( $join, $query ) {
+		global $wpdb;
+
+		// Only apply if our flag is set
+		if ( ! $query->get( 'fanfic_filter_by_parent_status' ) ) {
+			return $join;
+		}
+
+		// JOIN with parent posts table to check parent status
+		$join .= " INNER JOIN {$wpdb->posts} AS parent_story ON {$wpdb->posts}.post_parent = parent_story.ID";
+
+		return $join;
+	}
+
+	/**
+	 * Add WHERE clause to exclude chapters with draft parent stories
+	 *
+	 * Filters out chapters whose parent story has post_status = 'draft'.
+	 * Only applies when fanfic_filter_by_parent_status flag is set.
+	 *
+	 * @since 1.0.0
+	 * @param string   $where The WHERE clause of the query.
+	 * @param WP_Query $query The WP_Query instance.
+	 * @return string Modified WHERE clause.
+	 */
+	public static function filter_chapters_where( $where, $query ) {
+		// Only apply if our flag is set
+		if ( ! $query->get( 'fanfic_filter_by_parent_status' ) ) {
+			return $where;
+		}
+
+		// Exclude chapters whose parent story is draft
+		$where .= " AND parent_story.post_status = 'publish'";
+
+		return $where;
+	}
+
 }
