@@ -46,7 +46,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 
 <a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
-<main id="fanfic-main-content" class="fanfic-main-content" role="main">
+
 
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
@@ -219,5 +219,5 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 })();
 </script>
 
-</main>
+
 </div>

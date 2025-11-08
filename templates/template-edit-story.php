@@ -78,9 +78,8 @@ $story = get_post( $story_id );
 $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-manager' );
 ?>
 
+<div class="fanfic-template-wrapper">
 <a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
-
-<main id="fanfic-main-content" class="fanfic-main-content" role="main">
 
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
@@ -364,4 +363,6 @@ $story_title = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-ma
 })();
 </script>
 
-</main>
+</div>
+
+

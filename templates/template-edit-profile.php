@@ -13,7 +13,7 @@ if ( ! is_user_logged_in() ) {
 
 <a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
-<main id="fanfic-main-content" class="fanfic-main-content" role="main">
+
 	<article class="fanfic-page-content">
 		<header class="fanfic-page-header">
 			<h1 class="fanfic-page-title"><?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?></h1>
@@ -29,5 +29,5 @@ if ( ! is_user_logged_in() ) {
 			<p><a href="[url-dashboard]"><?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?></a></p>
 		</nav>
 	</article>
-</main>
+
 </div>

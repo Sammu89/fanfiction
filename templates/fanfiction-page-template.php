@@ -2,7 +2,7 @@
 get_header();
 ?>
 <!-- Fanfic content -->
-<div id="primary" class="content-area fanfiction-page-content">
+<div id="primary" class="fanfiction-page-content">
 <?php
 // Check if we should show sidebar (from global option)
 $show_sidebar = get_option( 'fanfic_show_sidebar', '1' );
