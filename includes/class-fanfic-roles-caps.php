@@ -245,6 +245,15 @@ class Fanfic_Roles_Caps {
 	 * @return array Modified capabilities required.
 	 */
 	public static function map_meta_cap( $caps, $cap, $user_id, $args ) {
+		// Debug: Log ALL capability checks to understand what's being called
+		if ( strpos( $cap, 'fanfiction' ) !== false || $cap === 'edit_post' || $cap === 'read_post' ) {
+			error_log( '=== MAP_META_CAP CALLED ===' );
+			error_log( 'Capability: ' . $cap );
+			error_log( 'User ID: ' . $user_id );
+			error_log( 'Args: ' . print_r( $args, true ) );
+			error_log( 'Incoming $caps: ' . print_r( $caps, true ) );
+		}
+
 		// WordPress admins automatically have all fanfiction permissions (cascade system)
 		// Check if this is a fanfiction-related capability
 		$fanfic_caps = array(
