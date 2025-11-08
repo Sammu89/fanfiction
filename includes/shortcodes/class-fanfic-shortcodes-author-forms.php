@@ -1602,7 +1602,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
-		// Redirect to chapter using URL manager (not get_permalink which has placeholder issues)
+		// Build redirect URL using URL manager
 		$url_manager = Fanfic_URL_Manager::get_instance();
 		$chapter_url = $url_manager->get_chapter_url( $chapter_id );
 		$edit_url = add_query_arg(
@@ -1612,8 +1612,19 @@ class Fanfic_Shortcodes_Author_Forms {
 			),
 			$chapter_url
 		);
-		wp_redirect( $edit_url );
-		exit;
+
+		// Check if this is an AJAX request
+		if ( wp_doing_ajax() ) {
+			// Return JSON response for AJAX
+			wp_send_json_success( array(
+				'redirect' => $edit_url,
+				'chapter_id' => $chapter_id,
+			) );
+		} else {
+			// Regular form submission - redirect
+			wp_redirect( $edit_url );
+			exit;
+		}
 	}
 
 	/**
