@@ -109,16 +109,13 @@ $page_description = $chapter_id
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
 		<li class="fanfic-breadcrumb-item">
-			<a href="<?php echo esc_url( fanfic_get_main_url() ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
-		</li>
-		<li class="fanfic-breadcrumb-item">
 			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></a>
 		</li>
 		<li class="fanfic-breadcrumb-item">
 			<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>"><?php echo esc_html( $story_title ); ?></a>
 		</li>
 		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
-			<?php echo esc_html( $chapter_id ? __( 'Edit', 'fanfiction-manager' ) : __( 'Add Chapter', 'fanfiction-manager' ) ); ?>
+			<?php echo esc_html( $chapter_id ? __( 'Edit Chapter', 'fanfiction-manager' ) : __( 'Add Chapter', 'fanfiction-manager' ) ); ?>
 		</li>
 	</ol>
 </nav>
@@ -281,6 +278,21 @@ $page_description = $chapter_id
 	})();
 	</script>
 <?php endif; ?>
+
+<!-- Breadcrumb Navigation (Bottom) -->
+<nav class="fanfic-breadcrumb fanfic-breadcrumb-bottom" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
+	<ol class="fanfic-breadcrumb-list">
+		<li class="fanfic-breadcrumb-item">
+			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></a>
+		</li>
+		<li class="fanfic-breadcrumb-item">
+			<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>"><?php echo esc_html( $story_title ); ?></a>
+		</li>
+		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
+			<?php echo esc_html( $chapter_id ? __( 'Edit Chapter', 'fanfiction-manager' ) : __( 'Add Chapter', 'fanfiction-manager' ) ); ?>
+		</li>
+	</ol>
+</nav>
 
 </div>
 

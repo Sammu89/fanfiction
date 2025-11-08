@@ -54,9 +54,6 @@ $current_user = wp_get_current_user();
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
-		<li class="fanfic-breadcrumb-item">
-			<a href="<?php echo esc_url( fanfic_get_main_url() ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
-		</li>
 		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
 			<?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?>
 		</li>
@@ -227,6 +224,15 @@ $current_user = wp_get_current_user();
 		</section>
 	</aside>
 </div>
+
+<!-- Breadcrumb Navigation (Bottom) -->
+<nav class="fanfic-breadcrumb fanfic-breadcrumb-bottom" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
+	<ol class="fanfic-breadcrumb-list">
+		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
+			<?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?>
+		</li>
+	</ol>
+</nav>
 
 <!-- Inline Script for Notice Dismissal -->
 <script>
