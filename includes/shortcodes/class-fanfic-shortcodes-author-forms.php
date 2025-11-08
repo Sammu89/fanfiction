@@ -1712,7 +1712,6 @@ class Fanfic_Shortcodes_Author_Forms {
 		}
 
 		$current_user = wp_get_current_user();
-		error_log( 'Create chapter - Action: ' . $chapter_action . ', Status: ' . $chapter_status );
 		$story = get_post( $story_id );
 
 		// Check permissions
@@ -1725,6 +1724,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		// Get and sanitize form data
 		$chapter_action = isset( $_POST['fanfic_chapter_action'] ) ? sanitize_text_field( $_POST['fanfic_chapter_action'] ) : 'publish';
 		$chapter_status = ( 'draft' === $chapter_action ) ? 'draft' : 'publish';
+		error_log( 'Create chapter - Action: ' . $chapter_action . ', Status: ' . $chapter_status );
 		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
 		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
 		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
@@ -1820,23 +1820,29 @@ class Fanfic_Shortcodes_Author_Forms {
 		$edit_url = add_query_arg( 'action', 'edit', $story_url );
 
 		// Add parameter to show publication prompt if this is first chapter
+	error_log( 'Redirecting to: ' . $edit_url );
+
+	// Check if this is an AJAX request
+	if ( wp_doing_ajax() ) {
+		// Return JSON response for AJAX
+		$response_data = array(
+			'message' => __( 'Chapter saved successfully!', 'fanfiction-manager' ),
+			'chapter_id' => $chapter_id,
+			'chapter_status' => $chapter_status,
+		);
+
+		// Only include redirect if it's the first published chapter
 		if ( $is_first_published_chapter ) {
-		error_log( 'Redirecting to: ' . $edit_url );
-			$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
+			$response_data['show_publish_prompt'] = true;
+			$response_data['redirect_url'] = $edit_url;
 		}
 
-		// Check if this is an AJAX request
-		if ( wp_doing_ajax() ) {
-			// Return JSON response for AJAX
-			wp_send_json_success( array(
-				'redirect' => $edit_url,
-				'chapter_id' => $chapter_id,
-			) );
-		} else {
-			// Regular form submission - redirect
-			wp_redirect( $edit_url );
-			exit;
-		}
+		wp_send_json_success( $response_data );
+	} else {
+		// Regular form submission - redirect
+		wp_redirect( $edit_url );
+		exit;
+	}
 	}
 
 	/**
@@ -1995,8 +2001,28 @@ class Fanfic_Shortcodes_Author_Forms {
 			$redirect_url = add_query_arg( 'show_publish_prompt', '1', $redirect_url );
 		}
 		
-		wp_redirect( $redirect_url );
-		exit;
+
+		// Check if this is an AJAX request
+		if ( wp_doing_ajax() ) {
+			// Return JSON response for AJAX
+			$response_data = array(
+				'message' => __( 'Chapter updated successfully!', 'fanfiction-manager' ),
+				'chapter_id' => $chapter_id,
+				'chapter_status' => $chapter_status,
+			);
+
+			// Only include redirect if it's the first published chapter
+			if ( $is_first_published_chapter ) {
+				$response_data['show_publish_prompt'] = true;
+				$response_data['redirect_url'] = $redirect_url;
+			}
+
+			wp_send_json_success( $response_data );
+		} else {
+			// Regular form submission - redirect
+			wp_redirect( $redirect_url );
+			exit;
+		}
 	}
 
 	/**

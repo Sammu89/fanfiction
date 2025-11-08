@@ -266,11 +266,35 @@
 					console.log('AJAX Success:', response);
 					if (response.success) {
 						// Show success notification
-						Notice.show('success', response.message || 'Saved successfully!');
+						Notice.show('success', response.data.message || 'Saved successfully!');
 
-						// For profile form, don't redirect - just show success
-						if ($form.hasClass('fanfic-edit-profile-form')) {
-							// Scroll to top to see notification
+						// For chapter forms, update button state without redirecting
+						if ($form.hasClass('fanfic-create-chapter-form') || $form.hasClass('fanfic-edit-chapter-form')) {
+							// Check if this is the first published chapter
+							if (response.data && response.data.show_publish_prompt) {
+								// Redirect to show the publication prompt modal
+								setTimeout(() => {
+									window.location.href = response.data.redirect_url;
+								}, 1000);
+							} else {
+								// Just update the UI without redirecting
+								$submitBtn.prop('disabled', false);
+
+								// Update button text based on action
+								const publishedBtn = $form.find('[name="fanfic_chapter_action"][value="publish"]');
+								const draftBtn = $form.find('[name="fanfic_chapter_action"][value="draft"]');
+
+								// If chapter was published, update button text
+								if ($submitBtn.attr('value') === 'publish') {
+									publishedBtn.text('Update & Keep Published');
+								}
+
+								// Scroll to top to see notification
+								$('html, body').animate({ scrollTop: 0 }, 300);
+							}
+						} else if ($form.hasClass('fanfic-edit-profile-form')) {
+							// For profile form, don't redirect - just show success
+							$submitBtn.prop('disabled', false);
 							$('html, body').animate({ scrollTop: 0 }, 300);
 						} else if (response.data && response.data.redirect_url) {
 							// For other forms, redirect after showing message
@@ -279,7 +303,8 @@
 							}, 1500);
 						}
 					} else {
-						Notice.show('error', response.message || 'An error occurred.');
+						Notice.show('error', response.data.message || 'An error occurred.');
+						$submitBtn.prop('disabled', false).text('Save');
 					}
 				},
 				error: (xhr, status, error) => {
