@@ -559,35 +559,12 @@ class Fanfic_Chapter_Handler {
 			wp_send_json_error( array( 'message' => __( 'Chapter not found.', 'fanfiction-manager' ) ) );
 		}
 
-		// Get chapter type
-		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
-		$is_last = false;
-
-		// Only check for prologue/chapter (epilogues don't count)
-		if ( in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-			// Count other PUBLISHED chapters/prologues
-			$other_chapters = get_posts( array(
-				'post_type'      => 'fanfiction_chapter',
-				'post_parent'    => $chapter->post_parent,
-				'post_status'    => 'publish',  // Only count published chapters
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'post__not_in'   => array( $chapter_id ),
-				'meta_query'     => array(
-					array(
-						'key'     => '_fanfic_chapter_type',
-						'value'   => array( 'prologue', 'chapter' ),
-						'compare' => 'IN',
-					),
-				),
-			) );
-
-			$is_last = empty( $other_chapters );
-		}
+		// Use centralized function to check if removing this chapter will auto-draft the story
+		$will_auto_draft = Fanfic_Validation::will_story_auto_draft_if_chapter_removed( $chapter_id );
 
 		wp_send_json_success( array(
-			'is_last_chapter' => $is_last,
-			'chapter_type' => $chapter_type,
+			'is_last_chapter' => $will_auto_draft,
+			'chapter_type'    => get_post_meta( $chapter_id, '_fanfic_chapter_type', true ),
 		) );
 	}
 

@@ -480,4 +480,94 @@ class Fanfic_Validation {
 
 		return $output;
 	}
+
+	/**
+	 * Check if removing a specific chapter will cause the story to auto-draft.
+	 *
+	 * This centralizes the logic for determining whether deleting or unpublishing
+	 * a chapter will trigger auto-drafting of its parent story.
+	 *
+	 * @since 1.0.8
+	 * @param int $chapter_id The chapter post ID to check.
+	 * @return bool True if removing this chapter will auto-draft the story, false otherwise.
+	 */
+	public static function will_story_auto_draft_if_chapter_removed( $chapter_id ) {
+		$chapter = get_post( $chapter_id );
+
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+			return false;
+		}
+
+		$story = get_post( $chapter->post_parent );
+
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			return false;
+		}
+
+		// If story is already draft, no change will occur
+		if ( 'draft' === $story->post_status ) {
+			return false;
+		}
+
+		// Check chapter type - only chapters/prologues matter for auto-draft
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+
+		// Epilogues don't count - story can exist with only epilogues in draft
+		if ( ! in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
+			return false;
+		}
+
+		// If chapter is already draft, removing it won't change story status
+		if ( 'draft' === $chapter->post_status ) {
+			return false;
+		}
+
+		// Count OTHER published chapters/prologues (excluding this one)
+		$other_published_chapters = get_posts( array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story->ID,
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'post__not_in'   => array( $chapter_id ),
+			'meta_query'     => array(
+				array(
+					'key'     => '_fanfic_chapter_type',
+					'value'   => array( 'prologue', 'chapter' ),
+					'compare' => 'IN',
+				),
+			),
+		) );
+
+		// If no other published chapters/prologues exist, story will auto-draft
+		return empty( $other_published_chapters );
+	}
+
+	/**
+	 * Check if a story just became publishable after publishing a chapter.
+	 *
+	 * This checks if the story was previously in draft and is now valid
+	 * for publishing, typically called after publishing a chapter.
+	 *
+	 * @since 1.0.8
+	 * @param int $story_id The story post ID.
+	 * @return bool True if story was draft and is now publishable, false otherwise.
+	 */
+	public static function did_story_become_publishable( $story_id ) {
+		$story = get_post( $story_id );
+
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			return false;
+		}
+
+		// Only relevant if story is currently draft
+		if ( 'draft' !== $story->post_status ) {
+			return false;
+		}
+
+		// Check if story is now valid for publishing
+		$validation = self::can_publish_story( $story_id );
+
+		return $validation['can_publish'];
+	}
 }

@@ -818,17 +818,33 @@ if ( $is_edit_mode ) {
 				var buttonElement = this;
 				var rowElement = buttonElement.closest('tr');
 
-				// Check if this is the last published chapter
-				var confirmMessage = '<?php esc_html_e( 'Are you sure you want to unpublish', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?';
+				// Check if this is the last chapter via AJAX
+				var checkFormData = new FormData();
+				checkFormData.append('action', 'fanfic_check_last_chapter');
+				checkFormData.append('chapter_id', chapterId);
+				checkFormData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_check_last_chapter' ); ?>');
 
-				// Count published chapters to check if this is the last one
-				var publishedCount = document.querySelectorAll('.fanfic-status-publish').length;
-				if (publishedCount === 1) {
-					confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last published chapter/prologue. Unpublishing it will automatically hide your story from readers (Draft status).', 'fanfiction-manager' ); ?>';
-				}
+				fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+					method: 'POST',
+					credentials: 'same-origin',
+					body: checkFormData
+				})
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(checkData) {
+					var confirmMessage = '<?php esc_html_e( 'Are you sure you want to unpublish', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?';
 
-				if (confirm(confirmMessage)) {
-					// Disable button to prevent double-clicks
+					// If this is the last chapter, add warning
+					if (checkData.success && checkData.data.is_last_chapter) {
+						confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last published chapter/prologue. Unpublishing it will automatically hide your story from readers (Draft status).', 'fanfiction-manager' ); ?>';
+					}
+
+					if (!confirm(confirmMessage)) {
+						return; // User cancelled
+					}
+
+					// User confirmed - proceed with unpublish
 					buttonElement.disabled = true;
 					buttonElement.textContent = '<?php esc_html_e( 'Unpublishing...', 'fanfiction-manager' ); ?>';
 
@@ -849,7 +865,11 @@ if ( $is_edit_mode ) {
 					})
 					.then(function(data) {
 						if (data.success) {
-							// Reload page to show updated chapter status and auto-draft warning if needed
+							// Show alert if story was auto-drafted
+							if (data.data.story_auto_drafted) {
+								alert('<?php esc_html_e( 'Chapter unpublished. Your story has been set to DRAFT because it no longer has any published chapters or prologues.', 'fanfiction-manager' ); ?>');
+							}
+							// Reload page to show updated status
 							location.reload();
 						} else {
 							// Re-enable button and show error
@@ -865,7 +885,42 @@ if ( $is_edit_mode ) {
 						alert('<?php esc_html_e( 'An error occurred while unpublishing the chapter.', 'fanfiction-manager' ); ?>');
 						console.error('Error:', error);
 					});
-				}
+				})
+				.catch(function(error) {
+					console.error('Error checking last chapter:', error);
+					// Fall back to simple confirmation
+					if (confirm('<?php esc_html_e( 'Are you sure you want to unpublish', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?')) {
+						// Proceed with unpublish even if check failed
+						buttonElement.disabled = true;
+						buttonElement.textContent = '<?php esc_html_e( 'Unpublishing...', 'fanfiction-manager' ); ?>';
+
+						var formData = new FormData();
+						formData.append('action', 'fanfic_unpublish_chapter');
+						formData.append('chapter_id', chapterId);
+						formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_unpublish_chapter' ); ?>');
+
+						fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+							method: 'POST',
+							credentials: 'same-origin',
+							body: formData
+						})
+						.then(function(response) {
+							return response.json();
+						})
+						.then(function(data) {
+							if (data.success) {
+								if (data.data.story_auto_drafted) {
+									alert('<?php esc_html_e( 'Chapter unpublished. Your story has been set to DRAFT because it no longer has any published chapters or prologues.', 'fanfiction-manager' ); ?>');
+								}
+								location.reload();
+							} else {
+								buttonElement.disabled = false;
+								buttonElement.textContent = '<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>';
+								alert(data.data.message || '<?php esc_html_e( 'Failed to unpublish chapter.', 'fanfiction-manager' ); ?>');
+							}
+						});
+					}
+				});
 			});
 		});
 
@@ -900,8 +955,15 @@ if ( $is_edit_mode ) {
 				})
 				.then(function(data) {
 					if (data.success) {
-						// Reload page to show updated chapter status
-						location.reload();
+						// Check if story became publishable
+						if (data.data.story_became_publishable) {
+							// Redirect to same page with publish prompt parameter
+							var currentUrl = window.location.href.split('?')[0];
+							window.location.href = currentUrl + '?show_publish_prompt=1';
+						} else {
+							// Just reload to show updated chapter status
+							location.reload();
+						}
 					} else {
 						// Re-enable button and show error
 						buttonElement.disabled = false;

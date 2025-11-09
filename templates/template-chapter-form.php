@@ -960,12 +960,43 @@ $page_description = $is_edit_mode
 
 			if (deleteChapterButton) {
 				deleteChapterButton.addEventListener('click', function() {
-					var confirmed = confirm('<?php echo esc_js( __( 'Once you delete a chapter, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ) ); ?>');
-					if (confirmed) {
-						var chapterId = this.getAttribute('data-chapter-id');
-						var storyId = this.getAttribute('data-story-id');
-						window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url() ); ?>?story_id=' + storyId + '&chapter_deleted=1&chapter_id=' + chapterId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_chapter' ) ); ?>';
-					}
+					var chapterId = this.getAttribute('data-chapter-id');
+					var storyId = this.getAttribute('data-story-id');
+					var chapterTitle = this.getAttribute('data-chapter-title');
+
+					// Check if this is the last chapter via AJAX
+					var formData = new FormData();
+					formData.append('action', 'fanfic_check_last_chapter');
+					formData.append('chapter_id', chapterId);
+					formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_check_last_chapter' ); ?>');
+
+					fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+						method: 'POST',
+						credentials: 'same-origin',
+						body: formData
+					})
+					.then(function(response) {
+						return response.json();
+					})
+					.then(function(data) {
+						var confirmMessage = '<?php echo esc_js( __( 'Once you delete a chapter, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ) ); ?>';
+
+						// If this is the last chapter, add warning about auto-draft
+						if (data.success && data.data.is_last_chapter) {
+							confirmMessage = '<?php echo esc_js( __( 'WARNING: This is your last chapter/prologue. Deleting it will automatically set your story to DRAFT status, making it invisible to readers.', 'fanfiction-manager' ) ); ?>\n\n' + confirmMessage;
+						}
+
+						if (confirm(confirmMessage)) {
+							window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url() ); ?>?story_id=' + storyId + '&chapter_deleted=1&chapter_id=' + chapterId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_chapter' ) ); ?>';
+						}
+					})
+					.catch(function(error) {
+						console.error('Error checking last chapter:', error);
+						// Fall back to simple confirmation
+						if (confirm('<?php echo esc_js( __( 'Once you delete a chapter, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ) ); ?>')) {
+							window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url() ); ?>?story_id=' + storyId + '&chapter_deleted=1&chapter_id=' + chapterId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_chapter' ) ); ?>';
+						}
+					});
 				});
 			}
 

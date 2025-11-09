@@ -82,6 +82,9 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Only published chapters can be unpublished.', 'fanfiction-manager' ) ) );
 		}
 
+		// Check if story will auto-draft BEFORE unpublishing
+		$story_will_auto_draft = Fanfic_Validation::will_story_auto_draft_if_chapter_removed( $chapter_id );
+
 		// Update chapter status to draft
 		$result = wp_update_post( array(
 			'ID'          => $chapter_id,
@@ -92,30 +95,9 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Failed to unpublish chapter.', 'fanfiction-manager' ) ) );
 		}
 
-		// Check if story was auto-drafted
-		$story_was_auto_drafted = false;
-		if ( 'draft' === $story->post_status ) {
-			// Story is already draft, no change
-			$story_was_auto_drafted = false;
-		} else {
-			// Check if story still has published chapters
-			$published_chapters = get_posts( array(
-				'post_type'      => 'fanfiction_chapter',
-				'post_parent'    => $story->ID,
-				'post_status'    => 'publish',
-				'posts_per_page' => 1,
-				'fields'         => 'ids',
-			) );
-
-			if ( empty( $published_chapters ) ) {
-				// No published chapters left, story will be auto-drafted
-				$story_was_auto_drafted = true;
-			}
-		}
-
 		wp_send_json_success( array(
 			'message'               => __( 'Chapter unpublished.', 'fanfiction-manager' ),
-			'story_auto_drafted'    => $story_was_auto_drafted,
+			'story_auto_drafted'    => $story_will_auto_draft,
 			'story_id'              => $story->ID,
 			'story_title'           => $story->post_title,
 			'chapter_title'         => $chapter->post_title,
@@ -189,10 +171,15 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Failed to publish chapter.', 'fanfiction-manager' ) ) );
 		}
 
+		// Check if story just became publishable
+		$story_became_publishable = Fanfic_Validation::did_story_become_publishable( $story->ID );
+
 		wp_send_json_success( array(
-			'message'      => __( 'Chapter published successfully!', 'fanfiction-manager' ),
-			'chapter_url'  => get_permalink( $chapter_id ),
-			'chapter_id'   => $chapter_id,
+			'message'                  => __( 'Chapter published successfully!', 'fanfiction-manager' ),
+			'chapter_url'              => get_permalink( $chapter_id ),
+			'chapter_id'               => $chapter_id,
+			'story_became_publishable' => $story_became_publishable,
+			'story_id'                 => $story->ID,
 		) );
 	}
 
