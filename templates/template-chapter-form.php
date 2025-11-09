@@ -1071,17 +1071,22 @@ $page_description = $is_edit_mode
 						return response.json();
 					})
 					.then(function(data) {
+						console.log('AJAX response received:', data);
 						if (data.success && data.data.is_last_chapter) {
 							// This is the last chapter, show confirmation
-							var storyTitle = '<?php echo esc_js( $story->post_title ); ?>';
-							var confirmed = confirm('<?php esc_js( _e( 'Unpublishing this last chapter will auto-draft your story. Do you want to continue?', 'fanfiction-manager' ) ); ?>');
+							console.log('This IS the last chapter, showing confirmation');
+							var confirmed = confirm('<?php echo esc_js( __( 'Unpublishing this last chapter will auto-draft your story. Do you want to continue?', 'fanfiction-manager' ) ); ?>');
 
 							if (confirmed) {
+								console.log('User confirmed, submitting form');
 								unpublishConfirmed = true;
 								unpublishButton.click(); // Trigger the button click again
+							} else {
+								console.log('User cancelled');
 							}
 						} else {
 							// Not the last chapter, proceed normally
+							console.log('NOT the last chapter, proceeding without confirmation');
 							unpublishConfirmed = true;
 							unpublishButton.click();
 						}
@@ -1089,7 +1094,7 @@ $page_description = $is_edit_mode
 					.catch(function(error) {
 						console.error('Error checking last chapter:', error);
 						// If there's an error, ask for confirmation anyway
-						var confirmed = confirm('<?php esc_js( _e( 'Unpublishing this last chapter will auto-draft your story. Do you want to continue?', 'fanfiction-manager' ) ); ?>');
+						var confirmed = confirm('<?php echo esc_js( __( 'Unpublishing this last chapter will auto-draft your story. Do you want to continue?', 'fanfiction-manager' ) ); ?>');
 						if (confirmed) {
 							unpublishConfirmed = true;
 							unpublishButton.click();
@@ -1101,101 +1106,6 @@ $page_description = $is_edit_mode
 	})();
 	</script>
 <?php endif; ?>
-
-<!-- Unpublish Button Handler (outside edit mode check) -->
-<script>
-console.log('=== UNPUBLISH SCRIPT LOADING ===');
-(function() {
-	console.log('1. IIFE started');
-	// Wait for DOM to be ready
-	function setupUnpublishHandler() {
-		console.log('2. setupUnpublishHandler called, DOM readyState:', document.readyState);
-		var unpublishButton = document.getElementById('unpublish-chapter-btn');
-		console.log('3. Looking for unpublish button, found:', unpublishButton ? 'YES' : 'NO');
-		if (!unpublishButton) {
-			console.log('4a. Button not found, retrying in 100ms');
-			// Button not ready yet, retry in 100ms
-			setTimeout(setupUnpublishHandler, 100);
-			return;
-		}
-
-		console.log('4b. Button found! Setting up handler');
-		var chapterForm = document.querySelector('form');
-		console.log('5. Form found:', chapterForm ? 'YES' : 'NO');
-		var unpublishConfirmed = false;
-
-		unpublishButton.addEventListener('click', function(e) {
-			console.log('6. CLICK: Unpublish button clicked!');
-			if (unpublishConfirmed) {
-				console.log('7a. Already confirmed, allowing submission');
-				return;
-			}
-
-			console.log('7b. First click, preventing default');
-			e.preventDefault();
-
-			var chapterId = this.getAttribute('data-chapter-id');
-			var storyId = this.getAttribute('data-story-id');
-			console.log('8. Chapter ID:', chapterId, 'Story ID:', storyId);
-
-			// Check if this is the last published chapter
-			var formData = new FormData();
-			formData.append('action', 'fanfic_check_last_chapter');
-			formData.append('chapter_id', chapterId);
-			formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_check_last_chapter' ); ?>');
-
-			console.log('9. Sending AJAX request');
-			fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
-				method: 'POST',
-				credentials: 'same-origin',
-				body: formData
-			})
-			.then(function(response) {
-				console.log('10. AJAX response received, status:', response.status);
-				return response.json();
-			})
-			.then(function(data) {
-				console.log('11. AJAX data parsed:', data);
-				if (data.success && data.data.is_last_chapter) {
-					console.log('12a. This IS the last chapter!');
-					var confirmed = confirm('<?php esc_js( _e( 'Unpublishing this last chapter will auto-draft your story. Do you want to continue?', 'fanfiction-manager' ) ); ?>');
-
-					if (confirmed) {
-						console.log('12b. User confirmed');
-						unpublishConfirmed = true;
-						unpublishButton.click();
-					} else {
-						console.log('12c. User cancelled');
-					}
-				} else {
-					console.log('12d. NOT the last chapter, proceeding');
-					unpublishConfirmed = true;
-					unpublishButton.click();
-				}
-			})
-			.catch(function(error) {
-				console.error('13. AJAX ERROR:', error);
-				var confirmed = confirm('<?php esc_js( _e( 'Unpublishing this last chapter will auto-draft your story. Do you want to continue?', 'fanfiction-manager' ) ); ?>');
-				if (confirmed) {
-					unpublishConfirmed = true;
-					unpublishButton.click();
-				}
-			});
-		});
-	}
-
-	console.log('14. Checking document.readyState:', document.readyState);
-	// Start setup when DOM is ready
-	if (document.readyState === 'loading') {
-		console.log('15. DOM still loading, waiting for DOMContentLoaded');
-		document.addEventListener('DOMContentLoaded', setupUnpublishHandler);
-	} else {
-		console.log('15. DOM already loaded, calling setupUnpublishHandler immediately');
-		setupUnpublishHandler();
-	}
-})();
-console.log('=== UNPUBLISH SCRIPT LOADED ===');
-</script>
 
 <!-- Publish Story Prompt Modal -->
 <div id="publish-prompt-modal" class="fanfic-modal" role="dialog" aria-labelledby="publish-modal-title" aria-modal="true" style="display: none;">
