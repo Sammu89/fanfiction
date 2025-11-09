@@ -73,6 +73,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-validation.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-auto-draft-warning.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-slug-tracker.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-redirects.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-templates.php';
@@ -161,6 +162,9 @@ class Fanfic_Core {
 
 		// Initialize validation
 		Fanfic_Validation::init();
+
+		// Initialize auto-draft warning system
+		Fanfic_Auto_Draft_Warning::init();
 
 		// Initialize URL Manager (handles rewrite rules, dynamic pages, URL building)
 		Fanfic_URL_Manager::get_instance();

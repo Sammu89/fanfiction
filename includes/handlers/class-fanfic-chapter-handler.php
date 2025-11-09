@@ -178,6 +178,11 @@ class Fanfic_Chapter_Handler {
 	$chapter_url = get_permalink( $chapter_id );
 	$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
 
+	// Add parameter if story was auto-drafted
+	if ( $was_story_auto_drafted ) {
+		$redirect_url = add_query_arg( 'story_auto_drafted', '1', $redirect_url );
+	}
+
 	// Add parameter to show publication prompt if this is first chapter
 	if ( $is_first_published_chapter ) {
 		error_log( 'Redirecting to: ' . $edit_url );
@@ -297,6 +302,10 @@ class Fanfic_Chapter_Handler {
 			exit;
 		}
 
+		// Get old status BEFORE updating
+		$old_status = get_post_status( $chapter_id );
+		$story = get_post( $story_id );
+
 		// Update chapter
 		$result = wp_update_post( array(
 			'ID'           => $chapter_id,
@@ -319,8 +328,6 @@ class Fanfic_Chapter_Handler {
 
 		// Check if this is becoming the first published chapter
 		$is_first_published_chapter = false;
-		$old_status = get_post_status( $chapter_id );
-		$story = get_post( $story_id );
 
 		// Only check if we're publishing a chapter that was draft and story is also draft
 		if ( 'publish' === $chapter_status && 'draft' === $old_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
@@ -341,6 +348,7 @@ class Fanfic_Chapter_Handler {
 		}
 
 		// Check if we're drafting the last published chapter/prologue
+		$was_story_auto_drafted = false;
 		if ( 'draft' === $chapter_status && 'publish' === $old_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
 			// Count other published chapters/prologues (excluding this one)
 			$published_chapters = get_posts( array(
@@ -365,6 +373,7 @@ class Fanfic_Chapter_Handler {
 					'ID'          => $story_id,
 					'post_status' => 'draft',
 				) );
+				$was_story_auto_drafted = true;
 				error_log( 'Auto-drafted story ' . $story_id . ' because last published chapter/prologue was drafted' );
 			}
 		}
@@ -377,6 +386,11 @@ class Fanfic_Chapter_Handler {
 			),
 			wp_get_referer()
 		);
+
+	// Add parameter if story was auto-drafted
+	if ( $was_story_auto_drafted ) {
+		$redirect_url = add_query_arg( 'story_auto_drafted', '1', $redirect_url );
+	}
 
 		// Add parameter to show publication prompt if this is first chapter
 		if ( $is_first_published_chapter ) {
@@ -530,7 +544,7 @@ class Fanfic_Chapter_Handler {
 	 */
 	public static function ajax_check_last_chapter() {
 		// Verify nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_delete_chapter' ) ) {
+		if ( ! isset( $_POST['nonce'] ) || ! ( wp_verify_nonce( $_POST['nonce'], 'fanfic_delete_chapter' ) || wp_verify_nonce( $_POST['nonce'], 'fanfic_check_last_chapter' ) ) ) {
 			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
 		}
 

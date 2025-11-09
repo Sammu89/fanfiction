@@ -97,6 +97,9 @@ if ( $is_edit_mode ) {
 
 ?>
 
+<!-- Include Warning Modals Template -->
+<?php include( plugin_dir_path( __FILE__ ) . 'modal-warnings.php' ); ?>
+
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
@@ -151,6 +154,25 @@ if ( $errors ) {
 }
 ?>
 
+<!-- Display validation errors from pre-save validation -->
+<?php
+$validation_errors = $is_edit_mode ? get_transient( 'fanfic_story_validation_errors_' . get_current_user_id() . '_' . $story_id ) : false;
+if ( $validation_errors ) {
+	delete_transient( 'fanfic_story_validation_errors_' . get_current_user_id() . '_' . $story_id );
+	?>
+	<div class="fanfic-validation-error-notice" role="alert" aria-live="assertive">
+		<p><strong><?php esc_html_e( 'Story cannot be published due to the following issues:', 'fanfiction-manager' ); ?></strong></p>
+		<ul>
+			<?php foreach ( $validation_errors as $error ) : ?>
+				<li><?php echo esc_html( $error ); ?></li>
+			<?php endforeach; ?>
+		</ul>
+		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+	<?php
+}
+?>
+
 <?php
 // ========================================================================
 // PREPARE FORM VARIABLES
@@ -159,6 +181,7 @@ if ( $errors ) {
 $current_genres = array();
 $current_status = '';
 $featured_image = '';
+$story_introduction = '';
 
 if ( $is_edit_mode ) {
 	// Pre-populate variables for edit mode
@@ -166,6 +189,7 @@ if ( $is_edit_mode ) {
 	$current_status_obj = wp_get_object_terms( $story->ID, 'fanfiction_status', array( 'fields' => 'ids' ) );
 	$current_status = ! empty( $current_status_obj ) ? $current_status_obj[0] : '';
 	$featured_image = get_post_meta( $story->ID, '_fanfic_featured_image', true );
+	$story_introduction = $story->post_excerpt;
 }
 
 $form_mode = $is_edit_mode ? 'edit' : 'create';
@@ -176,7 +200,7 @@ if ( $is_edit_mode ) {
 	$data_attrs = sprintf(
 		'data-original-title="%s" data-original-content="%s" data-original-genres="%s" data-original-status="%s" data-original-image="%s"',
 		esc_attr( $story->post_title ),
-		esc_attr( $story->post_content ),
+		esc_attr( $story->post_excerpt ),
 		esc_attr( implode( ',', $current_genres ) ),
 		esc_attr( $current_status ),
 		esc_attr( $featured_image )
@@ -246,7 +270,7 @@ if ( $is_edit_mode ) {
 								class="fanfic-textarea"
 								rows="8"
 								maxlength="10000"
-							><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : ( $is_edit_mode ? esc_textarea( $story->post_content ) : '' ); ?></textarea>
+							><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : ( $is_edit_mode ? esc_textarea( $story->post_excerpt ) : '' ); ?></textarea>
 						</div>
 
 						<!-- Genres -->
@@ -498,6 +522,9 @@ if ( $is_edit_mode ) {
 											<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button-small" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
 												<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 											</a>
+											<button type="button" class="fanfic-button-small fanfic-button-warning fanfic-unpublish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" data-story-id="<?php echo absint( $story_id ); ?>" aria-label="<?php esc_attr_e( 'Unpublish chapter', 'fanfiction-manager' ); ?>">
+												<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>
+											</button>
 										<?php endif; ?>
 											<button type="button" class="fanfic-button-small fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
 												<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
@@ -792,6 +819,94 @@ if ( $is_edit_mode ) {
 			});
 		}
 
+		// Chapter unpublish buttons with AJAX
+		var chapterUnpublishButtons = document.querySelectorAll('.fanfic-unpublish-chapter');
+		chapterUnpublishButtons.forEach(function(button) {
+			button.addEventListener('click', function(e) {
+				e.preventDefault();
+				var chapterTitle = this.getAttribute('data-chapter-title');
+				var chapterId = this.getAttribute('data-chapter-id');
+				var storyId = this.getAttribute('data-story-id');
+				var buttonElement = this;
+				var rowElement = buttonElement.closest('tr');
+
+				// Check if this is the last published chapter
+				var confirmMessage = '<?php esc_html_e( 'Are you sure you want to unpublish', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?';
+
+				// Count published chapters to check if this is the last one
+				var publishedCount = document.querySelectorAll('.fanfic-status-publish').length;
+				if (publishedCount === 1) {
+					confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last published chapter/prologue. Unpublishing it will automatically set your story to DRAFT status, making it invisible to readers.', 'fanfiction-manager' ); ?>';
+				}
+
+				if (confirm(confirmMessage)) {
+					// Disable button to prevent double-clicks
+					buttonElement.disabled = true;
+					buttonElement.textContent = '<?php esc_html_e( 'Unpublishing...', 'fanfiction-manager' ); ?>';
+
+					// Prepare AJAX request
+					var formData = new FormData();
+					formData.append('action', 'fanfic_unpublish_chapter');
+					formData.append('chapter_id', chapterId);
+					formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_unpublish_chapter' ); ?>');
+
+					// Send AJAX request
+					fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+						method: 'POST',
+						credentials: 'same-origin',
+						body: formData
+					})
+					.then(function(response) {
+						return response.json();
+					})
+					.then(function(data) {
+						if (data.success) {
+							// Update row status to draft
+							var statusCell = rowElement.querySelector('.fanfic-status-badge');
+							if (statusCell) {
+								statusCell.classList.remove('fanfic-status-publish');
+								statusCell.classList.add('fanfic-status-draft');
+								statusCell.textContent = '<?php esc_html_e( 'Draft', 'fanfiction-manager' ); ?>';
+							}
+
+							// Remove unpublish and view buttons from actions
+							var unpublishBtn = rowElement.querySelector('.fanfic-unpublish-chapter');
+							var viewBtn = rowElement.querySelector('a[target="_blank"]');
+							if (unpublishBtn) unpublishBtn.remove();
+							if (viewBtn) viewBtn.remove();
+
+							// Show success message
+							alert('<?php esc_html_e( 'Chapter unpublished successfully.', 'fanfiction-manager' ); ?>');
+
+							// If story was auto-drafted, show warning modal on this page
+							if (data.data.story_auto_drafted) {
+								var warningModal = document.getElementById('fanfic-story-auto-draft-warning');
+								var storyTitleEl = document.getElementById('fanfic-story-warning-title');
+								if (warningModal && storyTitleEl) {
+									storyTitleEl.textContent = data.data.story_title;
+									warningModal.classList.add('show');
+									// Scroll to modal
+									warningModal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+								}
+							}
+						} else {
+							// Re-enable button and show error
+							buttonElement.disabled = false;
+							buttonElement.textContent = '<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>';
+							alert(data.data.message || '<?php esc_html_e( 'Failed to unpublish chapter.', 'fanfiction-manager' ); ?>');
+						}
+					})
+					.catch(function(error) {
+						// Re-enable button and show error
+						buttonElement.disabled = false;
+						buttonElement.textContent = '<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>';
+						alert('<?php esc_html_e( 'An error occurred while unpublishing the chapter.', 'fanfiction-manager' ); ?>');
+						console.error('Error:', error);
+					});
+				}
+			});
+		});
+
 		// Chapter delete buttons with AJAX and last chapter warning
 		var chapterDeleteButtons = document.querySelectorAll('[data-chapter-id]');
 		chapterDeleteButtons.forEach(function(button) {
@@ -926,6 +1041,7 @@ if ( $is_edit_mode ) {
 			}
 		});
 
+
 		// Publish prompt modal
 		var publishModal = document.getElementById('publish-prompt-modal');
 		var publishNowButton = document.getElementById('publish-story-now');
@@ -935,6 +1051,29 @@ if ( $is_edit_mode ) {
 		var urlParams = new URLSearchParams(window.location.search);
 		if (urlParams.get('show_publish_prompt') === '1' && publishModal) {
 			publishModal.style.display = 'block';
+		}
+
+		// Handle auto-draft warning from chapter deletion redirect
+		if (urlParams.get('story_auto_drafted') === '1') {
+			var warningModal = document.getElementById('fanfic-story-auto-draft-warning');
+			var storyTitleEl = document.getElementById('fanfic-story-warning-title');
+			if (warningModal && storyTitleEl) {
+				var storyTitle = urlParams.get('story_title');
+				if (storyTitle) {
+					storyTitleEl.textContent = decodeURIComponent(storyTitle);
+				}
+				warningModal.classList.add('show');
+				// Remove the parameter from URL
+				urlParams.delete('story_auto_drafted');
+				urlParams.delete('story_title');
+				urlParams.delete('chapter_deleted');
+				urlParams.delete('story_id');
+				var newUrl = window.location.pathname;
+				if (urlParams.toString()) {
+					newUrl += '?' + urlParams.toString();
+				}
+				window.history.replaceState({}, '', newUrl);
+			}
 		}
 
 		// Handle "Keep as Draft" button

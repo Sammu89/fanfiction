@@ -29,9 +29,9 @@ class Fanfic_Validation {
 	 * @since 1.0.0
 	 */
 	public static function init() {
-		add_action( 'save_post_fanfiction_story', array( __CLASS__, 'validate_and_update_status' ), 10, 1 );
+		// Handle chapter deletion/unpublish to auto-draft story if it becomes invalid
 		add_action( 'before_delete_post', array( __CLASS__, 'handle_chapter_deletion' ), 10, 1 );
-		add_action( 'set_object_terms', array( __CLASS__, 'handle_taxonomy_update' ), 10, 6 );
+		add_action( 'transition_post_status', array( __CLASS__, 'handle_chapter_status_change' ), 10, 3 );
 	}
 
 	/**
@@ -61,107 +61,6 @@ class Fanfic_Validation {
 		return $has_excerpt && $has_chapters && $has_taxonomies;
 	}
 
-	/**
-	 * Validate story and update post_status if needed.
-	 *
-	 * If a story becomes invalid, automatically reverts to 'draft' status.
-	 * Fires action hooks for validation events.
-	 *
-	 * @since 1.0.0
-	 * @param int $story_id The story post ID.
-	 * @return bool True if story is valid, false if invalidated.
-	 */
-	public static function validate_and_update_status( $story_id ) {
-		error_log( '=== VALIDATION CHECK START ===' );
-		error_log( 'Story ID: ' . $story_id );
-
-		// Prevent infinite loops during auto-save
-		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-			error_log( 'SKIPPING: Autosave detected' );
-			error_log( '=== VALIDATION CHECK END (AUTOSAVE) ===' );
-			return false;
-		}
-
-		// Verify this is a fanfiction story
-		if ( get_post_type( $story_id ) !== 'fanfiction_story' ) {
-			error_log( 'SKIPPING: Not a fanfiction_story post type' );
-			error_log( '=== VALIDATION CHECK END (WRONG TYPE) ===' );
-			return false;
-		}
-
-		$story = get_post( $story_id );
-		if ( ! $story ) {
-			error_log( 'ERROR: Story not found' );
-			error_log( '=== VALIDATION CHECK END (NO STORY) ===' );
-			return false;
-		}
-
-		error_log( 'Current status: ' . $story->post_status );
-
-		// Check individual validation criteria
-		$has_excerpt = self::check_story_excerpt( $story_id );
-		$has_chapters = self::check_story_chapters( $story_id );
-		$has_taxonomies = self::check_story_taxonomies( $story_id );
-
-		error_log( 'Has excerpt: ' . ( $has_excerpt ? 'YES' : 'NO' ) );
-		error_log( 'Has chapters: ' . ( $has_chapters ? 'YES' : 'NO' ) );
-		error_log( 'Has taxonomies: ' . ( $has_taxonomies ? 'YES' : 'NO' ) );
-
-		$is_valid = self::is_story_valid( $story_id );
-		$current_status = $story->post_status;
-
-		error_log( 'Overall valid: ' . ( $is_valid ? 'YES' : 'NO' ) );
-
-		// Public statuses that require validation
-		$public_statuses = array( 'publish', 'future', 'private' );
-
-		// If story is published but invalid, revert to draft
-		if ( ! $is_valid && in_array( $current_status, $public_statuses, true ) ) {
-			error_log( '!!! VALIDATION FAILED - REVERTING TO DRAFT !!!' );
-			error_log( 'Status was: ' . $current_status );
-
-			// Remove this hook temporarily to prevent infinite loop
-			remove_action( 'save_post_fanfiction_story', array( __CLASS__, 'validate_and_update_status' ), 10 );
-
-			wp_update_post(
-				array(
-					'ID'          => $story_id,
-					'post_status' => 'draft',
-				)
-			);
-
-			// Re-add the hook
-			add_action( 'save_post_fanfiction_story', array( __CLASS__, 'validate_and_update_status' ), 10, 1 );
-
-			error_log( 'Story reverted to draft' );
-
-			/**
-			 * Fires when a story becomes invalid and is reverted to draft.
-			 *
-			 * @since 1.0.0
-			 * @param int   $story_id       The story post ID.
-			 * @param array $validation_errors Array of validation error messages.
-			 */
-			do_action( 'fanfic_story_invalidated', $story_id, self::get_validation_errors( $story_id ) );
-
-			error_log( '=== VALIDATION CHECK END (REVERTED) ===' );
-			return false;
-		}
-
-		error_log( 'Validation passed or story not published' );
-
-		/**
-		 * Fires after story validation is complete.
-		 *
-		 * @since 1.0.0
-		 * @param int  $story_id The story post ID.
-		 * @param bool $is_valid Whether the story is valid.
-		 */
-		do_action( 'fanfic_story_validated', $story_id, $is_valid );
-
-		error_log( '=== VALIDATION CHECK END (SUCCESS) ===' );
-		return $is_valid;
-	}
 
 	/**
 	 * Get validation error messages for a story.
@@ -210,10 +109,13 @@ class Fanfic_Validation {
 	public static function check_story_excerpt( $story_id ) {
 		$story = get_post( $story_id );
 		if ( ! $story ) {
+			error_log( 'check_story_excerpt: Story not found for ID ' . $story_id );
 			return false;
 		}
 
 		$excerpt = trim( $story->post_excerpt );
+		error_log( 'check_story_excerpt: Story ID ' . $story_id . ', excerpt length: ' . strlen( $excerpt ) . ', has excerpt: ' . ( ! empty( $excerpt ) ? 'YES' : 'NO' ) );
+		error_log( 'check_story_excerpt: Excerpt content (first 50 chars): ' . substr( $excerpt, 0, 50 ) );
 		return ! empty( $excerpt );
 	}
 
@@ -261,10 +163,10 @@ class Fanfic_Validation {
 	}
 
 	/**
-	 * Handle chapter deletion and check if it's the last chapter.
+	 * Handle chapter deletion and auto-draft story if it becomes invalid.
 	 *
-	 * If deleting the last chapter of a published story, invalidate the story
-	 * and trigger a notification.
+	 * When the last chapter or prologue is deleted, automatically set the story to draft
+	 * if it becomes invalid (no published chapters remaining).
 	 *
 	 * @since 1.0.0
 	 * @param int $post_id The post ID being deleted.
@@ -281,66 +183,102 @@ class Fanfic_Validation {
 		}
 
 		$story_id = $chapter->post_parent;
+		$story = get_post( $story_id );
 
-		// Check if this is the last chapter
-		$chapters = get_children(
+		if ( ! $story || $story->post_status !== 'publish' ) {
+			return;
+		}
+
+		// Check if story will have any chapters left after deletion
+		// (excluding the one being deleted)
+		$remaining_chapters = get_children(
 			array(
 				'post_parent'    => $story_id,
 				'post_type'      => 'fanfiction_chapter',
 				'post_status'    => 'any',
 				'posts_per_page' => -1,
 				'fields'         => 'ids',
+				'exclude'        => array( $post_id ),
 			)
 		);
 
-		// If only one chapter exists and we're deleting it
-		if ( count( $chapters ) === 1 && in_array( $post_id, $chapters, true ) ) {
-			$story = get_post( $story_id );
+		// If no chapters will remain, auto-draft the story
+		if ( empty( $remaining_chapters ) ) {
+			wp_update_post(
+				array(
+					'ID'          => $story_id,
+					'post_status' => 'draft',
+				)
+			);
 
-			// If story is currently published, invalidate it
-			if ( $story && $story->post_status === 'publish' ) {
-				/**
-				 * Fires when the last chapter is being deleted from a published story.
-				 *
-				 * This hook is used to trigger JavaScript notifications to the user.
-				 *
-				 * @since 1.0.0
-				 * @param int $story_id The story post ID.
-				 * @param int $chapter_id The chapter post ID being deleted.
-				 */
-				do_action( 'fanfic_last_chapter_deleted', $story_id, $post_id );
-
-				// Store a transient to show notification on next page load
-				set_transient( 'fanfic_story_invalidated_' . get_current_user_id() . '_' . $story_id, true, 60 );
-			}
+			/**
+			 * Fires when a story is auto-drafted due to chapter deletion.
+			 *
+			 * @since 1.0.0
+			 * @param int $story_id The story post ID.
+			 * @param int $chapter_id The chapter post ID being deleted.
+			 */
+			do_action( 'fanfic_story_auto_drafted_on_chapter_delete', $story_id, $post_id );
 		}
 	}
 
 	/**
-	 * Handle taxonomy updates and revalidate story.
+	 * Handle chapter status changes (e.g., unpublishing a chapter).
+	 *
+	 * When a chapter is unpublished, check if the story becomes invalid and auto-draft it.
 	 *
 	 * @since 1.0.0
-	 * @param int    $object_id  The object ID.
-	 * @param array  $terms      An array of object terms.
-	 * @param array  $tt_ids     An array of term taxonomy IDs.
-	 * @param string $taxonomy   The taxonomy slug.
-	 * @param bool   $append     Whether to append new terms or replace existing.
-	 * @param array  $old_tt_ids Old array of term taxonomy IDs.
+	 * @param string  $new_status The new post status.
+	 * @param string  $old_status The old post status.
+	 * @param WP_Post $post       The post object.
 	 */
-	public static function handle_taxonomy_update( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
-		// Only handle fanfiction taxonomies
-		if ( ! in_array( $taxonomy, array( 'fanfiction_genre', 'fanfiction_status' ), true ) ) {
+	public static function handle_chapter_status_change( $new_status, $old_status, $post ) {
+		// Only care about chapters
+		if ( $post->post_type !== 'fanfiction_chapter' ) {
 			return;
 		}
 
-		// Verify this is a fanfiction story
-		if ( get_post_type( $object_id ) !== 'fanfiction_story' ) {
-			return;
-		}
+		// Only care if a chapter is being unpublished
+		if ( 'publish' === $old_status && 'publish' !== $new_status ) {
+			$story_id = $post->post_parent;
+			$story = get_post( $story_id );
 
-		// Revalidate the story
-		self::validate_and_update_status( $object_id );
+			if ( ! $story || $story->post_status !== 'publish' ) {
+				return;
+			}
+
+			// Check if story still has any published chapters
+			$published_chapters = get_posts(
+				array(
+					'post_type'      => 'fanfiction_chapter',
+					'post_parent'    => $story_id,
+					'post_status'    => 'publish',
+					'posts_per_page' => 1,
+					'fields'         => 'ids',
+				)
+			);
+
+			// If no published chapters remain, auto-draft the story
+			if ( empty( $published_chapters ) ) {
+				wp_update_post(
+					array(
+						'ID'          => $story_id,
+						'post_status' => 'draft',
+					)
+				);
+
+				/**
+				 * Fires when a story is auto-drafted due to chapter unpublishing.
+				 *
+				 * @since 1.0.0
+				 * @param int $story_id The story post ID.
+				 * @param int $chapter_id The chapter post ID being unpublished.
+				 */
+				do_action( 'fanfic_story_auto_drafted_on_chapter_unpublish', $story_id, $post->ID );
+			}
+		}
 	}
+
 
 	/**
 	 * Get a human-readable validation summary for a story.
