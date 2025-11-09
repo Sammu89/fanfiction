@@ -165,12 +165,28 @@ class Fanfic_Story_Handler {
 			$current_status = get_post_status( $story_id );
 			$post_status = $current_status;
 
+			error_log( '=== STORY PUBLISH DEBUG START ===' );
+			error_log( 'Story ID: ' . $story_id );
+			error_log( 'Form Action: ' . $form_action );
+			error_log( 'Current Status: ' . $current_status );
+			error_log( 'User ID: ' . $current_user->ID );
+			error_log( 'User Roles: ' . print_r( $current_user->roles, true ) );
+
 			if ( 'save_draft' === $form_action ) {
 				$post_status = 'draft';
 			} elseif ( 'publish' === $form_action ) {
 				$post_status = 'publish';
 			}
 			// For 'update' and 'add_chapter' actions, keep current status
+
+			error_log( 'Target Status: ' . $post_status );
+
+			// Check publish capability before attempting
+			$can_publish = current_user_can( 'publish_post', $story_id );
+			error_log( 'Can publish_post: ' . ( $can_publish ? 'YES' : 'NO' ) );
+
+			$can_publish_stories = current_user_can( 'publish_fanfiction_stories' );
+			error_log( 'Can publish_fanfiction_stories: ' . ( $can_publish_stories ? 'YES' : 'NO' ) );
 
 			// Update story
 			$result = wp_update_post( array(
@@ -179,6 +195,8 @@ class Fanfic_Story_Handler {
 				'post_content' => $introduction,
 				'post_status'  => $post_status,
 			), true ); // true = return WP_Error on failure
+
+			error_log( 'wp_update_post result: ' . ( is_wp_error( $result ) ? 'WP_Error: ' . $result->get_error_message() : $result ) );
 
 			if ( is_wp_error( $result ) ) {
 				$errors[] = $result->get_error_message();
@@ -199,6 +217,12 @@ class Fanfic_Story_Handler {
 			wp_cache_delete( $story_id, 'posts' );
 			wp_cache_delete( $story_id, 'post_meta' );
 
+			// Verify the update worked by checking actual status in DB
+			$actual_status = get_post_status( $story_id );
+			error_log( 'Actual Status After Update: ' . $actual_status );
+			error_log( 'Expected Status: ' . $post_status );
+			error_log( 'Status Match: ' . ( $actual_status === $post_status ? 'YES' : 'NO - MISMATCH!' ) );
+
 			// Update genres
 			wp_set_post_terms( $story_id, $genres, 'fanfiction_genre' );
 
@@ -211,6 +235,8 @@ class Fanfic_Story_Handler {
 			} else {
 				delete_post_meta( $story_id, '_fanfic_featured_image' );
 			}
+
+			error_log( '=== STORY PUBLISH DEBUG END ===' );
 
 			// Redirect based on action
 			if ( 'add_chapter' === $form_action ) {
@@ -765,40 +791,62 @@ class Fanfic_Story_Handler {
 	 * @return void
 	 */
 	public static function ajax_publish_story() {
+		error_log( '=== AJAX STORY PUBLISH DEBUG START ===' );
+
 		// Verify nonce
 		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_publish_story' ) ) {
+			error_log( 'AJAX Publish: Nonce verification failed' );
 			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
+			error_log( 'AJAX Publish: User not logged in' );
 			wp_send_json_error( array( 'message' => __( 'You must be logged in to publish stories.', 'fanfiction-manager' ) ) );
 		}
 
 		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
 
 		if ( ! $story_id ) {
+			error_log( 'AJAX Publish: Invalid story ID' );
 			wp_send_json_error( array( 'message' => __( 'Invalid story ID.', 'fanfiction-manager' ) ) );
 		}
 
 		$current_user = wp_get_current_user();
 		$story = get_post( $story_id );
 
+		error_log( 'AJAX Story ID: ' . $story_id );
+		error_log( 'AJAX User ID: ' . $current_user->ID );
+		error_log( 'AJAX User Roles: ' . print_r( $current_user->roles, true ) );
+
 		// Check if story exists
 		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			error_log( 'AJAX Publish: Story not found or wrong type' );
 			wp_send_json_error( array( 'message' => __( 'Story not found.', 'fanfiction-manager' ) ) );
 		}
 
+		error_log( 'AJAX Current Story Status: ' . $story->post_status );
+
 		// Check permissions - must be author or have edit_others_posts capability
 		if ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+			error_log( 'AJAX Publish: Permission denied' );
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to publish this story.', 'fanfiction-manager' ) ) );
 		}
+
+		// Check publish capability
+		$can_publish = current_user_can( 'publish_post', $story_id );
+		error_log( 'AJAX Can publish_post: ' . ( $can_publish ? 'YES' : 'NO' ) );
+
+		$can_publish_stories = current_user_can( 'publish_fanfiction_stories' );
+		error_log( 'AJAX Can publish_fanfiction_stories: ' . ( $can_publish_stories ? 'YES' : 'NO' ) );
 
 		// Update story status to publish
 		$result = wp_update_post( array(
 			'ID'          => $story_id,
 			'post_status' => 'publish',
 		), true ); // true = return WP_Error on failure
+
+		error_log( 'AJAX wp_update_post result: ' . ( is_wp_error( $result ) ? 'WP_Error: ' . $result->get_error_message() : $result ) );
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
@@ -812,6 +860,12 @@ class Fanfic_Story_Handler {
 		clean_post_cache( $story_id );
 		wp_cache_delete( $story_id, 'posts' );
 		wp_cache_delete( $story_id, 'post_meta' );
+
+		// Verify the update worked
+		$actual_status = get_post_status( $story_id );
+		error_log( 'AJAX Actual Status After Update: ' . $actual_status );
+		error_log( 'AJAX Status Match: ' . ( $actual_status === 'publish' ? 'YES' : 'NO - STILL ' . $actual_status ) );
+		error_log( '=== AJAX STORY PUBLISH DEBUG END ===' );
 
 		wp_send_json_success( array(
 			'message' => __( 'Story published successfully.', 'fanfiction-manager' ),
