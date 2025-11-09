@@ -565,11 +565,11 @@ class Fanfic_Chapter_Handler {
 
 		// Only check for prologue/chapter (epilogues don't count)
 		if ( in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-			// Count other chapters/prologues
+			// Count other PUBLISHED chapters/prologues
 			$other_chapters = get_posts( array(
 				'post_type'      => 'fanfiction_chapter',
 				'post_parent'    => $chapter->post_parent,
-				'post_status'    => 'any',
+				'post_status'    => 'publish',  // Only count published chapters
 				'posts_per_page' => -1,
 				'fields'         => 'ids',
 				'post__not_in'   => array( $chapter_id ),
