@@ -178,7 +178,7 @@ class Fanfic_Story_Handler {
 				'post_title'   => $title,
 				'post_content' => $introduction,
 				'post_status'  => $post_status,
-			) );
+			), true ); // true = return WP_Error on failure
 
 			if ( is_wp_error( $result ) ) {
 				$errors[] = $result->get_error_message();
@@ -186,6 +186,18 @@ class Fanfic_Story_Handler {
 				wp_safe_redirect( wp_get_referer() );
 				exit;
 			}
+
+			if ( ! $result || 0 === $result ) {
+				$errors[] = __( 'Failed to update story. Please try again.', 'fanfiction-manager' );
+				set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
+				wp_safe_redirect( wp_get_referer() );
+				exit;
+			}
+
+			// Clear post cache to ensure fresh data on next page load
+			clean_post_cache( $story_id );
+			wp_cache_delete( $story_id, 'posts' );
+			wp_cache_delete( $story_id, 'post_meta' );
 
 			// Update genres
 			wp_set_post_terms( $story_id, $genres, 'fanfiction_genre' );
@@ -786,11 +798,20 @@ class Fanfic_Story_Handler {
 		$result = wp_update_post( array(
 			'ID'          => $story_id,
 			'post_status' => 'publish',
-		) );
+		), true ); // true = return WP_Error on failure
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
+
+		if ( ! $result || 0 === $result ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to publish story. Please try again.', 'fanfiction-manager' ) ) );
+		}
+
+		// Clear post cache to ensure fresh data
+		clean_post_cache( $story_id );
+		wp_cache_delete( $story_id, 'posts' );
+		wp_cache_delete( $story_id, 'post_meta' );
 
 		wp_send_json_success( array(
 			'message' => __( 'Story published successfully.', 'fanfiction-manager' ),
