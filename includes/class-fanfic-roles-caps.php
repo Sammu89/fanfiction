@@ -328,14 +328,25 @@ class Fanfic_Roles_Caps {
 		if ( 'publish_post' === $cap && ! empty( $args[0] ) ) {
 			$post = get_post( $args[0] );
 
+			error_log( '=== CAPABILITY MAP: publish_post ===' );
+			error_log( 'Post ID: ' . $args[0] );
+			error_log( 'Post exists: ' . ( $post ? 'YES' : 'NO' ) );
+			if ( $post ) {
+				error_log( 'Post type: ' . $post->post_type );
+			}
+
 			// Only handle fanfiction post types
 			if ( $post && in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
 				// Map to appropriate publish capability
 				if ( 'fanfiction_story' === $post->post_type ) {
+					error_log( 'Mapping to: publish_fanfiction_stories' );
 					return array( 'publish_fanfiction_stories' );
 				} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+					error_log( 'Mapping to: publish_fanfiction_chapters' );
 					return array( 'publish_fanfiction_chapters' );
 				}
+			} else {
+				error_log( 'Not a fanfiction post type - no mapping' );
 			}
 		}
 
