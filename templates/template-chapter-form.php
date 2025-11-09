@@ -105,9 +105,9 @@ function fanfic_template_get_available_chapter_numbers( $story_id, $exclude_chap
 		}
 	}
 
-	// Generate available numbers (1-100)
+	// Generate available numbers (1-999)
 	$available_numbers = array();
-	for ( $i = 1; $i <= 100; $i++ ) {
+	for ( $i = 1; $i <= 999; $i++ ) {
 		if ( ! in_array( $i, $used_numbers ) || ( $exclude_chapter_id && get_post_meta( $exclude_chapter_id, '_fanfic_chapter_number', true ) == $i ) ) {
 			$available_numbers[] = $i;
 		}
@@ -823,7 +823,7 @@ $page_description = $is_edit_mode
 					<!-- EDIT MODE -->
 					<?php if ( 'publish' === $chapter->post_status ) : ?>
 						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-btn fanfic-btn-primary">
-							<?php esc_html_e( 'Update & Keep Published', 'fanfiction-manager' ); ?>
+							<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
 						</button>
 						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
 							<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
