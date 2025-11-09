@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Get custom template from settings
-$template = get_option( 'fanfic_story_view_template', '' );
+$template = get_option( 'fanfic_shortcode_story_view', '' );
 
 // If no custom template, use default from settings class
 if ( empty( $template ) && class_exists( 'Fanfic_Settings' ) ) {

@@ -81,10 +81,25 @@ class Fanfic_Templates {
 		// Check for action-based templates on stories and chapters
 		$action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
 
+		// Check if this is the main page with create-story action
+		if ( is_page() && ! empty( $action ) && 'create-story' === $action ) {
+			$page_ids = get_option( 'fanfic_system_page_ids', array() );
+			if ( isset( $page_ids['main'] ) && is_page( $page_ids['main'] ) ) {
+				global $fanfic_content_template;
+				$fanfic_content_template = 'template-story-form.php';
+
+				// Use the wrapper template
+				$custom_template = self::locate_template( 'fanfiction-page-template.php' );
+				if ( $custom_template ) {
+					return $custom_template;
+				}
+			}
+		}
+
 		// Check if this is a fanfiction post type
 		if ( is_singular( 'fanfiction_story' ) ) {
 			// Determine which content template to load
-			$content_template = 'single-fanfiction_story.php';
+			$content_template = 'template-story-view.php';
 
 			if ( ! empty( $action ) ) {
 				switch ( $action ) {
@@ -110,7 +125,7 @@ class Fanfic_Templates {
 
 		if ( is_singular( 'fanfiction_chapter' ) ) {
 			// Determine which content template to load
-			$content_template = 'single-fanfiction_chapter.php';
+			$content_template = 'template-chapter-view.php';
 
 			if ( ! empty( $action ) && 'edit' === $action ) {
 				$content_template = 'template-chapter-form.php';
@@ -417,10 +432,9 @@ class Fanfic_Templates {
 			'login'          => array( 'fanfic-login-form' ),
 			'register'       => array( 'fanfic-register-form' ),
 			'password-reset' => array( 'fanfic-password-reset-form' ),
-			'dashboard'      => array( 'user-dashboard' ),
-			'create-story'   => array( 'author-create-story-form' ),
-			'search'         => array( 'search-results' ),
-			'members'        => array( 'user-profile' ),
+			// 'dashboard' page no longer uses shortcodes - it loads template-dashboard.php directly
+			// 'search' page no longer uses shortcodes - it loads template-search-page.php directly
+			// 'members' page no longer uses shortcodes - it loads template-user-list.php directly
 			// 'error' page no longer uses shortcodes - it loads template-error.php directly
 			// 'maintenance' page no longer uses shortcodes - it loads template-maintenance.php directly
 		);
@@ -730,11 +744,6 @@ class Fanfic_Templates {
 				'slug'     => isset( $custom_slugs['dashboard'] ) ? $custom_slugs['dashboard'] : 'dashboard',
 				'template' => 'dashboard',
 			),
-			'create-story'    => array(
-				'title'    => __( 'Create Story', 'fanfiction-manager' ),
-				'slug'     => isset( $custom_slugs['create-story'] ) ? $custom_slugs['create-story'] : 'create-story',
-				'template' => 'create-story',
-			),
 			'search'          => array(
 				'title'    => __( 'Search', 'fanfiction-manager' ),
 				'slug'     => isset( $custom_slugs['search'] ) ? $custom_slugs['search'] : 'search',
@@ -940,19 +949,7 @@ class Fanfic_Templates {
 			) );
 		}
 
-		// 3. ADD STORY (logged in only)
-		$create_story_url = $url_manager->get_page_url( 'create-story' );
-		if ( ! empty( $create_story_url ) ) {
-			wp_update_nav_menu_item( $menu_id, 0, array(
-				'menu-item-title'   => __( 'Add Story', 'fanfiction-manager' ),
-				'menu-item-url'     => $create_story_url,
-				'menu-item-status'  => 'publish',
-				'menu-item-position' => ++$position,
-				'menu-item-classes' => 'fanfic-menu-add-story menu-item-logged-in',
-			) );
-		}
-
-		// 4. STORIES ARCHIVE (always visible)
+		// 3. STORIES ARCHIVE (always visible)
 		$archive_url = get_post_type_archive_link( 'fanfiction_story' );
 		if ( ! empty( $archive_url ) ) {
 			wp_update_nav_menu_item( $menu_id, 0, array(
@@ -1192,11 +1189,10 @@ class Fanfic_Templates {
 			'login'          => '<!-- wp:paragraph --><p>[fanfic-login-form]</p><!-- /wp:paragraph -->',
 			'register'       => '<!-- wp:paragraph --><p>[fanfic-register-form]</p><!-- /wp:paragraph -->',
 			'password-reset' => '<!-- wp:paragraph --><p>[fanfic-password-reset-form]</p><!-- /wp:paragraph -->',
-			'dashboard'      => '<!-- wp:paragraph --><p>[user-dashboard]</p><!-- /wp:paragraph -->',
-			'create-story'   => '<!-- wp:paragraph --><p>[author-create-story-form]</p><!-- /wp:paragraph -->',
-			'search'         => '<!-- wp:paragraph --><p>[search-results]</p><!-- /wp:paragraph -->',
-			'members'        => '<!-- wp:paragraph --><p>[user-profile]</p><!-- /wp:paragraph -->',
-			'error'          => '<!-- wp:paragraph --><p>' . esc_html__( 'Error messages will be displayed here.', 'fanfiction-manager' ) . '</p><!-- /wp:paragraph -->',
+			'dashboard'      => '', // Template file handles all content directly
+			'search'         => '', // Template file handles all content directly
+			'members'        => '', // Template file handles all content directly
+			'error'          => '', // Template file handles all content directly
 			'maintenance'    => '', // Template file handles all content directly
 		);
 

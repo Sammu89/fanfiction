@@ -221,7 +221,7 @@ Estimated Tasks: 5 major items
 
  Create template system (page creation on activation).
  Create all HTML templates (login, register, archive, dashboard, etc.).
- Implement theme template fallbacks (single-fanfiction_story.php, etc.).
+ Implement theme template fallbacks (template-story-view.php, etc.).
  Create URL rewrite rules and custom post type registration.
  Test URL structure and 301 redirects.
 
@@ -456,8 +456,8 @@ Use shortcodes for dynamic content (to be implemented in Phase 4)
 
 Step 4: Create Theme Template Fallbacks
 Create templates/ directory with WordPress template files:
-- single-fanfiction_story.php (for story single pages)
-- single-fanfiction_chapter.php (for chapter single pages)
+- template-story-view.php (for story single pages)
+- template-chapter-view.php (for chapter single pages)
 - archive-fanfiction_story.php (for story archive)
 - taxonomy-fanfiction_genre.php (for genre archives)
 - taxonomy-fanfiction_status.php (for status archives)

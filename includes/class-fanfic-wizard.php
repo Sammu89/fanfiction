@@ -899,7 +899,7 @@ private function render_choice_screen() {
 			update_option( 'fanfic_story_path', $story_path );
 		}
 
-		// 4. Validate and save dynamic page paths (dashboard, create-story, members, search)
+		// 4. Validate and save dynamic page paths (dashboard, members, search)
 		$secondary_slugs_input = array();
 		$secondary_config = Fanfic_URL_Schema::get_slugs_by_group( 'dynamic' );
 

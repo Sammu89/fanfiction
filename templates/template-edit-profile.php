@@ -17,5 +17,5 @@ if ( ! is_user_logged_in() ) {
 </section>
 
 <nav aria-label="<?php esc_attr_e( 'Profile navigation', 'fanfiction-manager' ); ?>">
-	<p><a href="[url-dashboard]"><?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?></a></p>
+	<p><a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?></a></p>
 </nav>

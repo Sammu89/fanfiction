@@ -945,7 +945,7 @@
 		bindArrowKeyNavigation: function() {
 			$(document).on('keydown', function(e) {
 				// Only activate on chapter pages
-				const isChapterPage = $('body').hasClass('single-fanfiction_chapter') ||
+				const isChapterPage = $('body').hasClass('template-chapter-view') ||
 				                      $('[data-page-type="chapter"]').length > 0;
 
 				if (!isChapterPage) {

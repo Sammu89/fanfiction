@@ -75,13 +75,6 @@ class Fanfic_URL_Config {
     const OPTION_DASHBOARD_SLUG = 'fanfic_dashboard_slug';
 
     /**
-     * Option name for storing create-story slug
-     *
-     * @var string
-     */
-    const OPTION_CREATE_STORY_SLUG = 'fanfic_create_story_slug';
-
-    /**
      * Option name for storing members slug
      *
      * @var string
@@ -413,18 +406,6 @@ class Fanfic_URL_Config {
                                     'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">dashboard</span>/',
                                     'required'       => true,
                                     'data_slug_type' => 'dashboard',
-                                ) );
-
-                                // Create Story
-                                self::render_slug_input_row( array(
-                                    'id'             => 'fanfic_create-story_slug',
-                                    'name'           => 'fanfic_create_story_slug',
-                                    'label'          => __( 'Create Story', 'fanfiction-manager' ),
-                                    'value'          => isset( $current_slugs['create-story'] ) ? $current_slugs['create-story'] : 'create-story',
-                                    'preview_id'     => 'create-story-preview-code',
-                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">create-story</span>/',
-                                    'required'       => false,
-                                    'data_slug_type' => 'create-story',
                                 ) );
 
                                 // Members (Directory + Profiles)
@@ -1240,18 +1221,6 @@ class Fanfic_URL_Config {
         // Dashboard
         if ( isset( $_POST['fanfic_dashboard_slug'] ) ) {
             $result = $this->save_slug_field( 'fanfic_dashboard_slug', 'dashboard', self::OPTION_DASHBOARD_SLUG, __( 'Dashboard slug', 'fanfiction-manager' ) );
-            if ( $result ) {
-                if ( isset( $result['error'] ) ) {
-                    $errors[] = $result['error'];
-                } elseif ( isset( $result['success'] ) ) {
-                    $success_messages[] = $result['success'];
-                }
-            }
-        }
-
-        // Create Story
-        if ( isset( $_POST['fanfic_create_story_slug'] ) ) {
-            $result = $this->save_slug_field( 'fanfic_create_story_slug', 'create-story', self::OPTION_CREATE_STORY_SLUG, __( 'Create Story slug', 'fanfiction-manager' ) );
             if ( $result ) {
                 if ( isset( $result['error'] ) ) {
                     $errors[] = $result['error'];

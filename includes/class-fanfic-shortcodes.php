@@ -62,7 +62,6 @@ class Fanfic_Shortcodes {
 			'comments',
 			'stats',
 			'utility',
-			'profile',
 		);
 
 		foreach ( $handlers as $handler ) {
@@ -137,10 +136,6 @@ class Fanfic_Shortcodes {
 
 		if ( class_exists( 'Fanfic_Shortcodes_Utility' ) ) {
 			Fanfic_Shortcodes_Utility::register();
-		}
-
-		if ( class_exists( 'Fanfic_Shortcodes_Profile' ) ) {
-			Fanfic_Shortcodes_Profile::init();
 		}
 	}
 

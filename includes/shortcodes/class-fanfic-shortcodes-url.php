@@ -33,7 +33,6 @@ class Fanfic_Shortcodes_URL {
 		add_shortcode( 'url-login', array( __CLASS__, 'url_login' ) );
 		add_shortcode( 'url-register', array( __CLASS__, 'url_register' ) );
 		add_shortcode( 'url-archive', array( __CLASS__, 'url_archive' ) );
-		add_shortcode( 'url-dashboard', array( __CLASS__, 'url_dashboard' ) );
 		add_shortcode( 'url-parent', array( __CLASS__, 'url_parent' ) );
 		add_shortcode( 'url-error', array( __CLASS__, 'url_error' ) );
 		add_shortcode( 'url-search', array( __CLASS__, 'url_search' ) );
@@ -99,25 +98,6 @@ class Fanfic_Shortcodes_URL {
 
 		if ( empty( $url ) ) {
 			$url = home_url( '/fanfiction/stories/' );
-		}
-
-		return esc_url( $url );
-	}
-
-	/**
-	 * Dashboard URL shortcode
-	 *
-	 * [url-dashboard]
-	 *
-	 * @since 1.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Dashboard page URL.
-	 */
-	public static function url_dashboard( $atts ) {
-		$url = fanfic_get_dashboard_url();
-
-		if ( empty( $url ) ) {
-			$url = home_url( '/fanfiction/dashboard/' );
 		}
 
 		return esc_url( $url );
@@ -231,7 +211,15 @@ class Fanfic_Shortcodes_URL {
 		$url = fanfic_get_create_story_url();
 
 		if ( empty( $url ) ) {
-			$url = home_url( '/fanfiction/create-story/' );
+			// Fallback: main page with ?action=create-story
+			$page_ids = get_option( 'fanfic_system_page_ids', array() );
+			$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
+			if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
+				$url = add_query_arg( 'action', 'create-story', get_permalink( $page_ids['main'] ) );
+			} else {
+				// Ultimate fallback
+				$url = home_url( '/' . $base_slug . '/?action=create-story' );
+			}
 		}
 
 		return esc_url( $url );
