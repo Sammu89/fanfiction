@@ -72,29 +72,54 @@ class Fanfic_Validation {
 	 * @return bool True if story is valid, false if invalidated.
 	 */
 	public static function validate_and_update_status( $story_id ) {
+		error_log( '=== VALIDATION CHECK START ===' );
+		error_log( 'Story ID: ' . $story_id );
+
 		// Prevent infinite loops during auto-save
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			error_log( 'SKIPPING: Autosave detected' );
+			error_log( '=== VALIDATION CHECK END (AUTOSAVE) ===' );
 			return false;
 		}
 
 		// Verify this is a fanfiction story
 		if ( get_post_type( $story_id ) !== 'fanfiction_story' ) {
+			error_log( 'SKIPPING: Not a fanfiction_story post type' );
+			error_log( '=== VALIDATION CHECK END (WRONG TYPE) ===' );
 			return false;
 		}
 
 		$story = get_post( $story_id );
 		if ( ! $story ) {
+			error_log( 'ERROR: Story not found' );
+			error_log( '=== VALIDATION CHECK END (NO STORY) ===' );
 			return false;
 		}
 
+		error_log( 'Current status: ' . $story->post_status );
+
+		// Check individual validation criteria
+		$has_excerpt = self::check_story_excerpt( $story_id );
+		$has_chapters = self::check_story_chapters( $story_id );
+		$has_taxonomies = self::check_story_taxonomies( $story_id );
+
+		error_log( 'Has excerpt: ' . ( $has_excerpt ? 'YES' : 'NO' ) );
+		error_log( 'Has chapters: ' . ( $has_chapters ? 'YES' : 'NO' ) );
+		error_log( 'Has taxonomies: ' . ( $has_taxonomies ? 'YES' : 'NO' ) );
+
 		$is_valid = self::is_story_valid( $story_id );
 		$current_status = $story->post_status;
+
+		error_log( 'Overall valid: ' . ( $is_valid ? 'YES' : 'NO' ) );
 
 		// Public statuses that require validation
 		$public_statuses = array( 'publish', 'future', 'private' );
 
 		// If story is published but invalid, revert to draft
 		if ( ! $is_valid && in_array( $current_status, $public_statuses, true ) ) {
+			error_log( '!!! VALIDATION FAILED - REVERTING TO DRAFT !!!' );
+			error_log( 'Status was: ' . $current_status );
+
 			// Remove this hook temporarily to prevent infinite loop
 			remove_action( 'save_post_fanfiction_story', array( __CLASS__, 'validate_and_update_status' ), 10 );
 
@@ -108,6 +133,8 @@ class Fanfic_Validation {
 			// Re-add the hook
 			add_action( 'save_post_fanfiction_story', array( __CLASS__, 'validate_and_update_status' ), 10, 1 );
 
+			error_log( 'Story reverted to draft' );
+
 			/**
 			 * Fires when a story becomes invalid and is reverted to draft.
 			 *
@@ -117,8 +144,11 @@ class Fanfic_Validation {
 			 */
 			do_action( 'fanfic_story_invalidated', $story_id, self::get_validation_errors( $story_id ) );
 
+			error_log( '=== VALIDATION CHECK END (REVERTED) ===' );
 			return false;
 		}
+
+		error_log( 'Validation passed or story not published' );
 
 		/**
 		 * Fires after story validation is complete.
@@ -129,6 +159,7 @@ class Fanfic_Validation {
 		 */
 		do_action( 'fanfic_story_validated', $story_id, $is_valid );
 
+		error_log( '=== VALIDATION CHECK END (SUCCESS) ===' );
 		return $is_valid;
 	}
 
