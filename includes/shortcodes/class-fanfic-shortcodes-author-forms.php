@@ -114,6 +114,16 @@ class Fanfic_Shortcodes_Author_Forms {
 		<div class="fanfic-form-wrapper fanfic-story-form-<?php echo esc_attr( $form_mode ); ?>">
 			<div class="fanfic-form-header">
 				<h2><?php echo $is_edit_mode ? sprintf( esc_html__( 'Edit Story: "%s"', 'fanfiction-manager' ), esc_html( $story->post_title ) ) : esc_html__( 'Create New Story', 'fanfiction-manager' ); ?></h2>
+				<?php if ( $is_edit_mode ) : ?>
+					<?php
+					$post_status = get_post_status( $story_id );
+					$status_class = 'publish' === $post_status ? 'published' : 'draft';
+					$status_text = 'publish' === $post_status ? __( 'Published', 'fanfiction-manager' ) : __( 'Draft', 'fanfiction-manager' );
+					?>
+					<span class="fanfic-story-status-badge fanfic-status-<?php echo esc_attr( $status_class ); ?>">
+						<?php echo esc_html( $status_text ); ?>
+					</span>
+				<?php endif; ?>
 			</div>
 
 			<?php echo wp_kses_post( $message ); ?>
@@ -152,7 +162,7 @@ class Fanfic_Shortcodes_Author_Forms {
 					<!-- Genres -->
 					<div class="fanfic-form-field">
 						<label><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
-						<div class="fanfic-checkboxes">
+						<div class="fanfic-checkboxes fanfic-checkboxes-grid">
 							<?php
 							$genres = get_terms( array(
 								'taxonomy' => 'fanfiction_genre',
@@ -182,8 +192,9 @@ class Fanfic_Shortcodes_Author_Forms {
 
 					<!-- Status -->
 					<div class="fanfic-form-field">
-						<label><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
-						<div class="fanfic-radios">
+						<label for="fanfic_story_status"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
+						<select id="fanfic_story_status" name="fanfic_story_status" class="fanfic-select" required>
+							<option value=""><?php esc_html_e( 'Select a status...', 'fanfiction-manager' ); ?></option>
 							<?php
 							$statuses = get_terms( array(
 								'taxonomy' => 'fanfiction_status',
@@ -191,24 +202,17 @@ class Fanfic_Shortcodes_Author_Forms {
 							) );
 
 							foreach ( $statuses as $status ) {
-								$is_checked = isset( $_POST['fanfic_story_status'] ) ?
+								$is_selected = isset( $_POST['fanfic_story_status'] ) ?
 									$_POST['fanfic_story_status'] == $status->term_id :
 									( $is_edit_mode && $current_status == $status->term_id );
 								?>
-								<label class="fanfic-radio-label">
-									<input
-										type="radio"
-										name="fanfic_story_status"
-										value="<?php echo esc_attr( $status->term_id ); ?>"
-										class="fanfic-radio"
-										<?php checked( $is_checked ); ?>
-									/>
+								<option value="<?php echo esc_attr( $status->term_id ); ?>" <?php selected( $is_selected ); ?>>
 									<?php echo esc_html( $status->name ); ?>
-								</label>
+								</option>
 								<?php
 							}
 							?>
-						</div>
+						</select>
 					</div>
 
 					<!-- Featured Image -->
