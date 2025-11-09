@@ -345,6 +345,28 @@ if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 					update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 					update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
+					// Check if this is the first published chapter and story is a draft
+					$is_first_published_chapter = false;
+					$story = get_post( $story_id );
+
+					// Only check if we're publishing a chapter (not just updating) and story is draft
+					if ( 'publish' === $chapter_status && $current_chapter_status !== 'publish' && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
+						// Count published chapters (excluding the one we just published)
+						$published_chapters = get_posts( array(
+							'post_type'      => 'fanfiction_chapter',
+							'post_parent'    => $story_id,
+							'post_status'    => 'publish',
+							'posts_per_page' => -1,
+							'fields'         => 'ids',
+							'post__not_in'   => array( $chapter_id ),
+						) );
+
+						// If there are no other published chapters, this is the first
+						if ( empty( $published_chapters ) ) {
+							$is_first_published_chapter = true;
+						}
+					}
+
 					// Redirect back with success message
 					$redirect_url = add_query_arg(
 						array(
@@ -353,6 +375,11 @@ if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 						),
 						wp_get_referer()
 					);
+
+					// Add parameter to show publication prompt if this is first chapter
+					if ( $is_first_published_chapter ) {
+						$redirect_url = add_query_arg( 'show_publish_prompt', '1', $redirect_url );
+					}
 
 					wp_redirect( $redirect_url );
 					exit;
