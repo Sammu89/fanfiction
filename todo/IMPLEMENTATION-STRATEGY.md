@@ -195,7 +195,7 @@ C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-edit-profi
 3. Implement `[edit-author-button]` shortcode
 4. Implement `[story-chapters-dropdown]` shortcode
 5. Update templates to use new edit button shortcodes:
-   - `single-fanfiction_story.php` - add `[edit-story-button]`
+   - `template-story-view.php` - add `[edit-story-button]`
    - `template-chapter-view.php` - add `[edit-chapter-button]`
    - `template-members.php` - add `[edit-author-button]`
 
@@ -203,7 +203,7 @@ C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-edit-profi
 ```
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\shortcodes\class-fanfic-shortcodes-utility.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\shortcodes\class-fanfic-shortcodes-navigation.php
-C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\single-fanfiction_story.php
+C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-story-view.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-chapter-view.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-members.php
 ```
@@ -293,7 +293,7 @@ C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-dashboard-
 ```
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\shortcodes\class-fanfic-shortcodes-forms.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\class-fanfic-reports.php (create if doesn't exist)
-C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\single-fanfiction_story.php
+C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-story-view.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-chapter-view.php
 ```
 
@@ -384,7 +384,7 @@ C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\class-fanfic-users-a
 ### Template Files Needing Updates
 
 **High Priority:**
-- `single-fanfiction_story.php` - Add edit button
+- `template-story-view.php` - Add edit button
 - `template-chapter-view.php` - Add edit button
 - `template-members.php` - Add edit button, enhance with author shortcodes
 

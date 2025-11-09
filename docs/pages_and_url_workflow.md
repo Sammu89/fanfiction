@@ -80,7 +80,7 @@ The plugin uses **two distinct approaches** to handle pages:
 
 | Type | Purpose | URL Pattern | Handled By |
 |------|---------|-------------|------------|
-| **Single Story** | View story details | `/[base]/stories_slug/{story-slug}/` | WordPress + `single-fanfiction_story.php` |
+| **Single Story** | View story details | `/[base]/stories_slug/{story-slug}/` | WordPress + `template-story-view.php` |
 | **Single Chapter** | Read chapter content | `/[base]/stories_slug/{story-slug}/chapter-{number}/` | WordPress + `template-chapter-view.php` |
 | **Story Archive** | Browse all stories | `/[base]/stories_slug/` | WordPress + `archive-fanfiction_story.php` |
 | **Genre Taxonomy** | Filter by genre | `/[base]/stories_slug/genre/{genre-slug}/` | WordPress native (no custom template) |
@@ -260,7 +260,7 @@ INCOMING REQUEST
 │  └─ NO: Continue to CPT checks
 │
 ├─ is_singular('fanfiction_story')?
-│  └─ YES: single-fanfiction_story.php
+│  └─ YES: template-story-view.php
 │
 ├─ is_singular('fanfiction_chapter')?
 │  └─ YES: template-chapter-view.php

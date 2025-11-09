@@ -51,7 +51,7 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 }
 
 // Get custom template from settings
-$template = get_option( 'fanfic_chapter_view_template', '' );
+$template = get_option( 'fanfic_shortcode_chapter_view', '' );
 
 // If no custom template, use default from settings class
 if ( empty( $template ) && class_exists( 'Fanfic_Settings' ) ) {

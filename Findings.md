@@ -981,7 +981,7 @@ private static function get_default_template_content() {
    ├─ Check all required template files exist:
    │   ├─ fanfiction-page-template.php (main template)
    │   ├─ archive-fanfiction_story.php
-   │   ├─ single-fanfiction_story.php
+   │   ├─ template-story-view.php
    │   └─ template-chapter-view.php
    ├─ Action: Log warnings (don't block - fallbacks exist)
    └─ Status: NOT IMPLEMENTED
@@ -1038,7 +1038,7 @@ All template files exist in `C:\Users\Sammu\Dentego Cloud\Codes\fanfic_project\t
 
 ✅ **Story/Chapter Templates:**
 - `archive-fanfiction_story.php` (Story archive)
-- `single-fanfiction_story.php` (Single story view)
+- `template-story-view.php` (Single story view)
 - `template-chapter-view.php` (Single chapter view)
 - `taxonomy-fanfiction_genre.php` (Genre taxonomy)
 - `taxonomy-fanfiction_status.php` (Status taxonomy)
@@ -1147,7 +1147,7 @@ All template files exist in `C:\Users\Sammu\Dentego Cloud\Codes\fanfic_project\t
 |------|---------|
 | `templates/fanfiction-page-template.php` | Main plugin template (uses get_header/get_footer) |
 | `templates/archive-fanfiction_story.php` | Story archive listing |
-| `templates/single-fanfiction_story.php` | Individual story view |
+| `templates/template-story-view.php` | Individual story view |
 | `templates/template-chapter-view.php` | Individual chapter view |
 | `templates/template-*.php` | Component templates (login, register, dashboard, etc.) |
 

@@ -29,7 +29,7 @@ According to docs/frontend-templates.md, these pages should exist:
 
 **Missing Pages:**
 - User Profile Page (`/fanfiction/members/{username}/`) - Only `template-members.php` exists (564 bytes, likely stub)
-- Story Page (dynamic) - `single-fanfiction_story.php` exists (2591 bytes)
+- Story Page (dynamic) - `template-story-view.php` exists (2591 bytes)
 - Chapter Page (dynamic) - `template-chapter-view.php` exists (1671 bytes)
 
 **Existing Pages (confirmed):**

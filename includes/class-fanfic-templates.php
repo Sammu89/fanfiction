@@ -99,7 +99,7 @@ class Fanfic_Templates {
 		// Check if this is a fanfiction post type
 		if ( is_singular( 'fanfiction_story' ) ) {
 			// Determine which content template to load
-			$content_template = 'single-fanfiction_story.php';
+			$content_template = 'template-story-view.php';
 
 			if ( ! empty( $action ) ) {
 				switch ( $action ) {

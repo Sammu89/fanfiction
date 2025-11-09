@@ -10,7 +10,7 @@
 - [ ] Implement `[edit-chapter-button]` in `class-fanfic-shortcodes-utility.php`
 - [ ] Implement `[edit-author-button]` in `class-fanfic-shortcodes-utility.php`
 - [ ] Implement `[story-chapters-dropdown]` in `class-fanfic-shortcodes-navigation.php`
-- [ ] Add `[edit-story-button]` to `single-fanfiction_story.php`
+- [ ] Add `[edit-story-button]` to `template-story-view.php`
 - [ ] Add `[edit-chapter-button]` to `template-chapter-view.php`
 - [ ] Add `[edit-author-button]` to `template-members.php`
 
@@ -34,7 +34,7 @@
 - [ ] Implement `[report-content]` in `class-fanfic-shortcodes-forms.php`
 - [ ] Integrate reCAPTCHA v2
 - [ ] Create report submission handler
-- [ ] Add to `single-fanfiction_story.php`
+- [ ] Add to `template-story-view.php`
 - [ ] Add to `template-chapter-view.php`
 
 ## Phase 6: User Management Shortcodes
@@ -106,7 +106,7 @@ includes/shortcodes/class-fanfic-shortcodes-user.php         (3 shortcodes)
 ### Template Files to Edit
 ```
 templates/template-edit-story.php           (cleanup)
-templates/single-fanfiction_story.php       (add edit button)
+templates/template-story-view.php       (add edit button)
 templates/template-chapter-view.php         (add edit button)
 templates/template-members.php              (enhance)
 templates/template-dashboard.php            (add stats)
@@ -133,7 +133,7 @@ code includes/shortcodes/class-fanfic-shortcodes-user.php
 
 # Edit template files
 code templates/template-edit-story.php
-code templates/single-fanfiction_story.php
+code templates/template-story-view.php
 code templates/template-chapter-view.php
 code templates/template-members.php
 ```

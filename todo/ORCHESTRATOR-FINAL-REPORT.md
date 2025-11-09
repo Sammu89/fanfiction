@@ -293,7 +293,7 @@ Implement 3 user management shortcodes for moderator/admin actions.
 Update frontend templates to use newly implemented shortcodes.
 
 ### Templates Updated (5 total)
-1. **single-fanfiction_story.php**
+1. **template-story-view.php**
    - Added `[edit-story-button]`
    - Added `[story-chapters-dropdown]`
 
@@ -479,7 +479,7 @@ Minor notes:
 16. `templates/template-error.php` - Cleanup
 17. `templates/template-maintenance.php` - Cleanup
 18. `templates/template-edit-profile.php` - Cleanup + access control
-19. `templates/single-fanfiction_story.php` - Shortcodes
+19. `templates/template-story-view.php` - Shortcodes
 20. `templates/template-chapter-view.php` - Shortcodes
 21. `templates/template-members.php` - Shortcodes
 22. `templates/template-dashboard-author.php` - Stats

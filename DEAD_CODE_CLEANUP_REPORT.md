@@ -152,7 +152,7 @@ Cleaned up 8 dead template files and updated shortcode references that were repl
     - Loaded by: Virtual page system (line 766 in class-fanfic-url-manager.php)
     - Status: ACTIVE
 
-13. **template-view-profile.php**
+13. **template-profile-view.php**
     - Purpose: User profile view page
     - Loaded by: Virtual page or members page with username param
     - Status: ACTIVE

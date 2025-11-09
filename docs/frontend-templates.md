@@ -116,12 +116,12 @@ The plugin provides a **Page Templates** settings tab (`Settings > Fanfiction > 
 ### **How It Works**
 
 - Templates are stored as HTML with shortcodes in WordPress options:
-  - `fanfic_story_view_template`
-  - `fanfic_chapter_view_template`
+  - `fanfic_shortcode_story_view`
+  - `fanfic_shortcode_chapter_view`
   - `fanfic_profile_view_template`
 
 - The templates are loaded by the single post templates:
-  - `templates/single-fanfiction_story.php` - Loads story template
+  - `templates/template-story-view.php` - Loads story template
   - `templates/template-chapter-view.php` - Loads chapter template
   - `templates/template-members.php` - Loads profile template
 

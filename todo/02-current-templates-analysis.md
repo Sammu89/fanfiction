@@ -321,7 +321,7 @@ The `templates/` directory contains 20 template files for the Fanfiction Manager
 
 ---
 
-### 2.2 **single-fanfiction_story.php**
+### 2.2 **template-story-view.php**
 **Purpose:** WordPress theme integration for single story display
 
 **Current Implementation:**
