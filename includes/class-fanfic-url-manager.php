@@ -697,7 +697,7 @@ class Fanfic_URL_Manager {
 	/**
 	 * Inject content into virtual pages
 	 *
-	 * Replaces the empty content with the appropriate shortcode.
+	 * Replaces the empty content with the appropriate shortcode or template.
 	 *
 	 * @since 2.0.0
 	 * @param string $content Post content.
@@ -719,12 +719,29 @@ class Fanfic_URL_Manager {
 
 		$page_config = $this->get_virtual_page_config( $post->fanfic_page_key );
 
-		if ( ! $page_config || empty( $page_config['shortcode'] ) ) {
+		if ( ! $page_config ) {
 			return $content;
 		}
 
-		// Return the shortcode - WordPress will process it automatically.
-		return do_shortcode( '[' . $page_config['shortcode'] . ']' );
+		// Check if we should load a template directly
+		if ( ! empty( $page_config['template'] ) ) {
+			// Load template file
+			$template_name = 'template-' . $page_config['template'] . '.php';
+			$template_path = FANFIC_PLUGIN_DIR . 'templates/' . $template_name;
+
+			if ( file_exists( $template_path ) ) {
+				ob_start();
+				include $template_path;
+				return ob_get_clean();
+			}
+		}
+
+		// Fallback to shortcode-based content
+		if ( ! empty( $page_config['shortcode'] ) ) {
+			return do_shortcode( '[' . $page_config['shortcode'] . ']' );
+		}
+
+		return $content;
 	}
 
 	/**
@@ -737,12 +754,12 @@ class Fanfic_URL_Manager {
 	private function get_virtual_page_config( $page_key ) {
 		$pages = array(
 			'dashboard'    => array(
-				'title'     => __( 'Dashboard', 'fanfiction-manager' ),
-				'shortcode' => 'user-dashboard',
+				'title'    => __( 'Dashboard', 'fanfiction-manager' ),
+				'template' => 'dashboard',  // Load template directly instead of shortcode
 			),
 			'create-story' => array(
 				'title'     => __( 'Create Story', 'fanfiction-manager' ),
-				'shortcode' => 'author-create-story-form',
+				'template'  => 'story-form',  // Load template directly instead of shortcode
 			),
 			'search'       => array(
 				'title'     => __( 'Search', 'fanfiction-manager' ),

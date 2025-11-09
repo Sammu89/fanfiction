@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(mv:*)",
+      "Bash(php -l:*)",
+      "Bash(whereis:*)",
+      "Bash(git diff --no-pager templates/template-error.php)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

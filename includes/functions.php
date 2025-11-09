@@ -388,6 +388,39 @@ function fanfic_get_maintenance_url() {
 }
 
 /**
+ * Get error message by error code
+ *
+ * Returns a translatable error message for a given error code.
+ *
+ * @since 1.0.0
+ * @param string $error_code Error code.
+ * @return string Error message or empty string if code not found.
+ */
+function fanfic_get_error_message_by_code( $error_code ) {
+	$error_messages = array(
+		'invalid_story'      => __( 'The requested story could not be found.', 'fanfiction-manager' ),
+		'invalid_chapter'    => __( 'The requested chapter could not be found.', 'fanfiction-manager' ),
+		'permission_denied'  => __( 'You do not have permission to access this page.', 'fanfiction-manager' ),
+		'not_logged_in'      => __( 'You must be logged in to access this page.', 'fanfiction-manager' ),
+		'invalid_user'       => __( 'The requested user profile could not be found.', 'fanfiction-manager' ),
+		'validation_failed'  => __( 'The submitted data failed validation. Please check your input and try again.', 'fanfiction-manager' ),
+		'save_failed'        => __( 'Failed to save your changes. Please try again.', 'fanfiction-manager' ),
+		'delete_failed'      => __( 'Failed to delete the item. Please try again.', 'fanfiction-manager' ),
+		'suspended'          => __( 'Your account has been suspended. Please contact the site administrator for more information.', 'fanfiction-manager' ),
+		'banned'             => __( 'Your account has been banned. If you believe this is an error, please contact the site administrator.', 'fanfiction-manager' ),
+		'invalid_nonce'      => __( 'Security verification failed. Please refresh the page and try again.', 'fanfiction-manager' ),
+		'session_expired'    => __( 'Your session has expired. Please log in again.', 'fanfiction-manager' ),
+		'database_error'     => __( 'A database error occurred. Please try again later or contact the site administrator.', 'fanfiction-manager' ),
+		'file_upload_failed' => __( 'File upload failed. Please check the file size and format, then try again.', 'fanfiction-manager' ),
+		'invalid_request'    => __( 'Invalid request. Please check your input and try again.', 'fanfiction-manager' ),
+		'rate_limit'         => __( 'You have exceeded the rate limit. Please wait a few minutes and try again.', 'fanfiction-manager' ),
+		'maintenance'        => __( 'The site is currently under maintenance. Please try again later.', 'fanfiction-manager' ),
+	);
+
+	return isset( $error_messages[ $error_code ] ) ? $error_messages[ $error_code ] : '';
+}
+
+/**
  * Get URL for the edit profile page
  *
  * @param int $user_id Optional. User ID to edit. Defaults to current user.

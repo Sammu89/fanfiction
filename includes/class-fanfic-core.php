@@ -825,7 +825,7 @@ class Fanfic_Core {
 		// Critical template files that must exist
 		$required_templates = array(
 			'fanfiction-page-template.php' => 'Main page template',
-			'archive-fanfiction_story.php' => 'Story archive template',
+			'template-story-archive.php' => 'Story archive template',
 			'single-fanfiction_story.php'  => 'Single story template',
 			'single-fanfiction_chapter.php' => 'Single chapter template',
 		);

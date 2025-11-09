@@ -58,11 +58,24 @@ class Fanfic_Templates {
 			$page_ids = get_option( 'fanfic_system_page_ids', array() );
 			if ( isset( $page_ids['main'] ) && is_page( $page_ids['main'] ) ) {
 				// Load archive template for main page
-				$custom_template = self::locate_template( 'archive-fanfiction_story.php' );
+				$custom_template = self::locate_template( 'template-story-archive.php' );
 				if ( $custom_template ) {
 					return $custom_template;
 				}
 			}
+		}
+
+		// Check if this is the error page - use template-error.php instead of shortcode
+		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+		if ( is_page() && isset( $page_ids['error'] ) && is_page( $page_ids['error'] ) ) {
+			global $fanfic_content_template;
+			$fanfic_content_template = 'template-error.php';
+		}
+
+		// Check if this is the maintenance page - use template-maintenance.php instead of shortcode
+		if ( is_page() && isset( $page_ids['maintenance'] ) && is_page( $page_ids['maintenance'] ) ) {
+			global $fanfic_content_template;
+			$fanfic_content_template = 'template-maintenance.php';
 		}
 
 		// Check for action-based templates on stories and chapters
@@ -76,10 +89,10 @@ class Fanfic_Templates {
 			if ( ! empty( $action ) ) {
 				switch ( $action ) {
 					case 'edit':
-						$content_template = 'template-edit-story.php';
+						$content_template = 'template-story-form.php';  // Use unified story form
 						break;
 					case 'add-chapter':
-						$content_template = 'template-edit-chapter.php';
+						$content_template = 'template-chapter-form.php';
 						break;
 				}
 			}
@@ -100,7 +113,7 @@ class Fanfic_Templates {
 			$content_template = 'single-fanfiction_chapter.php';
 
 			if ( ! empty( $action ) && 'edit' === $action ) {
-				$content_template = 'template-edit-chapter.php';
+				$content_template = 'template-chapter-form.php';
 			}
 
 			// Set global variable for wrapper template to use
@@ -115,7 +128,7 @@ class Fanfic_Templates {
 		}
 
 		if ( is_post_type_archive( 'fanfiction_story' ) ) {
-			$custom_template = self::locate_template( 'archive-fanfiction_story.php' );
+			$custom_template = self::locate_template( 'template-story-archive.php' );
 			if ( $custom_template ) {
 				return $custom_template;
 			}
@@ -408,8 +421,8 @@ class Fanfic_Templates {
 			'create-story'   => array( 'author-create-story-form' ),
 			'search'         => array( 'search-results' ),
 			'members'        => array( 'user-profile' ),
-			'error'          => array( 'fanfic-error-message' ),
-			'maintenance'    => array( 'fanfic-maintenance-message' ),
+			// 'error' page no longer uses shortcodes - it loads template-error.php directly
+			// 'maintenance' page no longer uses shortcodes - it loads template-maintenance.php directly
 		);
 
 		return isset( $required_shortcodes[ $page_slug ] ) ? $required_shortcodes[ $page_slug ] : array();
@@ -679,12 +692,12 @@ class Fanfic_Templates {
 				$result
 			);
 		} else {
-			// Custom homepage - create as editable page
+			// Custom homepage - create as editable page with translatable content
 			$main_page_id = self::create_or_update_page(
 				'main',
 				__( 'Fanfiction', 'fanfiction-manager' ),
 				'',
-				'<!-- wp:paragraph --><p>' . __( 'Welcome to the Fanfiction Archive', 'fanfiction-manager' ) . '</p><!-- /wp:paragraph -->',
+				self::get_default_template_content( 'main' ),
 				$base_slug,
 				0,
 				$result
@@ -1163,6 +1176,18 @@ class Fanfic_Templates {
 	 * @return string Template content with shortcodes.
 	 */
 	public static function get_default_template_content( $page_slug ) {
+		// Special handling for main page - load from template file
+		if ( 'main' === $page_slug ) {
+			$template_path = FANFIC_PLUGIN_DIR . 'templates/template-main-page.php';
+			if ( file_exists( $template_path ) ) {
+				ob_start();
+				include $template_path;
+				return ob_get_clean();
+			}
+			// Fallback if template file doesn't exist
+			return '<!-- wp:paragraph --><p>' . __( 'Welcome to the Fanfiction Archive', 'fanfiction-manager' ) . '</p><!-- /wp:paragraph -->';
+		}
+
 		$templates = array(
 			'login'          => '<!-- wp:paragraph --><p>[fanfic-login-form]</p><!-- /wp:paragraph -->',
 			'register'       => '<!-- wp:paragraph --><p>[fanfic-register-form]</p><!-- /wp:paragraph -->',
@@ -1171,8 +1196,8 @@ class Fanfic_Templates {
 			'create-story'   => '<!-- wp:paragraph --><p>[author-create-story-form]</p><!-- /wp:paragraph -->',
 			'search'         => '<!-- wp:paragraph --><p>[search-results]</p><!-- /wp:paragraph -->',
 			'members'        => '<!-- wp:paragraph --><p>[user-profile]</p><!-- /wp:paragraph -->',
-			'error'          => '<!-- wp:paragraph --><p>[fanfic-error-message]</p><!-- /wp:paragraph -->',
-			'maintenance'    => '<!-- wp:paragraph --><p>[fanfic-maintenance-message]</p><!-- /wp:paragraph -->',
+			'error'          => '<!-- wp:paragraph --><p>' . esc_html__( 'Error messages will be displayed here.', 'fanfiction-manager' ) . '</p><!-- /wp:paragraph -->',
+			'maintenance'    => '', // Template file handles all content directly
 		);
 
 		return isset( $templates[ $page_slug ] ) ? $templates[ $page_slug ] : '';
