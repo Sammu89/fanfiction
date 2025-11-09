@@ -188,14 +188,40 @@ class Fanfic_Story_Handler {
 			$can_publish_stories = current_user_can( 'publish_fanfiction_stories' );
 			error_log( 'Can publish_fanfiction_stories: ' . ( $can_publish_stories ? 'YES' : 'NO' ) );
 
-			// Add filter to bypass WordPress's internal capability check and force status
+			// Add filter to handle post_status, but skip revisions
 			add_filter( 'wp_insert_post_data', function( $data, $postarr ) use ( $post_status, $story_id ) {
+				error_log( '=== wp_insert_post_data FILTER CALLED ===' );
+				error_log( 'Post type in $data: ' . ( isset( $data['post_type'] ) ? $data['post_type'] : 'NOT SET' ) );
+				error_log( 'Post ID in $postarr: ' . ( isset( $postarr['ID'] ) ? $postarr['ID'] : 'NOT SET' ) );
+				error_log( 'Post parent in $data: ' . ( isset( $data['post_parent'] ) ? $data['post_parent'] : 'NOT SET' ) );
+				error_log( 'Incoming post_status: ' . ( isset( $data['post_status'] ) ? $data['post_status'] : 'NOT SET' ) );
+				error_log( 'Target story ID: ' . $story_id );
+				error_log( 'Target post_status: ' . $post_status );
+
+				// Skip if this is a revision (revisions are created with draft status)
+				if ( isset( $data['post_type'] ) && 'revision' === $data['post_type'] ) {
+					error_log( 'DECISION: SKIPPING REVISION' );
+					return $data;
+				}
+
+				// Also skip if post_parent is set (could be a revision without the type set)
+				if ( isset( $data['post_parent'] ) && absint( $data['post_parent'] ) === absint( $story_id ) ) {
+					error_log( 'DECISION: SKIPPING - This looks like a child post (revision) with parent = ' . $data['post_parent'] );
+					return $data;
+				}
+
 				// Only apply to our specific story update
 				if ( isset( $postarr['ID'] ) && absint( $postarr['ID'] ) === absint( $story_id ) ) {
-					error_log( 'wp_insert_post_data filter - Incoming status: ' . $data['post_status'] );
-					error_log( 'wp_insert_post_data filter - Forcing status to: ' . $post_status );
+					error_log( 'DECISION: APPLYING TO STORY ' . $story_id );
+					error_log( 'Forcing status from ' . $data['post_status'] . ' to: ' . $post_status );
 					$data['post_status'] = $post_status;
+				} else {
+					error_log( 'DECISION: NOT APPLYING - ID mismatch' );
+					error_log( 'postarr ID: ' . ( isset( $postarr['ID'] ) ? $postarr['ID'] : 'MISSING' ) . ' vs story ID: ' . $story_id );
 				}
+
+				error_log( 'Final post_status: ' . $data['post_status'] );
+				error_log( '=== wp_insert_post_data FILTER END ===' );
 				return $data;
 			}, 99, 2 );
 
@@ -854,12 +880,19 @@ class Fanfic_Story_Handler {
 		$can_publish_stories = current_user_can( 'publish_fanfiction_stories' );
 		error_log( 'AJAX Can publish_fanfiction_stories: ' . ( $can_publish_stories ? 'YES' : 'NO' ) );
 
-		// Add filter to bypass WordPress's internal capability check and force status
+		// Add filter to handle post_status, but skip revisions
 		add_filter( 'wp_insert_post_data', function( $data, $postarr ) use ( $story_id ) {
+			// Skip if this is a revision (revisions are created with draft status)
+			if ( isset( $data['post_type'] ) && 'revision' === $data['post_type'] ) {
+				error_log( 'AJAX wp_insert_post_data: Skipping revision' );
+				return $data;
+			}
+
 			// Only apply to our specific story update
 			if ( isset( $postarr['ID'] ) && absint( $postarr['ID'] ) === absint( $story_id ) ) {
-				error_log( 'AJAX wp_insert_post_data filter - Incoming status: ' . $data['post_status'] );
-				error_log( 'AJAX wp_insert_post_data filter - Forcing status to: publish' );
+				error_log( 'AJAX wp_insert_post_data - Post type: ' . $data['post_type'] );
+				error_log( 'AJAX wp_insert_post_data - Incoming status: ' . $data['post_status'] );
+				error_log( 'AJAX wp_insert_post_data - Forcing status to: publish' );
 				$data['post_status'] = 'publish';
 			}
 			return $data;
