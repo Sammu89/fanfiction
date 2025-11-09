@@ -134,6 +134,9 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 	// CREATE MODE: Insert new post
 	// ========================================================================
 	if ( ! $is_edit_mode ) {
+		// Determine the action based on which button was clicked
+		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'save_draft';
+
 		// Generate unique slug before creating the post
 		$base_slug = sanitize_title( $title );
 		$unique_slug = wp_unique_post_slug( $base_slug, 0, 'draft', 'fanfiction_story', 0 );
@@ -171,10 +174,18 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 		// Initialize view count
 		update_post_meta( $new_story_id, '_fanfic_views', 0 );
 
-		// Redirect to story edit page with action=edit
+		// Redirect based on the action
 		$story_permalink = get_permalink( $new_story_id );
-		$edit_url = add_query_arg( 'action', 'edit', $story_permalink );
-		wp_safe_redirect( $edit_url );
+
+		if ( 'add_chapter' === $form_action ) {
+			// Redirect to add chapter page
+			$redirect_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
+		} else {
+			// Save as draft - redirect to edit page
+			$redirect_url = add_query_arg( 'action', 'edit', $story_permalink );
+		}
+
+		wp_safe_redirect( $redirect_url );
 		exit;
 	}
 
@@ -182,9 +193,19 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 	// EDIT MODE: Update existing post
 	// ========================================================================
 	else {
-		// Get save action (draft or publish)
-		$save_action = isset( $_POST['fanfic_save_action'] ) ? sanitize_text_field( $_POST['fanfic_save_action'] ) : 'draft';
-		$post_status = ( 'publish' === $save_action ) ? 'publish' : 'draft';
+		// Determine the action based on which button was clicked
+		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'update';
+
+		// Determine post status based on action
+		$current_status = get_post_status( $story_id );
+		$post_status = $current_status;
+
+		if ( 'save_draft' === $form_action ) {
+			$post_status = 'draft';
+		} elseif ( 'publish' === $form_action ) {
+			$post_status = 'publish';
+		}
+		// For 'update' and 'add_chapter' actions, keep current status
 
 		// Update story
 		$result = wp_update_post( array(
@@ -214,8 +235,16 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 			delete_post_meta( $story_id, '_fanfic_featured_image' );
 		}
 
-		// Redirect back with success message
-		$redirect_url = add_query_arg( 'success', 'true', $_SERVER['REQUEST_URI'] );
+		// Redirect based on action
+		if ( 'add_chapter' === $form_action ) {
+			// Redirect to add chapter page
+			$story_permalink = get_permalink( $story_id );
+			$redirect_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
+		} else {
+			// Redirect back with success message
+			$redirect_url = add_query_arg( 'success', 'true', $_SERVER['REQUEST_URI'] );
+		}
+
 		wp_safe_redirect( $redirect_url );
 		exit;
 	}
@@ -441,8 +470,11 @@ $form_mode = $is_edit_mode ? 'edit' : 'create';
 					<div class="fanfic-form-actions">
 						<?php if ( ! $is_edit_mode ) : ?>
 							<!-- CREATE MODE -->
-							<button type="submit" class="fanfic-btn fanfic-btn-primary">
-								<?php esc_html_e( 'Create Story', 'fanfiction-manager' ); ?>
+							<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-btn fanfic-btn-primary">
+								<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+							</button>
+							<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
+								<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
 							</button>
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
@@ -459,21 +491,29 @@ $form_mode = $is_edit_mode ? 'edit' : 'create';
 								'fields'         => 'ids',
 							) );
 							$has_chapters = ! empty( $chapter_count );
+							$current_post_status = get_post_status( $story_id );
 							?>
 							<?php if ( ! $has_chapters ) : ?>
-								<button type="submit" name="fanfic_save_action" value="draft" class="fanfic-btn fanfic-btn-primary">
-									<?php esc_html_e( 'Save Draft', 'fanfiction-manager' ); ?>
+								<!-- EDIT MODE - NO CHAPTERS -->
+								<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-btn fanfic-btn-primary">
+									<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 								</button>
-							<?php else : ?>
-								<button type="submit" name="fanfic_save_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
+								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
 									<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
 								</button>
-								<button type="submit" name="fanfic_save_action" value="publish" class="fanfic-btn fanfic-btn-primary">
-									<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
+							<?php else : ?>
+								<!-- EDIT MODE - HAS CHAPTERS -->
+								<button type="submit" name="fanfic_form_action" value="update" class="fanfic-btn fanfic-btn-primary">
+									<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
 								</button>
-								<button type="button" id="delete-story-trigger" class="fanfic-btn fanfic-btn-danger" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story->post_title ); ?>">
-									<?php esc_html_e( 'Delete Story', 'fanfiction-manager' ); ?>
+								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
+									<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
 								</button>
+								<?php if ( 'draft' === $current_post_status ) : ?>
+									<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+										<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
+									</button>
+								<?php endif; ?>
 							<?php endif; ?>
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
