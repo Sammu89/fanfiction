@@ -134,6 +134,9 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 	// CREATE MODE: Insert new post
 	// ========================================================================
 	if ( ! $is_edit_mode ) {
+		// Determine the action based on which button was clicked
+		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'save_draft';
+
 		// Generate unique slug before creating the post
 		$base_slug = sanitize_title( $title );
 		$unique_slug = wp_unique_post_slug( $base_slug, 0, 'draft', 'fanfiction_story', 0 );
@@ -171,10 +174,18 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 		// Initialize view count
 		update_post_meta( $new_story_id, '_fanfic_views', 0 );
 
-		// Redirect to story edit page with action=edit
+		// Redirect based on the action
 		$story_permalink = get_permalink( $new_story_id );
-		$edit_url = add_query_arg( 'action', 'edit', $story_permalink );
-		wp_safe_redirect( $edit_url );
+
+		if ( 'add_chapter' === $form_action ) {
+			// Redirect to add chapter page
+			$redirect_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
+		} else {
+			// Save as draft - redirect to edit page
+			$redirect_url = add_query_arg( 'action', 'edit', $story_permalink );
+		}
+
+		wp_safe_redirect( $redirect_url );
 		exit;
 	}
 
@@ -182,9 +193,19 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 	// EDIT MODE: Update existing post
 	// ========================================================================
 	else {
-		// Get save action (draft or publish)
-		$save_action = isset( $_POST['fanfic_save_action'] ) ? sanitize_text_field( $_POST['fanfic_save_action'] ) : 'draft';
-		$post_status = ( 'publish' === $save_action ) ? 'publish' : 'draft';
+		// Determine the action based on which button was clicked
+		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'update';
+
+		// Determine post status based on action
+		$current_status = get_post_status( $story_id );
+		$post_status = $current_status;
+
+		if ( 'save_draft' === $form_action ) {
+			$post_status = 'draft';
+		} elseif ( 'publish' === $form_action ) {
+			$post_status = 'publish';
+		}
+		// For 'update' and 'add_chapter' actions, keep current status
 
 		// Update story
 		$result = wp_update_post( array(
@@ -214,8 +235,16 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 			delete_post_meta( $story_id, '_fanfic_featured_image' );
 		}
 
-		// Redirect back with success message
-		$redirect_url = add_query_arg( 'success', 'true', $_SERVER['REQUEST_URI'] );
+		// Redirect based on action
+		if ( 'add_chapter' === $form_action ) {
+			// Redirect to add chapter page
+			$story_permalink = get_permalink( $story_id );
+			$redirect_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
+		} else {
+			// Redirect back with success message
+			$redirect_url = add_query_arg( 'success', 'true', $_SERVER['REQUEST_URI'] );
+		}
+
 		wp_safe_redirect( $redirect_url );
 		exit;
 	}
@@ -295,6 +324,19 @@ if ( $is_edit_mode ) {
 }
 
 $form_mode = $is_edit_mode ? 'edit' : 'create';
+
+// Prepare data attributes for change detection (edit mode only)
+$data_attrs = '';
+if ( $is_edit_mode ) {
+	$data_attrs = sprintf(
+		'data-original-title="%s" data-original-content="%s" data-original-genres="%s" data-original-status="%s" data-original-image="%s"',
+		esc_attr( $story->post_title ),
+		esc_attr( $story->post_content ),
+		esc_attr( implode( ',', $current_genres ) ),
+		esc_attr( $current_status ),
+		esc_attr( $featured_image )
+	);
+}
 ?>
 
 <p class="fanfic-page-description">
@@ -332,7 +374,7 @@ $form_mode = $is_edit_mode ? 'edit' : 'create';
 					<?php endif; ?>
 				</div>
 
-				<form method="post" class="fanfic-story-form" id="fanfic-story-form">
+				<form method="post" class="fanfic-story-form" id="fanfic-story-form" <?php echo $data_attrs; ?>>
 					<div class="fanfic-form-content">
 						<?php wp_nonce_field( 'fanfic_story_form_action' . ( $is_edit_mode ? '_' . $story_id : '' ), 'fanfic_story_nonce' ); ?>
 
@@ -441,8 +483,11 @@ $form_mode = $is_edit_mode ? 'edit' : 'create';
 					<div class="fanfic-form-actions">
 						<?php if ( ! $is_edit_mode ) : ?>
 							<!-- CREATE MODE -->
-							<button type="submit" class="fanfic-btn fanfic-btn-primary">
-								<?php esc_html_e( 'Create Story', 'fanfiction-manager' ); ?>
+							<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-btn fanfic-btn-primary">
+								<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+							</button>
+							<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
+								<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
 							</button>
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
@@ -450,30 +495,47 @@ $form_mode = $is_edit_mode ? 'edit' : 'create';
 						<?php else : ?>
 							<!-- EDIT MODE -->
 							<?php
-							// Check if story has chapters
-							$chapter_count = get_posts( array(
+							// Check if story has published chapters
+							$published_chapter_count = get_posts( array(
 								'post_type'      => 'fanfiction_chapter',
 								'post_parent'    => $story_id,
-								'post_status'    => 'any',
+								'post_status'    => 'publish',
 								'posts_per_page' => 1,
 								'fields'         => 'ids',
 							) );
-							$has_chapters = ! empty( $chapter_count );
+							$has_published_chapters = ! empty( $published_chapter_count );
+							$current_post_status = get_post_status( $story_id );
+							$is_published = 'publish' === $current_post_status;
 							?>
-							<?php if ( ! $has_chapters ) : ?>
-								<button type="submit" name="fanfic_save_action" value="draft" class="fanfic-btn fanfic-btn-primary">
-									<?php esc_html_e( 'Save Draft', 'fanfiction-manager' ); ?>
+							<?php if ( ! $has_published_chapters ) : ?>
+								<!-- EDIT MODE - NO PUBLISHED CHAPTERS -->
+								<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-btn fanfic-btn-primary">
+									<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 								</button>
-							<?php else : ?>
-								<button type="submit" name="fanfic_save_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
+								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
 									<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
 								</button>
-								<button type="submit" name="fanfic_save_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+							<?php elseif ( ! $is_published ) : ?>
+								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS BUT STORY IS DRAFT -->
+								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-btn fanfic-btn-primary">
 									<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
 								</button>
-								<button type="button" id="delete-story-trigger" class="fanfic-btn fanfic-btn-danger" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story->post_title ); ?>">
-									<?php esc_html_e( 'Delete Story', 'fanfiction-manager' ); ?>
+								<button type="submit" name="fanfic_form_action" value="update" class="fanfic-btn fanfic-btn-secondary" id="update-draft-btn" disabled>
+									<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
 								</button>
+							<?php else : ?>
+								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS AND STORY IS PUBLISHED -->
+								<button type="submit" name="fanfic_form_action" value="update" class="fanfic-btn fanfic-btn-primary" id="update-btn" disabled>
+									<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
+								</button>
+								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
+									<?php esc_html_e( 'Unpublish and save as draft', 'fanfiction-manager' ); ?>
+								</button>
+							<?php endif; ?>
+							<?php if ( $is_published ) : ?>
+								<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-secondary" target="_blank" rel="noopener noreferrer">
+									<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
+								</a>
 							<?php endif; ?>
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
@@ -797,6 +859,64 @@ $form_mode = $is_edit_mode ? 'edit' : 'create';
 		});
 
 		<?php if ( $is_edit_mode ) : ?>
+		// Change detection for Update buttons
+		var form = document.getElementById('fanfic-story-form');
+		var updateBtn = document.getElementById('update-btn');
+		var updateDraftBtn = document.getElementById('update-draft-btn');
+
+		if (form && (updateBtn || updateDraftBtn)) {
+			var originalTitle = form.getAttribute('data-original-title') || '';
+			var originalContent = form.getAttribute('data-original-content') || '';
+			var originalGenres = form.getAttribute('data-original-genres') || '';
+			var originalStatus = form.getAttribute('data-original-status') || '';
+			var originalImage = form.getAttribute('data-original-image') || '';
+
+			function checkForChanges() {
+				var titleField = document.getElementById('fanfic_story_title');
+				var contentField = document.getElementById('fanfic_story_intro');
+				var statusField = document.getElementById('fanfic_story_status');
+				var imageField = document.getElementById('fanfic_story_image');
+				var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]:checked');
+
+				var currentTitle = titleField ? titleField.value : '';
+				var currentContent = contentField ? contentField.value : '';
+				var currentStatus = statusField ? statusField.value : '';
+				var currentImage = imageField ? imageField.value : '';
+				var currentGenres = Array.from(genreCheckboxes).map(function(cb) { return cb.value; }).sort().join(',');
+
+				var hasChanges = (currentTitle !== originalTitle) ||
+								(currentContent !== originalContent) ||
+								(currentStatus !== originalStatus) ||
+								(currentImage !== originalImage) ||
+								(currentGenres !== originalGenres);
+
+				if (updateBtn) {
+					updateBtn.disabled = !hasChanges;
+				}
+				if (updateDraftBtn) {
+					updateDraftBtn.disabled = !hasChanges;
+				}
+			}
+
+			// Attach event listeners
+			var titleField = document.getElementById('fanfic_story_title');
+			var contentField = document.getElementById('fanfic_story_intro');
+			var statusField = document.getElementById('fanfic_story_status');
+			var imageField = document.getElementById('fanfic_story_image');
+			var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]');
+
+			if (titleField) titleField.addEventListener('input', checkForChanges);
+			if (contentField) contentField.addEventListener('input', checkForChanges);
+			if (statusField) statusField.addEventListener('change', checkForChanges);
+			if (imageField) imageField.addEventListener('input', checkForChanges);
+			genreCheckboxes.forEach(function(checkbox) {
+				checkbox.addEventListener('change', checkForChanges);
+			});
+
+			// Initial check on page load
+			checkForChanges();
+		}
+
 		// Delete story confirmation
 		var deleteStoryButton = document.getElementById('delete-story-button');
 		var modal = document.getElementById('delete-confirm-modal');
