@@ -47,10 +47,6 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 $current_user = wp_get_current_user();
 ?>
 
-<div class="fanfic-template-wrapper">
-<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
-
-
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
@@ -89,12 +85,12 @@ $current_user = wp_get_current_user();
 			<?php echo get_avatar( $current_user->ID, 80, '', $current_user->display_name, array( 'class' => 'fanfic-avatar-image', 'loading' => 'lazy' ) ); ?>
 		</div>
 		<div class="fanfic-dashboard-welcome">
-			<h1 class="fanfic-dashboard-title">
+			<h2 class="fanfic-dashboard-title">
 				<?php
 				/* translators: %s: User display name */
 				printf( esc_html__( 'Welcome back, %s!', 'fanfiction-manager' ), esc_html( $current_user->display_name ) );
 				?>
-			</h1>
+			</h2>
 			<p class="fanfic-dashboard-subtitle">
 				<?php esc_html_e( 'Manage your stories, track your progress, and connect with readers.', 'fanfiction-manager' ); ?>
 			</p>
@@ -251,6 +247,3 @@ $current_user = wp_get_current_user();
 	});
 })();
 </script>
-
-
-</div>

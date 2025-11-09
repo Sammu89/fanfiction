@@ -44,28 +44,17 @@ if ( empty( $main_page_url ) ) {
 	$main_page_url = home_url( '/' );
 }
 ?>
-<div class="fanfic-template-wrapper">
-	<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
-
-	<article id="fanfic-main-content" class="fanfic-page-content">
-		<header class="fanfic-page-header">
-			<h1 class="fanfic-page-title"><?php esc_html_e( 'Error', 'fanfiction-manager' ); ?></h1>
-		</header>
-
-		<section class="fanfic-content-section" role="alert" aria-live="assertive">
-			<div class="fanfic-error-message fanfic-message">
-				<div class="fanfic-message-icon" aria-hidden="true">&#9888;</div>
-				<div class="fanfic-message-content">
-					<h3 class="fanfic-message-title"><?php esc_html_e( 'Error', 'fanfiction-manager' ); ?></h3>
-					<p class="fanfic-message-text"><?php echo esc_html( $error_message ); ?></p>
-					<p class="fanfic-message-action">
-						<a href="<?php echo esc_url( $main_page_url ); ?>" class="fanfic-btn fanfic-btn-primary">
-							<?php esc_html_e( 'Go to Main Page', 'fanfiction-manager' ); ?>
-						</a>
-					</p>
-				</div>
-			</div>
-		</section>
-	</article>
-
-</div>
+<section class="fanfic-content-section" role="alert" aria-live="assertive">
+	<div class="fanfic-error-message fanfic-message">
+		<div class="fanfic-message-icon" aria-hidden="true">&#9888;</div>
+		<div class="fanfic-message-content">
+			<h2 class="fanfic-message-title"><?php esc_html_e( 'Error', 'fanfiction-manager' ); ?></h2>
+			<p class="fanfic-message-text"><?php echo esc_html( $error_message ); ?></p>
+			<p class="fanfic-message-action">
+				<a href="<?php echo esc_url( $main_page_url ); ?>" class="fanfic-btn fanfic-btn-primary">
+					<?php esc_html_e( 'Go to Main Page', 'fanfiction-manager' ); ?>
+				</a>
+			</p>
+		</div>
+	</div>
+</section>
