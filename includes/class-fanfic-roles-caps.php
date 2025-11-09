@@ -251,6 +251,7 @@ class Fanfic_Roles_Caps {
 			'edit_post',
 			'delete_post',
 			'read_post',
+			'publish_post',
 			'read_fanfiction_story',
 			'edit_fanfiction_story',
 			'delete_fanfiction_story',
@@ -274,13 +275,13 @@ class Fanfic_Roles_Caps {
 			'manage_fanfiction_css',
 		);
 
-		// Only check fanfiction post types for edit_post/delete_post/read_post
-		if ( in_array( $cap, array( 'edit_post', 'delete_post', 'read_post' ), true ) && ! empty( $args[0] ) ) {
+		// Only check fanfiction post types for edit_post/delete_post/read_post/publish_post
+		if ( in_array( $cap, array( 'edit_post', 'delete_post', 'read_post', 'publish_post' ), true ) && ! empty( $args[0] ) ) {
 			$post = get_post( $args[0] );
 			// Only apply admin bypass if this is a fanfiction post type
 			if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
 				// Not a fanfiction post, remove from the array so bypass doesn't apply
-				$fanfic_caps = array_diff( $fanfic_caps, array( 'edit_post', 'delete_post', 'read_post' ) );
+				$fanfic_caps = array_diff( $fanfic_caps, array( 'edit_post', 'delete_post', 'read_post', 'publish_post' ) );
 			}
 		}
 
@@ -317,6 +318,48 @@ class Fanfic_Roles_Caps {
 						return array( 'edit_others_fanfiction_stories' );
 					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
 						return array( 'edit_others_fanfiction_chapters' );
+					}
+				}
+			}
+		}
+
+		// Handle publish_post capability for fanfiction stories and chapters
+		// WordPress checks 'publish_post' when changing post status to 'publish'
+		if ( 'publish_post' === $cap && ! empty( $args[0] ) ) {
+			$post = get_post( $args[0] );
+
+			// Only handle fanfiction post types
+			if ( $post && in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+				// Map to appropriate publish capability
+				if ( 'fanfiction_story' === $post->post_type ) {
+					return array( 'publish_fanfiction_stories' );
+				} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+					return array( 'publish_fanfiction_chapters' );
+				}
+			}
+		}
+
+		// Handle delete_post capability for fanfiction stories and chapters
+		// WordPress checks 'delete_post' when deleting posts
+		if ( 'delete_post' === $cap && ! empty( $args[0] ) ) {
+			$post = get_post( $args[0] );
+
+			// Only handle fanfiction post types
+			if ( $post && in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+				// Check if user is the post author
+				if ( (int) $user_id === (int) $post->post_author ) {
+					// Author can delete their own posts
+					if ( 'fanfiction_story' === $post->post_type ) {
+						return array( 'delete_fanfiction_stories' );
+					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+						return array( 'delete_fanfiction_chapters' );
+					}
+				} else {
+					// Not the author - requires 'delete_others' capability
+					if ( 'fanfiction_story' === $post->post_type ) {
+						return array( 'delete_others_fanfiction_stories' );
+					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+						return array( 'delete_others_fanfiction_chapters' );
 					}
 				}
 			}
