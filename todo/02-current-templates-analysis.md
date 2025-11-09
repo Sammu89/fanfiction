@@ -346,7 +346,7 @@ The `templates/` directory contains 20 template files for the Fanfiction Manager
 
 ---
 
-### 2.3 **single-fanfiction_chapter.php**
+### 2.3 **template-chapter-view.php**
 **Purpose:** WordPress theme integration for single chapter display
 
 **Current Implementation:**

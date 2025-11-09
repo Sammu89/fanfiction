@@ -122,7 +122,7 @@ The plugin provides a **Page Templates** settings tab (`Settings > Fanfiction > 
 
 - The templates are loaded by the single post templates:
   - `templates/single-fanfiction_story.php` - Loads story template
-  - `templates/single-fanfiction_chapter.php` - Loads chapter template
+  - `templates/template-chapter-view.php` - Loads chapter template
   - `templates/template-members.php` - Loads profile template
 
 - Administrators can customize templates by adding/removing shortcodes and HTML

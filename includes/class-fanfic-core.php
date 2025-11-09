@@ -827,7 +827,7 @@ class Fanfic_Core {
 			'fanfiction-page-template.php' => 'Main page template',
 			'template-story-archive.php' => 'Story archive template',
 			'single-fanfiction_story.php'  => 'Single story template',
-			'single-fanfiction_chapter.php' => 'Single chapter template',
+			'template-chapter-view.php' => 'Single chapter template',
 		);
 
 		// Check if template directory exists

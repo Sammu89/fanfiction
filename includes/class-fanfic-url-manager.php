@@ -116,7 +116,6 @@ class Fanfic_URL_Manager {
 		// Load dynamic page slugs from individual options (same pattern as base and story_path)
 		$dynamic_slugs = array(
 			'dashboard'    => $this->sanitize_slug( get_option( 'fanfic_dashboard_slug', 'dashboard' ) ),
-			'create-story' => $this->sanitize_slug( get_option( 'fanfic_create_story_slug', 'create-story' ) ),
 			'search'       => $this->sanitize_slug( get_option( 'fanfic_search_slug', 'search' ) ),
 			'members'      => $this->sanitize_slug( get_option( 'fanfic_members_slug', 'members' ) ),
 		);
@@ -191,15 +190,6 @@ class Fanfic_URL_Manager {
 			add_rewrite_rule(
 				'^' . $base . '/' . $slugs['dashboard'] . '/?$',
 				'index.php?fanfic_page=dashboard',
-				'top'
-			);
-		}
-
-		// Create Story: /fanfiction/create-story/
-		if ( isset( $slugs['create-story'] ) ) {
-			add_rewrite_rule(
-				'^' . $base . '/' . $slugs['create-story'] . '/?$',
-				'index.php?fanfic_page=create-story',
 				'top'
 			);
 		}
@@ -330,6 +320,19 @@ class Fanfic_URL_Manager {
 	 * @return string Page URL.
 	 */
 	public function get_page_url( $page_key, $args = array() ) {
+		// Special handling for create-story: use main page with ?action=create-story
+		if ( 'create-story' === $page_key ) {
+			$page_ids = get_option( 'fanfic_system_page_ids', array() );
+			if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
+				$url = get_permalink( $page_ids['main'] );
+				if ( $url ) {
+					$args['action'] = 'create-story';
+					return add_query_arg( $args, $url );
+				}
+			}
+			return '';
+		}
+
 		// Check if it's a dynamic page.
 		if ( isset( $this->slugs['dynamic'][ $page_key ] ) ) {
 			return $this->get_dynamic_page_url( $page_key, $args );
@@ -753,21 +756,17 @@ class Fanfic_URL_Manager {
 	 */
 	private function get_virtual_page_config( $page_key ) {
 		$pages = array(
-			'dashboard'    => array(
+			'dashboard' => array(
 				'title'    => __( 'Dashboard', 'fanfiction-manager' ),
-				'template' => 'dashboard',  // Load template directly instead of shortcode
+				'template' => 'dashboard',
 			),
-			'create-story' => array(
-				'title'     => __( 'Create Story', 'fanfiction-manager' ),
-				'template'  => 'story-form',  // Load template directly instead of shortcode
+			'search' => array(
+				'title'    => __( 'Search', 'fanfiction-manager' ),
+				'template' => 'search-page',
 			),
-			'search'       => array(
-				'title'     => __( 'Search', 'fanfiction-manager' ),
-				'shortcode' => 'search-results',
-			),
-			'members'      => array(
-				'title'     => __( 'Members', 'fanfiction-manager' ),
-				'shortcode' => 'user-profile',
+			'members' => array(
+				'title'    => __( 'Members', 'fanfiction-manager' ),
+				'template' => 'user-list',
 			),
 		);
 

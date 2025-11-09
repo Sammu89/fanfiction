@@ -41,7 +41,7 @@ fanfiction-manager/
 │   ├── search.html
 │   └── error.html
 │   ├── single-fanfiction_story.php (Fallback template if not overridden by theme)
-│   ├── single-fanfiction_chapter.php (Fallback template if not overridden by theme)
+│   ├── template-chapter-view.php (Fallback template if not overridden by theme)
 │   ├── archive-fanfiction_story.php (Fallback template if not overridden by theme)
 │   ├── taxonomy-fanfiction_genre.php (Fallback template if not overridden by theme)
 │   └── taxonomy-fanfiction_status.php (Fallback template if not overridden by theme)

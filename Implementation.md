@@ -1132,7 +1132,7 @@ add_action( 'init', array( __CLASS__, 'handle_edit_story_submission' ) );
 
 12. CHAPTER VIEW
 Type: Custom Post Type Single
-Location: /templates/single-fanfiction_chapter.php
+Location: /templates/template-chapter-view.php
 Content Source: Admin-configurable template string loaded from fanfic_chapter_view_template option
 
 How It Works:
@@ -1153,7 +1153,7 @@ Registered In: class-fanfic-shortcodes-navigation.php, class-fanfic-shortcodes-c
 Special Feature: Draft story access control (lines 20-51)
 
 Status: ✅ Active - User-configurable shortcode template
-###What to do: Lets rename single-fanfiction_chapter.php to template-chapter-view.php that feeds the Admin-configurable template string. Shortcodes extra needed are [chapter-ratings] [chapter-views] - [chapter-breadcrumb] should become [breadcrumbs] ans be usable in all plugin pages.Dont need to code this shortcodes, mark as a TODO.
+###DONE: Renamed single-fanfiction_chapter.php to template-chapter-view.php. TODO: Shortcodes extra needed are [chapter-ratings] [chapter-views] - [chapter-breadcrumb] should become [breadcrumbs] and be usable in all plugin pages.
 
 
 
@@ -1391,8 +1391,8 @@ In class-fanfic-templates.php:
 
 // Lines 98-114
 if ( is_singular( 'fanfiction_chapter' ) ) {
-    $content_template = 'single-fanfiction_chapter.php';
-    
+    $content_template = 'template-chapter-view.php';
+
     if ( ! empty( $action ) && 'edit' === $action ) {
         $content_template = 'template-edit-chapter.php';
     }
@@ -1727,7 +1727,7 @@ Status: ✅ Active shortcode
 
 TEMPLATE FILES STATUS
 Templates Folder Files:
-| Template File | Used? | How? | |--------------|-------|------| | fanfiction-page-template.php | ✅ YES | Main wrapper for all plugin pages (classic themes) | | single-fanfiction_story.php | ✅ YES | Story view - processes shortcode template from settings | | single-fanfiction_chapter.php | ✅ YES | Chapter view - processes shortcode template from settings | | archive-fanfiction_story.php | ✅ YES | Story archive - pure PHP, NO shortcodes | | template-dashboard.php | ❌ NO | DEAD - Virtual page uses shortcode instead | | template-create-story.php | ❌ NO | DEAD - Virtual page uses shortcode instead | | template-edit-story.php | ✅ YES | Story edit form | | template-edit-chapter.php | ✅ YES | Chapter create/edit form | | template-search.php | ❌ NO | DEAD - Virtual page uses shortcode instead | | template-login.php | ❌ NO | DEAD - WordPress page uses shortcode instead | | template-register.php | ❌ NO | DEAD - WordPress page uses shortcode instead | | template-edit-profile.php | ✅ YES | Profile edit form with shortcodes | | template-view-profile.php | ✅ YES | User profile view with shortcodes | | template-members.php | ❌ NO | DEAD - Virtual page uses shortcode instead | | template-comments.php | ❓ UNKNOWN | Not referenced anywhere I found | | template-password-reset.php | ❌ NO | DEAD - WordPress page uses shortcode instead | | template-error.php | ❌ NO | DEAD - WordPress page uses shortcode instead | | template-maintenance.php | ❌ NO | DEAD - WordPress page uses shortcode instead |
+| Template File | Used? | How? | |--------------|-------|------| | fanfiction-page-template.php | ✅ YES | Main wrapper for all plugin pages (classic themes) | | single-fanfiction_story.php | ✅ YES | Story view - processes shortcode template from settings | | template-chapter-view.php | ✅ YES | Chapter view - processes shortcode template from settings | | archive-fanfiction_story.php | ✅ YES | Story archive - pure PHP, NO shortcodes | | template-dashboard.php | ❌ NO | DEAD - Virtual page uses shortcode instead | | template-create-story.php | ❌ NO | DEAD - Virtual page uses shortcode instead | | template-edit-story.php | ✅ YES | Story edit form | | template-edit-chapter.php | ✅ YES | Chapter create/edit form | | template-search.php | ❌ NO | DEAD - Virtual page uses shortcode instead | | template-login.php | ❌ NO | DEAD - WordPress page uses shortcode instead | | template-register.php | ❌ NO | DEAD - WordPress page uses shortcode instead | | template-edit-profile.php | ✅ YES | Profile edit form with shortcodes | | template-view-profile.php | ✅ YES | User profile view with shortcodes | | template-members.php | ❌ NO | DEAD - Virtual page uses shortcode instead | | template-comments.php | ❓ UNKNOWN | Not referenced anywhere I found | | template-password-reset.php | ❌ NO | DEAD - WordPress page uses shortcode instead | | template-error.php | ❌ NO | DEAD - WordPress page uses shortcode instead | | template-maintenance.php | ❌ NO | DEAD - WordPress page uses shortcode instead |
 
 DEAD CODE ANALYSIS
 Potentially Unused Template Files (8 files):

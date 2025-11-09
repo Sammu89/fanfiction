@@ -281,6 +281,20 @@ class Fanfic_Shortcodes_Author_Forms {
 	 * @return string The page URL.
 	 */
 	private static function get_page_url_with_fallback( $page_slug, $page_path = '' ) {
+		// Special handling for create-story: use URL manager which returns main page with ?action=create-story
+		if ( 'create-story' === $page_slug ) {
+			$url_manager = Fanfic_URL_Manager::get_instance();
+			$url = $url_manager->get_page_url( 'create-story' );
+			if ( ! empty( $url ) ) {
+				return $url;
+			}
+			// Fallback if URL manager fails
+			$page_ids = get_option( 'fanfic_system_page_ids', array() );
+			if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
+				return add_query_arg( 'action', 'create-story', get_permalink( $page_ids['main'] ) );
+			}
+		}
+
 		// Try to get the page by path first
 		$page = get_page_by_path( $page_slug );
 		if ( $page ) {
@@ -297,7 +311,7 @@ class Fanfic_Shortcodes_Author_Forms {
 		}
 
 		// Build URL based on whether it's a dashboard page or not
-		if ( in_array( $page_slug, array( 'dashboard', 'edit-story', 'edit-chapter', 'create-story', 'manage-stories', 'edit-profile' ), true ) ) {
+		if ( in_array( $page_slug, array( 'dashboard', 'edit-story', 'edit-chapter', 'manage-stories', 'edit-profile' ), true ) ) {
 			// Dashboard pages
 			$url = home_url( "/{$base_slug}/{$dashboard_slug}/{$page_path}/" );
 		} else {

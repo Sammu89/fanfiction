@@ -297,7 +297,7 @@ Update frontend templates to use newly implemented shortcodes.
    - Added `[edit-story-button]`
    - Added `[story-chapters-dropdown]`
 
-2. **single-fanfiction_chapter.php**
+2. **template-chapter-view.php**
    - Added `[edit-chapter-button]`
 
 3. **template-members.php**
@@ -480,7 +480,7 @@ Minor notes:
 17. `templates/template-maintenance.php` - Cleanup
 18. `templates/template-edit-profile.php` - Cleanup + access control
 19. `templates/single-fanfiction_story.php` - Shortcodes
-20. `templates/single-fanfiction_chapter.php` - Shortcodes
+20. `templates/template-chapter-view.php` - Shortcodes
 21. `templates/template-members.php` - Shortcodes
 22. `templates/template-dashboard-author.php` - Stats
 

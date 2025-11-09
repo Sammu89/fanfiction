@@ -158,16 +158,6 @@ class Fanfic_URL_Schema {
                 'group'            => 'dynamic',
             ),
 
-            'create-story' => array(
-                'type'             => 'dynamic',
-                'default'          => __( 'create-story', 'fanfiction-manager' ),
-                'label'            => __( 'Create Story', 'fanfiction-manager' ),
-                'description'      => __( 'URL for creating new stories.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{create-story}/',
-                'option_key'       => 'fanfic_create_story_slug',
-                'group'            => 'dynamic',
-            ),
-
             'members' => array(
                 'type'             => 'dynamic',
                 'default'          => __( 'members', 'fanfiction-manager' ),

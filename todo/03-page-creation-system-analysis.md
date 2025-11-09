@@ -150,7 +150,7 @@ The system integrates with `C:\Users\Sammu\Dentego Cloud\Codes\fanfic_project\in
 ### 1. **Story and Chapter Pages Are NOT Created as WordPress Pages**
 The documentation mentions "Story page" and "Chapter page" but these are **NOT** created by `create_system_pages()`. Instead, they are:
 - Custom Post Types (`fanfiction_story` and `fanfiction_chapter`)
-- Rendered using template files: `single-fanfiction_story.php` and `single-fanfiction_chapter.php`
+- Rendered using template files: `single-fanfiction_story.php` and `template-chapter-view.php`
 - Located in `C:\Users\Sammu\Dentego Cloud\Codes\fanfic_project\templates\`
 
 This is actually **correct behavior** - stories and chapters should be custom post types, not static pages.

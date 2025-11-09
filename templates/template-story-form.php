@@ -4,7 +4,7 @@
  * Description: Unified form for creating new stories and editing existing ones
  *
  * This template handles both:
- * - Create mode: /fanfiction/create-story/ (no story_id)
+ * - Create mode: /fanfiction/?action=create-story (no story_id)
  * - Edit mode: /fanfiction/stories/{story-slug}/?action=edit (has story_id from singular context)
  *
  * @package Fanfiction_Manager

@@ -196,7 +196,7 @@ C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-edit-profi
 4. Implement `[story-chapters-dropdown]` shortcode
 5. Update templates to use new edit button shortcodes:
    - `single-fanfiction_story.php` - add `[edit-story-button]`
-   - `single-fanfiction_chapter.php` - add `[edit-chapter-button]`
+   - `template-chapter-view.php` - add `[edit-chapter-button]`
    - `template-members.php` - add `[edit-author-button]`
 
 **Files to Modify:**
@@ -204,7 +204,7 @@ C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-edit-profi
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\shortcodes\class-fanfic-shortcodes-utility.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\shortcodes\class-fanfic-shortcodes-navigation.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\single-fanfiction_story.php
-C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\single-fanfiction_chapter.php
+C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-chapter-view.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-members.php
 ```
 
@@ -294,7 +294,7 @@ C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-dashboard-
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\shortcodes\class-fanfic-shortcodes-forms.php
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\class-fanfic-reports.php (create if doesn't exist)
 C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\single-fanfiction_story.php
-C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\single-fanfiction_chapter.php
+C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\templates\template-chapter-view.php
 ```
 
 **Implementation Requirements:**
@@ -385,7 +385,7 @@ C:\xampp\htdocs\smpt\wp-content\plugins\fanfiction\includes\class-fanfic-users-a
 
 **High Priority:**
 - `single-fanfiction_story.php` - Add edit button
-- `single-fanfiction_chapter.php` - Add edit button
+- `template-chapter-view.php` - Add edit button
 - `template-members.php` - Add edit button, enhance with author shortcodes
 
 **Medium Priority:**
