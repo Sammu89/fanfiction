@@ -46,7 +46,7 @@ class Fanfic_Validation {
 	 *
 	 * @since 1.0.0
 	 * @param int $story_id The story post ID.
-	 * @return array Array with 'can_publish' (bool) and 'missing_fields' (array of field names).
+	 * @return array Array with 'can_publish' (bool) and 'missing_fields' (array of field => message pairs).
 	 */
 	public static function can_publish_story( $story_id ) {
 		$missing_fields = array();
@@ -55,7 +55,9 @@ class Fanfic_Validation {
 		if ( get_post_type( $story_id ) !== 'fanfiction_story' ) {
 			return array(
 				'can_publish'     => false,
-				'missing_fields'  => array( 'invalid_post_type' ),
+				'missing_fields'  => array(
+					'invalid_post_type' => __( 'Invalid content type.', 'fanfiction-manager' )
+				),
 			);
 		}
 
@@ -63,29 +65,29 @@ class Fanfic_Validation {
 
 		// Check title
 		if ( ! $story || empty( trim( $story->post_title ) ) ) {
-			$missing_fields[] = 'title';
+			$missing_fields['title'] = __( 'Your story must have a title.', 'fanfiction-manager' );
 		}
 
 		// Check excerpt
 		if ( ! self::check_story_excerpt( $story_id ) ) {
-			$missing_fields[] = 'excerpt';
+			$missing_fields['excerpt'] = __( 'Your story must have an introduction.', 'fanfiction-manager' );
 		}
 
 		// Check published chapters
 		if ( ! self::check_story_published_chapters( $story_id ) ) {
-			$missing_fields[] = 'published_chapters';
+			$missing_fields['published_chapters'] = __( 'Your story must have at least one published chapter or prologue.', 'fanfiction-manager' );
 		}
 
 		// Check genre
 		$genres = wp_get_post_terms( $story_id, 'fanfiction_genre', array( 'fields' => 'ids' ) );
 		if ( is_wp_error( $genres ) || empty( $genres ) ) {
-			$missing_fields[] = 'genre';
+			$missing_fields['genre'] = __( 'Your story must be classified in at least one genre.', 'fanfiction-manager' );
 		}
 
 		// Check status
 		$statuses = wp_get_post_terms( $story_id, 'fanfiction_status', array( 'fields' => 'ids' ) );
 		if ( is_wp_error( $statuses ) || empty( $statuses ) ) {
-			$missing_fields[] = 'status';
+			$missing_fields['status'] = __( 'Your story must have a status set (Ongoing, Completed, etc.).', 'fanfiction-manager' );
 		}
 
 		return array(
@@ -105,7 +107,7 @@ class Fanfic_Validation {
 	 *
 	 * @since 1.0.0
 	 * @param int $chapter_id The chapter post ID.
-	 * @return array Array with 'can_publish' (bool) and 'missing_fields' (array of field names).
+	 * @return array Array with 'can_publish' (bool) and 'missing_fields' (array of field => message pairs).
 	 */
 	public static function can_publish_chapter( $chapter_id ) {
 		$missing_fields = array();
@@ -114,7 +116,9 @@ class Fanfic_Validation {
 		if ( get_post_type( $chapter_id ) !== 'fanfiction_chapter' ) {
 			return array(
 				'can_publish'     => false,
-				'missing_fields'  => array( 'invalid_post_type' ),
+				'missing_fields'  => array(
+					'invalid_post_type' => __( 'Invalid content type.', 'fanfiction-manager' )
+				),
 			);
 		}
 
@@ -122,23 +126,23 @@ class Fanfic_Validation {
 
 		// Check title
 		if ( ! $chapter || empty( trim( $chapter->post_title ) ) ) {
-			$missing_fields[] = 'title';
+			$missing_fields['title'] = __( 'Your chapter must have a title.', 'fanfiction-manager' );
 		}
 
 		// Check parent story
 		if ( ! $chapter || empty( $chapter->post_parent ) ) {
-			$missing_fields[] = 'parent_story';
+			$missing_fields['parent_story'] = __( 'This chapter must be attached to a story.', 'fanfiction-manager' );
 		}
 
 		// Check chapter type
 		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
 		if ( empty( $chapter_type ) ) {
-			$missing_fields[] = 'chapter_type';
+			$missing_fields['chapter_type'] = __( 'Your chapter must be classified as a Chapter, Prologue, or Epilogue.', 'fanfiction-manager' );
 		} elseif ( 'chapter' === $chapter_type ) {
 			// For regular chapters, check chapter number
 			$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
 			if ( empty( $chapter_number ) || $chapter_number < 1 ) {
-				$missing_fields[] = 'chapter_number';
+				$missing_fields['chapter_number'] = __( 'Your chapter must have a number assigned.', 'fanfiction-manager' );
 			} else {
 				// Check if another chapter has the same number
 				$duplicate_chapters = get_posts( array(
@@ -157,7 +161,7 @@ class Fanfic_Validation {
 				) );
 
 				if ( ! empty( $duplicate_chapters ) ) {
-					$missing_fields[] = 'duplicate_chapter_number';
+					$missing_fields['duplicate_chapter_number'] = __( 'Another chapter in this story already has this number.', 'fanfiction-manager' );
 				}
 			}
 		}

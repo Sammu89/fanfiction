@@ -836,12 +836,13 @@ class Fanfic_Story_Handler {
 		}
 
 		// PRE-SAVE VALIDATION: Check if story can be published before saving
-		$validation_errors = Fanfic_Validation::get_validation_errors( $story_id );
+		$validation_result = Fanfic_Validation::can_publish_story( $story_id );
 
-		if ( ! empty( $validation_errors ) ) {
+		if ( ! $validation_result['can_publish'] ) {
 			wp_send_json_error( array(
-				'message' => __( 'Cannot publish story due to validation errors:', 'fanfiction-manager' ),
-				'errors' => $validation_errors
+				'message'         => __( 'Cannot publish story. Missing required fields:', 'fanfiction-manager' ),
+				'missing_fields'  => $validation_result['missing_fields'], // Array of field => message pairs
+				'errors'          => array_values( $validation_result['missing_fields'] ), // Just the messages
 			) );
 		}
 
@@ -906,12 +907,12 @@ class Fanfic_Story_Handler {
 		}
 
 		// Check validation
-		$is_valid = Fanfic_Validation::is_story_valid( $story_id );
-		$validation_errors = $is_valid ? array() : Fanfic_Validation::get_validation_errors( $story_id );
+		$validation_result = Fanfic_Validation::can_publish_story( $story_id );
 
 		wp_send_json_success( array(
-			'is_valid' => $is_valid,
-			'errors' => $validation_errors,
+			'is_valid'        => $validation_result['can_publish'],
+			'missing_fields'  => $validation_result['missing_fields'], // Array of field => message pairs
+			'errors'          => array_values( $validation_result['missing_fields'] ), // Just the messages
 		) );
 	}
 

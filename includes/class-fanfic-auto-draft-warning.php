@@ -172,8 +172,9 @@ class Fanfic_Auto_Draft_Warning {
 
 		if ( ! $validation_result['can_publish'] ) {
 			wp_send_json_error( array(
-				'message'         => __( 'Chapter cannot be published. Please check all required fields.', 'fanfiction-manager' ),
-				'missing_fields'  => $validation_result['missing_fields'],
+				'message'         => __( 'Cannot publish chapter. Missing required fields:', 'fanfiction-manager' ),
+				'missing_fields'  => $validation_result['missing_fields'], // Array of field => message pairs
+				'errors'          => array_values( $validation_result['missing_fields'] ), // Just the messages
 			) );
 		}
 

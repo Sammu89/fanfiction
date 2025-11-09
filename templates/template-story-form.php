@@ -987,20 +987,12 @@ if ( $is_edit_mode ) {
 						buttonElement.textContent = '<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>';
 
 						// Show validation errors if present
-						if (data.data && data.data.missing_fields) {
-							var errorMessage = '<?php esc_html_e( 'Cannot publish chapter. Missing:', 'fanfiction-manager' ); ?>\n\n';
-							var fieldLabels = {
-								'title': '<?php esc_html_e( 'Chapter title', 'fanfiction-manager' ); ?>',
-								'parent_story': '<?php esc_html_e( 'Parent story', 'fanfiction-manager' ); ?>',
-								'chapter_type': '<?php esc_html_e( 'Chapter type', 'fanfiction-manager' ); ?>',
-								'chapter_number': '<?php esc_html_e( 'Chapter number', 'fanfiction-manager' ); ?>',
-								'duplicate_chapter_number': '<?php esc_html_e( 'Unique chapter number (duplicate found)', 'fanfiction-manager' ); ?>'
-							};
-
-							data.data.missing_fields.forEach(function(field) {
-								errorMessage += '- ' + (fieldLabels[field] || field) + '\n';
+						if (data.data && data.data.errors && data.data.errors.length > 0) {
+							// Build error message from server-provided messages
+							var errorMessage = data.data.message + '\n\n';
+							data.data.errors.forEach(function(message) {
+								errorMessage += '- ' + message + '\n';
 							});
-
 							errorMessage += '\n<?php esc_html_e( 'Click Edit to correct these issues.', 'fanfiction-manager' ); ?>';
 							alert(errorMessage);
 						} else {
