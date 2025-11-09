@@ -235,7 +235,8 @@ if ( $is_edit_mode ) {
 						<?php
 						$post_status = get_post_status( $story_id );
 						$status_class = 'publish' === $post_status ? 'published' : 'draft';
-						$status_text = 'publish' === $post_status ? __( 'Published', 'fanfiction-manager' ) : __( 'Draft', 'fanfiction-manager' );
+						// Use "Visible" instead of "Published" for stories to avoid confusing users
+						$status_text = 'publish' === $post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Draft', 'fanfiction-manager' );
 						?>
 						<span class="fanfic-story-status-badge fanfic-status-<?php echo esc_attr( $status_class ); ?>">
 							<?php echo esc_html( $status_text ); ?>
@@ -525,8 +526,12 @@ if ( $is_edit_mode ) {
 											<button type="button" class="fanfic-button-small fanfic-button-warning fanfic-unpublish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" data-story-id="<?php echo absint( $story_id ); ?>" aria-label="<?php esc_attr_e( 'Unpublish chapter', 'fanfiction-manager' ); ?>">
 												<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>
 											</button>
+										<?php elseif ( 'draft' === $status ) : ?>
+											<button type="button" class="fanfic-button-small fanfic-button-primary fanfic-publish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Publish chapter', 'fanfiction-manager' ); ?>">
+												<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
+											</button>
 										<?php endif; ?>
-											<button type="button" class="fanfic-button-small fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
+											<button type="button" class="fanfic-button-small fanfic-button-danger fanfic-delete-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
 												<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 											</button>
 										</div>
@@ -836,7 +841,7 @@ if ( $is_edit_mode ) {
 				// Count published chapters to check if this is the last one
 				var publishedCount = document.querySelectorAll('.fanfic-status-publish').length;
 				if (publishedCount === 1) {
-					confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last published chapter/prologue. Unpublishing it will automatically set your story to DRAFT status, making it invisible to readers.', 'fanfiction-manager' ); ?>';
+					confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last published chapter/prologue. Unpublishing it will automatically hide your story from readers (Draft status).', 'fanfiction-manager' ); ?>';
 				}
 
 				if (confirm(confirmMessage)) {
@@ -904,6 +909,112 @@ if ( $is_edit_mode ) {
 						console.error('Error:', error);
 					});
 				}
+			});
+		});
+
+		// Chapter publish buttons with AJAX and validation
+		var chapterPublishButtons = document.querySelectorAll('.fanfic-publish-chapter');
+		chapterPublishButtons.forEach(function(button) {
+			button.addEventListener('click', function(e) {
+				e.preventDefault();
+				var chapterTitle = this.getAttribute('data-chapter-title');
+				var chapterId = this.getAttribute('data-chapter-id');
+				var buttonElement = this;
+				var rowElement = buttonElement.closest('tr');
+
+				// Disable button to prevent double-clicks
+				buttonElement.disabled = true;
+				buttonElement.textContent = '<?php esc_html_e( 'Publishing...', 'fanfiction-manager' ); ?>';
+
+				// Prepare AJAX request
+				var formData = new FormData();
+				formData.append('action', 'fanfic_publish_chapter');
+				formData.append('chapter_id', chapterId);
+				formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_publish_chapter' ); ?>');
+
+				// Send AJAX request
+				fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+					method: 'POST',
+					credentials: 'same-origin',
+					body: formData
+				})
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(data) {
+					if (data.success) {
+						// Update row status to published
+						var statusCell = rowElement.querySelector('.fanfic-status-badge');
+						if (statusCell) {
+							statusCell.classList.remove('fanfic-status-draft');
+							statusCell.classList.add('fanfic-status-publish');
+							statusCell.textContent = '<?php esc_html_e( 'Published', 'fanfiction-manager' ); ?>';
+						}
+
+						// Replace publish button with view and unpublish buttons
+						var actionsDiv = buttonElement.parentElement;
+						buttonElement.remove();
+
+						// Add view button
+						var viewBtn = document.createElement('a');
+						viewBtn.href = data.data.chapter_url;
+						viewBtn.className = 'fanfic-button-small';
+						viewBtn.target = '_blank';
+						viewBtn.rel = 'noopener noreferrer';
+						viewBtn.setAttribute('aria-label', '<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>');
+						viewBtn.textContent = '<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>';
+						actionsDiv.insertBefore(viewBtn, actionsDiv.querySelector('.fanfic-delete-chapter'));
+
+						// Add unpublish button
+						var unpublishBtn = document.createElement('button');
+						unpublishBtn.type = 'button';
+						unpublishBtn.className = 'fanfic-button-small fanfic-button-warning fanfic-unpublish-chapter';
+						unpublishBtn.setAttribute('data-chapter-id', chapterId);
+						unpublishBtn.setAttribute('data-chapter-title', chapterTitle);
+						unpublishBtn.setAttribute('data-story-id', '<?php echo absint( $story_id ); ?>');
+						unpublishBtn.setAttribute('aria-label', '<?php esc_attr_e( 'Unpublish chapter', 'fanfiction-manager' ); ?>');
+						unpublishBtn.textContent = '<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>';
+						actionsDiv.insertBefore(unpublishBtn, actionsDiv.querySelector('.fanfic-delete-chapter'));
+
+						// Show success message
+						alert('<?php esc_html_e( 'Chapter published successfully!', 'fanfiction-manager' ); ?>');
+
+						// Reload page to update unpublish button event listeners
+						location.reload();
+					} else {
+						// Re-enable button and show error
+						buttonElement.disabled = false;
+						buttonElement.textContent = '<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>';
+
+						// Show validation errors if present
+						if (data.data && data.data.missing_fields) {
+							var errorMessage = '<?php esc_html_e( 'Cannot publish chapter. Missing:', 'fanfiction-manager' ); ?>\n\n';
+							var fieldLabels = {
+								'title': '<?php esc_html_e( 'Chapter title', 'fanfiction-manager' ); ?>',
+								'parent_story': '<?php esc_html_e( 'Parent story', 'fanfiction-manager' ); ?>',
+								'chapter_type': '<?php esc_html_e( 'Chapter type', 'fanfiction-manager' ); ?>',
+								'chapter_number': '<?php esc_html_e( 'Chapter number', 'fanfiction-manager' ); ?>',
+								'duplicate_chapter_number': '<?php esc_html_e( 'Unique chapter number (duplicate found)', 'fanfiction-manager' ); ?>'
+							};
+
+							data.data.missing_fields.forEach(function(field) {
+								errorMessage += '- ' + (fieldLabels[field] || field) + '\n';
+							});
+
+							errorMessage += '\n<?php esc_html_e( 'Click Edit to correct these issues.', 'fanfiction-manager' ); ?>';
+							alert(errorMessage);
+						} else {
+							alert(data.data.message || '<?php esc_html_e( 'Failed to publish chapter.', 'fanfiction-manager' ); ?>');
+						}
+					}
+				})
+				.catch(function(error) {
+					// Re-enable button and show error
+					buttonElement.disabled = false;
+					buttonElement.textContent = '<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>';
+					alert('<?php esc_html_e( 'An error occurred while publishing the chapter.', 'fanfiction-manager' ); ?>');
+					console.error('Error:', error);
+				});
 			});
 		});
 

@@ -35,6 +35,140 @@ class Fanfic_Validation {
 	}
 
 	/**
+	 * Check if a story can be published.
+	 *
+	 * A story can be published when it has:
+	 * 1. A title
+	 * 2. An introduction (excerpt field is not empty)
+	 * 3. At least one published chapter or prologue (epilogues don't count)
+	 * 4. At least one genre assigned
+	 * 5. At least one status assigned
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id The story post ID.
+	 * @return array Array with 'can_publish' (bool) and 'missing_fields' (array of field names).
+	 */
+	public static function can_publish_story( $story_id ) {
+		$missing_fields = array();
+
+		// Verify this is a fanfiction story
+		if ( get_post_type( $story_id ) !== 'fanfiction_story' ) {
+			return array(
+				'can_publish'     => false,
+				'missing_fields'  => array( 'invalid_post_type' ),
+			);
+		}
+
+		$story = get_post( $story_id );
+
+		// Check title
+		if ( ! $story || empty( trim( $story->post_title ) ) ) {
+			$missing_fields[] = 'title';
+		}
+
+		// Check excerpt
+		if ( ! self::check_story_excerpt( $story_id ) ) {
+			$missing_fields[] = 'excerpt';
+		}
+
+		// Check published chapters
+		if ( ! self::check_story_published_chapters( $story_id ) ) {
+			$missing_fields[] = 'published_chapters';
+		}
+
+		// Check genre
+		$genres = wp_get_post_terms( $story_id, 'fanfiction_genre', array( 'fields' => 'ids' ) );
+		if ( is_wp_error( $genres ) || empty( $genres ) ) {
+			$missing_fields[] = 'genre';
+		}
+
+		// Check status
+		$statuses = wp_get_post_terms( $story_id, 'fanfiction_status', array( 'fields' => 'ids' ) );
+		if ( is_wp_error( $statuses ) || empty( $statuses ) ) {
+			$missing_fields[] = 'status';
+		}
+
+		return array(
+			'can_publish'    => empty( $missing_fields ),
+			'missing_fields' => $missing_fields,
+		);
+	}
+
+	/**
+	 * Check if a chapter can be published.
+	 *
+	 * A chapter can be published when it has:
+	 * 1. A title
+	 * 2. A parent story
+	 * 3. A type (prologue, chapter, or epilogue)
+	 * 4. If type is chapter: a number that's not equal to other chapters of the same story
+	 *
+	 * @since 1.0.0
+	 * @param int $chapter_id The chapter post ID.
+	 * @return array Array with 'can_publish' (bool) and 'missing_fields' (array of field names).
+	 */
+	public static function can_publish_chapter( $chapter_id ) {
+		$missing_fields = array();
+
+		// Verify this is a fanfiction chapter
+		if ( get_post_type( $chapter_id ) !== 'fanfiction_chapter' ) {
+			return array(
+				'can_publish'     => false,
+				'missing_fields'  => array( 'invalid_post_type' ),
+			);
+		}
+
+		$chapter = get_post( $chapter_id );
+
+		// Check title
+		if ( ! $chapter || empty( trim( $chapter->post_title ) ) ) {
+			$missing_fields[] = 'title';
+		}
+
+		// Check parent story
+		if ( ! $chapter || empty( $chapter->post_parent ) ) {
+			$missing_fields[] = 'parent_story';
+		}
+
+		// Check chapter type
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+		if ( empty( $chapter_type ) ) {
+			$missing_fields[] = 'chapter_type';
+		} elseif ( 'chapter' === $chapter_type ) {
+			// For regular chapters, check chapter number
+			$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+			if ( empty( $chapter_number ) || $chapter_number < 1 ) {
+				$missing_fields[] = 'chapter_number';
+			} else {
+				// Check if another chapter has the same number
+				$duplicate_chapters = get_posts( array(
+					'post_type'      => 'fanfiction_chapter',
+					'post_parent'    => $chapter->post_parent,
+					'post_status'    => 'any',
+					'posts_per_page' => 1,
+					'fields'         => 'ids',
+					'post__not_in'   => array( $chapter_id ),
+					'meta_query'     => array(
+						array(
+							'key'   => '_fanfic_chapter_number',
+							'value' => $chapter_number,
+						),
+					),
+				) );
+
+				if ( ! empty( $duplicate_chapters ) ) {
+					$missing_fields[] = 'duplicate_chapter_number';
+				}
+			}
+		}
+
+		return array(
+			'can_publish'    => empty( $missing_fields ),
+			'missing_fields' => $missing_fields,
+		);
+	}
+
+	/**
 	 * Check if a story meets all validation criteria.
 	 *
 	 * A story is valid when it has:
@@ -133,6 +267,37 @@ class Fanfic_Validation {
 				'post_type'      => 'fanfiction_chapter',
 				'post_status'    => 'any',
 				'posts_per_page' => 1,
+			)
+		);
+
+		return ! empty( $chapters );
+	}
+
+	/**
+	 * Check if story has at least one published chapter or prologue.
+	 *
+	 * Epilogues don't count for this validation - a story must have
+	 * at least one published prologue or chapter to be publishable.
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id The story post ID.
+	 * @return bool True if at least one published chapter/prologue exists, false otherwise.
+	 */
+	public static function check_story_published_chapters( $story_id ) {
+		$chapters = get_posts(
+			array(
+				'post_parent'    => $story_id,
+				'post_type'      => 'fanfiction_chapter',
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'meta_query'     => array(
+					array(
+						'key'     => '_fanfic_chapter_type',
+						'value'   => array( 'prologue', 'chapter' ),
+						'compare' => 'IN',
+					),
+				),
 			)
 		);
 
