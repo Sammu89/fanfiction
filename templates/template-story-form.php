@@ -223,9 +223,6 @@ if ( 'POST' === $_SERVER['REQUEST_METHOD'] && isset( $_POST['fanfic_story_nonce'
 
 ?>
 
-<div class="fanfic-template-wrapper">
-<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
-
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
@@ -280,15 +277,9 @@ if ( $errors ) {
 }
 ?>
 
-<!-- Page Header -->
-<header class="fanfic-page-header">
-	<h1 class="fanfic-page-title">
-		<?php echo $is_edit_mode ? esc_html__( 'Edit Your Story', 'fanfiction-manager' ) : esc_html__( 'Create a New Story', 'fanfiction-manager' ); ?>
-	</h1>
-	<p class="fanfic-page-description">
-		<?php echo $is_edit_mode ? esc_html__( 'Update your story details below. Changes will be saved immediately.', 'fanfiction-manager' ) : esc_html__( 'Tell us about your story! Fill out the form below to get started.', 'fanfiction-manager' ); ?>
-	</p>
-</header>
+<p class="fanfic-page-description">
+	<?php echo $is_edit_mode ? esc_html__( 'Update your story details below. Changes will be saved immediately.', 'fanfiction-manager' ) : esc_html__( 'Tell us about your story! Fill out the form below to get started.', 'fanfiction-manager' ); ?>
+</p>
 
 <!-- Main Content Area -->
 <div class="fanfic-content-layout">
@@ -860,5 +851,3 @@ if ( $errors ) {
 	});
 })();
 </script>
-
-</div>

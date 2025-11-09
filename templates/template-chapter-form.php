@@ -360,8 +360,6 @@ if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 // TEMPLATE DISPLAY LOGIC
 // ============================================================================
 
-get_header();
-
 ?>
 <style>
 .fanfic-modal {
@@ -496,7 +494,6 @@ if ( ! is_user_logged_in() ) {
 		</p>
 	</div>
 	<?php
-	get_footer();
 	return;
 }
 
@@ -537,7 +534,6 @@ if ( $is_edit_mode ) {
 		<p><?php esc_html_e( 'Invalid context for chapter form.', 'fanfiction-manager' ); ?></p>
 	</div>
 	<?php
-	get_footer();
 	return;
 }
 
@@ -548,7 +544,6 @@ if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
 		<p><?php esc_html_e( 'Story not found.', 'fanfiction-manager' ); ?></p>
 	</div>
 	<?php
-	get_footer();
 	return;
 }
 
@@ -564,7 +559,6 @@ if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 		</p>
 	</div>
 	<?php
-	get_footer();
 	return;
 }
 
@@ -627,9 +621,6 @@ $page_description = $is_edit_mode
 
 ?>
 
-<div class="fanfic-template-wrapper">
-<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
-
 <!-- Breadcrumb Navigation -->
 <nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
 	<ol class="fanfic-breadcrumb-list">
@@ -678,11 +669,7 @@ $page_description = $is_edit_mode
 	</div>
 <?php endif; ?>
 
-<!-- Page Header -->
-<header class="fanfic-page-header">
-	<h1 class="fanfic-page-title"><?php echo esc_html( $page_title ); ?></h1>
-	<p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
-</header>
+<p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
 
 <!-- Info Box -->
 <div class="fanfic-info-box" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
@@ -1159,8 +1146,3 @@ $page_description = $is_edit_mode
 		</li>
 	</ol>
 </nav>
-
-</div>
-
-<?php
-get_footer();
