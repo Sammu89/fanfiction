@@ -423,6 +423,80 @@ input:disabled,
 	margin-top: 2px;
 }
 
+/* Genres Grid Layout - 3 columns */
+.fanfic-checkboxes-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 10px 15px;
+}
+
+.fanfic-checkboxes-grid .fanfic-checkbox-label {
+	display: flex;
+	align-items: center;
+	margin: 0;
+	padding: 8px;
+	border-radius: 4px;
+	transition: background-color 0.2s;
+	font-weight: normal;
+}
+
+.fanfic-checkboxes-grid .fanfic-checkbox-label:hover {
+	background-color: rgba(0, 115, 170, 0.05);
+}
+
+.fanfic-checkboxes-grid .fanfic-checkbox {
+	margin: 0 8px 0 0;
+	flex-shrink: 0;
+}
+
+/* Form Header with Status Badge */
+.fanfic-form-header {
+	display: flex;
+	align-items: center;
+	gap: 15px;
+	margin-bottom: 20px;
+	flex-wrap: wrap;
+}
+
+.fanfic-form-header h2 {
+	margin: 0;
+	flex: 1;
+}
+
+/* Story Status Badge */
+.fanfic-story-status-badge {
+	display: inline-block;
+	padding: 6px 12px;
+	border-radius: 4px;
+	font-size: 14px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.fanfic-story-status-badge.fanfic-status-published {
+	background-color: #28a745;
+	color: #fff;
+}
+
+.fanfic-story-status-badge.fanfic-status-draft {
+	background-color: #6c757d;
+	color: #fff;
+}
+
+/* Responsive adjustments for genres grid */
+@media (max-width: 768px) {
+	.fanfic-checkboxes-grid {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (max-width: 480px) {
+	.fanfic-checkboxes-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
 /* ============================================
    BUTTONS
    ============================================ */

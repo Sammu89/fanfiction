@@ -277,6 +277,26 @@ if ( $errors ) {
 }
 ?>
 
+<?php
+// ========================================================================
+// PREPARE FORM VARIABLES
+// ========================================================================
+
+$current_genres = array();
+$current_status = '';
+$featured_image = '';
+
+if ( $is_edit_mode ) {
+	// Pre-populate variables for edit mode
+	$current_genres = wp_get_object_terms( $story->ID, 'fanfiction_genre', array( 'fields' => 'ids' ) );
+	$current_status_obj = wp_get_object_terms( $story->ID, 'fanfiction_status', array( 'fields' => 'ids' ) );
+	$current_status = ! empty( $current_status_obj ) ? $current_status_obj[0] : '';
+	$featured_image = get_post_meta( $story->ID, '_fanfic_featured_image', true );
+}
+
+$form_mode = $is_edit_mode ? 'edit' : 'create';
+?>
+
 <p class="fanfic-page-description">
 	<?php echo $is_edit_mode ? esc_html__( 'Update your story details below. Changes will be saved immediately.', 'fanfiction-manager' ) : esc_html__( 'Tell us about your story! Fill out the form below to get started.', 'fanfiction-manager' ); ?>
 </p>
@@ -297,7 +317,171 @@ if ( $errors ) {
 			</div>
 
 			<!-- Story Form -->
-			<?php echo Fanfic_Shortcodes_Author_Forms::render_story_form( $story_id ); ?>
+			<div class="fanfic-form-wrapper fanfic-story-form-<?php echo esc_attr( $form_mode ); ?>">
+				<div class="fanfic-form-header">
+					<h2><?php echo $is_edit_mode ? sprintf( esc_html__( 'Edit Story: "%s"', 'fanfiction-manager' ), esc_html( $story->post_title ) ) : esc_html__( 'Create New Story', 'fanfiction-manager' ); ?></h2>
+					<?php if ( $is_edit_mode ) : ?>
+						<?php
+						$post_status = get_post_status( $story_id );
+						$status_class = 'publish' === $post_status ? 'published' : 'draft';
+						$status_text = 'publish' === $post_status ? __( 'Published', 'fanfiction-manager' ) : __( 'Draft', 'fanfiction-manager' );
+						?>
+						<span class="fanfic-story-status-badge fanfic-status-<?php echo esc_attr( $status_class ); ?>">
+							<?php echo esc_html( $status_text ); ?>
+						</span>
+					<?php endif; ?>
+				</div>
+
+				<form method="post" class="fanfic-story-form" id="fanfic-story-form">
+					<div class="fanfic-form-content">
+						<?php wp_nonce_field( 'fanfic_story_form_action' . ( $is_edit_mode ? '_' . $story_id : '' ), 'fanfic_story_nonce' ); ?>
+
+						<!-- Story Title -->
+						<div class="fanfic-form-field">
+							<label for="fanfic_story_title"><?php esc_html_e( 'Story Title', 'fanfiction-manager' ); ?></label>
+							<input
+								type="text"
+								id="fanfic_story_title"
+								name="fanfic_story_title"
+								class="fanfic-input"
+								maxlength="200"
+								required
+								value="<?php echo isset( $_POST['fanfic_story_title'] ) ? esc_attr( $_POST['fanfic_story_title'] ) : ( $is_edit_mode ? esc_attr( $story->post_title ) : '' ); ?>"
+							/>
+						</div>
+
+						<!-- Story Introduction -->
+						<div class="fanfic-form-field">
+							<label for="fanfic_story_intro"><?php esc_html_e( 'Story Introduction', 'fanfiction-manager' ); ?></label>
+							<textarea
+								id="fanfic_story_intro"
+								name="fanfic_story_introduction"
+								class="fanfic-textarea"
+								rows="8"
+								maxlength="10000"
+							><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : ( $is_edit_mode ? esc_textarea( $story->post_content ) : '' ); ?></textarea>
+						</div>
+
+						<!-- Genres -->
+						<div class="fanfic-form-field">
+							<label><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
+							<div class="fanfic-checkboxes fanfic-checkboxes-grid">
+								<?php
+								$genres = get_terms( array(
+									'taxonomy' => 'fanfiction_genre',
+									'hide_empty' => false,
+								) );
+
+								foreach ( $genres as $genre ) {
+									$is_checked = isset( $_POST['fanfic_story_genres'] ) ?
+										in_array( $genre->term_id, (array) $_POST['fanfic_story_genres'] ) :
+										( $is_edit_mode && in_array( $genre->term_id, $current_genres ) );
+									?>
+									<label class="fanfic-checkbox-label">
+										<input
+											type="checkbox"
+											name="fanfic_story_genres[]"
+											value="<?php echo esc_attr( $genre->term_id ); ?>"
+											class="fanfic-checkbox"
+											<?php checked( $is_checked ); ?>
+										/>
+										<?php echo esc_html( $genre->name ); ?>
+									</label>
+									<?php
+								}
+								?>
+							</div>
+						</div>
+
+						<!-- Status -->
+						<div class="fanfic-form-field">
+							<label for="fanfic_story_status"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
+							<select id="fanfic_story_status" name="fanfic_story_status" class="fanfic-select" required>
+								<option value=""><?php esc_html_e( 'Select a status...', 'fanfiction-manager' ); ?></option>
+								<?php
+								$statuses = get_terms( array(
+									'taxonomy' => 'fanfiction_status',
+									'hide_empty' => false,
+								) );
+
+								foreach ( $statuses as $status ) {
+									$is_selected = isset( $_POST['fanfic_story_status'] ) ?
+										$_POST['fanfic_story_status'] == $status->term_id :
+										( $is_edit_mode && $current_status == $status->term_id );
+									?>
+									<option value="<?php echo esc_attr( $status->term_id ); ?>" <?php selected( $is_selected ); ?>>
+										<?php echo esc_html( $status->name ); ?>
+									</option>
+									<?php
+								}
+								?>
+							</select>
+						</div>
+
+						<!-- Featured Image -->
+						<div class="fanfic-form-field">
+							<label for="fanfic_story_image"><?php esc_html_e( 'Featured Image URL', 'fanfiction-manager' ); ?></label>
+							<input
+								type="url"
+								id="fanfic_story_image"
+								name="fanfic_story_image"
+								class="fanfic-input"
+								value="<?php echo isset( $_POST['fanfic_story_image'] ) ? esc_attr( $_POST['fanfic_story_image'] ) : ( $is_edit_mode ? esc_attr( $featured_image ) : '' ); ?>"
+							/>
+						</div>
+					</div>
+
+					<!-- Hidden fields -->
+					<?php if ( $is_edit_mode ) : ?>
+						<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
+					<?php endif; ?>
+					<input type="hidden" name="fanfic_story_form_mode" value="<?php echo esc_attr( $form_mode ); ?>" />
+
+					<!-- Form Actions -->
+					<div class="fanfic-form-actions">
+						<?php if ( ! $is_edit_mode ) : ?>
+							<!-- CREATE MODE -->
+							<button type="submit" class="fanfic-btn fanfic-btn-primary">
+								<?php esc_html_e( 'Create Story', 'fanfiction-manager' ); ?>
+							</button>
+							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
+								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+							</a>
+						<?php else : ?>
+							<!-- EDIT MODE -->
+							<?php
+							// Check if story has chapters
+							$chapter_count = get_posts( array(
+								'post_type'      => 'fanfiction_chapter',
+								'post_parent'    => $story_id,
+								'post_status'    => 'any',
+								'posts_per_page' => 1,
+								'fields'         => 'ids',
+							) );
+							$has_chapters = ! empty( $chapter_count );
+							?>
+							<?php if ( ! $has_chapters ) : ?>
+								<button type="submit" name="fanfic_save_action" value="draft" class="fanfic-btn fanfic-btn-primary">
+									<?php esc_html_e( 'Save Draft', 'fanfiction-manager' ); ?>
+								</button>
+							<?php else : ?>
+								<button type="submit" name="fanfic_save_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
+									<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
+								</button>
+								<button type="submit" name="fanfic_save_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+									<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
+								</button>
+								<button type="button" id="delete-story-trigger" class="fanfic-btn fanfic-btn-danger" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story->post_title ); ?>">
+									<?php esc_html_e( 'Delete Story', 'fanfiction-manager' ); ?>
+								</button>
+							<?php endif; ?>
+							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
+								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+							</a>
+						<?php endif; ?>
+					</div>
+				</form>
+			</div>
 		</section>
 
 		<!-- Chapters Management Section (Edit mode only) -->

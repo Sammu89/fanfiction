@@ -177,7 +177,145 @@ $current_user = wp_get_current_user();
 		<!-- Manage Stories Section -->
 		<section class="fanfic-dashboard-stories" id="my-stories" aria-labelledby="stories-heading">
 			<h2 id="stories-heading"><?php esc_html_e( 'Your Stories', 'fanfiction-manager' ); ?></h2>
-			<?php echo Fanfic_Shortcodes_Author_Forms::render_stories_manage_table(); ?>
+
+			<?php
+			// Get current user ID
+			$user_id = get_current_user_id();
+			$paged = get_query_var( 'paged' ) ? get_query_var( 'paged' ) : 1;
+			$posts_per_page = 10;
+
+			// Query user's stories
+			$query = new WP_Query( array(
+				'post_type'      => 'fanfiction_story',
+				'author'         => $user_id,
+				'post_status'    => array( 'publish', 'draft', 'pending' ),
+				'posts_per_page' => $posts_per_page,
+				'paged'          => $paged,
+				'orderby'        => 'modified',
+				'order'          => 'DESC',
+			) );
+
+			// Pre-fetch chapter counts to avoid N+1 queries
+			$chapter_counts = array();
+			if ( $query->have_posts() ) {
+				$story_ids = wp_list_pluck( $query->posts, 'ID' );
+
+				global $wpdb;
+				$story_ids_str = implode( ',', array_map( 'absint', $story_ids ) );
+				$chapter_count_results = $wpdb->get_results(
+					$wpdb->prepare(
+						"SELECT post_parent, COUNT(*) as count
+						FROM {$wpdb->posts}
+						WHERE post_type = %s
+						AND post_parent IN ({$story_ids_str})
+						AND post_status IN ('publish', 'draft', 'pending')
+						GROUP BY post_parent",
+						'fanfiction_chapter'
+					),
+					OBJECT_K
+				);
+
+				foreach ( $chapter_count_results as $parent_id => $result ) {
+					$chapter_counts[ $parent_id ] = (int) $result->count;
+				}
+			}
+
+			// Check for success/error messages
+			if ( isset( $_GET['story_deleted'] ) && 'success' === $_GET['story_deleted'] ) {
+				?>
+				<div class="fanfic-message fanfic-success" role="alert">
+					<?php esc_html_e( 'Story deleted successfully.', 'fanfiction-manager' ); ?>
+				</div>
+				<?php
+			}
+			?>
+
+			<div class="fanfic-author-stories-manage">
+				<?php if ( $query->have_posts() ) : ?>
+					<div class="fanfic-stories-table-wrapper">
+						<table class="fanfic-stories-table">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'Title', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Views', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Updated', 'fanfiction-manager' ); ?></th>
+									<th><?php esc_html_e( 'Actions', 'fanfiction-manager' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php while ( $query->have_posts() ) : $query->the_post(); ?>
+									<?php
+									$story_id = get_the_ID();
+									$chapter_count = isset( $chapter_counts[ $story_id ] ) ? $chapter_counts[ $story_id ] : 0;
+									$views = get_post_meta( $story_id, '_fanfic_views', true );
+									$status_terms = wp_get_post_terms( $story_id, 'fanfiction_status' );
+									$status_name = ! empty( $status_terms ) ? $status_terms[0]->name : esc_html__( 'Unknown', 'fanfiction-manager' );
+									?>
+									<tr>
+										<td class="fanfic-story-title">
+											<a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
+											<?php if ( 'publish' !== get_post_status() ) : ?>
+												<span class="fanfic-badge fanfic-badge-draft"><?php echo esc_html( ucfirst( get_post_status() ) ); ?></span>
+											<?php endif; ?>
+										</td>
+										<td><?php echo esc_html( $status_name ); ?></td>
+										<td><?php echo esc_html( $chapter_count ); ?></td>
+										<td><?php echo esc_html( Fanfic_Shortcodes::format_number( $views ) ); ?></td>
+										<td>
+											<time datetime="<?php echo esc_attr( get_the_modified_time( 'c' ) ); ?>">
+												<?php echo esc_html( get_the_modified_time( get_option( 'date_format' ) ) ); ?>
+											</time>
+										</td>
+										<td class="fanfic-story-actions">
+											<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-small">
+												<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
+											</a>
+											<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-btn fanfic-btn-small">
+												<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+											</a>
+											<form method="post" style="display: inline;" onsubmit="return confirm('<?php esc_attr_e( 'Are you sure you want to delete this story and all its chapters? This action cannot be undone.', 'fanfiction-manager' ); ?>');">
+												<?php wp_nonce_field( 'fanfic_delete_story_' . $story_id, 'fanfic_delete_story_nonce' ); ?>
+												<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
+												<input type="hidden" name="fanfic_delete_story_submit" value="1" />
+												<button type="submit" class="fanfic-btn fanfic-btn-small fanfic-btn-danger">
+													<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+												</button>
+											</form>
+										</td>
+									</tr>
+								<?php endwhile; ?>
+							</tbody>
+						</table>
+					</div>
+
+					<?php
+					// Pagination
+					if ( $query->max_num_pages > 1 ) {
+						echo '<div class="fanfic-pagination">';
+						echo paginate_links( array(
+							'total'   => $query->max_num_pages,
+							'current' => $paged,
+							'format'  => '?paged=%#%',
+							'prev_text' => esc_html__( '&laquo; Previous', 'fanfiction-manager' ),
+							'next_text' => esc_html__( 'Next &raquo;', 'fanfiction-manager' ),
+						) );
+						echo '</div>';
+					}
+					?>
+
+				<?php else : ?>
+					<div class="fanfic-message fanfic-info">
+						<p><?php esc_html_e( 'You have not created any stories yet.', 'fanfiction-manager' ); ?></p>
+						<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-btn fanfic-btn-primary">
+							<?php esc_html_e( 'Create Your First Story', 'fanfiction-manager' ); ?>
+						</a>
+					</div>
+				<?php endif; ?>
+			</div>
+
+			<?php wp_reset_postdata(); ?>
 		</section>
 	</div>
 
