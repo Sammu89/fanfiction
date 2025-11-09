@@ -903,6 +903,9 @@ $page_description = $is_edit_mode
 							<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 						</a>
 					<?php endif; ?>
+					<button type="button" id="delete-chapter-button" class="fanfic-btn fanfic-btn-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
+						<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+					</button>
 					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
 						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 					</a>
@@ -933,48 +936,8 @@ $page_description = $is_edit_mode
 	</div>
 </section>
 
-<!-- Danger Zone (only for editing) -->
-<?php if ( $is_edit_mode ) : ?>
-	<section class="fanfic-content-section fanfic-danger-zone" aria-labelledby="danger-heading">
-		<h2 id="danger-heading" class="fanfic-danger-title">
-			<span class="dashicons dashicons-warning" aria-hidden="true"></span>
-			<?php esc_html_e( 'Danger Zone', 'fanfiction-manager' ); ?>
-		</h2>
-
-		<div class="fanfic-danger-content">
-			<div class="fanfic-danger-info">
-				<h3><?php esc_html_e( 'Delete This Chapter', 'fanfiction-manager' ); ?></h3>
-				<p><?php esc_html_e( 'Once you delete a chapter, there is no going back. The chapter and all its content will be permanently removed.', 'fanfiction-manager' ); ?></p>
-			</div>
-			<button type="button" id="delete-chapter-button" class="fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
-				<?php esc_html_e( 'Delete This Chapter', 'fanfiction-manager' ); ?>
-			</button>
-		</div>
-
-		<p class="fanfic-danger-warning">
-			<strong><?php esc_html_e( 'Warning:', 'fanfiction-manager' ); ?></strong>
-			<?php esc_html_e( 'This action cannot be undone.', 'fanfiction-manager' ); ?>
-		</p>
-	</section>
-
-	<!-- Delete Confirmation Modal -->
-	<div id="delete-confirm-modal" class="fanfic-modal" role="dialog" aria-labelledby="modal-title" aria-modal="true" style="display: none;">
-		<div class="fanfic-modal-overlay"></div>
-		<div class="fanfic-modal-content">
-			<h2 id="modal-title"><?php esc_html_e( 'Confirm Deletion', 'fanfiction-manager' ); ?></h2>
-			<p id="modal-message"></p>
-			<div class="fanfic-modal-actions">
-				<button type="button" id="confirm-delete" class="fanfic-button-danger">
-					<?php esc_html_e( 'Yes, Delete', 'fanfiction-manager' ); ?>
-				</button>
-				<button type="button" id="cancel-delete" class="fanfic-button-secondary">
-					<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
-				</button>
-			</div>
-		</div>
-	</div>
-
-	<!-- Inline Script for Delete Confirmation -->
+	<!-- Inline Script for Delete Confirmation (only for editing) -->
+	<?php if ( $is_edit_mode ) : ?>
 	<script>
 	(function() {
 		console.log('Chapter form script IIFE executed');
@@ -994,42 +957,15 @@ $page_description = $is_edit_mode
 
 			// Delete chapter confirmation
 			var deleteChapterButton = document.getElementById('delete-chapter-button');
-			var modal = document.getElementById('delete-confirm-modal');
-			var confirmButton = document.getElementById('confirm-delete');
-			var cancelButton = document.getElementById('cancel-delete');
-			var modalMessage = document.getElementById('modal-message');
 
 			if (deleteChapterButton) {
 				deleteChapterButton.addEventListener('click', function() {
-					var chapterTitle = this.getAttribute('data-chapter-title');
-					modalMessage.textContent = '<?php esc_html_e( 'Are you sure you want to delete chapter', 'fanfiction-manager' ); ?> "' + chapterTitle + '"? <?php esc_html_e( 'This will be permanently removed.', 'fanfiction-manager' ); ?>';
-					modal.style.display = 'flex';
-				});
-			}
-
-			if (cancelButton) {
-				cancelButton.addEventListener('click', function() {
-					modal.style.display = 'none';
-				});
-			}
-
-			if (confirmButton && deleteChapterButton) {
-				confirmButton.addEventListener('click', function() {
-					var chapterId = deleteChapterButton.getAttribute('data-chapter-id');
-					var storyId = deleteChapterButton.getAttribute('data-story-id');
-					var storyTitle = '<?php echo esc_js( $story->post_title ); ?>';
-
-					// Redirect to story edit form with warning parameter
-					// The deletion happens server-side, validation hook auto-drafts story if needed
-					window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url() ); ?>?story_auto_drafted=1&story_id=' + storyId + '&story_title=' + encodeURIComponent(storyTitle) + '&chapter_deleted=1&chapter_id=' + chapterId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_chapter' ) ); ?>';
-				});
-			}
-
-			// Close modal when clicking overlay
-			var modalOverlay = document.querySelector('.fanfic-modal-overlay');
-			if (modalOverlay) {
-				modalOverlay.addEventListener('click', function() {
-					modal.style.display = 'none';
+					var confirmed = confirm('<?php echo esc_js( __( 'Once you delete a chapter, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ) ); ?>');
+					if (confirmed) {
+						var chapterId = this.getAttribute('data-chapter-id');
+						var storyId = this.getAttribute('data-story-id');
+						window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url() ); ?>?story_id=' + storyId + '&chapter_deleted=1&chapter_id=' + chapterId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_chapter' ) ); ?>';
+					}
 				});
 			}
 
@@ -1265,9 +1201,152 @@ $page_description = $is_edit_mode
 			input.addEventListener('change', toggleChapterNumberField);
 		});
 
-		// Change detection for Update buttons (edit mode only)
+		// Change detection and AJAX for Update buttons (edit mode only)
 		var updateBtn = document.getElementById('update-chapter-btn');
 		var updateDraftBtn = document.getElementById('update-draft-chapter-btn');
+
+		// Handle Update button click via AJAX
+		function handleUpdateClick(e, button) {
+			e.preventDefault();
+
+			// Disable button and show loading state
+			button.disabled = true;
+			var originalText = button.textContent;
+			button.textContent = '<?php echo esc_js( __( 'Updating...', 'fanfiction-manager' ) ); ?>';
+
+			// Get form data
+			var titleField = document.getElementById('fanfic_chapter_title');
+			var typeRadios = document.querySelectorAll('.fanfic-chapter-type-input:checked');
+			var numberField = document.getElementById('fanfic_chapter_number');
+
+			var chapterTitle = titleField ? titleField.value : '';
+			var chapterType = typeRadios.length > 0 ? typeRadios[0].value : '';
+			var chapterNumber = (numberField && chapterType === 'chapter') ? numberField.value : '';
+
+			// Get content from TinyMCE if available
+			var chapterContent = '';
+			if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
+				chapterContent = tinymce.get('fanfic_chapter_content').getContent();
+			} else {
+				var contentField = document.getElementById('fanfic_chapter_content');
+				chapterContent = contentField ? contentField.value : '';
+			}
+
+			// Prepare form data
+			var formData = new FormData();
+			formData.append('action', 'fanfic_update_chapter');
+			formData.append('chapter_id', '<?php echo absint( $chapter_id ); ?>');
+			formData.append('chapter_title', chapterTitle);
+			formData.append('chapter_content', chapterContent);
+			formData.append('chapter_type', chapterType);
+			formData.append('chapter_number', chapterNumber);
+			formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_update_chapter' ); ?>');
+
+			// Send AJAX request
+			fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: formData
+			})
+			.then(function(response) {
+				return response.json();
+			})
+			.then(function(data) {
+				if (data.success) {
+					// Update succeeded - show success message and update original values
+					var successNotice = document.createElement('div');
+					successNotice.className = 'fanfic-success-notice';
+					successNotice.setAttribute('role', 'status');
+					successNotice.setAttribute('aria-live', 'polite');
+					successNotice.innerHTML = '<p>' + data.data.message + '</p><button class="fanfic-notice-close" aria-label="Close notice">&times;</button>';
+
+					// Insert notice at top of form
+					var formSection = document.querySelector('.fanfic-form-section');
+					if (formSection) {
+						formSection.insertBefore(successNotice, formSection.firstChild);
+
+						// Add close button handler
+						var closeBtn = successNotice.querySelector('.fanfic-notice-close');
+						if (closeBtn) {
+							closeBtn.addEventListener('click', function() {
+								successNotice.style.display = 'none';
+							});
+						}
+
+						// Auto-hide after 5 seconds
+						setTimeout(function() {
+							successNotice.style.display = 'none';
+						}, 5000);
+					}
+
+					// Update original values to match current values
+					form.setAttribute('data-original-title', chapterTitle);
+					form.setAttribute('data-original-content', chapterContent);
+					form.setAttribute('data-original-type', chapterType);
+					form.setAttribute('data-original-number', chapterNumber);
+
+					// Re-enable button and disable it again (no changes)
+					button.textContent = originalText;
+					button.disabled = true;
+				} else {
+					// Update failed - show error message
+					var errorNotice = document.createElement('div');
+					errorNotice.className = 'fanfic-error-notice';
+					errorNotice.setAttribute('role', 'alert');
+					errorNotice.setAttribute('aria-live', 'assertive');
+
+					var errorHtml = '<ul>';
+					if (data.data && data.data.errors) {
+						data.data.errors.forEach(function(error) {
+							errorHtml += '<li>' + error + '</li>';
+						});
+					} else {
+						errorHtml += '<li>' + (data.data.message || '<?php echo esc_js( __( 'Failed to update chapter.', 'fanfiction-manager' ) ); ?>') + '</li>';
+					}
+					errorHtml += '</ul><button class="fanfic-notice-close" aria-label="Close notice">&times;</button>';
+					errorNotice.innerHTML = errorHtml;
+
+					// Insert notice at top of form
+					var formSection = document.querySelector('.fanfic-form-section');
+					if (formSection) {
+						formSection.insertBefore(errorNotice, formSection.firstChild);
+
+						// Add close button handler
+						var closeBtn = errorNotice.querySelector('.fanfic-notice-close');
+						if (closeBtn) {
+							closeBtn.addEventListener('click', function() {
+								errorNotice.style.display = 'none';
+							});
+						}
+					}
+
+					// Re-enable button
+					button.textContent = originalText;
+					button.disabled = false;
+				}
+			})
+			.catch(function(error) {
+				console.error('Error updating chapter:', error);
+				alert('<?php echo esc_js( __( 'An error occurred while updating the chapter.', 'fanfiction-manager' ) ); ?>');
+
+				// Re-enable button
+				button.textContent = originalText;
+				button.disabled = false;
+			});
+		}
+
+		// Attach click handlers to Update buttons
+		if (updateBtn) {
+			updateBtn.addEventListener('click', function(e) {
+				handleUpdateClick(e, this);
+			});
+		}
+
+		if (updateDraftBtn) {
+			updateDraftBtn.addEventListener('click', function(e) {
+				handleUpdateClick(e, this);
+			});
+		}
 
 		if (form && (updateBtn || updateDraftBtn)) {
 			var originalTitle = form.getAttribute('data-original-title') || '';

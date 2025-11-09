@@ -407,6 +407,9 @@ if ( $is_edit_mode ) {
 									<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 								</a>
 							<?php endif; ?>
+							<button type="button" id="delete-story-button" class="fanfic-btn fanfic-btn-danger" data-story-id="<?php echo absint( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story_title ); ?>">
+								<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+							</button>
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 							</a>
@@ -556,28 +559,6 @@ if ( $is_edit_mode ) {
 			</div>
 		</section>
 
-		<!-- Danger Zone (Edit mode only) -->
-		<section class="fanfic-content-section" class="fanfic-danger-zone" aria-labelledby="danger-heading">
-			<h2 id="danger-heading" class="fanfic-danger-title">
-				<span class="dashicons dashicons-warning" aria-hidden="true"></span>
-				<?php esc_html_e( 'Danger Zone', 'fanfiction-manager' ); ?>
-			</h2>
-
-			<div class="fanfic-danger-content">
-				<div class="fanfic-danger-info">
-					<h3><?php esc_html_e( 'Delete This Story', 'fanfiction-manager' ); ?></h3>
-					<p><?php esc_html_e( 'Once you delete a story, there is no going back. All chapters and data will be permanently removed.', 'fanfiction-manager' ); ?></p>
-				</div>
-				<button type="button" id="delete-story-button" class="fanfic-button-danger" data-story-id="<?php echo absint( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story_title ); ?>">
-					<?php esc_html_e( 'Delete This Story', 'fanfiction-manager' ); ?>
-				</button>
-			</div>
-
-			<p class="fanfic-danger-warning">
-				<strong><?php esc_html_e( 'Warning:', 'fanfiction-manager' ); ?></strong>
-				<?php esc_html_e( 'This action cannot be undone.', 'fanfiction-manager' ); ?>
-			</p>
-		</section>
 		<?php endif; ?>
 	</div>
 
@@ -803,9 +784,11 @@ if ( $is_edit_mode ) {
 
 		if (deleteStoryButton) {
 			deleteStoryButton.addEventListener('click', function() {
-				var storyTitle = this.getAttribute('data-story-title');
-				modalMessage.textContent = '<?php esc_html_e( 'Are you sure you want to delete', 'fanfiction-manager' ); ?> "' + storyTitle + '"? <?php esc_html_e( 'This will also delete all chapters.', 'fanfiction-manager' ); ?>';
-				modal.style.display = 'block';
+				var confirmed = confirm('<?php esc_html_e( 'Once you delete a story, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ); ?>');
+				if (confirmed) {
+					var storyId = this.getAttribute('data-story-id');
+					window.location.href = '<?php echo esc_js( fanfic_get_dashboard_url() ); ?>?action=delete_story&story_id=' + storyId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_story_' . $story_id ) ); ?>';
+				}
 			});
 		}
 
