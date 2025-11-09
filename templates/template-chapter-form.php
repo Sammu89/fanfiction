@@ -868,6 +868,11 @@ $page_description = $is_edit_mode
 							<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
 						</button>
 					<?php endif; ?>
+					<?php if ( $is_chapter_published ) : ?>
+						<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-btn fanfic-btn-secondary" target="_blank" rel="noopener noreferrer">
+							<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
+						</a>
+					<?php endif; ?>
 					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
 						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 					</a>

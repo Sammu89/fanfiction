@@ -532,6 +532,11 @@ if ( $is_edit_mode ) {
 									<?php esc_html_e( 'Unpublish and save as draft', 'fanfiction-manager' ); ?>
 								</button>
 							<?php endif; ?>
+							<?php if ( $is_published ) : ?>
+								<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-secondary" target="_blank" rel="noopener noreferrer">
+									<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
+								</a>
+							<?php endif; ?>
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 							</a>
