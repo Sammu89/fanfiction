@@ -388,7 +388,7 @@ if ( $is_edit_mode ) {
 							<?php elseif ( ! $is_published ) : ?>
 								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS BUT STORY IS DRAFT -->
 								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-btn fanfic-btn-primary">
-									<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
+									<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
 								</button>
 								<button type="submit" name="fanfic_form_action" value="update" class="fanfic-btn fanfic-btn-secondary" id="update-draft-btn" disabled>
 									<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
@@ -399,7 +399,7 @@ if ( $is_edit_mode ) {
 									<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
 								</button>
 								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
-									<?php esc_html_e( 'Unpublish and save as draft', 'fanfiction-manager' ); ?>
+									<?php esc_html_e( 'Hide from readers (save as draft)', 'fanfiction-manager' ); ?>
 								</button>
 							<?php endif; ?>
 							<?php if ( $is_published ) : ?>
@@ -681,15 +681,15 @@ if ( $is_edit_mode ) {
 	</div>
 </div>
 
-<!-- Publish Story Prompt Modal -->
+<!-- Make Story Visible Prompt Modal -->
 <div id="publish-prompt-modal" class="fanfic-modal" role="dialog" aria-labelledby="publish-modal-title" aria-modal="true" style="display: none;">
 	<div class="fanfic-modal-overlay"></div>
 	<div class="fanfic-modal-content">
-		<h2 id="publish-modal-title"><?php esc_html_e( 'Ready to Publish?', 'fanfiction-manager' ); ?></h2>
-		<p><?php esc_html_e( 'Great! Your story now has its first published chapter. You can now publish your story to make it visible to readers, or keep it as a draft to continue working on it.', 'fanfiction-manager' ); ?></p>
+		<h2 id="publish-modal-title"><?php esc_html_e( 'Ready to Make Your Story Visible?', 'fanfiction-manager' ); ?></h2>
+		<p><?php esc_html_e( 'Great! Your story now has its first published chapter. You can now make your story visible to readers, or keep it as a draft to continue working on it.', 'fanfiction-manager' ); ?></p>
 		<div class="fanfic-modal-actions">
 			<button type="button" id="publish-story-now" class="fanfic-button-primary" data-story-id="<?php echo absint( $story_id ); ?>">
-				<?php esc_html_e( 'Publish Story Now', 'fanfiction-manager' ); ?>
+				<?php esc_html_e( 'Yes, Make Visible', 'fanfiction-manager' ); ?>
 			</button>
 			<button type="button" id="keep-as-draft" class="fanfic-button-secondary">
 				<?php esc_html_e( 'Keep as Draft', 'fanfiction-manager' ); ?>
@@ -866,34 +866,8 @@ if ( $is_edit_mode ) {
 					})
 					.then(function(data) {
 						if (data.success) {
-							// Update row status to draft
-							var statusCell = rowElement.querySelector('.fanfic-status-badge');
-							if (statusCell) {
-								statusCell.classList.remove('fanfic-status-publish');
-								statusCell.classList.add('fanfic-status-draft');
-								statusCell.textContent = '<?php esc_html_e( 'Draft', 'fanfiction-manager' ); ?>';
-							}
-
-							// Remove unpublish and view buttons from actions
-							var unpublishBtn = rowElement.querySelector('.fanfic-unpublish-chapter');
-							var viewBtn = rowElement.querySelector('a[target="_blank"]');
-							if (unpublishBtn) unpublishBtn.remove();
-							if (viewBtn) viewBtn.remove();
-
-							// Show success message
-							alert('<?php esc_html_e( 'Chapter unpublished successfully.', 'fanfiction-manager' ); ?>');
-
-							// If story was auto-drafted, show warning modal on this page
-							if (data.data.story_auto_drafted) {
-								var warningModal = document.getElementById('fanfic-story-auto-draft-warning');
-								var storyTitleEl = document.getElementById('fanfic-story-warning-title');
-								if (warningModal && storyTitleEl) {
-									storyTitleEl.textContent = data.data.story_title;
-									warningModal.classList.add('show');
-									// Scroll to modal
-									warningModal.scrollIntoView({ behavior: 'smooth', block: 'center' });
-								}
-							}
+							// Reload page to show updated chapter status and auto-draft warning if needed
+							location.reload();
 						} else {
 							// Re-enable button and show error
 							buttonElement.disabled = false;
@@ -943,43 +917,7 @@ if ( $is_edit_mode ) {
 				})
 				.then(function(data) {
 					if (data.success) {
-						// Update row status to published
-						var statusCell = rowElement.querySelector('.fanfic-status-badge');
-						if (statusCell) {
-							statusCell.classList.remove('fanfic-status-draft');
-							statusCell.classList.add('fanfic-status-publish');
-							statusCell.textContent = '<?php esc_html_e( 'Published', 'fanfiction-manager' ); ?>';
-						}
-
-						// Replace publish button with view and unpublish buttons
-						var actionsDiv = buttonElement.parentElement;
-						buttonElement.remove();
-
-						// Add view button
-						var viewBtn = document.createElement('a');
-						viewBtn.href = data.data.chapter_url;
-						viewBtn.className = 'fanfic-button-small';
-						viewBtn.target = '_blank';
-						viewBtn.rel = 'noopener noreferrer';
-						viewBtn.setAttribute('aria-label', '<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>');
-						viewBtn.textContent = '<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>';
-						actionsDiv.insertBefore(viewBtn, actionsDiv.querySelector('.fanfic-delete-chapter'));
-
-						// Add unpublish button
-						var unpublishBtn = document.createElement('button');
-						unpublishBtn.type = 'button';
-						unpublishBtn.className = 'fanfic-button-small fanfic-button-warning fanfic-unpublish-chapter';
-						unpublishBtn.setAttribute('data-chapter-id', chapterId);
-						unpublishBtn.setAttribute('data-chapter-title', chapterTitle);
-						unpublishBtn.setAttribute('data-story-id', '<?php echo absint( $story_id ); ?>');
-						unpublishBtn.setAttribute('aria-label', '<?php esc_attr_e( 'Unpublish chapter', 'fanfiction-manager' ); ?>');
-						unpublishBtn.textContent = '<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>';
-						actionsDiv.insertBefore(unpublishBtn, actionsDiv.querySelector('.fanfic-delete-chapter'));
-
-						// Show success message
-						alert('<?php esc_html_e( 'Chapter published successfully!', 'fanfiction-manager' ); ?>');
-
-						// Reload page to update unpublish button event listeners
+						// Reload page to show updated chapter status
 						location.reload();
 					} else {
 						// Re-enable button and show error
@@ -1200,7 +1138,7 @@ if ( $is_edit_mode ) {
 
 				// Disable button to prevent double-clicks
 				publishNowButton.disabled = true;
-				publishNowButton.textContent = '<?php esc_html_e( 'Publishing...', 'fanfiction-manager' ); ?>';
+				publishNowButton.textContent = '<?php esc_html_e( 'Making visible...', 'fanfiction-manager' ); ?>';
 
 				// Prepare AJAX request
 				var formData = new FormData();
@@ -1225,15 +1163,15 @@ if ( $is_edit_mode ) {
 					} else {
 						// Re-enable button and show error
 						publishNowButton.disabled = false;
-						publishNowButton.textContent = '<?php esc_html_e( 'Publish Story Now', 'fanfiction-manager' ); ?>';
-						alert(data.data.message || '<?php esc_html_e( 'Failed to publish story.', 'fanfiction-manager' ); ?>');
+						publishNowButton.textContent = '<?php esc_html_e( 'Yes, Make Visible', 'fanfiction-manager' ); ?>';
+						alert(data.data.message || '<?php esc_html_e( 'Failed to make story visible.', 'fanfiction-manager' ); ?>');
 					}
 				})
 				.catch(function(error) {
 					// Re-enable button and show error
 					publishNowButton.disabled = false;
-					publishNowButton.textContent = '<?php esc_html_e( 'Publish Story Now', 'fanfiction-manager' ); ?>';
-					alert('<?php esc_html_e( 'An error occurred while publishing the story.', 'fanfiction-manager' ); ?>');
+					publishNowButton.textContent = '<?php esc_html_e( 'Yes, Make Visible', 'fanfiction-manager' ); ?>';
+					alert('<?php esc_html_e( 'An error occurred while making the story visible.', 'fanfiction-manager' ); ?>');
 					console.error('Error:', error);
 				});
 			});
