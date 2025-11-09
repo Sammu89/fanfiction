@@ -188,12 +188,34 @@ class Fanfic_Story_Handler {
 			$can_publish_stories = current_user_can( 'publish_fanfiction_stories' );
 			error_log( 'Can publish_fanfiction_stories: ' . ( $can_publish_stories ? 'YES' : 'NO' ) );
 
-			// Update story (without status first to avoid conflicts)
+			// Add filter to handle post_status, but skip revisions
+			add_filter( 'wp_insert_post_data', function( $data, $postarr ) use ( $post_status, $story_id ) {
+				// Skip if this is a revision (revisions are created with draft status)
+				if ( isset( $data['post_type'] ) && 'revision' === $data['post_type'] ) {
+					error_log( 'wp_insert_post_data: Skipping revision' );
+					return $data;
+				}
+
+				// Only apply to our specific story update
+				if ( isset( $postarr['ID'] ) && absint( $postarr['ID'] ) === absint( $story_id ) ) {
+					error_log( 'wp_insert_post_data filter - Post type: ' . $data['post_type'] );
+					error_log( 'wp_insert_post_data filter - Incoming status: ' . $data['post_status'] );
+					error_log( 'wp_insert_post_data filter - Forcing status to: ' . $post_status );
+					$data['post_status'] = $post_status;
+				}
+				return $data;
+			}, 99, 2 );
+
+			// Update story
 			$result = wp_update_post( array(
 				'ID'           => $story_id,
 				'post_title'   => $title,
 				'post_content' => $introduction,
+				'post_status'  => $post_status,
 			), true ); // true = return WP_Error on failure
+
+			// Remove filter after update
+			remove_all_filters( 'wp_insert_post_data', 99 );
 
 			error_log( 'wp_update_post result: ' . ( is_wp_error( $result ) ? 'WP_Error: ' . $result->get_error_message() : $result ) );
 
@@ -209,20 +231,6 @@ class Fanfic_Story_Handler {
 				set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
 				wp_safe_redirect( wp_get_referer() );
 				exit;
-			}
-
-			// Update post_status directly in database to bypass all WordPress hooks
-			global $wpdb;
-			if ( $post_status !== $current_status ) {
-				error_log( 'Updating post_status directly in database from ' . $current_status . ' to ' . $post_status );
-				$wpdb_result = $wpdb->update(
-					$wpdb->posts,
-					array( 'post_status' => $post_status ),
-					array( 'ID' => $story_id ),
-					array( '%s' ),
-					array( '%d' )
-				);
-				error_log( 'Direct DB update result: ' . ( $wpdb_result !== false ? 'SUCCESS' : 'FAILED' ) );
 			}
 
 			// Clear post cache to ensure fresh data on next page load
@@ -853,20 +861,41 @@ class Fanfic_Story_Handler {
 		$can_publish_stories = current_user_can( 'publish_fanfiction_stories' );
 		error_log( 'AJAX Can publish_fanfiction_stories: ' . ( $can_publish_stories ? 'YES' : 'NO' ) );
 
-		// Update post_status directly in database to bypass all WordPress hooks
-		global $wpdb;
-		error_log( 'AJAX: Updating post_status directly in database from ' . $story->post_status . ' to publish' );
-		$wpdb_result = $wpdb->update(
-			$wpdb->posts,
-			array( 'post_status' => 'publish' ),
-			array( 'ID' => $story_id ),
-			array( '%s' ),
-			array( '%d' )
-		);
-		error_log( 'AJAX: Direct DB update result: ' . ( $wpdb_result !== false ? 'SUCCESS - Rows affected: ' . $wpdb_result : 'FAILED' ) );
+		// Add filter to handle post_status, but skip revisions
+		add_filter( 'wp_insert_post_data', function( $data, $postarr ) use ( $story_id ) {
+			// Skip if this is a revision (revisions are created with draft status)
+			if ( isset( $data['post_type'] ) && 'revision' === $data['post_type'] ) {
+				error_log( 'AJAX wp_insert_post_data: Skipping revision' );
+				return $data;
+			}
 
-		if ( false === $wpdb_result ) {
-			wp_send_json_error( array( 'message' => __( 'Failed to publish story. Database error.', 'fanfiction-manager' ) ) );
+			// Only apply to our specific story update
+			if ( isset( $postarr['ID'] ) && absint( $postarr['ID'] ) === absint( $story_id ) ) {
+				error_log( 'AJAX wp_insert_post_data - Post type: ' . $data['post_type'] );
+				error_log( 'AJAX wp_insert_post_data - Incoming status: ' . $data['post_status'] );
+				error_log( 'AJAX wp_insert_post_data - Forcing status to: publish' );
+				$data['post_status'] = 'publish';
+			}
+			return $data;
+		}, 99, 2 );
+
+		// Update story status to publish
+		$result = wp_update_post( array(
+			'ID'          => $story_id,
+			'post_status' => 'publish',
+		), true ); // true = return WP_Error on failure
+
+		// Remove filter after update
+		remove_all_filters( 'wp_insert_post_data', 99 );
+
+		error_log( 'AJAX wp_update_post result: ' . ( is_wp_error( $result ) ? 'WP_Error: ' . $result->get_error_message() : $result ) );
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		if ( ! $result || 0 === $result ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to publish story. Please try again.', 'fanfiction-manager' ) ) );
 		}
 
 		// Clear post cache to ensure fresh data
