@@ -957,13 +957,22 @@ $page_description = $is_edit_mode
 
 			// Delete chapter confirmation with AJAX
 			var deleteChapterButton = document.getElementById('delete-chapter-button');
+			console.log('Delete button search result:', deleteChapterButton);
+
+			if (deleteChapterButton) {
+				console.log('Delete button found! Attaching click handler');
+			} else {
+				console.warn('Delete button NOT found on page!');
+			}
 
 			if (deleteChapterButton) {
 				deleteChapterButton.addEventListener('click', function() {
+					console.log('Delete button CLICKED!');
 					var chapterId = this.getAttribute('data-chapter-id');
 					var storyId = this.getAttribute('data-story-id');
 					var chapterTitle = this.getAttribute('data-chapter-title');
 					var buttonElement = this;
+					console.log('Chapter ID:', chapterId, 'Story ID:', storyId);
 
 					// Check if this is the last chapter via AJAX
 					var checkFormData = new FormData();
@@ -1018,7 +1027,7 @@ $page_description = $is_edit_mode
 									}
 
 									// Redirect to story edit page
-									window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url() ); ?>?story_id=' + storyId;
+									window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url( $story_id ) ); ?>';
 								} else {
 									// Re-enable button and show error
 									buttonElement.disabled = false;
@@ -1030,14 +1039,24 @@ $page_description = $is_edit_mode
 								// Re-enable button and show error
 								buttonElement.disabled = false;
 								buttonElement.textContent = FanficMessages.delete;
-								alert(FanficMessages.errorDeletingChapter);
+								alert(FanficMessages.errorDeletingChapter + '\n\n<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>');
 								console.error('Error deleting chapter:', error);
+								console.error('Full error details:', {
+									error: error,
+									message: error.message,
+									stack: error.stack
+								});
 							});
 						}
 					})
 					.catch(function(error) {
 						console.error('Error checking last chapter:', error);
-						alert(FanficMessages.errorCheckingLastChapter);
+						console.error('Full error details:', {
+							error: error,
+							message: error.message,
+							stack: error.stack
+						});
+						alert(FanficMessages.errorCheckingLastChapter + '\n\n<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>');
 					});
 				});
 			}
