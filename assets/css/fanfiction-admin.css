@@ -220,6 +220,25 @@ body.fanfic-admin-modal-open {
 	overflow: hidden;
 }
 
+/* Button Styles */
+.fanfic-btn-danger {
+	background-color: #dc3232 !important;
+	border-color: #dc3232 !important;
+	color: #fff !important;
+}
+
+.fanfic-btn-danger:hover {
+	background-color: #c62d2d !important;
+	border-color: #c62d2d !important;
+}
+
+.fanfic-btn-danger:disabled {
+	background-color: #999 !important;
+	border-color: #999 !important;
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
 /* High Contrast Mode Support */
 @media (prefers-contrast: more) {
 	table th {
