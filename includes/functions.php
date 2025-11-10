@@ -496,3 +496,281 @@ function fanfic_get_parent_url( $post_id = 0 ) {
 			return fanfic_get_main_url();
 	}
 }
+
+/**
+ * Render universal breadcrumb navigation
+ *
+ * Generates breadcrumb navigation for all pages in the fanfiction plugin.
+ * Always starts with a home icon (⌂) linking to the main page.
+ *
+ * @since 1.0.11
+ * @param string $context The page context. Options:
+ *                        - 'dashboard' : Dashboard page
+ *                        - 'edit-story' : Add/Edit story page
+ *                        - 'edit-chapter' : Add/Edit chapter page
+ *                        - 'edit-profile' : Edit profile page
+ *                        - 'view-story' : View story page (frontend)
+ *                        - 'view-chapter' : View chapter page (frontend)
+ *                        - 'view-profile' : View user profile (frontend)
+ *                        - 'members' : Members listing page
+ *                        - 'stories' : Story archive page
+ *                        - 'search' : Search page
+ * @param array  $args    Optional. Additional arguments:
+ *                        - 'story_id' (int) : Story ID for story/chapter contexts
+ *                        - 'story_title' (string) : Story title (optional, will be fetched if not provided)
+ *                        - 'chapter_id' (int) : Chapter ID for chapter contexts
+ *                        - 'chapter_title' (string) : Chapter title (optional, will be fetched if not provided)
+ *                        - 'user_id' (int) : User ID for profile contexts
+ *                        - 'username' (string) : Username (optional, will be fetched if not provided)
+ *                        - 'is_edit_mode' (bool) : Whether in edit mode (for edit contexts)
+ *                        - 'position' (string) : 'top' or 'bottom' (default: 'top')
+ * @return void Outputs the breadcrumb HTML
+ */
+function fanfic_render_breadcrumb( $context, $args = array() ) {
+	// Default arguments
+	$defaults = array(
+		'story_id'      => 0,
+		'story_title'   => '',
+		'chapter_id'    => 0,
+		'chapter_title' => '',
+		'user_id'       => 0,
+		'username'      => '',
+		'is_edit_mode'  => false,
+		'position'      => 'top',
+	);
+	$args     = wp_parse_args( $args, $defaults );
+
+	// Build breadcrumb items array
+	$items = array();
+
+	// Home icon - always first
+	$items[] = array(
+		'url'   => fanfic_get_main_url(),
+		'label' => '⌂', // U+2302 House symbol
+		'class' => 'fanfic-breadcrumb-home',
+	);
+
+	// Build context-specific breadcrumbs
+	switch ( $context ) {
+		case 'dashboard':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Dashboard', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		case 'edit-story':
+			$items[] = array(
+				'url'   => fanfic_get_dashboard_url(),
+				'label' => __( 'Dashboard', 'fanfiction-manager' ),
+			);
+
+			if ( $args['is_edit_mode'] && $args['story_id'] ) {
+				// Get story title if not provided
+				if ( empty( $args['story_title'] ) ) {
+					$story               = get_post( $args['story_id'] );
+					$args['story_title'] = $story ? $story->post_title : '';
+				}
+
+				$items[] = array(
+					'url'   => get_permalink( $args['story_id'] ),
+					'label' => $args['story_title'],
+				);
+				$items[] = array(
+					'url'    => '',
+					'label'  => __( 'Edit', 'fanfiction-manager' ),
+					'active' => true,
+				);
+			} else {
+				$items[] = array(
+					'url'    => '',
+					'label'  => __( 'Create Story', 'fanfiction-manager' ),
+					'active' => true,
+				);
+			}
+			break;
+
+		case 'edit-chapter':
+			$items[] = array(
+				'url'   => fanfic_get_dashboard_url(),
+				'label' => __( 'Dashboard', 'fanfiction-manager' ),
+			);
+
+			// Get story info
+			if ( $args['story_id'] ) {
+				if ( empty( $args['story_title'] ) ) {
+					$story               = get_post( $args['story_id'] );
+					$args['story_title'] = $story ? $story->post_title : '';
+				}
+
+				$items[] = array(
+					'url'   => fanfic_get_edit_story_url( $args['story_id'] ),
+					'label' => $args['story_title'],
+				);
+			}
+
+			// Chapter breadcrumb
+			if ( $args['is_edit_mode'] && $args['chapter_id'] ) {
+				if ( empty( $args['chapter_title'] ) ) {
+					$chapter               = get_post( $args['chapter_id'] );
+					$args['chapter_title'] = $chapter ? $chapter->post_title : '';
+				}
+
+				$items[] = array(
+					'url'   => fanfic_get_edit_chapter_url( $args['chapter_id'], $args['story_id'] ),
+					'label' => $args['chapter_title'],
+				);
+				$items[] = array(
+					'url'    => '',
+					'label'  => __( 'Edit', 'fanfiction-manager' ),
+					'active' => true,
+				);
+			} else {
+				$items[] = array(
+					'url'    => '',
+					'label'  => __( 'Add Chapter', 'fanfiction-manager' ),
+					'active' => true,
+				);
+			}
+			break;
+
+		case 'edit-profile':
+			$items[] = array(
+				'url'   => fanfic_get_dashboard_url(),
+				'label' => __( 'Dashboard', 'fanfiction-manager' ),
+			);
+
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Edit Profile', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		case 'view-story':
+			$items[] = array(
+				'url'   => fanfic_get_story_archive_url(),
+				'label' => __( 'Stories', 'fanfiction-manager' ),
+			);
+
+			if ( $args['story_id'] ) {
+				if ( empty( $args['story_title'] ) ) {
+					$story               = get_post( $args['story_id'] );
+					$args['story_title'] = $story ? $story->post_title : '';
+				}
+
+				$items[] = array(
+					'url'    => '',
+					'label'  => $args['story_title'],
+					'active' => true,
+				);
+			}
+			break;
+
+		case 'view-chapter':
+			$items[] = array(
+				'url'   => fanfic_get_story_archive_url(),
+				'label' => __( 'Stories', 'fanfiction-manager' ),
+			);
+
+			// Story breadcrumb
+			if ( $args['story_id'] ) {
+				if ( empty( $args['story_title'] ) ) {
+					$story               = get_post( $args['story_id'] );
+					$args['story_title'] = $story ? $story->post_title : '';
+				}
+
+				$items[] = array(
+					'url'   => get_permalink( $args['story_id'] ),
+					'label' => $args['story_title'],
+				);
+			}
+
+			// Chapter breadcrumb
+			if ( $args['chapter_id'] ) {
+				if ( empty( $args['chapter_title'] ) ) {
+					$chapter               = get_post( $args['chapter_id'] );
+					$args['chapter_title'] = $chapter ? $chapter->post_title : '';
+				}
+
+				$items[] = array(
+					'url'    => '',
+					'label'  => $args['chapter_title'],
+					'active' => true,
+				);
+			}
+			break;
+
+		case 'view-profile':
+			$items[] = array(
+				'url'   => fanfic_get_members_url(),
+				'label' => __( 'Members', 'fanfiction-manager' ),
+			);
+
+			if ( $args['user_id'] ) {
+				if ( empty( $args['username'] ) ) {
+					$user             = get_userdata( $args['user_id'] );
+					$args['username'] = $user ? $user->display_name : '';
+				}
+
+				$items[] = array(
+					'url'    => '',
+					'label'  => $args['username'],
+					'active' => true,
+				);
+			}
+			break;
+
+		case 'members':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Members', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		case 'stories':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Stories', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		case 'search':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Search', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		default:
+			// Unknown context, just show home
+			break;
+	}
+
+	// Add CSS class for bottom positioning
+	$nav_class = 'fanfic-breadcrumb';
+	if ( $args['position'] === 'bottom' ) {
+		$nav_class .= ' fanfic-breadcrumb-bottom';
+	}
+
+	// Output breadcrumb HTML
+	?>
+	<nav class="<?php echo esc_attr( $nav_class ); ?>" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
+		<ol class="fanfic-breadcrumb-list">
+			<?php foreach ( $items as $item ) : ?>
+				<li class="fanfic-breadcrumb-item <?php echo ! empty( $item['class'] ) ? esc_attr( $item['class'] ) : ''; ?> <?php echo ! empty( $item['active'] ) ? 'fanfic-breadcrumb-active' : ''; ?>" <?php echo ! empty( $item['active'] ) ? 'aria-current="page"' : ''; ?>>
+					<?php if ( ! empty( $item['url'] ) ) : ?>
+						<a href="<?php echo esc_url( $item['url'] ); ?>"><?php echo esc_html( $item['label'] ); ?></a>
+					<?php else : ?>
+						<?php echo esc_html( $item['label'] ); ?>
+					<?php endif; ?>
+				</li>
+			<?php endforeach; ?>
+		</ol>
+	</nav>
+	<?php
+}

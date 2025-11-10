@@ -48,13 +48,7 @@ $current_user = wp_get_current_user();
 ?>
 
 <!-- Breadcrumb Navigation -->
-<nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
-	<ol class="fanfic-breadcrumb-list">
-		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
-			<?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?>
-		</li>
-	</ol>
-</nav>
+<?php fanfic_render_breadcrumb( 'dashboard' ); ?>
 
 <!-- Success/Error Messages -->
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'story_created' ) : ?>
@@ -360,13 +354,7 @@ $current_user = wp_get_current_user();
 </div>
 
 <!-- Breadcrumb Navigation (Bottom) -->
-<nav class="fanfic-breadcrumb fanfic-breadcrumb-bottom" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
-	<ol class="fanfic-breadcrumb-list">
-		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
-			<?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?>
-		</li>
-	</ol>
-</nav>
+<?php fanfic_render_breadcrumb( 'dashboard', array( 'position' => 'bottom' ) ); ?>
 
 <!-- Inline Script for Notice Dismissal -->
 <script>

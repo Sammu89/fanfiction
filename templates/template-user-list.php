@@ -22,16 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	<a href="#fanfic-main-content" class="skip-link"><?php esc_html_e( 'Skip to main content', 'fanfiction-manager' ); ?></a>
 
 	<!-- Breadcrumb Navigation -->
-	<nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
-		<ol class="fanfic-breadcrumb-list">
-			<li class="fanfic-breadcrumb-item">
-				<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
-			</li>
-			<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
-				<?php esc_html_e( 'Authors Directory', 'fanfiction-manager' ); ?>
-			</li>
-		</ol>
-	</nav>
+	<?php fanfic_render_breadcrumb( 'members' ); ?>
 
 	<!-- Page Header -->
 	<header class="fanfic-page-header" id="fanfic-main-content">
@@ -156,14 +147,5 @@ if ( ! defined( 'ABSPATH' ) ) {
 	</section>
 
 	<!-- Breadcrumb Navigation (Bottom) -->
-	<nav class="fanfic-breadcrumb fanfic-breadcrumb-bottom" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
-		<ol class="fanfic-breadcrumb-list">
-			<li class="fanfic-breadcrumb-item">
-				<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'fanfiction-manager' ); ?></a>
-			</li>
-			<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
-				<?php esc_html_e( 'Authors Directory', 'fanfiction-manager' ); ?>
-			</li>
-		</ol>
-	</nav>
+	<?php fanfic_render_breadcrumb( 'members', array( 'position' => 'bottom' ) ); ?>
 </div>

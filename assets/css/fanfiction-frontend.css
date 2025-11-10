@@ -663,6 +663,7 @@ input[type="button"]:focus {
 	flex-wrap: wrap;
 	gap: 5px;
 	font-size: 14px;
+	align-items: center;
 }
 
 .fanfic-breadcrumb-item {
@@ -671,9 +672,10 @@ input[type="button"]:focus {
 }
 
 .fanfic-breadcrumb-item:not(:last-child)::after {
-	content: '›';
+	content: '>';
 	margin: 0 8px;
 	color: #999;
+	font-weight: bold;
 }
 
 .fanfic-breadcrumb-item a {
@@ -687,6 +689,18 @@ input[type="button"]:focus {
 
 .fanfic-breadcrumb-active {
 	color: #666;
+}
+
+/* Home icon styling */
+.fanfic-breadcrumb-home a {
+	font-size: 18px;
+	line-height: 1;
+	font-weight: normal;
+}
+
+.fanfic-breadcrumb-home a:hover {
+	text-decoration: none;
+	opacity: 0.8;
 }
 
 /* Stats Cards */

@@ -675,19 +675,15 @@ $page_description = $is_edit_mode
 <?php include( plugin_dir_path( __FILE__ ) . 'modal-warnings.php' ); ?>
 
 <!-- Breadcrumb Navigation -->
-<nav class="fanfic-breadcrumb" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
-	<ol class="fanfic-breadcrumb-list">
-		<li class="fanfic-breadcrumb-item">
-			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></a>
-		</li>
-		<li class="fanfic-breadcrumb-item">
-			<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>"><?php echo esc_html( $story_title ); ?></a>
-		</li>
-		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
-			<?php echo esc_html( $is_edit_mode ? __( 'Edit Chapter', 'fanfiction-manager' ) : __( 'Add Chapter', 'fanfiction-manager' ) ); ?>
-		</li>
-	</ol>
-</nav>
+<?php
+fanfic_render_breadcrumb( 'edit-chapter', array(
+	'story_id'      => $story_id,
+	'story_title'   => $story_title,
+	'chapter_id'    => $chapter_id,
+	'chapter_title' => $is_edit_mode && $chapter ? $chapter->post_title : '',
+	'is_edit_mode'  => $is_edit_mode,
+) );
+?>
 
 <!-- Success/Error Messages -->
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'true' ) : ?>
@@ -1530,16 +1526,13 @@ if ( $validation_errors ) {
 </script>
 
 <!-- Breadcrumb Navigation (Bottom) -->
-<nav class="fanfic-breadcrumb fanfic-breadcrumb-bottom" aria-label="<?php esc_attr_e( 'Breadcrumb', 'fanfiction-manager' ); ?>">
-	<ol class="fanfic-breadcrumb-list">
-		<li class="fanfic-breadcrumb-item">
-			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?></a>
-		</li>
-		<li class="fanfic-breadcrumb-item">
-			<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>"><?php echo esc_html( $story_title ); ?></a>
-		</li>
-		<li class="fanfic-breadcrumb-item fanfic-breadcrumb-active" aria-current="page">
-			<?php echo esc_html( $is_edit_mode ? __( 'Edit Chapter', 'fanfiction-manager' ) : __( 'Add Chapter', 'fanfiction-manager' ) ); ?>
-		</li>
-	</ol>
-</nav>
+<?php
+fanfic_render_breadcrumb( 'edit-chapter', array(
+	'story_id'      => $story_id,
+	'story_title'   => $story_title,
+	'chapter_id'    => $chapter_id,
+	'chapter_title' => $is_edit_mode && $chapter ? $chapter->post_title : '',
+	'is_edit_mode'  => $is_edit_mode,
+	'position'      => 'bottom',
+) );
+?>
