@@ -527,6 +527,12 @@ function fanfic_get_parent_url( $post_id = 0 ) {
  * @return void Outputs the breadcrumb HTML
  */
 function fanfic_render_breadcrumb( $context, $args = array() ) {
+	// Check if breadcrumbs are enabled
+	$show_breadcrumbs = get_option( 'fanfic_show_breadcrumbs', '1' );
+	if ( '1' !== $show_breadcrumbs ) {
+		return; // Breadcrumbs are disabled
+	}
+
 	// Default arguments
 	$defaults = array(
 		'story_id'      => 0,
@@ -746,6 +752,46 @@ function fanfic_render_breadcrumb( $context, $args = array() ) {
 			);
 			break;
 
+		case 'login':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Login', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		case 'register':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Register', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		case 'password-reset':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Password Reset', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		case 'error':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Error', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
+		case 'maintenance':
+			$items[] = array(
+				'url'    => '',
+				'label'  => __( 'Maintenance', 'fanfiction-manager' ),
+				'active' => true,
+			);
+			break;
+
 		default:
 			// Unknown context, just show home
 			break;
@@ -774,3 +820,89 @@ function fanfic_render_breadcrumb( $context, $args = array() ) {
 	</nav>
 	<?php
 }
+
+/**
+ * Breadcrumb shortcode handler
+ *
+ * Allows breadcrumbs to be displayed anywhere using the [fanfic-breadcrumbs] shortcode.
+ * The shortcode will automatically detect the current context and display appropriate breadcrumbs.
+ *
+ * @since 1.0.12
+ * @param array $atts Shortcode attributes.
+ *                    - 'context' (string) : Force a specific context (optional)
+ *                    - 'position' (string) : 'top' or 'bottom' (default: 'top')
+ * @return string The breadcrumb HTML
+ */
+function fanfic_breadcrumb_shortcode( $atts ) {
+	// Parse attributes
+	$atts = shortcode_atts(
+		array(
+			'context'  => '',
+			'position' => 'top',
+		),
+		$atts,
+		'fanfic-breadcrumbs'
+	);
+
+	// Auto-detect context if not provided
+	$context = $atts['context'];
+	if ( empty( $context ) ) {
+		// Try to detect context from current page
+		if ( is_admin() ) {
+			// In admin area
+			global $pagenow;
+			if ( 'admin.php' === $pagenow && isset( $_GET['page'] ) ) {
+				$page = sanitize_text_field( wp_unslash( $_GET['page'] ) );
+				if ( 'fanfiction' === $page || 'fanfiction-dashboard' === $page ) {
+					$context = 'dashboard';
+				}
+			}
+		} else {
+			// On frontend
+			$post_type = get_post_type();
+
+			if ( 'fanfiction_story' === $post_type ) {
+				$context = 'view-story';
+			} elseif ( 'fanfiction_chapter' === $post_type ) {
+				$context = 'view-chapter';
+			} elseif ( is_post_type_archive( 'fanfiction_story' ) ) {
+				$context = 'stories';
+			} elseif ( function_exists( 'fanfic_is_members_page' ) && fanfic_is_members_page() ) {
+				$context = 'members';
+			} elseif ( function_exists( 'fanfic_is_search_page' ) && fanfic_is_search_page() ) {
+				$context = 'search';
+			}
+		}
+	}
+
+	// If we still don't have a context, don't show breadcrumbs
+	if ( empty( $context ) ) {
+		return '';
+	}
+
+	// Build arguments based on context
+	$args = array(
+		'position' => $atts['position'],
+	);
+
+	// Add context-specific arguments
+	if ( 'view-story' === $context || 'edit-story' === $context ) {
+		$post_id = get_the_ID();
+		if ( $post_id ) {
+			$args['story_id'] = $post_id;
+		}
+	} elseif ( 'view-chapter' === $context || 'edit-chapter' === $context ) {
+		$post_id = get_the_ID();
+		if ( $post_id ) {
+			$chapter = get_post( $post_id );
+			$args['chapter_id'] = $post_id;
+			$args['story_id'] = wp_get_post_parent_id( $post_id );
+		}
+	}
+
+	// Capture output
+	ob_start();
+	fanfic_render_breadcrumb( $context, $args );
+	return ob_get_clean();
+}
+add_shortcode( 'fanfic-breadcrumbs', 'fanfic_breadcrumb_shortcode' );

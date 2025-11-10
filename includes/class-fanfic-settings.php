@@ -1871,6 +1871,13 @@ class Fanfic_Settings {
 			update_option( 'fanfic_show_sidebar', '0' );
 		}
 
+		// Handle Show Breadcrumbs setting
+		if ( isset( $_POST['fanfic_show_breadcrumbs'] ) && '1' === $_POST['fanfic_show_breadcrumbs'] ) {
+			update_option( 'fanfic_show_breadcrumbs', '1' );
+		} else {
+			update_option( 'fanfic_show_breadcrumbs', '0' );
+		}
+
 		// Handle Content Width setting
 		if ( isset( $_POST['fanfic_page_width_mode'] ) ) {
 			$width_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_page_width_mode'] ) );

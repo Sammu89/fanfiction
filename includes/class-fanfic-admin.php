@@ -377,6 +377,23 @@ class Fanfic_Admin {
 							</td>
 						</tr>
 
+						<!-- Show Breadcrumbs -->
+						<tr>
+							<th scope="row">
+								<label for="fanfic_show_breadcrumbs"><?php esc_html_e( 'Show Breadcrumbs', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<?php $show_breadcrumbs = get_option( 'fanfic_show_breadcrumbs', '1' ); ?>
+								<label>
+									<input type="checkbox" id="fanfic_show_breadcrumbs" name="fanfic_show_breadcrumbs" value="1" <?php checked( '1', $show_breadcrumbs ); ?>>
+									<?php esc_html_e( 'Display breadcrumb navigation on plugin pages', 'fanfiction-manager' ); ?>
+								</label>
+								<p class="description">
+									<?php esc_html_e( 'Breadcrumbs help users understand their location and navigate through the site hierarchy. You can also use the [fanfic-breadcrumbs] shortcode to display breadcrumbs anywhere.', 'fanfiction-manager' ); ?>
+								</p>
+							</td>
+						</tr>
+
 						<!-- Content Width -->
 						<tr>
 							<th scope="row">
