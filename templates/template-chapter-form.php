@@ -1018,7 +1018,7 @@ $page_description = $is_edit_mode
 									}
 
 									// Redirect to story edit page
-									window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url() ); ?>?story_id=' + storyId;
+									window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url( $story_id ) ); ?>';
 								} else {
 									// Re-enable button and show error
 									buttonElement.disabled = false;
