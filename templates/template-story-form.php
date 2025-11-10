@@ -798,14 +798,26 @@ if ( $is_edit_mode ) {
 							// Re-enable button and show error
 							buttonElement.disabled = false;
 							buttonElement.textContent = FanficMessages.delete;
-							alert(data.data.message || FanficMessages.errorDeletingStory);
+
+							// Build detailed error message
+							var errorMessage = data.data && data.data.message ? data.data.message : FanficMessages.errorDeletingStory;
+							if (data.data && data.data.errors && data.data.errors.length > 0) {
+								errorMessage += '\n\n' + '<?php echo esc_js( __( 'Details:', 'fanfiction-manager' ) ); ?>\n';
+								data.data.errors.forEach(function(error) {
+									errorMessage += '- ' + error + '\n';
+								});
+							}
+							alert(errorMessage);
+
+							// Log detailed error for debugging
+							console.error('Story delete failed:', data);
 						}
 					})
 					.catch(function(error) {
 						// Re-enable button and show error
 						buttonElement.disabled = false;
 						buttonElement.textContent = FanficMessages.delete;
-						alert(FanficMessages.errorDeletingStory);
+						alert(FanficMessages.errorDeletingStory + '\n\n' + '<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>');
 						console.error('Error deleting story:', error);
 					});
 				}
@@ -962,8 +974,11 @@ if ( $is_edit_mode ) {
 					if (data.success) {
 						// Check if story became publishable
 						if (data.data.story_became_publishable) {
-							// Redirect to edit page with publish prompt parameter
-							window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url( $story_id ) ); ?>?show_publish_prompt=1';
+							// Redirect to edit page with publish prompt and success parameters
+							var editUrl = '<?php echo esc_js( fanfic_get_edit_story_url( $story_id ) ); ?>';
+							// Check if URL already has query parameters
+							var separator = editUrl.indexOf('?') !== -1 ? '&' : '?';
+							window.location.href = editUrl + separator + 'success=true&show_publish_prompt=1';
 						} else {
 							// Just reload to show updated chapter status
 							location.reload();
