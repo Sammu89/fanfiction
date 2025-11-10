@@ -128,7 +128,6 @@ class Fanfic_Chapter_Handler {
 			exit;
 		}
 
-			error_log( 'Chapter created with ID: ' . $chapter_id . ', Status: ' . $chapter_status );
 		// Create chapter
 		$chapter_id = wp_insert_post( array(
 			'post_type'    => 'fanfiction_chapter',
@@ -138,6 +137,10 @@ class Fanfic_Chapter_Handler {
 			'post_author'  => $current_user->ID,
 			'post_parent'  => $story_id,
 		) );
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'Chapter created with ID: ' . $chapter_id . ', Status: ' . $chapter_status );
+		}
 
 		if ( is_wp_error( $chapter_id ) ) {
 			$errors[] = $chapter_id->get_error_message();
@@ -174,20 +177,17 @@ class Fanfic_Chapter_Handler {
 
 
 
-	// Redirect to chapter edit page
-	$chapter_url = get_permalink( $chapter_id );
-	$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
+		// Redirect to chapter edit page
+		$chapter_url = get_permalink( $chapter_id );
+		$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
 
-	// Add parameter if story was auto-drafted
-	if ( $was_story_auto_drafted ) {
-		$redirect_url = add_query_arg( 'story_auto_drafted', '1', $redirect_url );
-	}
-
-	// Add parameter to show publication prompt if this is first chapter
-	if ( $is_first_published_chapter ) {
-		error_log( 'Redirecting to: ' . $edit_url );
-		$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
-	}
+		// Add parameter to show publication prompt if this is first chapter
+		if ( $is_first_published_chapter ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Redirecting to: ' . $edit_url . ' with publish prompt' );
+			}
+			$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
+		}
 
 		// Check if this is an AJAX request
 		if ( wp_doing_ajax() ) {
