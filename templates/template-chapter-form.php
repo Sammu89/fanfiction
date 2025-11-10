@@ -1366,6 +1366,7 @@ if ( $validation_errors ) {
 			var originalContent = form.getAttribute('data-original-content') || '';
 			var originalType = form.getAttribute('data-original-type') || '';
 			var originalNumber = form.getAttribute('data-original-number') || '';
+			var tinymceInitialized = false; // Track if TinyMCE has finished initial load
 
 			console.log('=== CHAPTER FORM CHANGE DETECTION INITIALIZED ===');
 			console.log('Original Title:', originalTitle);
@@ -1396,8 +1397,16 @@ if ( $validation_errors ) {
 					console.log('Textarea content retrieved, length:', currentContent.length);
 				}
 
+				// Skip check if TinyMCE hasn't initialized yet and is returning empty content
+				// This prevents false positives during initialization
+				if (editorAvailable && !tinymceInitialized && originalContent.length > 0 && currentContent.length === 0) {
+					console.log('Skipping check: TinyMCE not fully initialized yet (empty content on initial load)');
+					return;
+				}
+
 				console.log('=== CHECK FOR CHANGES ===');
 				console.log('Editor available:', editorAvailable);
+				console.log('TinyMCE initialized:', tinymceInitialized);
 				console.log('Current Title:', currentTitle, '| Changed:', currentTitle !== originalTitle);
 				console.log('Current Content length:', currentContent.length, '| Original length:', originalContent.length);
 				console.log('Current Content (first 100 chars):', currentContent.substring(0, 100));
@@ -1441,6 +1450,15 @@ if ( $validation_errors ) {
 					console.log('TinyMCE AddEditor event fired for:', e.editor.id);
 					if (e.editor.id === 'fanfic_chapter_content') {
 						console.log('Attaching change listeners to TinyMCE editor');
+
+						// Wait for TinyMCE to fully initialize with content
+						e.editor.on('init', function() {
+							console.log('TinyMCE init event: editor fully loaded');
+							tinymceInitialized = true;
+							// Run initial check now that TinyMCE is ready
+							setTimeout(checkForChanges, 100);
+						});
+
 						e.editor.on('change keyup paste input NodeChange', function() {
 							console.log('TinyMCE event triggered: checking for changes');
 							checkForChanges();
@@ -1451,10 +1469,18 @@ if ( $validation_errors ) {
 				// If TinyMCE is already initialized
 				if (tinymce.get('fanfic_chapter_content')) {
 					console.log('TinyMCE already initialized, attaching events directly');
-					tinymce.get('fanfic_chapter_content').on('change keyup paste input NodeChange', function() {
+					var editor = tinymce.get('fanfic_chapter_content');
+
+					// Mark as initialized since it's already loaded
+					tinymceInitialized = true;
+
+					editor.on('change keyup paste input NodeChange', function() {
 						console.log('TinyMCE event triggered (direct): checking for changes');
 						checkForChanges();
 					});
+
+					// Run initial check
+					setTimeout(checkForChanges, 100);
 				}
 
 				// Poll for TinyMCE initialization
@@ -1463,6 +1489,10 @@ if ( $validation_errors ) {
 					var editor = tinymce.get('fanfic_chapter_content');
 					if (editor && !editor.fanficEventsAttached) {
 						console.log('TinyMCE found via polling, attaching events');
+
+						// Mark as initialized
+						tinymceInitialized = true;
+
 						editor.on('change keyup paste input NodeChange', function() {
 							console.log('TinyMCE event triggered (polled): checking for changes');
 							checkForChanges();
@@ -1470,6 +1500,9 @@ if ( $validation_errors ) {
 						editor.fanficEventsAttached = true;
 						clearInterval(tinymceCheckInterval);
 						console.log('TinyMCE polling interval cleared');
+
+						// Run initial check
+						setTimeout(checkForChanges, 100);
 					}
 				}, 500);
 
@@ -1489,9 +1522,8 @@ if ( $validation_errors ) {
 				contentField.addEventListener('change', checkForChanges);
 			}
 
-			// Initial check on page load
-			setTimeout(checkForChanges, 100);
-			setTimeout(checkForChanges, 1000); // Check again after 1 second
+			// Note: Initial checkForChanges() is now called after TinyMCE initialization
+			// to prevent race condition where TinyMCE returns empty content before loading
 		}
 
 		// Close notice buttons
