@@ -271,6 +271,7 @@ if ( $is_edit_mode ) {
 								class="fanfic-textarea"
 								rows="8"
 								maxlength="10000"
+								required
 							><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : ( $is_edit_mode ? esc_textarea( $story->post_excerpt ) : '' ); ?></textarea>
 						</div>
 
@@ -1201,6 +1202,39 @@ if ( $is_edit_mode ) {
 			}
 		}
 		<?php endif; ?>
+
+		// Form validation for genres (at least one must be checked)
+		var storyForm = document.getElementById('fanfic-story-form');
+		if (storyForm) {
+			storyForm.addEventListener('submit', function(e) {
+				var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]:checked');
+				if (genreCheckboxes.length === 0) {
+					e.preventDefault();
+					alert('<?php echo esc_js( __( 'Please select at least one genre for your story.', 'fanfiction-manager' ) ); ?>');
+					// Scroll to genres section
+					var genresLabel = document.querySelector('label:has(+ .fanfic-checkboxes)');
+					if (!genresLabel) {
+						// Fallback for browsers that don't support :has()
+						var genresDiv = document.querySelector('.fanfic-checkboxes-grid');
+						if (genresDiv && genresDiv.parentElement) {
+							genresLabel = genresDiv.parentElement.querySelector('label');
+						}
+					}
+					if (genresLabel) {
+						genresLabel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						// Highlight the field briefly
+						var genresContainer = genresLabel.parentElement;
+						if (genresContainer) {
+							genresContainer.style.border = '2px solid #e74c3c';
+							setTimeout(function() {
+								genresContainer.style.border = '';
+							}, 3000);
+						}
+					}
+					return false;
+				}
+			});
+		}
 	});
 })();
 </script>

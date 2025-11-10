@@ -1449,6 +1449,46 @@ if ( $validation_errors ) {
 				}
 			});
 		});
+
+		// Form validation for chapter content (TinyMCE editor)
+		var chapterForm = document.querySelector('.fanfic-create-chapter-form, .fanfic-edit-chapter-form');
+		if (chapterForm) {
+			chapterForm.addEventListener('submit', function(e) {
+				// Get content from TinyMCE editor
+				var editorContent = '';
+				if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
+					editorContent = tinymce.get('fanfic_chapter_content').getContent({format: 'text'});
+				} else {
+					// Fallback to textarea
+					var contentField = document.getElementById('fanfic_chapter_content');
+					if (contentField) {
+						editorContent = contentField.value;
+					}
+				}
+
+				// Check if content is empty (strip HTML tags and trim)
+				var textContent = editorContent.replace(/<[^>]*>/g, '').trim();
+				if (textContent.length === 0) {
+					e.preventDefault();
+					alert('<?php echo esc_js( __( 'Please enter content for your chapter.', 'fanfiction-manager' ) ); ?>');
+					// Try to focus the editor
+					if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
+						tinymce.get('fanfic_chapter_content').focus();
+					}
+					// Scroll to editor
+					var editorContainer = document.getElementById('wp-fanfic_chapter_content-wrap');
+					if (editorContainer) {
+						editorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						// Highlight briefly
+						editorContainer.style.border = '2px solid #e74c3c';
+						setTimeout(function() {
+							editorContainer.style.border = '';
+						}, 3000);
+					}
+					return false;
+				}
+			});
+		}
 	});
 })();
 </script>
