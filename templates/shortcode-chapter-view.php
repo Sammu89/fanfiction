@@ -6,17 +6,22 @@
  * Users can customize this via Admin Settings > Page Templates.
  *
  * Available shortcodes:
- * - [chapter-breadcrumb] - Breadcrumb navigation
- * - [chapter-title] - Chapter title
- * - [chapter-story] - Link to parent story
- * - [chapters-nav] - Previous/Next chapter navigation
- * - [chapter-actions] - Action buttons (bookmark, subscribe, etc.)
- * - [edit-chapter-button] - Edit button (shown to author/admin)
+ * - [fanfic-breadcrumbs] - Breadcrumb navigation
+ * - [fanfic-story-title] - Parent story title
+ * - [fanfic-chapter-title] - Chapter title
+ * - [fanfic-chapter-published] - Publication date
+ * - [fanfic-chapter-updated] - Last updated date (if applicable)
+ * - [chapter-actions] - Action buttons (edit, bookmark, share, report)
+ * - [fanfic-chapter-content] - Chapter content
  * - [chapter-rating-form] - Rating form for this chapter
+ * - [chapters-nav] - Previous/Next chapter navigation
  * - [chapter-comments] - Comments section
  *
+ * Note: This template renders inside <div class="entry-content">
+ * which is inside an <article> tag provided by the page template.
+ *
  * @package FanfictionManager
- * @since 2.0.0
+ * @since 1.0.13
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,42 +29,48 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 ?>
 
-<div class="fanfic-chapter-single">
-	<nav class="fanfic-chapter-breadcrumb">
-		[chapter-breadcrumb]
-	</nav>
+<!-- Breadcrumb navigation for context -->
+[fanfic-breadcrumbs]
 
-	<header class="fanfic-chapter-header">
-		<h1 class="fanfic-chapter-title">[chapter-title]</h1>
-		<div class="fanfic-chapter-meta">
-			<span class="fanfic-chapter-story">[chapter-story]</span>
-		</div>
-	</header>
+<!-- Chapter header with hierarchical titles -->
+<header class="fanfic-chapter-header">
+	<!-- Story title as primary heading (parent context) -->
+	<h1 class="fanfic-story-title">[fanfic-story-title]</h1>
 
-	<nav class="fanfic-chapter-navigation chapter-navigation-top">
-		[chapters-nav]
-	</nav>
+	<!-- Chapter title as secondary heading -->
+	<h2 class="fanfic-chapter-title">[fanfic-chapter-title]</h2>
 
-	<div class="fanfic-chapter-actions">
-		[chapter-actions]
-		[edit-chapter-button]
+	<!-- Meta information (dates) -->
+	<div class="fanfic-chapter-meta">
+		[fanfic-chapter-published]
+		[fanfic-chapter-updated]
 	</div>
+</header>
 
-	<div class="fanfic-chapter-content">
-		<!-- Chapter content is automatically displayed here -->
-	</div>
+<!-- Action buttons (edit, bookmark, share, report) -->
+[chapter-actions]
 
-	<div class="fanfic-chapter-rating">
-		<h3><?php esc_html_e( 'Rate this chapter', 'fanfiction-manager' ); ?></h3>
-		[chapter-rating-form]
-	</div>
-
-	<nav class="fanfic-chapter-navigation chapter-navigation-bottom">
-		[chapters-nav]
-	</nav>
-
-	<div class="fanfic-chapter-comments">
-		<h2><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h2>
-		[chapter-comments]
-	</div>
+<!-- Main chapter content -->
+<div class="fanfic-chapter-content" itemprop="text">
+	[fanfic-chapter-content]
 </div>
+
+<!-- Visual separator -->
+<hr class="fanfic-content-separator" aria-hidden="true">
+
+<!-- Rating section -->
+<section class="fanfic-chapter-rating" aria-labelledby="rating-heading">
+	<h3 id="rating-heading"><?php esc_html_e( 'Rate this chapter', 'fanfiction-manager' ); ?></h3>
+	[chapter-rating-form]
+</section>
+
+<!-- Chapter navigation (previous/next) -->
+<nav class="fanfic-chapter-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">
+	[chapters-nav]
+</nav>
+
+<!-- Comments section -->
+<section class="fanfic-chapter-comments" aria-labelledby="comments-heading">
+	<h3 id="comments-heading"><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h3>
+	[chapter-comments]
+</section>
