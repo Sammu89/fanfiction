@@ -620,6 +620,17 @@ $has_epilogue = fanfic_template_story_has_epilogue( $story_id, $is_edit_mode ? $
 // Prepare data attributes for change detection (edit mode only)
 $data_attrs = '';
 if ( $is_edit_mode ) {
+	// Debug: Log the original content
+	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		error_log( '=== CHAPTER FORM DATA ATTRIBUTES ===' );
+		error_log( 'Chapter ID: ' . $chapter_id );
+		error_log( 'Original Title: ' . $chapter->post_title );
+		error_log( 'Original Content length: ' . strlen( $chapter->post_content ) );
+		error_log( 'Original Content (first 200 chars): ' . substr( $chapter->post_content, 0, 200 ) );
+		error_log( 'Original Type: ' . $chapter_type );
+		error_log( 'Original Number: ' . $chapter_number );
+	}
+
 	$data_attrs = sprintf(
 		'data-original-title="%s" data-original-content="%s" data-original-type="%s" data-original-number="%s"',
 		esc_attr( $chapter->post_title ),
@@ -1356,6 +1367,13 @@ if ( $validation_errors ) {
 			var originalType = form.getAttribute('data-original-type') || '';
 			var originalNumber = form.getAttribute('data-original-number') || '';
 
+			console.log('=== CHAPTER FORM CHANGE DETECTION INITIALIZED ===');
+			console.log('Original Title:', originalTitle);
+			console.log('Original Content length:', originalContent.length);
+			console.log('Original Content (first 100 chars):', originalContent.substring(0, 100));
+			console.log('Original Type:', originalType);
+			console.log('Original Number:', originalNumber);
+
 			function checkForChanges() {
 				var titleField = document.getElementById('fanfic_chapter_title');
 				var contentField = document.getElementById('fanfic_chapter_content');
@@ -1368,22 +1386,39 @@ if ( $validation_errors ) {
 
 				// Get content from TinyMCE if available, otherwise from textarea
 				var currentContent = '';
+				var editorAvailable = false;
 				if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
 					currentContent = tinymce.get('fanfic_chapter_content').getContent();
+					editorAvailable = true;
+					console.log('TinyMCE content retrieved, length:', currentContent.length);
 				} else if (contentField) {
 					currentContent = contentField.value;
+					console.log('Textarea content retrieved, length:', currentContent.length);
 				}
+
+				console.log('=== CHECK FOR CHANGES ===');
+				console.log('Editor available:', editorAvailable);
+				console.log('Current Title:', currentTitle, '| Changed:', currentTitle !== originalTitle);
+				console.log('Current Content length:', currentContent.length, '| Original length:', originalContent.length);
+				console.log('Current Content (first 100 chars):', currentContent.substring(0, 100));
+				console.log('Content changed:', currentContent !== originalContent);
+				console.log('Current Type:', currentType, '| Changed:', currentType !== originalType);
+				console.log('Current Number:', currentNumber, '| Changed:', currentNumber !== originalNumber);
 
 				var hasChanges = (currentTitle !== originalTitle) ||
 								(currentContent !== originalContent) ||
 								(currentType !== originalType) ||
 								(currentNumber !== originalNumber);
 
+				console.log('Has changes:', hasChanges);
+
 				if (updateBtn) {
 					updateBtn.disabled = !hasChanges;
+					console.log('Update button disabled:', updateBtn.disabled);
 				}
 				if (updateDraftBtn) {
 					updateDraftBtn.disabled = !hasChanges;
+					console.log('Update draft button disabled:', updateDraftBtn.disabled);
 				}
 			}
 
@@ -1400,31 +1435,51 @@ if ( $validation_errors ) {
 
 			// Listen for TinyMCE changes
 			if (typeof tinymce !== 'undefined') {
+				console.log('TinyMCE is available, setting up event listeners');
+
 				tinymce.on('AddEditor', function(e) {
+					console.log('TinyMCE AddEditor event fired for:', e.editor.id);
 					if (e.editor.id === 'fanfic_chapter_content') {
-						e.editor.on('change keyup paste input NodeChange', checkForChanges);
+						console.log('Attaching change listeners to TinyMCE editor');
+						e.editor.on('change keyup paste input NodeChange', function() {
+							console.log('TinyMCE event triggered: checking for changes');
+							checkForChanges();
+						});
 					}
 				});
 
 				// If TinyMCE is already initialized
 				if (tinymce.get('fanfic_chapter_content')) {
-					tinymce.get('fanfic_chapter_content').on('change keyup paste input NodeChange', checkForChanges);
+					console.log('TinyMCE already initialized, attaching events directly');
+					tinymce.get('fanfic_chapter_content').on('change keyup paste input NodeChange', function() {
+						console.log('TinyMCE event triggered (direct): checking for changes');
+						checkForChanges();
+					});
 				}
 
 				// Poll for TinyMCE initialization
+				console.log('Starting TinyMCE polling interval');
 				var tinymceCheckInterval = setInterval(function() {
 					var editor = tinymce.get('fanfic_chapter_content');
 					if (editor && !editor.fanficEventsAttached) {
-						editor.on('change keyup paste input NodeChange', checkForChanges);
+						console.log('TinyMCE found via polling, attaching events');
+						editor.on('change keyup paste input NodeChange', function() {
+							console.log('TinyMCE event triggered (polled): checking for changes');
+							checkForChanges();
+						});
 						editor.fanficEventsAttached = true;
 						clearInterval(tinymceCheckInterval);
+						console.log('TinyMCE polling interval cleared');
 					}
 				}, 500);
 
 				// Clear interval after 10 seconds
 				setTimeout(function() {
 					clearInterval(tinymceCheckInterval);
+					console.log('TinyMCE polling timeout reached (10s)');
 				}, 10000);
+			} else {
+				console.warn('TinyMCE not available!');
 			}
 
 			// Also listen to textarea changes as fallback
@@ -1452,23 +1507,41 @@ if ( $validation_errors ) {
 
 		// Form validation for chapter content (TinyMCE editor)
 		var chapterForm = document.querySelector('.fanfic-create-chapter-form, .fanfic-edit-chapter-form');
+		console.log('=== FORM VALIDATION SETUP ===');
+		console.log('Chapter form found:', chapterForm !== null);
 		if (chapterForm) {
 			chapterForm.addEventListener('submit', function(e) {
+				console.log('=== FORM SUBMIT TRIGGERED ===');
+
 				// Get content from TinyMCE editor
 				var editorContent = '';
+				var editorAvailable = false;
 				if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
 					editorContent = tinymce.get('fanfic_chapter_content').getContent({format: 'text'});
+					editorAvailable = true;
+					console.log('TinyMCE content (text format):', editorContent);
+					console.log('TinyMCE content length:', editorContent.length);
 				} else {
 					// Fallback to textarea
 					var contentField = document.getElementById('fanfic_chapter_content');
 					if (contentField) {
 						editorContent = contentField.value;
+						console.log('Textarea content:', editorContent);
+						console.log('Textarea content length:', editorContent.length);
 					}
 				}
 
+				console.log('Editor available:', editorAvailable);
+				console.log('Raw editor content length:', editorContent.length);
+
 				// Check if content is empty (strip HTML tags and trim)
 				var textContent = editorContent.replace(/<[^>]*>/g, '').trim();
+				console.log('Text content (after strip HTML):', textContent);
+				console.log('Text content length:', textContent.length);
+				console.log('Is empty?', textContent.length === 0);
+
 				if (textContent.length === 0) {
+					console.log('VALIDATION FAILED: Content is empty!');
 					e.preventDefault();
 					alert('<?php echo esc_js( __( 'Please enter content for your chapter.', 'fanfiction-manager' ) ); ?>');
 					// Try to focus the editor
@@ -1486,6 +1559,8 @@ if ( $validation_errors ) {
 						}, 3000);
 					}
 					return false;
+				} else {
+					console.log('VALIDATION PASSED: Content has', textContent.length, 'characters');
 				}
 			});
 		}
