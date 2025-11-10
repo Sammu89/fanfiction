@@ -101,9 +101,10 @@ class Fanfic_Validation {
 	 *
 	 * A chapter can be published when it has:
 	 * 1. A title
-	 * 2. A parent story
-	 * 3. A type (prologue, chapter, or epilogue)
-	 * 4. If type is chapter: a number that's not equal to other chapters of the same story
+	 * 2. Content
+	 * 3. A parent story
+	 * 4. A type (prologue, chapter, or epilogue)
+	 * 5. If type is chapter: a number that's not equal to other chapters of the same story
 	 *
 	 * @since 1.0.0
 	 * @param int $chapter_id The chapter post ID.
@@ -127,6 +128,11 @@ class Fanfic_Validation {
 		// Check title
 		if ( ! $chapter || empty( trim( $chapter->post_title ) ) ) {
 			$missing_fields['title'] = __( 'Your chapter must have a title.', 'fanfiction-manager' );
+		}
+
+		// Check content
+		if ( ! $chapter || empty( trim( strip_tags( $chapter->post_content ) ) ) ) {
+			$missing_fields['content'] = __( 'Your chapter must have content.', 'fanfiction-manager' );
 		}
 
 		// Check parent story

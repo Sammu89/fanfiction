@@ -722,6 +722,25 @@ $page_description = $is_edit_mode
 	</div>
 <?php endif; ?>
 
+<!-- Display validation errors from pre-publish validation -->
+<?php
+$validation_errors = $is_edit_mode ? get_transient( 'fanfic_chapter_validation_errors_' . get_current_user_id() . '_' . $chapter_id ) : false;
+if ( $validation_errors ) {
+	delete_transient( 'fanfic_chapter_validation_errors_' . get_current_user_id() . '_' . $chapter_id );
+	?>
+	<div class="fanfic-validation-error-notice" role="alert" aria-live="assertive">
+		<p><strong><?php esc_html_e( 'Chapter cannot be published due to the following issues:', 'fanfiction-manager' ); ?></strong></p>
+		<ul>
+			<?php foreach ( $validation_errors as $error ) : ?>
+				<li><?php echo esc_html( $error ); ?></li>
+			<?php endforeach; ?>
+		</ul>
+		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+	<?php
+}
+?>
+
 <p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
 
 <!-- Info Box -->
