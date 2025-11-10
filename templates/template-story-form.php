@@ -379,12 +379,34 @@ if ( $is_edit_mode ) {
 							?>
 							<?php if ( ! $has_published_chapters ) : ?>
 								<!-- EDIT MODE - NO PUBLISHED CHAPTERS -->
-								<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-btn fanfic-btn-primary">
-									<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
-								</button>
-								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
-									<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
-								</button>
+								<?php
+								// Check if story has any chapters at all (draft or published)
+								$all_chapter_count = get_posts( array(
+									'post_type'      => 'fanfiction_chapter',
+									'post_parent'    => $story_id,
+									'post_status'    => 'any',
+									'posts_per_page' => 1,
+									'fields'         => 'ids',
+								) );
+								$has_any_chapters = ! empty( $all_chapter_count );
+								?>
+								<?php if ( ! $is_published && $has_any_chapters ) : ?>
+									<!-- Story is draft with draft chapters but no published chapters -->
+									<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-btn fanfic-btn-primary" disabled>
+										<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
+									</button>
+									<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
+										<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
+									</button>
+								<?php else : ?>
+									<!-- Story has no chapters yet, or is published but chapters were unpublished -->
+									<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-btn fanfic-btn-primary">
+										<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+									</button>
+									<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
+										<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
+									</button>
+								<?php endif; ?>
 							<?php elseif ( ! $is_published ) : ?>
 								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS BUT STORY IS DRAFT -->
 								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-btn fanfic-btn-primary">
@@ -413,6 +435,13 @@ if ( $is_edit_mode ) {
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 							</a>
+						<?php endif; ?>
+
+						<!-- Warning for draft stories with unpublished chapters -->
+						<?php if ( $is_edit_mode && ! $has_published_chapters && ! $is_published && ! empty( $all_chapter_count ) ) : ?>
+							<div style="margin-top: 12px; padding: 8px 12px; background-color: #fff3cd; border-left: 3px solid #ffc107; font-size: 13px; color: #856404;">
+								<?php esc_html_e( 'To make the story visible, you need to publish at least one chapter.', 'fanfiction-manager' ); ?>
+							</div>
 						<?php endif; ?>
 					</div>
 				</form>
