@@ -383,7 +383,7 @@ if ( $is_edit_mode ) {
 									<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 								</button>
 								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
-									<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
+									<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
 								</button>
 							<?php elseif ( ! $is_published ) : ?>
 								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS BUT STORY IS DRAFT -->
@@ -399,7 +399,7 @@ if ( $is_edit_mode ) {
 									<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
 								</button>
 								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
-									<?php esc_html_e( 'Hide from readers (save as draft)', 'fanfiction-manager' ); ?>
+									<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>
 								</button>
 							<?php endif; ?>
 							<?php if ( $is_published ) : ?>
@@ -1066,9 +1066,11 @@ if ( $is_edit_mode ) {
 							})
 							.then(function(data) {
 								if (data.success) {
-									// Show message if story was auto-drafted
+									// If story was auto-drafted, reload page to update all button states and warnings
 									if (data.data.story_auto_drafted) {
 										alert('<?php esc_html_e( 'Chapter deleted. Your story has been set to DRAFT because it no longer has any chapters or prologues.', 'fanfiction-manager' ); ?>');
+										window.location.reload();
+										return;
 									}
 
 									// Add fade-out animation
