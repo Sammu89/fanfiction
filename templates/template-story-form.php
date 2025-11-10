@@ -161,7 +161,7 @@ if ( $validation_errors ) {
 	delete_transient( 'fanfic_story_validation_errors_' . get_current_user_id() . '_' . $story_id );
 	?>
 	<div class="fanfic-validation-error-notice" role="alert" aria-live="assertive">
-		<p><strong><?php esc_html_e( 'Story cannot be published due to the following issues:', 'fanfiction-manager' ); ?></strong></p>
+		<p><strong><?php echo esc_html( fanfic_get_validation_error_heading( 'story' ) ); ?></strong></p>
 		<ul>
 			<?php foreach ( $validation_errors as $error ) : ?>
 				<li><?php echo esc_html( $error ); ?></li>
@@ -271,6 +271,7 @@ if ( $is_edit_mode ) {
 								class="fanfic-textarea"
 								rows="8"
 								maxlength="10000"
+								required
 							><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : ( $is_edit_mode ? esc_textarea( $story->post_excerpt ) : '' ); ?></textarea>
 						</div>
 
@@ -379,12 +380,34 @@ if ( $is_edit_mode ) {
 							?>
 							<?php if ( ! $has_published_chapters ) : ?>
 								<!-- EDIT MODE - NO PUBLISHED CHAPTERS -->
-								<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-btn fanfic-btn-primary">
-									<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
-								</button>
-								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
-									<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
-								</button>
+								<?php
+								// Check if story has any chapters at all (draft or published)
+								$all_chapter_count = get_posts( array(
+									'post_type'      => 'fanfiction_chapter',
+									'post_parent'    => $story_id,
+									'post_status'    => 'any',
+									'posts_per_page' => 1,
+									'fields'         => 'ids',
+								) );
+								$has_any_chapters = ! empty( $all_chapter_count );
+								?>
+								<?php if ( ! $is_published && $has_any_chapters ) : ?>
+									<!-- Story is draft with draft chapters but no published chapters -->
+									<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-btn fanfic-btn-primary" disabled>
+										<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
+									</button>
+									<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
+										<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
+									</button>
+								<?php else : ?>
+									<!-- Story has no chapters yet, or is published but chapters were unpublished -->
+									<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-btn fanfic-btn-primary">
+										<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+									</button>
+									<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
+										<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
+									</button>
+								<?php endif; ?>
 							<?php elseif ( ! $is_published ) : ?>
 								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS BUT STORY IS DRAFT -->
 								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-btn fanfic-btn-primary">
@@ -399,7 +422,7 @@ if ( $is_edit_mode ) {
 									<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
 								</button>
 								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-btn fanfic-btn-secondary">
-									<?php esc_html_e( 'Hide from readers (save as draft)', 'fanfiction-manager' ); ?>
+									<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>
 								</button>
 							<?php endif; ?>
 							<?php if ( $is_published ) : ?>
@@ -413,6 +436,13 @@ if ( $is_edit_mode ) {
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 							</a>
+						<?php endif; ?>
+
+						<!-- Warning for draft stories with unpublished chapters -->
+						<?php if ( $is_edit_mode && ! $has_published_chapters && ! $is_published && ! empty( $all_chapter_count ) ) : ?>
+							<div style="margin-top: 12px; padding: 8px 12px; background-color: #fff3cd; border-left: 3px solid #ffc107; font-size: 13px; color: #856404;">
+								<?php esc_html_e( 'To make the story visible, you need to publish at least one chapter.', 'fanfiction-manager' ); ?>
+							</div>
 						<?php endif; ?>
 					</div>
 				</form>
@@ -1066,9 +1096,11 @@ if ( $is_edit_mode ) {
 							})
 							.then(function(data) {
 								if (data.success) {
-									// Show message if story was auto-drafted
+									// If story was auto-drafted, reload page to update all button states and warnings
 									if (data.data.story_auto_drafted) {
 										alert('<?php esc_html_e( 'Chapter deleted. Your story has been set to DRAFT because it no longer has any chapters or prologues.', 'fanfiction-manager' ); ?>');
+										window.location.reload();
+										return;
 									}
 
 									// Add fade-out animation
@@ -1170,6 +1202,39 @@ if ( $is_edit_mode ) {
 			}
 		}
 		<?php endif; ?>
+
+		// Form validation for genres (at least one must be checked)
+		var storyForm = document.getElementById('fanfic-story-form');
+		if (storyForm) {
+			storyForm.addEventListener('submit', function(e) {
+				var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]:checked');
+				if (genreCheckboxes.length === 0) {
+					e.preventDefault();
+					alert('<?php echo esc_js( __( 'Please select at least one genre for your story.', 'fanfiction-manager' ) ); ?>');
+					// Scroll to genres section
+					var genresLabel = document.querySelector('label:has(+ .fanfic-checkboxes)');
+					if (!genresLabel) {
+						// Fallback for browsers that don't support :has()
+						var genresDiv = document.querySelector('.fanfic-checkboxes-grid');
+						if (genresDiv && genresDiv.parentElement) {
+							genresLabel = genresDiv.parentElement.querySelector('label');
+						}
+					}
+					if (genresLabel) {
+						genresLabel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						// Highlight the field briefly
+						var genresContainer = genresLabel.parentElement;
+						if (genresContainer) {
+							genresContainer.style.border = '2px solid #e74c3c';
+							setTimeout(function() {
+								genresContainer.style.border = '';
+							}, 3000);
+						}
+					}
+					return false;
+				}
+			});
+		}
 	});
 })();
 </script>

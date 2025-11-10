@@ -128,16 +128,20 @@ class Fanfic_Chapter_Handler {
 			exit;
 		}
 
-			error_log( 'Chapter created with ID: ' . $chapter_id . ', Status: ' . $chapter_status );
-		// Create chapter
+		// Create chapter as draft first if publishing, so we can validate
+		$initial_status = ( 'publish' === $chapter_status ) ? 'draft' : $chapter_status;
 		$chapter_id = wp_insert_post( array(
 			'post_type'    => 'fanfiction_chapter',
 			'post_title'   => $title,
 			'post_content' => $content,
-			'post_status'  => $chapter_status,
+			'post_status'  => $initial_status,
 			'post_author'  => $current_user->ID,
 			'post_parent'  => $story_id,
 		) );
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'Chapter created with ID: ' . $chapter_id . ', Initial Status: ' . $initial_status );
+		}
 
 		if ( is_wp_error( $chapter_id ) ) {
 			$errors[] = $chapter_id->get_error_message();
@@ -149,6 +153,33 @@ class Fanfic_Chapter_Handler {
 		// Set chapter metadata
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
+
+		// If user wants to publish, validate chapter first
+		if ( 'publish' === $chapter_status ) {
+			$validation = Fanfic_Validation::can_publish_chapter( $chapter_id );
+
+			if ( ! $validation['can_publish'] ) {
+				// Validation failed - keep as draft, show errors
+				$validation_errors = array_values( $validation['missing_fields'] );
+				set_transient( 'fanfic_chapter_validation_errors_' . $current_user->ID . '_' . $chapter_id, $validation_errors, 60 );
+
+				// Redirect to chapter edit page with validation error
+				$chapter_url = get_permalink( $chapter_id );
+				$edit_url = add_query_arg( array( 'action' => 'edit', 'validation_error' => '1' ), $chapter_url );
+				wp_redirect( $edit_url );
+				exit;
+			}
+
+			// Validation passed - now publish
+			wp_update_post( array(
+				'ID'          => $chapter_id,
+				'post_status' => 'publish',
+			) );
+
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Chapter ' . $chapter_id . ' published after validation' );
+			}
+		}
 
 		// Check if this is the first published chapter and story is a draft
 		error_log( 'Checking for first published chapter. Chapter status: ' . $chapter_status . ', Story status: ' . $story->post_status . ', Chapter type: ' . $chapter_type );
@@ -174,20 +205,17 @@ class Fanfic_Chapter_Handler {
 
 
 
-	// Redirect to chapter edit page
-	$chapter_url = get_permalink( $chapter_id );
-	$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
+		// Redirect to chapter edit page
+		$chapter_url = get_permalink( $chapter_id );
+		$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
 
-	// Add parameter if story was auto-drafted
-	if ( $was_story_auto_drafted ) {
-		$redirect_url = add_query_arg( 'story_auto_drafted', '1', $redirect_url );
-	}
-
-	// Add parameter to show publication prompt if this is first chapter
-	if ( $is_first_published_chapter ) {
-		error_log( 'Redirecting to: ' . $edit_url );
-		$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
-	}
+		// Add parameter to show publication prompt if this is first chapter
+		if ( $is_first_published_chapter ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Redirecting to: ' . $edit_url . ' with publish prompt' );
+			}
+			$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
+		}
 
 		// Check if this is an AJAX request
 		if ( wp_doing_ajax() ) {
@@ -306,12 +334,13 @@ class Fanfic_Chapter_Handler {
 		$old_status = get_post_status( $chapter_id );
 		$story = get_post( $story_id );
 
-		// Update chapter
+		// Update chapter - keep as draft if trying to publish, so we can validate first
+		$update_status = ( 'publish' === $chapter_status && 'publish' !== $old_status ) ? 'draft' : $chapter_status;
 		$result = wp_update_post( array(
 			'ID'           => $chapter_id,
 			'post_title'   => $title,
 			'post_content' => $content,
-			'post_status'  => $chapter_status,
+			'post_status'  => $update_status,
 		) );
 
 		if ( is_wp_error( $result ) ) {
@@ -324,6 +353,33 @@ class Fanfic_Chapter_Handler {
 		// Update chapter metadata
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
+
+		// If user wants to publish (and it wasn't already published), validate chapter first
+		if ( 'publish' === $chapter_status && 'publish' !== $old_status ) {
+			$validation = Fanfic_Validation::can_publish_chapter( $chapter_id );
+
+			if ( ! $validation['can_publish'] ) {
+				// Validation failed - keep as draft, show errors
+				$validation_errors = array_values( $validation['missing_fields'] );
+				set_transient( 'fanfic_chapter_validation_errors_' . $current_user->ID . '_' . $chapter_id, $validation_errors, 60 );
+
+				// Redirect back with validation error
+				$chapter_url = get_permalink( $chapter_id );
+				$edit_url = add_query_arg( array( 'action' => 'edit', 'validation_error' => '1' ), $chapter_url );
+				wp_redirect( $edit_url );
+				exit;
+			}
+
+			// Validation passed - now publish
+			wp_update_post( array(
+				'ID'          => $chapter_id,
+				'post_status' => 'publish',
+			) );
+
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Chapter ' . $chapter_id . ' published after validation' );
+			}
+		}
 
 
 		// Check if this is becoming the first published chapter

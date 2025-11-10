@@ -722,6 +722,25 @@ $page_description = $is_edit_mode
 	</div>
 <?php endif; ?>
 
+<!-- Display validation errors from pre-publish validation -->
+<?php
+$validation_errors = $is_edit_mode ? get_transient( 'fanfic_chapter_validation_errors_' . get_current_user_id() . '_' . $chapter_id ) : false;
+if ( $validation_errors ) {
+	delete_transient( 'fanfic_chapter_validation_errors_' . get_current_user_id() . '_' . $chapter_id );
+	?>
+	<div class="fanfic-validation-error-notice" role="alert" aria-live="assertive">
+		<p><strong><?php echo esc_html( fanfic_get_validation_error_heading( 'chapter' ) ); ?></strong></p>
+		<ul>
+			<?php foreach ( $validation_errors as $error ) : ?>
+				<li><?php echo esc_html( $error ); ?></li>
+			<?php endforeach; ?>
+		</ul>
+		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+	<?php
+}
+?>
+
 <p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
 
 <!-- Info Box -->
@@ -1430,6 +1449,46 @@ $page_description = $is_edit_mode
 				}
 			});
 		});
+
+		// Form validation for chapter content (TinyMCE editor)
+		var chapterForm = document.querySelector('.fanfic-create-chapter-form, .fanfic-edit-chapter-form');
+		if (chapterForm) {
+			chapterForm.addEventListener('submit', function(e) {
+				// Get content from TinyMCE editor
+				var editorContent = '';
+				if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
+					editorContent = tinymce.get('fanfic_chapter_content').getContent({format: 'text'});
+				} else {
+					// Fallback to textarea
+					var contentField = document.getElementById('fanfic_chapter_content');
+					if (contentField) {
+						editorContent = contentField.value;
+					}
+				}
+
+				// Check if content is empty (strip HTML tags and trim)
+				var textContent = editorContent.replace(/<[^>]*>/g, '').trim();
+				if (textContent.length === 0) {
+					e.preventDefault();
+					alert('<?php echo esc_js( __( 'Please enter content for your chapter.', 'fanfiction-manager' ) ); ?>');
+					// Try to focus the editor
+					if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
+						tinymce.get('fanfic_chapter_content').focus();
+					}
+					// Scroll to editor
+					var editorContainer = document.getElementById('wp-fanfic_chapter_content-wrap');
+					if (editorContainer) {
+						editorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						// Highlight briefly
+						editorContainer.style.border = '2px solid #e74c3c';
+						setTimeout(function() {
+							editorContainer.style.border = '';
+						}, 3000);
+					}
+					return false;
+				}
+			});
+		}
 	});
 })();
 </script>
