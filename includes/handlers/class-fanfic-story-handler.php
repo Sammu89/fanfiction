@@ -866,7 +866,7 @@ class Fanfic_Story_Handler {
 		wp_cache_delete( $story_id, 'post_meta' );
 
 		wp_send_json_success( array(
-			'message' => __( 'Story published successfully.', 'fanfiction-manager' ),
+			'message' => __( 'Story is now visible to readers.', 'fanfiction-manager' ),
 			'story_id' => $story_id
 		) );
 	}
