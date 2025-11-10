@@ -1364,18 +1364,41 @@ $page_description = $is_edit_mode
 			if (typeof tinymce !== 'undefined') {
 				tinymce.on('AddEditor', function(e) {
 					if (e.editor.id === 'fanfic_chapter_content') {
-						e.editor.on('change keyup', checkForChanges);
+						e.editor.on('change keyup paste input NodeChange', checkForChanges);
 					}
 				});
 
 				// If TinyMCE is already initialized
 				if (tinymce.get('fanfic_chapter_content')) {
-					tinymce.get('fanfic_chapter_content').on('change keyup', checkForChanges);
+					tinymce.get('fanfic_chapter_content').on('change keyup paste input NodeChange', checkForChanges);
 				}
+
+				// Poll for TinyMCE initialization
+				var tinymceCheckInterval = setInterval(function() {
+					var editor = tinymce.get('fanfic_chapter_content');
+					if (editor && !editor.fanficEventsAttached) {
+						editor.on('change keyup paste input NodeChange', checkForChanges);
+						editor.fanficEventsAttached = true;
+						clearInterval(tinymceCheckInterval);
+					}
+				}, 500);
+
+				// Clear interval after 10 seconds
+				setTimeout(function() {
+					clearInterval(tinymceCheckInterval);
+				}, 10000);
+			}
+
+			// Also listen to textarea changes as fallback
+			var contentField = document.getElementById('fanfic_chapter_content');
+			if (contentField) {
+				contentField.addEventListener('input', checkForChanges);
+				contentField.addEventListener('change', checkForChanges);
 			}
 
 			// Initial check on page load
 			setTimeout(checkForChanges, 100);
+			setTimeout(checkForChanges, 1000); // Check again after 1 second
 		}
 
 		// Close notice buttons

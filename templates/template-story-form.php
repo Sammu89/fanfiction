@@ -762,33 +762,53 @@ if ( $is_edit_mode ) {
 
 		// Delete story confirmation
 		var deleteStoryButton = document.getElementById('delete-story-button');
-		var modal = document.getElementById('delete-confirm-modal');
-		var confirmButton = document.getElementById('confirm-delete');
-		var cancelButton = document.getElementById('cancel-delete');
-		var modalMessage = document.getElementById('modal-message');
 
 		if (deleteStoryButton) {
 			deleteStoryButton.addEventListener('click', function() {
-				var confirmed = confirm('<?php esc_html_e( 'Once you delete a story, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ); ?>');
+				var storyId = this.getAttribute('data-story-id');
+				var storyTitle = this.getAttribute('data-story-title');
+				var buttonElement = this;
+
+				var confirmed = confirm(FanficMessages.deleteStory);
 				if (confirmed) {
-					var storyId = this.getAttribute('data-story-id');
-					window.location.href = '<?php echo esc_js( fanfic_get_dashboard_url() ); ?>?action=delete_story&story_id=' + storyId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_story_' . $story_id ) ); ?>';
+					// Disable button to prevent double-clicks
+					buttonElement.disabled = true;
+					buttonElement.textContent = FanficMessages.deleting;
+
+					// Prepare AJAX request
+					var formData = new FormData();
+					formData.append('action', 'fanfic_story_delete');
+					formData.append('story_id', storyId);
+					formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_delete_story' ); ?>');
+
+					// Send AJAX request
+					fetch('<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>', {
+						method: 'POST',
+						credentials: 'same-origin',
+						body: formData
+					})
+					.then(function(response) {
+						return response.json();
+					})
+					.then(function(data) {
+						if (data.success) {
+							// Story deleted successfully - redirect to dashboard
+							window.location.href = '<?php echo esc_js( fanfic_get_dashboard_url() ); ?>';
+						} else {
+							// Re-enable button and show error
+							buttonElement.disabled = false;
+							buttonElement.textContent = FanficMessages.delete;
+							alert(data.data.message || FanficMessages.errorDeletingStory);
+						}
+					})
+					.catch(function(error) {
+						// Re-enable button and show error
+						buttonElement.disabled = false;
+						buttonElement.textContent = FanficMessages.delete;
+						alert(FanficMessages.errorDeletingStory);
+						console.error('Error deleting story:', error);
+					});
 				}
-			});
-		}
-
-		if (cancelButton) {
-			cancelButton.addEventListener('click', function() {
-				modal.style.display = 'none';
-			});
-		}
-
-		if (confirmButton) {
-			confirmButton.addEventListener('click', function() {
-				// Submit delete form (implement via AJAX or form submission)
-				// For now, redirect to dashboard with delete parameter
-				var storyId = deleteStoryButton.getAttribute('data-story-id');
-				window.location.href = '<?php echo esc_js( fanfic_get_dashboard_url() ); ?>?action=delete_story&story_id=' + storyId + '&_wpnonce=<?php echo esc_js( wp_create_nonce( 'delete_story_' . $story_id ) ); ?>';
 			});
 		}
 
@@ -942,9 +962,8 @@ if ( $is_edit_mode ) {
 					if (data.success) {
 						// Check if story became publishable
 						if (data.data.story_became_publishable) {
-							// Redirect to same page with publish prompt parameter
-							var currentUrl = window.location.href.split('?')[0];
-							window.location.href = currentUrl + '?show_publish_prompt=1';
+							// Redirect to edit page with publish prompt parameter
+							window.location.href = '<?php echo esc_js( fanfic_get_edit_story_url( $story_id ) ); ?>?show_publish_prompt=1';
 						} else {
 							// Just reload to show updated chapter status
 							location.reload();

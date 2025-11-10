@@ -222,6 +222,7 @@ var FanficMessages = {
 	// Error Messages
 	errorCheckingLastChapter: '<?php echo esc_js( __( 'Error checking if this is the last chapter. Please try again.', 'fanfiction-manager' ) ); ?>',
 	errorDeletingChapter: '<?php echo esc_js( __( 'An error occurred while deleting the chapter.', 'fanfiction-manager' ) ); ?>',
+	errorDeletingStory: '<?php echo esc_js( __( 'An error occurred while deleting the story.', 'fanfiction-manager' ) ); ?>',
 	errorUnpublishingChapter: '<?php echo esc_js( __( 'An error occurred while unpublishing the chapter.', 'fanfiction-manager' ) ); ?>',
 	errorPublishingChapter: '<?php echo esc_js( __( 'An error occurred while publishing the chapter.', 'fanfiction-manager' ) ); ?>',
 	errorUpdatingChapter: '<?php echo esc_js( __( 'An error occurred while updating the chapter.', 'fanfiction-manager' ) ); ?>',
