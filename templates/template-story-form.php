@@ -161,7 +161,7 @@ if ( $validation_errors ) {
 	delete_transient( 'fanfic_story_validation_errors_' . get_current_user_id() . '_' . $story_id );
 	?>
 	<div class="fanfic-validation-error-notice" role="alert" aria-live="assertive">
-		<p><strong><?php esc_html_e( 'Story cannot be published due to the following issues:', 'fanfiction-manager' ); ?></strong></p>
+		<p><strong><?php echo esc_html( fanfic_get_validation_error_heading( 'story' ) ); ?></strong></p>
 		<ul>
 			<?php foreach ( $validation_errors as $error ) : ?>
 				<li><?php echo esc_html( $error ); ?></li>

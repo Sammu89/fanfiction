@@ -23,6 +23,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Get validation error heading message
+ *
+ * Centralized function for validation error messages to ensure consistency
+ * and translatability across all forms.
+ *
+ * @since 1.0.9
+ * @param string $type Type of validation error ('story' or 'chapter').
+ * @return string Translated validation error heading.
+ */
+function fanfic_get_validation_error_heading( $type = 'story' ) {
+	if ( 'chapter' === $type ) {
+		return __( 'Chapter cannot be published due to the following issues:', 'fanfiction-manager' );
+	}
+	return __( 'Story cannot be published due to the following issues:', 'fanfiction-manager' );
+}
+
+/**
  * Inline CSS for all warning modals
  * This is output once and applies to all warning boxes on the page
  */
@@ -247,7 +264,9 @@ var FanficMessages = {
 
 	// Validation Errors
 	validationErrorsPrefix: '<?php echo esc_js( __( 'Cannot publish chapter. Missing required fields:', 'fanfiction-manager' ) ); ?>',
-	clickEditToFix: '<?php echo esc_js( __( 'Click Edit to correct these issues.', 'fanfiction-manager' ) ); ?>'
+	clickEditToFix: '<?php echo esc_js( __( 'Click Edit to correct these issues.', 'fanfiction-manager' ) ); ?>',
+	storyValidationErrorHeading: '<?php echo esc_js( __( 'Story cannot be published due to the following issues:', 'fanfiction-manager' ) ); ?>',
+	chapterValidationErrorHeading: '<?php echo esc_js( __( 'Chapter cannot be published due to the following issues:', 'fanfiction-manager' ) ); ?>'
 };
 
 // ============================================================================
