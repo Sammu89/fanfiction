@@ -486,6 +486,11 @@ class Fanfic_Chapter_Handler {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to delete this chapter.', 'fanfiction-manager' ) ) );
 		}
 
+		// Debug logging
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'Chapter Delete AJAX: Starting deletion for chapter ID ' . $chapter_id . ' (Story ID: ' . $story->ID . ')' );
+		}
+
 		// Get chapter type
 		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
 
@@ -518,22 +523,46 @@ class Fanfic_Chapter_Handler {
 					'post_status' => 'draft',
 				) );
 
-				error_log( 'Auto-drafted story ' . $story->ID . ' because last chapter/prologue was deleted' );
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( 'Chapter Delete AJAX: Auto-drafted story ' . $story->ID . ' because last chapter/prologue was deleted' );
+				}
 			}
 		}
 
 		// Delete the chapter
 		$result = wp_delete_post( $chapter_id, true );
 
-		if ( $result ) {
-			wp_send_json_success( array(
-				'message' => __( 'Chapter deleted successfully.', 'fanfiction-manager' ),
-				'chapter_id' => $chapter_id,
-				'story_auto_drafted' => $is_last_publishable_chapter,
+		// Check for errors
+		if ( ! $result || is_wp_error( $result ) ) {
+			$error_message = is_wp_error( $result ) ? $result->get_error_message() : __( 'wp_delete_post returned false', 'fanfiction-manager' );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Chapter Delete AJAX: Failed to delete chapter ' . $chapter_id . ': ' . $error_message );
+			}
+			wp_send_json_error( array(
+				'message' => sprintf( __( 'Failed to delete chapter: %s', 'fanfiction-manager' ), $error_message )
 			) );
-		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to delete chapter.', 'fanfiction-manager' ) ) );
 		}
+
+		// Verify the post was actually deleted
+		$verify = get_post( $chapter_id );
+		if ( $verify && 'trash' !== $verify->post_status ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Chapter Delete AJAX: Chapter still exists after delete attempt. Status: ' . $verify->post_status );
+			}
+			wp_send_json_error( array(
+				'message' => __( 'Delete operation completed but chapter still exists in database.', 'fanfiction-manager' )
+			) );
+		}
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'Chapter Delete AJAX: Successfully deleted chapter ' . $chapter_id );
+		}
+
+		wp_send_json_success( array(
+			'message' => __( 'Chapter deleted successfully.', 'fanfiction-manager' ),
+			'chapter_id' => $chapter_id,
+			'story_auto_drafted' => $is_last_publishable_chapter,
+		) );
 	}
 
 	/**

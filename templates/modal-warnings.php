@@ -303,12 +303,14 @@ var FanficMessages = {
 		if (keepDraftButton) {
 			keepDraftButton.addEventListener('click', function() {
 				publishModal.style.display = 'none';
-				// Remove the parameter from URL
+				// Remove the parameter from URL without reloading
+				var urlParams = new URLSearchParams(window.location.search);
 				urlParams.delete('show_publish_prompt');
 				urlParams.delete('story_id');
-				var newUrl = window.location.pathname + window.location.search.replace(/[?&]show_publish_prompt=1/, '').replace(/[?&]story_id=\d+/, '').replace(/^&/, '?');
-				if (newUrl.endsWith('?')) {
-					newUrl = newUrl.slice(0, -1);
+				var newUrl = window.location.pathname;
+				var queryString = urlParams.toString();
+				if (queryString) {
+					newUrl += '?' + queryString;
 				}
 				window.history.replaceState({}, '', newUrl);
 			});
@@ -346,8 +348,16 @@ var FanficMessages = {
 				})
 				.then(function(data) {
 					if (data.success) {
-						// Redirect to Edit Story page or reload
-						window.location.reload();
+						// Remove show_publish_prompt from URL and reload to show updated story status
+						var urlParams = new URLSearchParams(window.location.search);
+						urlParams.delete('show_publish_prompt');
+						urlParams.delete('story_id');
+						var newUrl = window.location.pathname;
+						var queryString = urlParams.toString();
+						if (queryString) {
+							newUrl += '?' + queryString;
+						}
+						window.location.href = newUrl;
 					} else {
 						// Re-enable button and show error
 						publishNowButton.disabled = false;
