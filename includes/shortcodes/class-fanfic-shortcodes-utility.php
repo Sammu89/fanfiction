@@ -31,7 +31,6 @@ class Fanfic_Shortcodes_Utility {
 	 */
 	public static function register() {
 		add_shortcode( 'edit-story-button', array( __CLASS__, 'edit_story_button' ) );
-		add_shortcode( 'edit-chapter-button', array( __CLASS__, 'edit_chapter_button' ) );
 		add_shortcode( 'fanfic-story-status', array( __CLASS__, 'story_status' ) );
 		add_shortcode( 'fanfic-chapter-status', array( __CLASS__, 'chapter_status' ) );
 		add_shortcode( 'edit-author-button', array( __CLASS__, 'edit_author_button' ) );
@@ -100,60 +99,6 @@ class Fanfic_Shortcodes_Utility {
 			'<a href="%s" class="button fanfic-edit-button">%s</a>',
 			esc_url( $edit_url ),
 			esc_html__( 'Edit Story', 'fanfiction-manager' )
-		);
-	}
-
-	/**
-	 * Edit chapter button shortcode
-	 *
-	 * [edit-chapter-button chapter_id="456"]
-	 *
-	 * Displays an edit button for a chapter if the current user has permission to edit it.
-	 * Only shows if user can edit the chapter. Returns empty string otherwise.
-	 *
-	 * @since 1.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Edit button HTML or empty string.
-	 */
-	public static function edit_chapter_button( $atts ) {
-		$atts = Fanfic_Shortcodes::sanitize_atts(
-			$atts,
-			array(
-				'chapter_id' => 0,
-			),
-			'edit-chapter-button'
-		);
-
-		// Get chapter ID from attribute or current post
-		$chapter_id = absint( $atts['chapter_id'] );
-		if ( empty( $chapter_id ) ) {
-			global $post;
-			if ( $post && 'fanfiction_chapter' === $post->post_type ) {
-				$chapter_id = $post->ID;
-			}
-		}
-
-		// If no chapter ID, return empty
-		if ( empty( $chapter_id ) ) {
-			return '';
-		}
-
-		// Check if user can edit this chapter
-		if ( ! current_user_can( 'edit_fanfiction_chapter', $chapter_id ) ) {
-			return '';
-		}
-
-		// Get edit chapter URL
-		$edit_url = fanfic_get_edit_chapter_url( $chapter_id );
-		if ( empty( $edit_url ) ) {
-			return '';
-		}
-
-		// Return button HTML
-		return sprintf(
-			'<a href="%s" class="button fanfic-edit-button">%s</a>',
-			esc_url( $edit_url ),
-			esc_html__( 'Edit Chapter', 'fanfiction-manager' )
 		);
 	}
 

@@ -663,6 +663,7 @@ input[type="button"]:focus {
 	flex-wrap: wrap;
 	gap: 5px;
 	font-size: 14px;
+	align-items: center;
 }
 
 .fanfic-breadcrumb-item {
@@ -671,9 +672,10 @@ input[type="button"]:focus {
 }
 
 .fanfic-breadcrumb-item:not(:last-child)::after {
-	content: '›';
+	content: '>';
 	margin: 0 8px;
 	color: #999;
+	font-weight: bold;
 }
 
 .fanfic-breadcrumb-item a {
@@ -687,6 +689,18 @@ input[type="button"]:focus {
 
 .fanfic-breadcrumb-active {
 	color: #666;
+}
+
+/* Home icon styling */
+.fanfic-breadcrumb-home a {
+	font-size: 18px;
+	line-height: 1;
+	font-weight: normal;
+}
+
+.fanfic-breadcrumb-home a:hover {
+	text-decoration: none;
+	opacity: 0.8;
 }
 
 /* Stats Cards */
@@ -3938,4 +3952,257 @@ body.fanfiction-page .entry-content::after {
 
 #tinymce * {
 	font-family: inherit !important;
+}
+
+/* ============================================
+   CHAPTER VIEW LAYOUT - Enhanced Structure
+   Professional layout with clear hierarchy
+   ============================================ */
+
+/* Chapter Header - Story & Chapter Titles */
+.fanfic-chapter-header {
+	margin-bottom: 2rem;
+	padding-bottom: 1.5rem;
+	border-bottom: 1px solid var(--color-border);
+}
+
+/* Story Title (Parent Context) - Primary Heading */
+h1.fanfic-story-title {
+	font-size: 2.5rem;
+	font-weight: 700;
+	line-height: 1.2;
+	margin-bottom: 0.5rem;
+	color: var(--color-text);
+}
+
+/* Chapter Title (Current Page) - Secondary Heading */
+h2.fanfic-chapter-title {
+	font-size: 1.75rem;
+	font-weight: 600;
+	line-height: 1.3;
+	margin-bottom: 1.5rem;
+	color: var(--color-text-light);
+}
+
+/* Chapter Meta Information */
+.fanfic-chapter-meta {
+	font-size: 0.875rem;
+	color: var(--color-text-lighter);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5rem;
+}
+
+.fanfic-chapter-meta time {
+	display: inline-block;
+}
+
+.fanfic-chapter-meta .fanfic-meta-label {
+	font-weight: 600;
+	color: var(--color-text-light);
+	margin-right: 0.25rem;
+}
+
+/* Action Buttons Container */
+.fanfic-chapter-actions {
+	display: flex;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+	margin-bottom: 2rem;
+	padding-bottom: 2rem;
+	border-bottom: 1px solid var(--color-border);
+}
+
+/* Edit Button Styling */
+.fanfic-action-btn.fanfic-edit-btn {
+	background: var(--color-primary);
+	color: white;
+	border: none;
+	padding: 0.625rem 1.25rem;
+	border-radius: 0.375rem;
+	text-decoration: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.9375rem;
+	font-weight: 500;
+	transition: background-color 0.2s ease, transform 0.1s ease;
+	cursor: pointer;
+}
+
+.fanfic-action-btn.fanfic-edit-btn:hover {
+	background: var(--color-primary-hover);
+	text-decoration: none;
+	transform: translateY(-1px);
+}
+
+.fanfic-action-btn.fanfic-edit-btn:focus {
+	outline: var(--focus-ring-width) solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+/* Chapter Content - Optimized for Reading */
+.fanfic-chapter-content {
+	font-family: Georgia, 'Times New Roman', serif;
+	font-size: 1.0625rem;
+	line-height: 1.75;
+	max-width: 65ch;
+	margin: 0 auto 3rem;
+	color: var(--color-text);
+}
+
+.fanfic-chapter-content p {
+	margin-bottom: 1.5rem;
+}
+
+.fanfic-chapter-content p:last-child {
+	margin-bottom: 0;
+}
+
+/* First Paragraph Drop Cap (Optional) */
+.fanfic-chapter-content p:first-of-type::first-letter {
+	font-size: 3.5rem;
+	line-height: 1;
+	float: left;
+	margin: 0 0.5rem 0 0;
+	font-weight: 700;
+	color: var(--color-primary);
+}
+
+/* Content Separator */
+.fanfic-content-separator {
+	border: 0;
+	height: 1px;
+	background: linear-gradient(to right, transparent, var(--color-border), transparent);
+	margin: 3rem 0;
+}
+
+/* Rating Section */
+.fanfic-chapter-rating {
+	margin: 3rem 0;
+	padding: 2rem;
+	background: var(--color-info-bg);
+	border-radius: 0.5rem;
+	border-left: 4px solid var(--color-info-text);
+}
+
+.fanfic-chapter-rating h3 {
+	font-size: 1.25rem;
+	font-weight: 600;
+	margin-bottom: 1rem;
+	color: var(--color-text);
+}
+
+/* Chapter Navigation */
+.fanfic-chapter-navigation {
+	margin: 3rem 0;
+	padding: 1.5rem;
+	background: var(--color-background);
+	border: 1px solid var(--color-border);
+	border-radius: 0.5rem;
+}
+
+/* Comments Section */
+.fanfic-chapter-comments {
+	margin-top: 3rem;
+	padding-top: 3rem;
+	border-top: 2px solid var(--color-border);
+}
+
+.fanfic-chapter-comments h3 {
+	font-size: 1.5rem;
+	font-weight: 600;
+	margin-bottom: 2rem;
+	color: var(--color-text);
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+/* Tablet (768px - 1024px) */
+@media (max-width: 1024px) {
+	h1.fanfic-story-title {
+		font-size: 2rem;
+	}
+	
+	h2.fanfic-chapter-title {
+		font-size: 1.5rem;
+	}
+	
+	.fanfic-chapter-content {
+		font-size: 1rem;
+		max-width: 100%;
+	}
+}
+
+/* Mobile (up to 768px) */
+@media (max-width: 768px) {
+	h1.fanfic-story-title {
+		font-size: 1.75rem;
+	}
+	
+	h2.fanfic-chapter-title {
+		font-size: 1.25rem;
+	}
+	
+	.fanfic-chapter-header {
+		margin-bottom: 1.5rem;
+	}
+	
+	.fanfic-chapter-meta {
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	
+	.fanfic-chapter-actions {
+		flex-direction: column;
+	}
+	
+	.fanfic-action-btn {
+		width: 100%;
+		justify-content: center;
+	}
+	
+	.fanfic-chapter-content {
+		font-size: 1rem;
+		line-height: 1.6;
+		padding: 0 1rem;
+	}
+	
+	/* Disable drop cap on mobile for better readability */
+	.fanfic-chapter-content p:first-of-type::first-letter {
+		font-size: inherit;
+		float: none;
+		margin: 0;
+		font-weight: inherit;
+		color: inherit;
+	}
+	
+	.fanfic-chapter-rating,
+	.fanfic-chapter-navigation {
+		padding: 1rem;
+	}
+}
+
+/* Print Styles */
+@media print {
+	.fanfic-chapter-actions,
+	.fanfic-chapter-rating,
+	.fanfic-chapter-navigation,
+	.fanfic-chapter-comments,
+	.fanfic-breadcrumb {
+		display: none;
+	}
+	
+	.fanfic-chapter-content {
+		font-size: 12pt;
+		line-height: 1.5;
+		max-width: 100%;
+	}
+	
+	h1.fanfic-story-title,
+	h2.fanfic-chapter-title {
+		page-break-after: avoid;
+	}
 }

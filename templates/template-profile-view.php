@@ -2,7 +2,9 @@
 /**
  * Template: View User Profile
  *
- * Displays an individual user's profile page
+ * This template contains two parts:
+ * 1. Default content function (for admin settings)
+ * 2. PHP logic and rendering (for frontend display)
  *
  * @package Fanfiction_Manager
  * @since 1.0.0
@@ -11,6 +13,67 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+/**
+ * Get default user-editable content template
+ *
+ * This function returns the default HTML/shortcode template.
+ * This content gets saved to the database and is editable by users.
+ * This function can be called safely from admin settings.
+ *
+ * @return string Default template HTML
+ */
+function fanfic_get_default_profile_view_template() {
+	ob_start();
+	?>
+<div class="fanfic-profile-single">
+	<header class="fanfic-profile-header">
+		<div class="fanfic-profile-avatar">
+			[author-avatar]
+		</div>
+		<div class="fanfic-profile-info">
+			<h1>[author-display-name]</h1>
+			<div class="fanfic-profile-meta">
+				<span class="fanfic-profile-joined">
+					<?php esc_html_e( 'Joined:', 'fanfiction-manager' ); ?> [author-registration-date]
+				</span>
+				<span class="fanfic-profile-stories">
+					<?php esc_html_e( 'Stories:', 'fanfiction-manager' ); ?> [author-story-count]
+				</span>
+			</div>
+		</div>
+	</header>
+
+	<div class="fanfic-profile-actions">
+		[author-actions]
+	</div>
+
+	<div class="fanfic-profile-bio">
+		<h2><?php esc_html_e( 'About', 'fanfiction-manager' ); ?></h2>
+		[author-bio]
+	</div>
+
+	<div class="fanfic-profile-stories">
+		<h2><?php esc_html_e( 'Stories', 'fanfiction-manager' ); ?></h2>
+		[author-story-list]
+	</div>
+</div>
+<?php
+	return ob_get_clean();
+}
+
+// Stop here if we're just loading the function definition (e.g., in admin settings)
+// The rest of this file is the actual template rendering logic
+if ( ! isset( $fanfic_load_template ) || ! $fanfic_load_template ) {
+	return;
+}
+
+/**
+ * =========================================
+ * TEMPLATE RENDERING (Frontend Only)
+ * =========================================
+ * This section only runs when displaying the profile on frontend.
+ */
 
 // Get the user being viewed
 $member_name = get_query_var( 'member_name' );
@@ -24,54 +87,24 @@ if ( ! $user ) {
 	<?php
 	return;
 }
-?>
 
-<div class="fanfic-profile-single">
-	<header class="fanfic-profile-header">
-		<div class="fanfic-profile-avatar">
-			<?php echo do_shortcode( '[author-avatar user_id="' . $user->ID . '"]' ); ?>
-		</div>
-		<div class="fanfic-profile-info">
-			<h1><?php echo do_shortcode( '[author-display-name user_id="' . $user->ID . '"]' ); ?></h1>
-			<div class="fanfic-profile-meta">
-				<span class="fanfic-profile-joined">
-					<?php
-					printf(
-						esc_html__( 'Joined: %s', 'fanfiction-manager' ),
-						do_shortcode( '[author-registration-date user_id="' . $user->ID . '"]' )
-					);
-					?>
-				</span>
-				<span class="fanfic-profile-stories">
-					<?php
-					printf(
-						esc_html__( 'Stories: %s', 'fanfiction-manager' ),
-						do_shortcode( '[author-story-count user_id="' . $user->ID . '"]' )
-					);
-					?>
-				</span>
-			</div>
-		</div>
-	</header>
+// Load user-customized template from database, or use default
+$template = get_option( 'fanfic_shortcode_profile_view', '' );
 
-	<div class="fanfic-profile-actions">
-		<?php echo do_shortcode( '[author-actions user_id="' . $user->ID . '"]' ); ?>
-		<?php
-		// Show edit profile button if current user is viewing their own profile or has edit_users capability
-		if ( is_user_logged_in() && ( get_current_user_id() === $user->ID || current_user_can( 'edit_users' ) ) ) {
-			$edit_url = add_query_arg( 'action', 'edit', get_permalink() );
-			echo '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-button-secondary">' . esc_html__( 'Edit Profile', 'fanfiction-manager' ) . '</a>';
-		}
-		?>
-	</div>
+if ( empty( $template ) ) {
+	$template = fanfic_get_default_profile_view_template();
+}
 
-	<div class="fanfic-profile-bio">
-		<h2><?php esc_html_e( 'About', 'fanfiction-manager' ); ?></h2>
-		<?php echo do_shortcode( '[author-bio user_id="' . $user->ID . '"]' ); ?>
-	</div>
+// Replace shortcodes with user_id parameter versions for proper rendering
+// This allows shortcodes to work without needing explicit user_id attributes
+$user_id = $user->ID;
+$template = str_replace( '[author-avatar]', '[author-avatar user_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-display-name]', '[author-display-name user_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-registration-date]', '[author-registration-date user_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-story-count]', '[author-story-count user_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-actions]', '[author-actions user_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-bio]', '[author-bio user_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-story-list]', '[author-story-list user_id="' . $user_id . '"]', $template );
 
-	<div class="fanfic-profile-stories">
-		<h2><?php esc_html_e( 'Stories', 'fanfiction-manager' ); ?></h2>
-		<?php echo do_shortcode( '[author-story-list user_id="' . $user->ID . '"]' ); ?>
-	</div>
-</div>
+// Process shortcodes in the template
+echo do_shortcode( $template );

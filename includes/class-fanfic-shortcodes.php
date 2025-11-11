@@ -50,6 +50,7 @@ class Fanfic_Shortcodes {
 	private static function load_shortcode_handlers() {
 		$handlers = array(
 			'story',
+			'chapter',
 			'author',
 			'navigation',
 			'url',
@@ -84,6 +85,10 @@ class Fanfic_Shortcodes {
 		// Initialize each handler class
 		if ( class_exists( 'Fanfic_Shortcodes_Story' ) ) {
 			Fanfic_Shortcodes_Story::register();
+		}
+
+		if ( class_exists( 'Fanfic_Shortcodes_Chapter' ) ) {
+			Fanfic_Shortcodes_Chapter::register();
 		}
 
 		if ( class_exists( 'Fanfic_Shortcodes_Author' ) ) {

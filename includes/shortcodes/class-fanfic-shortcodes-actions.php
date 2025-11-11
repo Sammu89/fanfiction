@@ -231,6 +231,22 @@ class Fanfic_Shortcodes_Actions {
 
 		$output = '<div class="fanfic-chapter-actions">';
 
+		// Edit button (shown automatically if user has permission)
+		if ( current_user_can( 'edit_fanfiction_chapter', $chapter_id ) ) {
+			$edit_url = fanfic_get_edit_chapter_url( $chapter_id, $story_id );
+			if ( ! empty( $edit_url ) ) {
+				$output .= sprintf(
+					'<a href="%s" class="fanfic-action-btn fanfic-edit-btn" aria-label="%s">
+						<span class="fanfic-icon" aria-hidden="true">&#9998;</span>
+						<span class="fanfic-text">%s</span>
+					</a>',
+					esc_url( $edit_url ),
+					esc_attr__( 'Edit this chapter', 'fanfiction-manager' ),
+					esc_html__( 'Edit Chapter', 'fanfiction-manager' )
+				);
+			}
+		}
+
 		// Bookmark button (bookmarks the parent story)
 		if ( 'yes' === $atts['show_bookmark'] ) {
 			$bookmark_class = $is_bookmarked ? 'bookmarked' : 'not-bookmarked';
