@@ -49,6 +49,10 @@ class Fanfic_Shortcodes_Actions {
 		add_action( 'wp_ajax_fanfic_mark_as_read', array( __CLASS__, 'ajax_mark_as_read' ) );
 		add_action( 'wp_ajax_fanfic_unmark_as_read', array( __CLASS__, 'ajax_unmark_as_read' ) );
 		add_action( 'wp_ajax_fanfic_subscribe_to_story', array( __CLASS__, 'ajax_subscribe_to_story' ) );
+
+		// Register AJAX handlers for non-logged-in users (when settings allow)
+		add_action( 'wp_ajax_nopriv_fanfic_like_content', array( __CLASS__, 'ajax_like_content' ) );
+		add_action( 'wp_ajax_nopriv_fanfic_report_content', array( __CLASS__, 'ajax_report_content' ) );
 		add_action( 'wp_ajax_nopriv_fanfic_subscribe_to_story', array( __CLASS__, 'ajax_subscribe_to_story' ) );
 
 		// Register cron job for syncing anonymous likes
@@ -157,6 +161,7 @@ class Fanfic_Shortcodes_Actions {
 		$item_id = 0;
 		$story_id = 0;
 		$chapter_id = 0;
+		$author_id = 0;
 
 		// Try to detect chapter
 		$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
@@ -170,6 +175,18 @@ class Fanfic_Shortcodes_Actions {
 			if ( $story_id ) {
 				$context = 'story';
 				$item_id = $story_id;
+			} else {
+				// Try to detect author profile (author archive or single fanfiction post)
+				if ( is_author() ) {
+					$context = 'author';
+					$author_id = get_queried_object_id();
+					$item_id = $author_id;
+				} elseif ( is_singular( array( 'fanfiction_story', 'fanfiction_chapter' ) ) && $post ) {
+					// On single story/chapter page, could show author actions
+					$context = 'author';
+					$author_id = absint( $post->post_author );
+					$item_id = $author_id;
+				}
 			}
 		}
 
@@ -184,25 +201,78 @@ class Fanfic_Shortcodes_Actions {
 		$is_in_read_list = false;
 		$is_marked_read = false;
 		$is_subscribed = false;
+		$is_following = false;
 
 		if ( $is_logged_in ) {
-			$is_bookmarked = self::is_story_bookmarked( $story_id, $user_id );
-			$is_liked = self::is_content_liked( $item_id, $context, $user_id );
-			$is_in_read_list = self::is_in_read_list( $story_id, $user_id );
-			if ( 'chapter' === $context ) {
-				$is_marked_read = self::is_chapter_marked_read( $chapter_id, $user_id );
+			if ( 'author' === $context ) {
+				$is_following = self::is_following_author( $author_id, $user_id );
+			} else {
+				$is_bookmarked = self::is_story_bookmarked( $story_id, $user_id );
+				$is_liked = self::is_content_liked( $item_id, $context, $user_id );
+				$is_in_read_list = self::is_in_read_list( $story_id, $user_id );
+				if ( 'chapter' === $context ) {
+					$is_marked_read = self::is_chapter_marked_read( $chapter_id, $user_id );
+				}
+				$is_subscribed = self::is_subscribed_to_story( $story_id, $user_id );
 			}
-			$is_subscribed = self::is_subscribed_to_story( $story_id, $user_id );
-		} elseif ( $allow_anonymous_likes ) {
+		} elseif ( $allow_anonymous_likes && 'author' !== $context ) {
 			// Check if anonymous user (by IP) has already liked this content today
 			$is_liked = self::has_anonymous_user_liked( $item_id, $context );
 		}
 
 		// Get like count (includes both logged-in and anonymous likes)
-		$like_count = self::get_like_count( $item_id, $context );
+		$like_count = ( 'author' !== $context ) ? self::get_like_count( $item_id, $context ) : 0;
 
 		// Build output
 		$output = '<div class="fanfic-content-actions fanfic-' . esc_attr( $context ) . '-actions">';
+
+		// === AUTHOR/PROFILE CONTEXT ===
+		if ( 'author' === $context ) {
+			// Don't show follow button to the author themselves
+			if ( ! $is_logged_in || $user_id !== $author_id ) {
+				$follow_class = $is_following ? 'following' : 'not-following';
+				$follow_text = $is_following
+					? esc_html__( 'Following', 'fanfiction-manager' )
+					: esc_html__( 'Follow', 'fanfiction-manager' );
+				$follow_disabled = ! $is_logged_in ? 'disabled' : '';
+
+				$output .= sprintf(
+					'<button class="fanfic-action-btn fanfic-follow-btn %s %s" data-author-id="%d" data-action="%s" aria-label="%s" aria-pressed="%s" %s>
+						<span class="fanfic-icon" aria-hidden="true">%s</span>
+						<span class="fanfic-text">%s</span>
+						%s
+					</button>',
+					esc_attr( $follow_class ),
+					esc_attr( $follow_disabled ),
+					absint( $author_id ),
+					$is_following ? 'unfollow' : 'follow',
+					esc_attr( $is_following ? __( 'Unfollow author', 'fanfiction-manager' ) : __( 'Follow author', 'fanfiction-manager' ) ),
+					$is_following ? 'true' : 'false',
+					! $is_logged_in ? 'disabled="disabled"' : '',
+					$is_following ? '&#10003;' : '&#43;',
+					$follow_text,
+					! $is_logged_in ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
+				);
+			}
+
+			// Share button for author profile
+			$author_url = get_author_posts_url( $author_id );
+			$author_name = get_the_author_meta( 'display_name', $author_id );
+
+			$output .= sprintf(
+				'<button class="fanfic-action-btn fanfic-share-btn" data-url="%s" data-title="%s" aria-label="%s">
+					<span class="fanfic-icon" aria-hidden="true">&#128279;</span>
+					<span class="fanfic-text">%s</span>
+				</button>',
+				esc_url( $author_url ),
+				esc_attr( $author_name ),
+				esc_attr__( 'Share author profile', 'fanfiction-manager' ),
+				esc_html__( 'Share', 'fanfiction-manager' )
+			);
+
+			$output .= '</div>';
+			return $output;
+		}
 
 		// === PRIMARY ACTIONS GROUP ===
 
@@ -1242,6 +1312,533 @@ class Fanfic_Shortcodes_Actions {
 
 		wp_send_json_success( array(
 			'message' => esc_html__( 'Report submitted successfully. Thank you for helping keep our community safe.', 'fanfiction-manager' ),
+		) );
+	}
+
+	/**
+	 * AJAX handler: Like content
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_like_content() {
+		// Verify nonce
+		if ( ! check_ajax_referer( 'fanfic_actions_nonce', 'nonce', false ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Security check failed.', 'fanfiction-manager' ),
+			) );
+		}
+
+		$item_id = isset( $_POST['item_id'] ) ? absint( $_POST['item_id'] ) : 0;
+		$item_type = isset( $_POST['item_type'] ) ? sanitize_text_field( $_POST['item_type'] ) : '';
+		$allow_anonymous = isset( $_POST['allow_anonymous'] ) && '1' === $_POST['allow_anonymous'];
+
+		if ( ! $item_id || ! $item_type ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid request.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Validate item type
+		if ( ! in_array( $item_type, array( 'story', 'chapter' ), true ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid item type.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Check if user is logged in or anonymous is allowed
+		$is_logged_in = is_user_logged_in();
+		if ( ! $is_logged_in && ! $allow_anonymous ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'You must be logged in to like content.', 'fanfiction-manager' ),
+			) );
+		}
+
+		if ( $is_logged_in ) {
+			// Logged-in user like
+			$user_id = get_current_user_id();
+
+			global $wpdb;
+			$table_name = $wpdb->prefix . 'fanfic_likes';
+
+			// Check if already liked
+			$exists = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM {$table_name} WHERE item_id = %d AND item_type = %s AND user_id = %d",
+				$item_id,
+				$item_type,
+				$user_id
+			) );
+
+			if ( $exists ) {
+				wp_send_json_error( array(
+					'message' => esc_html__( 'You have already liked this.', 'fanfiction-manager' ),
+				) );
+			}
+
+			// Insert like
+			$inserted = $wpdb->insert(
+				$table_name,
+				array(
+					'item_id'   => $item_id,
+					'item_type' => $item_type,
+					'user_id'   => $user_id,
+				),
+				array( '%d', '%s', '%d' )
+			);
+
+			if ( false === $inserted ) {
+				wp_send_json_error( array(
+					'message' => esc_html__( 'Failed to like content.', 'fanfiction-manager' ),
+				) );
+			}
+		} else {
+			// Anonymous user like
+			$recorded = self::record_anonymous_like( $item_id, $item_type );
+
+			if ( ! $recorded ) {
+				wp_send_json_error( array(
+					'message' => esc_html__( 'You have already liked this today.', 'fanfiction-manager' ),
+				) );
+			}
+		}
+
+		// Get updated like count
+		$like_count = self::get_like_count( $item_id, $item_type );
+
+		wp_send_json_success( array(
+			'message'    => esc_html__( 'Liked successfully.', 'fanfiction-manager' ),
+			'is_liked'   => true,
+			'like_count' => $like_count,
+		) );
+	}
+
+	/**
+	 * AJAX handler: Unlike content
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_unlike_content() {
+		// Verify nonce
+		if ( ! check_ajax_referer( 'fanfic_actions_nonce', 'nonce', false ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Security check failed.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Only logged-in users can unlike
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'You must be logged in.', 'fanfiction-manager' ),
+			) );
+		}
+
+		$item_id = isset( $_POST['item_id'] ) ? absint( $_POST['item_id'] ) : 0;
+		$item_type = isset( $_POST['item_type'] ) ? sanitize_text_field( $_POST['item_type'] ) : '';
+		$user_id = get_current_user_id();
+
+		if ( ! $item_id || ! $item_type ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid request.', 'fanfiction-manager' ),
+			) );
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_likes';
+
+		// Delete like
+		$deleted = $wpdb->delete(
+			$table_name,
+			array(
+				'item_id'   => $item_id,
+				'item_type' => $item_type,
+				'user_id'   => $user_id,
+			),
+			array( '%d', '%s', '%d' )
+		);
+
+		if ( false === $deleted ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Failed to unlike content.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Get updated like count
+		$like_count = self::get_like_count( $item_id, $item_type );
+
+		wp_send_json_success( array(
+			'message'    => esc_html__( 'Like removed successfully.', 'fanfiction-manager' ),
+			'is_liked'   => false,
+			'like_count' => $like_count,
+		) );
+	}
+
+	/**
+	 * AJAX handler: Add story to read list
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_add_to_read_list() {
+		// Verify nonce
+		if ( ! check_ajax_referer( 'fanfic_actions_nonce', 'nonce', false ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Security check failed.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'You must be logged in to add to read list.', 'fanfiction-manager' ),
+			) );
+		}
+
+		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
+		$user_id = get_current_user_id();
+
+		if ( ! $story_id ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid story ID.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Verify story exists
+		$story = get_post( $story_id );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Story not found.', 'fanfiction-manager' ),
+			) );
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_read_lists';
+
+		// Check if already in read list
+		$exists = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM {$table_name} WHERE story_id = %d AND user_id = %d",
+			$story_id,
+			$user_id
+		) );
+
+		if ( $exists ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Story is already in your read list.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Insert to read list
+		$inserted = $wpdb->insert(
+			$table_name,
+			array(
+				'story_id' => $story_id,
+				'user_id'  => $user_id,
+			),
+			array( '%d', '%d' )
+		);
+
+		if ( false === $inserted ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Failed to add to read list.', 'fanfiction-manager' ),
+			) );
+		}
+
+		wp_send_json_success( array(
+			'message'         => esc_html__( 'Added to read list successfully.', 'fanfiction-manager' ),
+			'is_in_read_list' => true,
+		) );
+	}
+
+	/**
+	 * AJAX handler: Remove story from read list
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_remove_from_read_list() {
+		// Verify nonce
+		if ( ! check_ajax_referer( 'fanfic_actions_nonce', 'nonce', false ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Security check failed.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'You must be logged in.', 'fanfiction-manager' ),
+			) );
+		}
+
+		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
+		$user_id = get_current_user_id();
+
+		if ( ! $story_id ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid story ID.', 'fanfiction-manager' ),
+			) );
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_read_lists';
+
+		// Delete from read list
+		$deleted = $wpdb->delete(
+			$table_name,
+			array(
+				'story_id' => $story_id,
+				'user_id'  => $user_id,
+			),
+			array( '%d', '%d' )
+		);
+
+		if ( false === $deleted ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Failed to remove from read list.', 'fanfiction-manager' ),
+			) );
+		}
+
+		wp_send_json_success( array(
+			'message'         => esc_html__( 'Removed from read list successfully.', 'fanfiction-manager' ),
+			'is_in_read_list' => false,
+		) );
+	}
+
+	/**
+	 * AJAX handler: Mark chapter as read
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_mark_as_read() {
+		// Verify nonce
+		if ( ! check_ajax_referer( 'fanfic_actions_nonce', 'nonce', false ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Security check failed.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'You must be logged in to mark as read.', 'fanfiction-manager' ),
+			) );
+		}
+
+		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
+		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
+		$user_id = get_current_user_id();
+
+		if ( ! $chapter_id || ! $story_id ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid request.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Get chapter number
+		$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+		if ( ! $chapter_number ) {
+			$chapter_number = 1;
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_reading_progress';
+
+		// Check if progress record exists
+		$exists = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM {$table_name} WHERE story_id = %d AND user_id = %d",
+			$story_id,
+			$user_id
+		) );
+
+		if ( $exists ) {
+			// Update existing progress
+			$updated = $wpdb->update(
+				$table_name,
+				array(
+					'chapter_id'     => $chapter_id,
+					'chapter_number' => $chapter_number,
+				),
+				array(
+					'story_id' => $story_id,
+					'user_id'  => $user_id,
+				),
+				array( '%d', '%d' ),
+				array( '%d', '%d' )
+			);
+		} else {
+			// Insert new progress
+			$updated = $wpdb->insert(
+				$table_name,
+				array(
+					'story_id'       => $story_id,
+					'user_id'        => $user_id,
+					'chapter_id'     => $chapter_id,
+					'chapter_number' => $chapter_number,
+				),
+				array( '%d', '%d', '%d', '%d' )
+			);
+		}
+
+		if ( false === $updated ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Failed to mark as read.', 'fanfiction-manager' ),
+			) );
+		}
+
+		wp_send_json_success( array(
+			'message'       => esc_html__( 'Marked as read successfully.', 'fanfiction-manager' ),
+			'is_marked_read' => true,
+		) );
+	}
+
+	/**
+	 * AJAX handler: Unmark chapter as read
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_unmark_as_read() {
+		// Verify nonce
+		if ( ! check_ajax_referer( 'fanfic_actions_nonce', 'nonce', false ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Security check failed.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'You must be logged in.', 'fanfiction-manager' ),
+			) );
+		}
+
+		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
+		$user_id = get_current_user_id();
+
+		if ( ! $chapter_id ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid chapter ID.', 'fanfiction-manager' ),
+			) );
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_reading_progress';
+
+		// Delete progress record
+		$deleted = $wpdb->delete(
+			$table_name,
+			array(
+				'chapter_id' => $chapter_id,
+				'user_id'    => $user_id,
+			),
+			array( '%d', '%d' )
+		);
+
+		if ( false === $deleted ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Failed to unmark as read.', 'fanfiction-manager' ),
+			) );
+		}
+
+		wp_send_json_success( array(
+			'message'        => esc_html__( 'Unmarked as read successfully.', 'fanfiction-manager' ),
+			'is_marked_read' => false,
+		) );
+	}
+
+	/**
+	 * AJAX handler: Subscribe to story updates
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function ajax_subscribe_to_story() {
+		// Verify nonce
+		if ( ! check_ajax_referer( 'fanfic_actions_nonce', 'nonce', false ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Security check failed.', 'fanfiction-manager' ),
+			) );
+		}
+
+		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
+		$email = isset( $_POST['email'] ) ? sanitize_email( $_POST['email'] ) : '';
+
+		if ( ! $story_id ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid story ID.', 'fanfiction-manager' ),
+			) );
+		}
+
+		if ( ! is_email( $email ) ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Invalid email address.', 'fanfiction-manager' ),
+			) );
+		}
+
+		// Verify story exists
+		$story = get_post( $story_id );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Story not found.', 'fanfiction-manager' ),
+			) );
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_subscriptions';
+		$user_id = is_user_logged_in() ? get_current_user_id() : null;
+
+		// Check if already subscribed
+		$exists = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM {$table_name} WHERE story_id = %d AND email = %s",
+			$story_id,
+			$email
+		) );
+
+		if ( $exists ) {
+			// Reactivate if inactive
+			$wpdb->update(
+				$table_name,
+				array( 'is_active' => 1 ),
+				array(
+					'story_id' => $story_id,
+					'email'    => $email,
+				),
+				array( '%d' ),
+				array( '%d', '%s' )
+			);
+
+			wp_send_json_success( array(
+				'message'       => esc_html__( 'Subscription reactivated successfully.', 'fanfiction-manager' ),
+				'is_subscribed' => true,
+			) );
+		}
+
+		// Generate unique token for unsubscribe
+		$token = wp_generate_password( 32, false );
+
+		// Insert subscription
+		$inserted = $wpdb->insert(
+			$table_name,
+			array(
+				'story_id'  => $story_id,
+				'user_id'   => $user_id,
+				'email'     => $email,
+				'token'     => $token,
+				'is_active' => 1,
+			),
+			array( '%d', '%d', '%s', '%s', '%d' )
+		);
+
+		if ( false === $inserted ) {
+			wp_send_json_error( array(
+				'message' => esc_html__( 'Failed to subscribe.', 'fanfiction-manager' ),
+			) );
+		}
+
+		wp_send_json_success( array(
+			'message'       => esc_html__( 'Subscribed successfully! You will receive email notifications for new chapters.', 'fanfiction-manager' ),
+			'is_subscribed' => true,
 		) );
 	}
 
