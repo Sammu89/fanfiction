@@ -330,22 +330,17 @@ class Fanfic_Settings {
 		$stats['total_chapters'] = $chapters_query->found_posts;
 
 		// Total Authors (users with at least 1 published story)
-		$authors_query = new WP_Query(
-			array(
-				'post_type'      => 'fanfiction_story',
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'post_author',
+		$authors_count = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(DISTINCT post_author)
+				FROM {$wpdb->posts}
+				WHERE post_type = %s
+				AND post_status = %s",
+				'fanfiction_story',
+				'publish'
 			)
 		);
-
-		$authors = array();
-		if ( $authors_query->have_posts() ) {
-			foreach ( $authors_query->posts as $author_id ) {
-				$authors[ $author_id ] = true;
-			}
-		}
-		$stats['total_authors'] = count( $authors );
+		$stats['total_authors'] = (int) $authors_count;
 
 		// Active Readers (total registered users)
 		$user_args = array(
@@ -1987,15 +1982,6 @@ class Fanfic_Settings {
 		if ( ! isset( $_POST['fanfic_layout_settings_nonce'] ) ||
 		     ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_layout_settings_nonce'] ) ), 'fanfic_save_layout_settings_nonce' ) ) {
 			wp_die( __( 'Security check failed.', 'fanfiction-manager' ) );
-		}
-
-		// Handle Show Page Title setting
-		if ( isset( $_POST['fanfic_show_page_title'] ) ) {
-			$show_page_title = sanitize_text_field( wp_unslash( $_POST['fanfic_show_page_title'] ) );
-			$allowed_values = array( 'auto', 'always', 'never' );
-			if ( in_array( $show_page_title, $allowed_values, true ) ) {
-				update_option( 'fanfic_show_page_title', $show_page_title );
-			}
 		}
 
 		// Handle Show Sidebar setting

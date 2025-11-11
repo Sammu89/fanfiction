@@ -1461,20 +1461,9 @@ input[type="button"]:focus {
 .fanfic-rating-stars {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: 2px;
 	user-select: none;
-}
-
-.fanfic-rating-stars.fanfic-rating-small .fanfic-star {
-	font-size: 14px;
-}
-
-.fanfic-rating-stars.fanfic-rating-medium .fanfic-star {
-	font-size: 20px;
-}
-
-.fanfic-rating-stars.fanfic-rating-large .fanfic-star {
-	font-size: 28px;
+	font-size: 25px;
 }
 
 .fanfic-star {
@@ -1518,66 +1507,38 @@ input[type="button"]:focus {
 .fanfic-chapter-rating,
 .fanfic-story-rating,
 .fanfic-story-rating-display {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	padding: 15px;
-	background: #f9f9f9;
-	border-radius: 5px;
-	margin: 20px 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	vertical-align: middle;
+}
+
+.fanfic-rating-form {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
 }
 
 .fanfic-rating-form label {
-	font-weight: 600;
-	margin-bottom: 8px;
-	display: block;
+	display: none;
 }
 
 .fanfic-rating-info {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
-	gap: 10px;
+	gap: 6px;
 	font-size: 14px;
 	color: #666;
 }
 
 .fanfic-rating-average {
-	font-size: 18px;
 	font-weight: 700;
 	color: #333;
 }
 
 .fanfic-rating-count {
+	font-size: 0.85em;
 	color: #666;
-}
-
-.fanfic-rating-message {
-	margin-top: 10px;
-	min-height: 20px;
-}
-
-.fanfic-rating-success {
-	color: #155724;
-	background-color: #d4edda;
-	border-color: #c3e6cb;
-	padding: 10px;
-	border-radius: 4px;
-}
-
-.fanfic-rating-error {
-	color: #721c24;
-	background-color: #f8d7da;
-	border-color: #f5c6cb;
-	padding: 10px;
-	border-radius: 4px;
-}
-
-.fanfic-rating-loading {
-	color: #004085;
-	background-color: #cce5ff;
-	border-color: #b8daff;
-	padding: 10px;
-	border-radius: 4px;
 }
 
 .fanfic-no-ratings {
@@ -4081,9 +4042,6 @@ h2.fanfic-chapter-title {
 .fanfic-chapter-rating {
 	margin: 3rem 0;
 	padding: 2rem;
-	background: var(--color-info-bg);
-	border-radius: 0.5rem;
-	border-left: 4px solid var(--color-info-text);
 }
 
 .fanfic-chapter-rating h3 {

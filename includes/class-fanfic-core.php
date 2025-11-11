@@ -685,11 +685,29 @@ class Fanfic_Core {
 			$value = $matches[1];
 			$unit = $matches[2];
 
-			// Pixels use max-width (responsive), percentages use width (exact)
+			// Handle px and % differently for proper responsive behavior
+			// margin: 0 auto centers the element horizontally
+			// padding provides breathing room on mobile devices
+			// box-sizing ensures padding is included in width calculation
 			if ( 'px' === $unit ) {
-				$custom_css = "body.fanfiction-page .fanfiction-page-wrapper { max-width: {$value}px; }";
+				// Pixels: use max-width with width: 100% for responsive shrinking
+				$custom_css = "#fanfiction-wrapper {
+					max-width: {$value}px;
+					width: 100%;
+					margin: 0 auto;
+					padding-left: 1rem;
+					padding-right: 1rem;
+					box-sizing: border-box;
+				}";
 			} else {
-				$custom_css = "body.fanfiction-page .fanfiction-page-wrapper { width: {$value}%; }";
+				// Percentages: use width only (user's explicit choice)
+				$custom_css = "#fanfiction-wrapper {
+					width: {$value}%;
+					margin: 0 auto;
+					padding-left: 1rem;
+					padding-right: 1rem;
+					box-sizing: border-box;
+				}";
 			}
 
 			wp_add_inline_style( 'fanfiction-frontend', $custom_css );

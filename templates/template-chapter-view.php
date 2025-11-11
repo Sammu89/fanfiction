@@ -93,10 +93,6 @@ if ( ! isset( $fanfic_load_template ) || ! $fanfic_load_template ) {
  * so get_header() and get_footer() are NOT needed here.
  */
 
-// Suppress the default page title H1 for chapter views since we use custom hierarchy
-// Our template uses story title as H1 and chapter title as H2
-add_filter( 'fanfic_show_page_title', '__return_false' );
-
 // Check if parent story is draft and user has permission to view
 $chapter_post = get_post();
 if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {

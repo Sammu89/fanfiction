@@ -604,8 +604,6 @@ class Fanfic_Shortcodes_Forms {
 					?>
 				</span>
 			</div>
-
-			<div class="fanfic-rating-message" role="alert" aria-live="polite"></div>
 		</div>
 		<?php
 		return ob_get_clean();

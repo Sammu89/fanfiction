@@ -71,12 +71,17 @@ function fanfic_get_table_name( $table_name ) {
  */
 function fanfic_sanitize_content( $content ) {
 	$allowed_html = array(
-		'p'      => array(),
+		'p'      => array( 'class' => array() ),
 		'br'     => array(),
 		'strong' => array(),
 		'em'     => array(),
 		'b'      => array(),
 		'i'      => array(),
+		'ul'     => array(),
+		'ol'     => array(),
+		'li'     => array(),
+		'blockquote' => array( 'class' => array() ),
+		'hr'     => array(),
 	);
 
 	return wp_kses( $content, $allowed_html );
@@ -86,17 +91,19 @@ function fanfic_sanitize_content( $content ) {
  * Check if current request is in edit mode
  *
  * Checks for ?action=edit or ?edit query parameter.
+ * NOTE: This is a display flag only. Always verify nonces and permissions
+ * before processing any edit operations.
  *
  * @since 1.0.0
  * @return bool True if in edit mode
  */
 function fanfic_is_edit_mode() {
-	// Check for ?action=edit
-	if ( isset( $_GET['action'] ) && 'edit' === $_GET['action'] ) {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only check for display purposes
+	if ( isset( $_GET['action'] ) && 'edit' === sanitize_key( $_GET['action'] ) ) {
 		return true;
 	}
 
-	// Check for ?edit (with or without value)
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only check for display purposes
 	if ( isset( $_GET['edit'] ) ) {
 		return true;
 	}
@@ -238,6 +245,10 @@ function fanfic_get_story_archive_url() {
  * @return string The story URL, or empty string if invalid.
  */
 function fanfic_get_story_url( $story_id ) {
+	$story_id = absint( $story_id );
+	if ( ! $story_id ) {
+		return '';
+	}
 	return Fanfic_URL_Manager::get_instance()->get_story_url( $story_id );
 }
 
@@ -248,6 +259,10 @@ function fanfic_get_story_url( $story_id ) {
  * @return string The chapter URL, or empty string if invalid.
  */
 function fanfic_get_chapter_url( $chapter_id ) {
+	$chapter_id = absint( $chapter_id );
+	if ( ! $chapter_id ) {
+		return '';
+	}
 	return Fanfic_URL_Manager::get_instance()->get_chapter_url( $chapter_id );
 }
 
@@ -430,6 +445,12 @@ function fanfic_get_edit_profile_url( $user_id = null ) {
 	if ( null === $user_id ) {
 		$user_id = get_current_user_id();
 	}
+	
+	$user_id = absint( $user_id );
+	if ( ! $user_id ) {
+		return '';
+	}
+	
 	return Fanfic_URL_Manager::get_instance()->get_edit_url( 'profile', $user_id );
 }
 
@@ -440,6 +461,11 @@ function fanfic_get_edit_profile_url( $user_id = null ) {
  * @return string The edit story URL with ?action=edit.
  */
 function fanfic_get_edit_story_url( $story_id ) {
+	$story_id = absint( $story_id );
+	if ( ! $story_id ) {
+		return '';
+	}
+	
 	return Fanfic_URL_Manager::get_instance()->get_edit_url( 'story', $story_id );
 }
 
@@ -451,6 +477,9 @@ function fanfic_get_edit_story_url( $story_id ) {
  * @return string The edit chapter URL with ?action=edit or add-chapter.
  */
 function fanfic_get_edit_chapter_url( $chapter_id, $story_id = 0 ) {
+	$chapter_id = absint( $chapter_id );
+	$story_id = absint( $story_id );
+	
 	// If chapter_id is 0 and story_id is provided, return add-chapter URL
 	if ( 0 === $chapter_id && $story_id > 0 ) {
 		$story_url = get_permalink( $story_id );
@@ -458,6 +487,10 @@ function fanfic_get_edit_chapter_url( $chapter_id, $story_id = 0 ) {
 	}
 
 	// Otherwise, return edit chapter URL
+	if ( ! $chapter_id ) {
+		return '';
+	}
+	
 	return Fanfic_URL_Manager::get_instance()->get_edit_url( 'chapter', $chapter_id );
 }
 
@@ -851,6 +884,7 @@ function fanfic_breadcrumb_shortcode( $atts ) {
 		if ( is_admin() ) {
 			// In admin area
 			global $pagenow;
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only URL parameter check
 			if ( 'admin.php' === $pagenow && isset( $_GET['page'] ) ) {
 				$page = sanitize_text_field( wp_unslash( $_GET['page'] ) );
 				if ( 'fanfiction' === $page || 'fanfiction-dashboard' === $page ) {
@@ -1034,3 +1068,63 @@ function fanfic_custom_comment_template( $comment, $args, $depth ) {
 		</article>
 	<?php
 }
+
+/**
+ * Clear cached theme detections on theme switch or update
+ *
+ * @since 1.0.0
+ */
+function fanfic_clear_theme_detection_cache() {
+	$all_keys = get_option( 'fanfic_detection_transients', array() );
+
+	foreach ( $all_keys as $key ) {
+		delete_transient( $key );
+	}
+
+	// Clear the list
+	delete_option( 'fanfic_detection_transients' );
+}
+
+// Hook into theme switch and update events
+add_action( 'switch_theme', 'fanfic_clear_theme_detection_cache' );
+add_action( 'after_switch_theme', 'fanfic_clear_theme_detection_cache' );
+add_action( 'upgrader_process_complete', 'fanfic_clear_theme_detection_cache', 10, 0 );
+
+/**
+ * Admin action handler to manually clear theme detection cache
+ *
+ * @since 1.0.0
+ */
+function fanfic_admin_clear_cache_handler() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'Unauthorized', 'fanfiction-manager' ) );
+	}
+
+	check_admin_referer( 'fanfic_clear_cache' );
+	fanfic_clear_theme_detection_cache();
+
+	wp_redirect( add_query_arg( 'cache_cleared', '1', wp_get_referer() ) );
+	exit;
+}
+add_action( 'admin_post_fanfic_clear_cache', 'fanfic_admin_clear_cache_handler' );
+
+/**
+ * Filter to connect the global content template variable to the template system
+ *
+ * This bridges the gap between class-fanfic-templates.php (which sets $fanfic_content_template)
+ * and fanfiction-page-template.php (which uses the 'fanfic_content_template' filter).
+ *
+ * @since 1.0.0
+ * @param string $template The template name.
+ * @return string The content template name from global variable.
+ */
+function fanfic_get_content_template( $template ) {
+	global $fanfic_content_template;
+
+	if ( ! empty( $fanfic_content_template ) ) {
+		return $fanfic_content_template;
+	}
+
+	return $template;
+}
+add_filter( 'fanfic_content_template', 'fanfic_get_content_template' );

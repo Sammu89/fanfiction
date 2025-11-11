@@ -131,11 +131,6 @@
 	 * Submit rating via AJAX
 	 */
 	function submitRating(chapterId, rating, $wrapper) {
-		var $message = $wrapper.find('.fanfic-rating-message');
-
-		// Show loading message
-		$message.html('<p class="fanfic-rating-loading">' + (fanficRating.strings.submitting || 'Submitting...') + '</p>');
-
 		$.ajax({
 			url: fanficRating.ajaxUrl,
 			type: 'POST',
@@ -155,23 +150,7 @@
 						? '(1 ' + (fanficRating.strings.rating || 'rating') + ')'
 						: '(' + response.data.total_ratings + ' ' + (fanficRating.strings.ratings || 'ratings') + ')';
 					$wrapper.find('.fanfic-rating-count').text(countText);
-
-					// Show success message
-					$message.html('<p class="fanfic-rating-success">' + response.data.message + '</p>');
-
-					// Clear message after 3 seconds
-					setTimeout(function() {
-						$message.fadeOut(400, function() {
-							$(this).empty().show();
-						});
-					}, 3000);
-				} else {
-					// Show error message
-					$message.html('<p class="fanfic-rating-error">' + response.data.message + '</p>');
 				}
-			},
-			error: function() {
-				$message.html('<p class="fanfic-rating-error">' + fanficRating.strings.error + '</p>');
 			}
 		});
 	}
