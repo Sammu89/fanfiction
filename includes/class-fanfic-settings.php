@@ -152,6 +152,9 @@ class Fanfic_Settings {
 			'maintenance_mode'               => false,
 			'cron_hour'                      => 3,
 			'recaptcha_require_logged_in'    => false,
+			'enable_likes'                   => true,
+			'enable_subscribe'               => true,
+			'enable_report'                  => true,
 		);
 	}
 
@@ -1187,6 +1190,57 @@ class Fanfic_Settings {
 								<label>
 									<input type="checkbox" id="recaptcha_require_logged_in" name="fanfic_settings[recaptcha_require_logged_in]" value="1" <?php checked( $settings['recaptcha_require_logged_in'], true ); ?>>
 									<?php esc_html_e( 'Require reCAPTCHA verification for logged-in users too (recommended for high-security sites)', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<hr style="margin: 30px 0;">
+
+				<!-- Content Actions Features Section -->
+				<h3><?php esc_html_e( 'Content Actions Features', 'fanfiction-manager' ); ?></h3>
+				<p class="description" style="margin-bottom: 15px;">
+					<?php esc_html_e( 'Enable or disable specific features for story and chapter interactions. All features are enabled by default.', 'fanfiction-manager' ); ?>
+				</p>
+
+				<table class="form-table" role="presentation">
+					<tbody>
+						<!-- Enable Likes -->
+						<tr>
+							<th scope="row">
+								<label for="enable_likes"><?php esc_html_e( 'Enable Likes', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_likes" name="fanfic_settings[enable_likes]" value="1" <?php checked( isset( $settings['enable_likes'] ) ? $settings['enable_likes'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow users to like stories and chapters (shows like count)', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<!-- Enable Subscribe -->
+						<tr>
+							<th scope="row">
+								<label for="enable_subscribe"><?php esc_html_e( 'Enable Email Subscriptions', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_subscribe" name="fanfic_settings[enable_subscribe]" value="1" <?php checked( isset( $settings['enable_subscribe'] ) ? $settings['enable_subscribe'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow users to subscribe to story updates via email (available to all visitors)', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<!-- Enable Report -->
+						<tr>
+							<th scope="row">
+								<label for="enable_report"><?php esc_html_e( 'Enable Content Reporting', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_report" name="fanfic_settings[enable_report]" value="1" <?php checked( isset( $settings['enable_report'] ) ? $settings['enable_report'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow logged-in users to report inappropriate content', 'fanfiction-manager' ); ?>
 								</label>
 							</td>
 						</tr>

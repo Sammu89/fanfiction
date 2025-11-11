@@ -31,6 +31,7 @@ class Fanfic_Shortcodes_Actions {
 	 */
 	public static function register() {
 		// Register shortcodes
+		add_shortcode( 'content-actions', array( __CLASS__, 'content_actions' ) );
 		add_shortcode( 'story-actions', array( __CLASS__, 'story_actions' ) );
 		add_shortcode( 'chapter-actions', array( __CLASS__, 'chapter_actions' ) );
 		add_shortcode( 'author-actions', array( __CLASS__, 'author_actions' ) );
@@ -41,6 +42,14 @@ class Fanfic_Shortcodes_Actions {
 		add_action( 'wp_ajax_fanfic_follow_author', array( __CLASS__, 'ajax_follow_author' ) );
 		add_action( 'wp_ajax_fanfic_unfollow_author', array( __CLASS__, 'ajax_unfollow_author' ) );
 		add_action( 'wp_ajax_fanfic_report_content', array( __CLASS__, 'ajax_report_content' ) );
+		add_action( 'wp_ajax_fanfic_like_content', array( __CLASS__, 'ajax_like_content' ) );
+		add_action( 'wp_ajax_fanfic_unlike_content', array( __CLASS__, 'ajax_unlike_content' ) );
+		add_action( 'wp_ajax_fanfic_add_to_read_list', array( __CLASS__, 'ajax_add_to_read_list' ) );
+		add_action( 'wp_ajax_fanfic_remove_from_read_list', array( __CLASS__, 'ajax_remove_from_read_list' ) );
+		add_action( 'wp_ajax_fanfic_mark_as_read', array( __CLASS__, 'ajax_mark_as_read' ) );
+		add_action( 'wp_ajax_fanfic_unmark_as_read', array( __CLASS__, 'ajax_unmark_as_read' ) );
+		add_action( 'wp_ajax_fanfic_subscribe_to_story', array( __CLASS__, 'ajax_subscribe_to_story' ) );
+		add_action( 'wp_ajax_nopriv_fanfic_subscribe_to_story', array( __CLASS__, 'ajax_subscribe_to_story' ) );
 
 		// Enqueue scripts
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_scripts' ) );
@@ -85,6 +94,294 @@ class Fanfic_Shortcodes_Actions {
 				true
 			);
 		}
+	}
+
+	/**
+	 * Unified content actions shortcode with auto-detection
+	 *
+	 * [content-actions]
+	 *
+	 * Auto-detects context (story/chapter/author) and displays appropriate buttons.
+	 * Adapts based on user permissions and admin settings.
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes (unused - auto-detection only).
+	 * @return string Action buttons HTML.
+	 */
+	public static function content_actions( $atts = array() ) {
+		global $post;
+
+		// Get admin settings
+		$settings = get_option( 'fanfic_settings', array() );
+		$enable_likes = isset( $settings['enable_likes'] ) ? $settings['enable_likes'] : true;
+		$enable_subscribe = isset( $settings['enable_subscribe'] ) ? $settings['enable_subscribe'] : true;
+		$enable_report = isset( $settings['enable_report'] ) ? $settings['enable_report'] : true;
+
+		$is_logged_in = is_user_logged_in();
+		$user_id = get_current_user_id();
+
+		// Auto-detect context
+		$context = 'unknown';
+		$item_id = 0;
+		$story_id = 0;
+		$chapter_id = 0;
+
+		// Try to detect chapter
+		$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
+		if ( $chapter_id ) {
+			$context = 'chapter';
+			$item_id = $chapter_id;
+			$story_id = get_post_field( 'post_parent', $chapter_id );
+		} else {
+			// Try to detect story
+			$story_id = Fanfic_Shortcodes::get_current_story_id();
+			if ( $story_id ) {
+				$context = 'story';
+				$item_id = $story_id;
+			}
+		}
+
+		// If no context detected, return empty
+		if ( 'unknown' === $context ) {
+			return '';
+		}
+
+		// Get user states
+		$is_bookmarked = false;
+		$is_liked = false;
+		$is_in_read_list = false;
+		$is_marked_read = false;
+		$is_subscribed = false;
+
+		if ( $is_logged_in ) {
+			$is_bookmarked = self::is_story_bookmarked( $story_id, $user_id );
+			$is_liked = self::is_content_liked( $item_id, $context, $user_id );
+			$is_in_read_list = self::is_in_read_list( $story_id, $user_id );
+			if ( 'chapter' === $context ) {
+				$is_marked_read = self::is_chapter_marked_read( $chapter_id, $user_id );
+			}
+			$is_subscribed = self::is_subscribed_to_story( $story_id, $user_id );
+		}
+
+		// Get like count
+		$like_count = self::get_like_count( $item_id, $context );
+
+		// Build output
+		$output = '<div class="fanfic-content-actions fanfic-' . esc_attr( $context ) . '-actions">';
+
+		// === PRIMARY ACTIONS GROUP ===
+
+		// Edit button (shown if user has permission)
+		if ( 'chapter' === $context && current_user_can( 'edit_fanfiction_chapter', $chapter_id ) ) {
+			$edit_url = fanfic_get_edit_chapter_url( $chapter_id, $story_id );
+			if ( ! empty( $edit_url ) ) {
+				$output .= sprintf(
+					'<a href="%s" class="fanfic-action-btn fanfic-edit-btn" aria-label="%s">
+						<span class="fanfic-icon" aria-hidden="true">&#9998;</span>
+						<span class="fanfic-text">%s</span>
+					</a>',
+					esc_url( $edit_url ),
+					esc_attr__( 'Edit this chapter', 'fanfiction-manager' ),
+					esc_html__( 'Edit Chapter', 'fanfiction-manager' )
+				);
+			}
+		} elseif ( 'story' === $context && current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+			$edit_url = get_edit_post_link( $story_id );
+			if ( ! empty( $edit_url ) ) {
+				$output .= sprintf(
+					'<a href="%s" class="fanfic-action-btn fanfic-edit-btn" aria-label="%s">
+						<span class="fanfic-icon" aria-hidden="true">&#9998;</span>
+						<span class="fanfic-text">%s</span>
+					</a>',
+					esc_url( $edit_url ),
+					esc_attr__( 'Edit this story', 'fanfiction-manager' ),
+					esc_html__( 'Edit Story', 'fanfiction-manager' )
+				);
+			}
+		}
+
+		// Bookmark button (bookmarks the story)
+		$bookmark_class = $is_bookmarked ? 'bookmarked' : 'not-bookmarked';
+		$bookmark_text = $is_bookmarked
+			? esc_html__( 'Bookmarked', 'fanfiction-manager' )
+			: esc_html__( 'Bookmark', 'fanfiction-manager' );
+		$bookmark_disabled = ! $is_logged_in ? 'disabled' : '';
+
+		$output .= sprintf(
+			'<button class="fanfic-action-btn fanfic-bookmark-btn %s %s" data-story-id="%d" data-action="%s" aria-label="%s" aria-pressed="%s" %s>
+				<span class="fanfic-icon" aria-hidden="true">%s</span>
+				<span class="fanfic-text">%s</span>
+				%s
+			</button>',
+			esc_attr( $bookmark_class ),
+			esc_attr( $bookmark_disabled ),
+			absint( $story_id ),
+			$is_bookmarked ? 'unbookmark' : 'bookmark',
+			esc_attr( $is_bookmarked ? __( 'Remove bookmark', 'fanfiction-manager' ) : __( 'Bookmark story', 'fanfiction-manager' ) ),
+			$is_bookmarked ? 'true' : 'false',
+			! $is_logged_in ? 'disabled="disabled"' : '',
+			$is_bookmarked ? '&#9733;' : '&#9734;',
+			$bookmark_text,
+			! $is_logged_in ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
+		);
+
+		// Like button (with counter)
+		if ( $enable_likes ) {
+			$like_class = $is_liked ? 'liked' : 'not-liked';
+			$like_text = $is_liked
+				? esc_html__( 'Liked', 'fanfiction-manager' )
+				: esc_html__( 'Like', 'fanfiction-manager' );
+			$like_disabled = ! $is_logged_in ? 'disabled' : '';
+
+			$output .= sprintf(
+				'<button class="fanfic-action-btn fanfic-like-btn %s %s" data-item-id="%d" data-item-type="%s" data-action="%s" aria-label="%s" aria-pressed="%s" %s>
+					<span class="fanfic-icon" aria-hidden="true">%s</span>
+					<span class="fanfic-text">%s <span class="fanfic-like-count">(%d)</span></span>
+					%s
+				</button>',
+				esc_attr( $like_class ),
+				esc_attr( $like_disabled ),
+				absint( $item_id ),
+				esc_attr( $context ),
+				$is_liked ? 'unlike' : 'like',
+				esc_attr( $is_liked ? __( 'Unlike', 'fanfiction-manager' ) : __( 'Like this', 'fanfiction-manager' ) ),
+				$is_liked ? 'true' : 'false',
+				! $is_logged_in ? 'disabled="disabled"' : '',
+				$is_liked ? '&#10084;' : '&#129293;',
+				$like_text,
+				absint( $like_count ),
+				! $is_logged_in ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
+			);
+		}
+
+		// Read List button (story view only)
+		if ( 'story' === $context ) {
+			$read_list_class = $is_in_read_list ? 'in-read-list' : 'not-in-read-list';
+			$read_list_text = $is_in_read_list
+				? esc_html__( 'In Read List', 'fanfiction-manager' )
+				: esc_html__( 'Read List', 'fanfiction-manager' );
+			$read_list_disabled = ! $is_logged_in ? 'disabled' : '';
+
+			$output .= sprintf(
+				'<button class="fanfic-action-btn fanfic-read-list-btn %s %s" data-story-id="%d" data-action="%s" aria-label="%s" aria-pressed="%s" %s>
+					<span class="fanfic-icon" aria-hidden="true">%s</span>
+					<span class="fanfic-text">%s</span>
+					%s
+				</button>',
+				esc_attr( $read_list_class ),
+				esc_attr( $read_list_disabled ),
+				absint( $story_id ),
+				$is_in_read_list ? 'remove' : 'add',
+				esc_attr( $is_in_read_list ? __( 'Remove from read list', 'fanfiction-manager' ) : __( 'Add to read list', 'fanfiction-manager' ) ),
+				$is_in_read_list ? 'true' : 'false',
+				! $is_logged_in ? 'disabled="disabled"' : '',
+				$is_in_read_list ? '&#128218;' : '&#128214;',
+				$read_list_text,
+				! $is_logged_in ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
+			);
+		}
+
+		// Mark as Read button (chapter view only)
+		if ( 'chapter' === $context ) {
+			$mark_read_class = $is_marked_read ? 'marked-read' : 'not-marked-read';
+			$mark_read_text = $is_marked_read
+				? esc_html__( 'Marked', 'fanfiction-manager' )
+				: esc_html__( 'Mark as Read', 'fanfiction-manager' );
+			$mark_read_disabled = ! $is_logged_in ? 'disabled' : '';
+
+			$output .= sprintf(
+				'<button class="fanfic-action-btn fanfic-mark-read-btn %s %s" data-chapter-id="%d" data-story-id="%d" data-action="%s" aria-label="%s" aria-pressed="%s" %s>
+					<span class="fanfic-icon" aria-hidden="true">%s</span>
+					<span class="fanfic-text">%s</span>
+					%s
+				</button>',
+				esc_attr( $mark_read_class ),
+				esc_attr( $mark_read_disabled ),
+				absint( $chapter_id ),
+				absint( $story_id ),
+				$is_marked_read ? 'unmark' : 'mark',
+				esc_attr( $is_marked_read ? __( 'Unmark as read', 'fanfiction-manager' ) : __( 'Mark as read', 'fanfiction-manager' ) ),
+				$is_marked_read ? 'true' : 'false',
+				! $is_logged_in ? 'disabled="disabled"' : '',
+				$is_marked_read ? '&#9989;' : '&#9744;',
+				$mark_read_text,
+				! $is_logged_in ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
+			);
+		}
+
+		// Separator
+		$output .= '<span class="fanfic-actions-separator"></span>';
+
+		// === SECONDARY ACTIONS GROUP ===
+
+		// Subscribe button (available to all users)
+		if ( $enable_subscribe ) {
+			$subscribe_class = $is_subscribed ? 'subscribed' : 'not-subscribed';
+			$subscribe_text = $is_subscribed
+				? esc_html__( 'Subscribed', 'fanfiction-manager' )
+				: esc_html__( 'Subscribe', 'fanfiction-manager' );
+
+			$output .= sprintf(
+				'<button class="fanfic-action-btn fanfic-subscribe-btn %s" data-story-id="%d" data-action="%s" aria-label="%s">
+					<span class="fanfic-icon" aria-hidden="true">&#128276;</span>
+					<span class="fanfic-text">%s</span>
+				</button>',
+				esc_attr( $subscribe_class ),
+				absint( $story_id ),
+				$is_subscribed ? 'unsubscribe' : 'subscribe',
+				esc_attr( $is_subscribed ? __( 'Unsubscribe from updates', 'fanfiction-manager' ) : __( 'Subscribe to updates', 'fanfiction-manager' ) ),
+				$subscribe_text
+			);
+		}
+
+		// Share button (available to all users)
+		$share_url = get_permalink( $item_id );
+		$share_title = get_the_title( $item_id );
+
+		$output .= sprintf(
+			'<button class="fanfic-action-btn fanfic-share-btn" data-url="%s" data-title="%s" aria-label="%s">
+				<span class="fanfic-icon" aria-hidden="true">&#128279;</span>
+				<span class="fanfic-text">%s</span>
+			</button>',
+			esc_url( $share_url ),
+			esc_attr( $share_title ),
+			esc_attr__( 'Share content', 'fanfiction-manager' ),
+			esc_html__( 'Share', 'fanfiction-manager' )
+		);
+
+		// Report button (requires login)
+		if ( $enable_report ) {
+			$report_disabled = ! $is_logged_in ? 'disabled' : '';
+
+			$output .= sprintf(
+				'<button class="fanfic-action-btn fanfic-report-btn %s" data-item-id="%d" data-item-type="%s" aria-label="%s" %s>
+					<span class="fanfic-icon" aria-hidden="true">&#9888;</span>
+					<span class="fanfic-text">%s</span>
+					%s
+				</button>',
+				esc_attr( $report_disabled ),
+				absint( $item_id ),
+				esc_attr( $context ),
+				esc_attr__( 'Report this content', 'fanfiction-manager' ),
+				! $is_logged_in ? 'disabled="disabled"' : '',
+				esc_html__( 'Report', 'fanfiction-manager' ),
+				! $is_logged_in ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
+			);
+		}
+
+		$output .= '</div>';
+
+		// Add report modal if report is enabled
+		if ( $enable_report ) {
+			$output .= self::get_enhanced_report_modal( $item_id, $context, $story_id );
+		}
+
+		// Add subscribe modal
+		if ( $enable_subscribe ) {
+			$output .= self::get_subscribe_modal( $story_id );
+		}
+
+		return $output;
 	}
 
 	/**
@@ -905,5 +1202,244 @@ class Fanfic_Shortcodes_Actions {
 		wp_send_json_success( array(
 			'message' => esc_html__( 'Report submitted successfully. Thank you for helping keep our community safe.', 'fanfiction-manager' ),
 		) );
+	}
+
+	/**
+	 * Check if content is liked by user
+	 *
+	 * @since 1.0.0
+	 * @param int    $item_id   Item ID.
+	 * @param string $item_type Item type (story/chapter).
+	 * @param int    $user_id   User ID.
+	 * @return bool True if liked, false otherwise.
+	 */
+	private static function is_content_liked( $item_id, $item_type, $user_id ) {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . 'fanfic_likes';
+
+		$exists = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM {$table_name} WHERE item_id = %d AND item_type = %s AND user_id = %d LIMIT 1",
+			$item_id,
+			$item_type,
+			$user_id
+		) );
+
+		return ! empty( $exists );
+	}
+
+	/**
+	 * Get like count for content
+	 *
+	 * @since 1.0.0
+	 * @param int    $item_id   Item ID.
+	 * @param string $item_type Item type (story/chapter).
+	 * @return int Like count.
+	 */
+	private static function get_like_count( $item_id, $item_type ) {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . 'fanfic_likes';
+
+		$count = $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$table_name} WHERE item_id = %d AND item_type = %s",
+			$item_id,
+			$item_type
+		) );
+
+		return absint( $count );
+	}
+
+	/**
+	 * Check if story is in user's read list
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @param int $user_id  User ID.
+	 * @return bool True if in read list, false otherwise.
+	 */
+	private static function is_in_read_list( $story_id, $user_id ) {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . 'fanfic_read_lists';
+
+		$exists = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM {$table_name} WHERE story_id = %d AND user_id = %d LIMIT 1",
+			$story_id,
+			$user_id
+		) );
+
+		return ! empty( $exists );
+	}
+
+	/**
+	 * Check if chapter is marked as read by user
+	 *
+	 * @since 1.0.0
+	 * @param int $chapter_id Chapter ID.
+	 * @param int $user_id    User ID.
+	 * @return bool True if marked as read, false otherwise.
+	 */
+	private static function is_chapter_marked_read( $chapter_id, $user_id ) {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . 'fanfic_reading_progress';
+
+		$progress = $wpdb->get_row( $wpdb->prepare(
+			"SELECT chapter_id, is_completed FROM {$table_name} WHERE chapter_id = %d AND user_id = %d LIMIT 1",
+			$chapter_id,
+			$user_id
+		) );
+
+		return ! empty( $progress );
+	}
+
+	/**
+	 * Check if user is subscribed to story
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @param int $user_id  User ID.
+	 * @return bool True if subscribed, false otherwise.
+	 */
+	private static function is_subscribed_to_story( $story_id, $user_id ) {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . 'fanfic_subscriptions';
+
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return false;
+		}
+
+		$exists = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM {$table_name} WHERE story_id = %d AND email = %s AND is_active = 1 LIMIT 1",
+			$story_id,
+			$user->user_email
+		) );
+
+		return ! empty( $exists );
+	}
+
+	/**
+	 * Get enhanced report modal HTML with metadata
+	 *
+	 * @since 1.0.0
+	 * @param int    $item_id   Item ID.
+	 * @param string $item_type Item type (story/chapter).
+	 * @param int    $story_id  Story ID.
+	 * @return string Modal HTML.
+	 */
+	private static function get_enhanced_report_modal( $item_id, $item_type, $story_id ) {
+		$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
+
+		// Get metadata for report
+		$item_title = get_the_title( $item_id );
+		$item_url = get_permalink( $item_id );
+		$author_id = get_post_field( 'post_author', $story_id );
+
+		$output = sprintf(
+			'<div class="fanfic-report-modal" id="fanfic-report-modal-%d-%s" style="display:none;">
+				<div class="fanfic-modal-overlay"></div>
+				<div class="fanfic-modal-content">
+					<div class="fanfic-modal-header">
+						<h3>%s</h3>
+						<button class="fanfic-modal-close">&times;</button>
+					</div>
+					<div class="fanfic-modal-body">
+						<form class="fanfic-report-form" data-item-id="%d" data-item-type="%s" data-item-title="%s" data-item-url="%s" data-author-id="%d" data-story-id="%d">
+							<label for="report-reason-%d">%s</label>
+							<textarea id="report-reason-%d" name="reason" required maxlength="1000" rows="5" placeholder="%s"></textarea>',
+			absint( $item_id ),
+			esc_attr( $item_type ),
+			esc_html__( 'Report Content', 'fanfiction-manager' ),
+			absint( $item_id ),
+			esc_attr( $item_type ),
+			esc_attr( $item_title ),
+			esc_url( $item_url ),
+			absint( $author_id ),
+			absint( $story_id ),
+			absint( $item_id ),
+			esc_html__( 'Reason for reporting:', 'fanfiction-manager' ),
+			absint( $item_id ),
+			esc_attr__( 'Please describe why you are reporting this content...', 'fanfiction-manager' )
+		);
+
+		// Add reCAPTCHA if configured
+		if ( ! empty( $recaptcha_site_key ) ) {
+			$output .= sprintf(
+				'<div class="fanfic-recaptcha-container">
+					<div class="g-recaptcha" data-sitekey="%s"></div>
+				</div>',
+				esc_attr( $recaptcha_site_key )
+			);
+		}
+
+		$output .= sprintf(
+			'<div class="fanfic-modal-actions">
+								<button type="submit" class="fanfic-btn-primary">%s</button>
+								<button type="button" class="fanfic-btn-secondary fanfic-modal-cancel">%s</button>
+							</div>
+							<div class="fanfic-report-message"></div>
+						</form>
+					</div>
+				</div>
+			</div>',
+			esc_html__( 'Submit Report', 'fanfiction-manager' ),
+			esc_html__( 'Cancel', 'fanfiction-manager' )
+		);
+
+		return $output;
+	}
+
+	/**
+	 * Get subscribe modal HTML
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @return string Modal HTML.
+	 */
+	private static function get_subscribe_modal( $story_id ) {
+		$story_title = get_the_title( $story_id );
+
+		$output = sprintf(
+			'<div class="fanfic-subscribe-modal" id="fanfic-subscribe-modal-%d" style="display:none;">
+				<div class="fanfic-modal-overlay"></div>
+				<div class="fanfic-modal-content">
+					<div class="fanfic-modal-header">
+						<h3>%s</h3>
+						<button class="fanfic-modal-close">&times;</button>
+					</div>
+					<div class="fanfic-modal-body">
+						<p>%s</p>
+						<form class="fanfic-subscribe-form" data-story-id="%d">
+							<label for="subscribe-email-%d">%s</label>
+							<input type="email" id="subscribe-email-%d" name="email" required placeholder="%s">
+							<div class="fanfic-modal-actions">
+								<button type="submit" class="fanfic-btn-primary">%s</button>
+								<button type="button" class="fanfic-btn-secondary fanfic-modal-cancel">%s</button>
+							</div>
+							<div class="fanfic-subscribe-message"></div>
+						</form>
+					</div>
+				</div>
+			</div>',
+			absint( $story_id ),
+			esc_html__( 'Subscribe to Story Updates', 'fanfiction-manager' ),
+			sprintf(
+				/* translators: %s: story title */
+				esc_html__( 'Get email notifications when new chapters are published for "%s".', 'fanfiction-manager' ),
+				esc_html( $story_title )
+			),
+			absint( $story_id ),
+			absint( $story_id ),
+			esc_html__( 'Your email address:', 'fanfiction-manager' ),
+			absint( $story_id ),
+			esc_attr__( 'you@example.com', 'fanfiction-manager' ),
+			esc_html__( 'Subscribe', 'fanfiction-manager' ),
+			esc_html__( 'Cancel', 'fanfiction-manager' )
+		);
+
+		return $output;
 	}
 }
