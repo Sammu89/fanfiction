@@ -54,7 +54,7 @@ function fanfic_get_default_chapter_view_template() {
 <hr class="fanfic-content-separator" aria-hidden="true">
 
 <!-- Action buttons (edit, bookmark, share, report) -->
-[chapter-actions]
+[fanfic-content-actions]
 
 <!-- Rating section -->
 <section class="fanfic-chapter-rating" aria-labelledby="rating-heading">

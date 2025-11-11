@@ -152,6 +152,12 @@ class Fanfic_Settings {
 			'maintenance_mode'               => false,
 			'cron_hour'                      => 3,
 			'recaptcha_require_logged_in'    => false,
+			'enable_likes'                   => true,
+			'enable_subscribe'               => true,
+			'enable_share'                   => true,
+			'enable_report'                  => true,
+			'allow_anonymous_likes'          => false,
+			'allow_anonymous_reports'        => false,
 		);
 	}
 
@@ -1188,6 +1194,116 @@ class Fanfic_Settings {
 									<input type="checkbox" id="recaptcha_require_logged_in" name="fanfic_settings[recaptcha_require_logged_in]" value="1" <?php checked( $settings['recaptcha_require_logged_in'], true ); ?>>
 									<?php esc_html_e( 'Require reCAPTCHA verification for logged-in users too (recommended for high-security sites)', 'fanfiction-manager' ); ?>
 								</label>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<hr style="margin: 30px 0;">
+
+				<!-- Content Actions Features Section -->
+				<h3><?php esc_html_e( 'Content Actions Features', 'fanfiction-manager' ); ?></h3>
+				<p class="description" style="margin-bottom: 15px;">
+					<?php esc_html_e( 'Enable or disable specific features for story and chapter interactions. All features are enabled by default.', 'fanfiction-manager' ); ?>
+				</p>
+
+				<table class="form-table" role="presentation">
+					<tbody>
+						<!-- Enable Likes -->
+						<tr>
+							<th scope="row">
+								<label for="enable_likes"><?php esc_html_e( 'Enable Likes', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_likes" name="fanfic_settings[enable_likes]" value="1" <?php checked( isset( $settings['enable_likes'] ) ? $settings['enable_likes'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow users to like stories and chapters (shows like count)', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<!-- Enable Subscribe -->
+						<tr>
+							<th scope="row">
+								<label for="enable_subscribe"><?php esc_html_e( 'Enable Email Subscriptions', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_subscribe" name="fanfic_settings[enable_subscribe]" value="1" <?php checked( isset( $settings['enable_subscribe'] ) ? $settings['enable_subscribe'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow users to subscribe to story updates via email (available to all visitors)', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<!-- Enable Share -->
+						<tr>
+							<th scope="row">
+								<label for="enable_share"><?php esc_html_e( 'Enable Share Button', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_share" name="fanfic_settings[enable_share]" value="1" <?php checked( isset( $settings['enable_share'] ) ? $settings['enable_share'] : true, true ); ?>>
+									<?php esc_html_e( 'Show share button on stories, chapters, and author profiles (available to all visitors)', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<!-- Enable Report -->
+						<tr>
+							<th scope="row">
+								<label for="enable_report"><?php esc_html_e( 'Enable Content Reporting', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_report" name="fanfic_settings[enable_report]" value="1" <?php checked( isset( $settings['enable_report'] ) ? $settings['enable_report'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow logged-in users to report inappropriate content', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<!-- Allow Anonymous Likes -->
+						<tr>
+							<th scope="row">
+								<label for="allow_anonymous_likes"><?php esc_html_e( 'Allow Anonymous Likes', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="allow_anonymous_likes" name="fanfic_settings[allow_anonymous_likes]" value="1" <?php checked( isset( $settings['allow_anonymous_likes'] ) ? $settings['allow_anonymous_likes'] : false, true ); ?>>
+									<?php esc_html_e( 'Allow non-logged users to like content (one like per IP per day, optimized with transients)', 'fanfiction-manager' ); ?>
+								</label>
+								<p class="description">
+									<?php esc_html_e( 'Uses IP-based rate limiting similar to star ratings. Likes are stored in transients and synced to database via cron for better performance.', 'fanfiction-manager' ); ?>
+								</p>
+							</td>
+						</tr>
+
+						<!-- Allow Anonymous Reports -->
+						<tr>
+							<th scope="row">
+								<label for="allow_anonymous_reports"><?php esc_html_e( 'Allow Anonymous Reports', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<?php
+								$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
+								$recaptcha_secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
+								$has_recaptcha = ! empty( $recaptcha_site_key ) && ! empty( $recaptcha_secret_key );
+								$anonymous_reports_disabled = ! $has_recaptcha;
+								?>
+								<label>
+									<input type="checkbox" id="allow_anonymous_reports" name="fanfic_settings[allow_anonymous_reports]" value="1" <?php checked( isset( $settings['allow_anonymous_reports'] ) && $has_recaptcha ? $settings['allow_anonymous_reports'] : false, true ); ?> <?php disabled( $anonymous_reports_disabled ); ?>>
+									<?php esc_html_e( 'Allow non-logged users to report content (requires reCAPTCHA)', 'fanfiction-manager' ); ?>
+								</label>
+								<?php if ( ! $has_recaptcha ) : ?>
+									<p class="description" style="color: #d63638; font-weight: 600;">
+										<span class="dashicons dashicons-warning" style="color: #d63638;"></span>
+										<?php esc_html_e( 'REQUIRED: You must configure reCAPTCHA keys above to enable anonymous reporting. This prevents spam and abuse.', 'fanfiction-manager' ); ?>
+									</p>
+								<?php else : ?>
+									<p class="description">
+										<span class="dashicons dashicons-yes-alt" style="color: #46b450;"></span>
+										<?php esc_html_e( 'reCAPTCHA is configured. Anonymous reports will be protected against spam.', 'fanfiction-manager' ); ?>
+									</p>
+								<?php endif; ?>
 							</td>
 						</tr>
 					</tbody>
