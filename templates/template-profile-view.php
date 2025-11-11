@@ -45,7 +45,7 @@ function fanfic_get_default_profile_view_template() {
 	</header>
 
 	<div class="fanfic-profile-actions">
-		[author-actions]
+		[content-actions]
 	</div>
 
 	<div class="fanfic-profile-bio">
@@ -102,7 +102,7 @@ $template = str_replace( '[author-avatar]', '[author-avatar user_id="' . $user_i
 $template = str_replace( '[author-display-name]', '[author-display-name user_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-registration-date]', '[author-registration-date user_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-story-count]', '[author-story-count user_id="' . $user_id . '"]', $template );
-$template = str_replace( '[author-actions]', '[author-actions user_id="' . $user_id . '"]', $template );
+// [content-actions] auto-detects context, no user_id parameter needed
 $template = str_replace( '[author-bio]', '[author-bio user_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-story-list]', '[author-story-list user_id="' . $user_id . '"]', $template );
 
