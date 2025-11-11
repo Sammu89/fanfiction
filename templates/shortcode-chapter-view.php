@@ -47,9 +47,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	</div>
 </header>
 
-<!-- Action buttons (edit, bookmark, share, report) -->
-[chapter-actions]
-
 <!-- Main chapter content -->
 <div class="fanfic-chapter-content" itemprop="text">
 	[fanfic-chapter-content]
@@ -57,6 +54,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 <!-- Visual separator -->
 <hr class="fanfic-content-separator" aria-hidden="true">
+
+<!-- Action buttons (edit, bookmark, share, report) -->
+[chapter-actions]
 
 <!-- Rating section -->
 <section class="fanfic-chapter-rating" aria-labelledby="rating-heading">

@@ -1697,7 +1697,7 @@ class Fanfic_Settings {
 								<p class="description">
 									<?php esc_html_e( 'Customize how individual chapters are displayed. Uses shortcodes to build the layout. Available shortcodes:', 'fanfiction-manager' ); ?>
 									<br><code>[chapter-breadcrumb]</code> <code>[chapter-story]</code> <code>[chapters-nav]</code> <code>[chapter-actions]</code>
-									<code>[edit-chapter-button]</code> <code>[chapter-rating-form]</code> <code>[chapter-comments]</code>
+									<code>[chapter-rating-form]</code> <code>[chapter-comments]</code>
 									<br><?php esc_html_e( 'Note: Chapter content is automatically displayed. Do not add it manually.', 'fanfiction-manager' ); ?>
 								</p>
 								<p>
