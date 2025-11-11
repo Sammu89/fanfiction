@@ -101,7 +101,28 @@ function fanfic_custom_comment_template( $comment, $args, $depth ) {
 						);
 					}
 					?>
-					<b class="fn" itemprop="author"><?php echo get_comment_author_link( $comment ); ?></b>
+					<b class="fn" itemprop="author">
+						<?php
+						// Generate custom author link to plugin member profile
+						$author_name = get_comment_author( $comment );
+						$author_user_id = $comment->user_id;
+
+						if ( $author_user_id ) {
+							// Registered user - link to plugin member profile
+							$url_manager = Fanfic_URL_Manager::get_instance();
+							$profile_url = $url_manager->get_user_profile_url( $author_user_id );
+							echo '<a href="' . esc_url( $profile_url ) . '" class="url" rel="nofollow">' . esc_html( $author_name ) . '</a>';
+						} else {
+							// Guest comment - just show name (or link to URL if they provided one)
+							$author_url = get_comment_author_url( $comment );
+							if ( $author_url && 'http://' !== $author_url ) {
+								echo '<a href="' . esc_url( $author_url ) . '" class="url" rel="external nofollow ugc">' . esc_html( $author_name ) . '</a>';
+							} else {
+								echo esc_html( $author_name );
+							}
+						}
+						?>
+					</b>
 					<span class="says screen-reader-text"><?php esc_html_e( 'says:', 'fanfiction-manager' ); ?></span>
 				</div>
 

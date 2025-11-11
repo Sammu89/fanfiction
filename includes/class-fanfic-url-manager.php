@@ -396,11 +396,12 @@ class Fanfic_URL_Manager {
 			return '';
 		}
 
-		$user_slug = isset( $this->slugs['secondary']['user'] ) ? $this->slugs['secondary']['user'] : 'user';
+		// Use the members slug (same slug for member directory and individual profiles)
+		$members_slug = isset( $this->slugs['dynamic']['members'] ) ? $this->slugs['dynamic']['members'] : 'members';
 
 		return $this->build_url( array(
 			$this->slugs['base'],
-			$user_slug,
+			$members_slug,
 			$user_obj->user_login,
 		) );
 	}

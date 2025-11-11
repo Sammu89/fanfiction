@@ -180,11 +180,8 @@ if ( $is_taxonomy && $queried_object instanceof WP_Term ) {
 
 					// Get metadata
 					$word_count = get_post_meta( get_the_ID(), '_fanfic_word_count', true );
-					$chapter_count = wp_count_posts( array(
-						'post_type' => 'fanfiction_chapter',
-						'post_parent' => get_the_ID(),
-					) );
-					$chapters = $chapter_count ? $chapter_count->publish : 0;
+					// Use the cached chapter count function for better performance
+					$chapters = function_exists( 'ffm_get_story_chapter_count' ) ? ffm_get_story_chapter_count( get_the_ID() ) : 0;
 					?>
 
 					<article id="story-<?php the_ID(); ?>" <?php post_class( 'fanfic-story-card' ); ?>>

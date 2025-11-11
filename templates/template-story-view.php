@@ -36,11 +36,11 @@ function fanfic_get_default_story_view_template() {
 		</div>
 	</header>
 
-	<div class="fanfic-story-featured-image">
+	<figure class="fanfic-story-featured-image">
 		[story-featured-image]
-	</div>
+	</figure>
 
-	<div class="fanfic-story-content">
+	<section class="fanfic-story-content">
 		<div class="fanfic-story-intro">
 			<h2><?php esc_html_e( 'Summary', 'fanfiction-manager' ); ?></h2>
 			[story-intro]
@@ -52,32 +52,33 @@ function fanfic_get_default_story_view_template() {
 			</div>
 		</div>
 
-		<div class="fanfic-story-stats">
+		<div class="fanfic-story-stats" role="contentinfo" aria-label="<?php esc_attr_e( 'Story statistics', 'fanfiction-manager' ); ?>">
 			<span class="fanfic-story-word-count"><strong><?php esc_html_e( 'Words:', 'fanfiction-manager' ); ?></strong> [story-word-count-estimate]</span>
 			<span class="fanfic-story-chapters-count"><strong><?php esc_html_e( 'Chapters:', 'fanfiction-manager' ); ?></strong> [story-chapters]</span>
 			<span class="fanfic-story-views"><strong><?php esc_html_e( 'Views:', 'fanfiction-manager' ); ?></strong> [story-views]</span>
 			<span class="fanfic-story-rating"><strong><?php esc_html_e( 'Rating:', 'fanfiction-manager' ); ?></strong> [story-rating-form]</span>
 		</div>
-	</div>
+	</section>
 
 	<div class="fanfic-story-actions">
 		[fanfic-content-actions]
 	</div>
 
-	<div class="fanfic-story-navigation">
+	<nav class="fanfic-story-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">
 		<div class="fanfic-story-chapters-dropdown">
 			[story-chapters-dropdown]
 		</div>
-	</div>
+	</nav>
 
-	<div class="fanfic-story-chapters-list">
-		<h2><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></h2>
+	<section class="fanfic-story-chapters-list" aria-labelledby="chapters-heading">
+		<h2 id="chapters-heading"><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></h2>
 		[chapters-list]
-	</div>
+	</section>
 
-	<div class="fanfic-story-comments">
+	<section class="fanfic-story-comments" aria-labelledby="comments-heading">
+		<h2 id="comments-heading"><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h2>
 		[story-comments]
-	</div>
+	</section>
 </div>
 <?php
 	return ob_get_clean();

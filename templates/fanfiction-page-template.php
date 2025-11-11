@@ -1,21 +1,93 @@
 <?php
+/**
+ * Fanfiction Page Template
+ *
+ * This template provides universal HTML5 semantic tag detection that works
+ * with ANY WordPress theme without hardcoding theme names.
+ *
+ * How it works:
+ * - Captures and analyzes get_header() output to detect <main> tags
+ * - Intelligently decides whether to output <article> tags based on WordPress structure
+ * - Provides filters for edge cases where themes use non-standard approaches
+ *
+ * This ensures proper HTML5 semantics (one main, one article per content piece)
+ * regardless of which theme is active.
+ *
+ * @package FanfictionManager
+ * @subpackage Templates
+ */
+
+/**
+ * Universal detection for semantic HTML5 tags
+ *
+ * Capture the header output and analyze it to detect if the theme already
+ * outputs <main> or <article> tags. This works with ANY theme.
+ */
+ob_start();
 get_header();
-?>
-<!-- Fanfic content -->
-<div id="primary" class="fanfiction-page-content">
-<?php
+$header_output = ob_get_clean();
+
+// Detect if theme outputs <main> tag in its header
+$theme_outputs_main = ( stripos( $header_output, '<main' ) !== false );
+
+// Store for later use in article detection (article tags typically come after header)
+$theme_has_main_tag = $theme_outputs_main;
+
+/**
+ * Filter to override main tag detection
+ *
+ * @param bool $theme_outputs_main Whether the theme already outputs a main tag.
+ */
+$theme_outputs_main = apply_filters( 'fanfic_theme_outputs_main', $theme_outputs_main );
+
+// Output the captured header
+echo $header_output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+
 // Check if we should show sidebar (from global option)
 $show_sidebar = get_option( 'fanfic_show_sidebar', '1' );
 $layout_class = ( '1' === $show_sidebar ) ? 'fanfiction-with-sidebar' : 'fanfiction-no-sidebar';
+
+// Use semantic <main> tag if theme doesn't provide it, otherwise use div
+$main_tag = $theme_outputs_main ? 'div' : 'main';
+$main_attrs = $theme_outputs_main ? 'id="primary" class="fanfiction-page-content"' : 'id="primary" class="fanfiction-page-content" role="main"';
 ?>
+<!-- Fanfic content -->
+<<?php echo esc_html( $main_tag ); ?> <?php echo $main_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 <div class="fanfiction-page-wrapper <?php echo esc_attr( $layout_class ); ?>">
 <div class="fanfiction-page-main">
 <?php
 while ( have_posts() ) :
     the_post();
+
+/**
+ * Universal detection for article tag
+ *
+ * Since we're using a custom page template (fanfiction-page-template.php), we're
+ * replacing the theme's page.php/singular.php template. Article tags in WordPress
+ * themes are typically in page templates, not in headers/footers.
+ *
+ * Therefore, by default we output our own article tag. The filter below allows
+ * overriding this for rare cases where themes inject article tags via hooks.
+ */
+$theme_outputs_article = false;
+
+/**
+ * Filter to override article tag output
+ *
+ * Set to true if your theme outputs article tags via template hooks.
+ * Example: add_filter( 'fanfic_theme_outputs_article', '__return_true' );
+ *
+ * @param bool $theme_outputs_article Whether the theme already outputs an article tag.
+ */
+$theme_outputs_article = apply_filters( 'fanfic_theme_outputs_article', $theme_outputs_article );
+
+// Open article tag only if theme doesn't provide it
+if ( ! $theme_outputs_article ) :
 ?>
 <article id="post-<?php the_ID(); ?>" <?php post_class( 'fanfiction-page' ); ?>>
 <?php
+endif;
+
 /**
  * Show page title conditionally
  *
@@ -95,8 +167,13 @@ if ( ! empty( $fanfic_content_template ) ) {
 }
 ?>
 </div>
+<?php
+// Close article tag only if we opened it
+if ( ! $theme_outputs_article ) :
+?>
 </article>
 <?php
+endif;
 endwhile;
 ?>
 </div>
@@ -106,7 +183,7 @@ endwhile;
 </aside>
 <?php endif; ?>
 </div><!-- .fanfiction-page-wrapper -->
-</div><!-- #primary -->
+</<?php echo esc_html( $main_tag ); ?>><!-- #primary -->
 <!-- End Fanfic content -->
 <?php
 get_footer();

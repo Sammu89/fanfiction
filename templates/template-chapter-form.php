@@ -555,7 +555,6 @@ if ( $is_edit_mode ) {
 			<p><?php esc_html_e( 'Chapter not found.', 'fanfiction-manager' ); ?></p>
 		</div>
 		<?php
-		get_footer();
 		return;
 	}
 

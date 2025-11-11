@@ -88,9 +88,10 @@ if ( ! isset( $fanfic_load_template ) || ! $fanfic_load_template ) {
  * =========================================
  * This section only runs when displaying the chapter on frontend.
  * It handles filters, permissions, and rendering.
+ *
+ * Note: This template is loaded through fanfiction-page-template.php,
+ * so get_header() and get_footer() are NOT needed here.
  */
-
-get_header();
 
 // Suppress the default page title H1 for chapter views since we use custom hierarchy
 // Our template uses story title as H1 and chapter title as H2
@@ -122,7 +123,6 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 					</div>
 				</div>
 				<?php
-				get_footer();
 				return;
 			}
 		}
@@ -138,5 +138,3 @@ if ( empty( $template ) ) {
 
 // Process shortcodes in the template
 echo do_shortcode( $template );
-
-get_footer();
