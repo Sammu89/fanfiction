@@ -1742,15 +1742,21 @@ class Fanfic_Settings {
 	/**
 	 * Get default story view template
 	 *
+	 * Loads the default content from template-story-view.php.
+	 * The template file contains a function that returns the default user-editable content.
+	 *
 	 * @since 1.0.0
 	 * @return string Default template HTML
 	 */
 	private static function get_default_story_template() {
-		$template_path = FANFIC_PLUGIN_DIR . 'templates/shortcode-story-view.php';
+		$template_path = FANFIC_PLUGIN_DIR . 'templates/template-story-view.php';
 		if ( file_exists( $template_path ) ) {
-			ob_start();
-			include $template_path;
-			return ob_get_clean();
+			// Include the template file to load the function
+			require_once $template_path;
+			// Call the function that returns default content
+			if ( function_exists( 'fanfic_get_default_story_view_template' ) ) {
+				return fanfic_get_default_story_view_template();
+			}
 		}
 		return '';
 	}
@@ -1758,15 +1764,21 @@ class Fanfic_Settings {
 	/**
 	 * Get default chapter view template
 	 *
+	 * Loads the default content from template-chapter-view.php.
+	 * The template file contains a function that returns the default user-editable content.
+	 *
 	 * @since 1.0.0
 	 * @return string Default template HTML
 	 */
 	private static function get_default_chapter_template() {
-		$template_path = FANFIC_PLUGIN_DIR . 'templates/shortcode-chapter-view.php';
+		$template_path = FANFIC_PLUGIN_DIR . 'templates/template-chapter-view.php';
 		if ( file_exists( $template_path ) ) {
-			ob_start();
-			include $template_path;
-			return ob_get_clean();
+			// Include the template file to load the function
+			require_once $template_path;
+			// Call the function that returns default content
+			if ( function_exists( 'fanfic_get_default_chapter_view_template' ) ) {
+				return fanfic_get_default_chapter_view_template();
+			}
 		}
 		return '';
 	}
@@ -1774,15 +1786,21 @@ class Fanfic_Settings {
 	/**
 	 * Get default profile view template
 	 *
+	 * Loads the default content from template-profile-view.php.
+	 * The template file contains a function that returns the default user-editable content.
+	 *
 	 * @since 1.0.0
 	 * @return string Default template HTML
 	 */
 	private static function get_default_profile_template() {
-		$template_path = FANFIC_PLUGIN_DIR . 'templates/shortcode-profile-view.php';
+		$template_path = FANFIC_PLUGIN_DIR . 'templates/template-profile-view.php';
 		if ( file_exists( $template_path ) ) {
-			ob_start();
-			include $template_path;
-			return ob_get_clean();
+			// Include the template file to load the function
+			require_once $template_path;
+			// Call the function that returns default content
+			if ( function_exists( 'fanfic_get_default_profile_view_template' ) ) {
+				return fanfic_get_default_profile_view_template();
+			}
 		}
 		return '';
 	}

@@ -75,6 +75,8 @@ if ( ! empty( $fanfic_content_template ) ) {
     }
 
     if ( $content_template_path ) {
+        // Set flag to tell template to execute rendering logic (not just function definition)
+        $fanfic_load_template = true;
         include $content_template_path;
     } else {
         // Fallback to the_content() if template not found

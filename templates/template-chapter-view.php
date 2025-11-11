@@ -2,9 +2,9 @@
 /**
  * Template for single chapter display
  *
- * This template is used when viewing a single chapter.
- * The template content is loaded from the Page Templates settings tab.
- * Theme developers can override this by copying to their theme directory.
+ * This template contains two parts:
+ * 1. Default content function (for admin settings)
+ * 2. PHP logic and rendering (for frontend display)
  *
  * @package FanfictionManager
  * @subpackage Templates
@@ -14,6 +14,81 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+/**
+ * Get default user-editable content template
+ *
+ * This function returns the default HTML/shortcode template.
+ * This content gets saved to the database and is editable by users.
+ * This function can be called safely from admin settings.
+ *
+ * @return string Default template HTML
+ */
+function fanfic_get_default_chapter_view_template() {
+	ob_start();
+	?>
+<!-- Breadcrumb navigation for context -->
+[fanfic-breadcrumbs]
+
+<!-- Chapter header with hierarchical titles -->
+<header class="fanfic-chapter-header">
+	<!-- Story title as primary heading (parent context) -->
+	<h1 class="fanfic-story-title">[fanfic-story-title]</h1>
+
+	<!-- Chapter title as secondary heading -->
+	<h2 class="fanfic-chapter-title">[fanfic-chapter-title]</h2>
+
+	<!-- Meta information (dates) -->
+	<div class="fanfic-chapter-meta">
+		<?php esc_html_e( 'Published:', 'fanfiction-manager' ); ?> [fanfic-chapter-published]
+		<?php esc_html_e( 'Updated:', 'fanfiction-manager' ); ?> [fanfic-chapter-updated]
+	</div>
+</header>
+
+<!-- Main chapter content -->
+<div class="fanfic-chapter-content" itemprop="text">
+	[fanfic-chapter-content]
+</div>
+
+<!-- Visual separator -->
+<hr class="fanfic-content-separator" aria-hidden="true">
+
+<!-- Action buttons (edit, bookmark, share, report) -->
+[chapter-actions]
+
+<!-- Rating section -->
+<section class="fanfic-chapter-rating" aria-labelledby="rating-heading">
+	<h3 id="rating-heading"><?php esc_html_e( 'Rate this chapter', 'fanfiction-manager' ); ?></h3>
+	[chapter-rating-form]
+</section>
+
+<!-- Chapter navigation (previous/next) -->
+<nav class="fanfic-chapter-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">
+	[chapters-nav]
+</nav>
+
+<!-- Comments section -->
+<section class="fanfic-chapter-comments" aria-labelledby="comments-heading">
+	<h3 id="comments-heading"><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h3>
+	[chapter-comments]
+</section>
+<?php
+	return ob_get_clean();
+}
+
+// Stop here if we're just loading the function definition (e.g., in admin settings)
+// The rest of this file is the actual template rendering logic
+if ( ! isset( $fanfic_load_template ) || ! $fanfic_load_template ) {
+	return;
+}
+
+/**
+ * =========================================
+ * TEMPLATE RENDERING (Frontend Only)
+ * =========================================
+ * This section only runs when displaying the chapter on frontend.
+ * It handles filters, permissions, and rendering.
+ */
 
 get_header();
 
@@ -54,27 +129,12 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 	}
 }
 
-// Get custom template from settings
+// Load user-customized template from database, or use default
 $template = get_option( 'fanfic_shortcode_chapter_view', '' );
 
-// If no custom template, use default from settings class
-if ( empty( $template ) && class_exists( 'Fanfic_Settings' ) ) {
-	// Get default via reflection since the method is private
-	$reflection = new ReflectionClass( 'Fanfic_Settings' );
-	if ( $reflection->hasMethod( 'get_default_chapter_template' ) ) {
-		$method = $reflection->getMethod( 'get_default_chapter_template' );
-		$method->setAccessible( true );
-		$template = $method->invoke( null );
-	}
+if ( empty( $template ) ) {
+	$template = fanfic_get_default_chapter_view_template();
 }
-
-// Get chapter content
-ob_start();
-the_content();
-$chapter_content = ob_get_clean();
-
-// Replace the comment placeholder with actual content
-$template = str_replace( '<!-- Chapter content is automatically displayed here -->', $chapter_content, $template );
 
 // Process shortcodes in the template
 echo do_shortcode( $template );

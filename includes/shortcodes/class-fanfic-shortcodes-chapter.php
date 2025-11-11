@@ -109,9 +109,8 @@ class Fanfic_Shortcodes_Chapter {
 		$published_datetime = get_the_date( 'Y-m-d', $chapter_id );
 
 		return sprintf(
-			'<time class="fanfic-published-date" datetime="%s" itemprop="datePublished"><span class="fanfic-meta-label">%s</span> %s</time>',
+			'<time class="fanfic-published-date" datetime="%s" itemprop="datePublished">%s</time>',
 			esc_attr( $published_datetime ),
-			esc_html__( 'Published:', 'fanfiction-manager' ),
 			esc_html( $published_date )
 		);
 	}
@@ -146,9 +145,8 @@ class Fanfic_Shortcodes_Chapter {
 		$modified_datetime = get_the_modified_date( 'Y-m-d', $chapter_id );
 
 		return sprintf(
-			'<time class="fanfic-updated-date" datetime="%s" itemprop="dateModified"><span class="fanfic-meta-label">%s</span> %s</time>',
+			'<time class="fanfic-updated-date" datetime="%s" itemprop="dateModified">%s</time>',
 			esc_attr( $modified_datetime ),
-			esc_html__( 'Updated:', 'fanfiction-manager' ),
 			esc_html( $modified_date )
 		);
 	}

@@ -214,7 +214,6 @@ class Fanfic_Shortcodes_Actions {
 		$atts = Fanfic_Shortcodes::sanitize_atts(
 			$atts,
 			array(
-				'show_edit'     => 'yes',
 				'show_bookmark' => 'yes',
 				'show_share'    => 'yes',
 				'show_report'   => 'yes',
@@ -232,8 +231,8 @@ class Fanfic_Shortcodes_Actions {
 
 		$output = '<div class="fanfic-chapter-actions">';
 
-		// Edit button (shown only if user has permission)
-		if ( 'yes' === $atts['show_edit'] && current_user_can( 'edit_fanfiction_chapter', $chapter_id ) ) {
+		// Edit button (shown automatically if user has permission)
+		if ( current_user_can( 'edit_fanfiction_chapter', $chapter_id ) ) {
 			$edit_url = fanfic_get_edit_chapter_url( $chapter_id, $story_id );
 			if ( ! empty( $edit_url ) ) {
 				$output .= sprintf(
