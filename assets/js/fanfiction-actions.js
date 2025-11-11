@@ -172,40 +172,80 @@
 		var url = $btn.data('url');
 		var title = $btn.data('title');
 
-		// Use Web Share API if available
+		// Add loading/animating state
+		$btn.addClass('animating');
+
+		// Prepare share data with site name
+		var shareData = {
+			title: title || document.title,
+			text: fanficActions.strings.shareText || 'Check this out!',
+			url: url || window.location.href
+		};
+
+		// Use Web Share API if available (mobile + modern browsers)
 		if (navigator.share) {
-			navigator.share({
-				title: title,
-				url: url
-			}).then(function() {
-				showMessage($btn, fanficActions.strings.shareSuccess || 'Shared successfully!', 'success');
-			}).catch(function(error) {
-				if (error.name !== 'AbortError') {
-					fallbackShare(url);
-				}
-			});
+			navigator.share(shareData)
+				.then(function() {
+					// Success animation
+					$btn.addClass('success-flash');
+					setTimeout(function() {
+						$btn.removeClass('success-flash animating');
+					}, 500);
+					showMessage($btn, fanficActions.strings.shareSuccess || 'Shared successfully!', 'success');
+				})
+				.catch(function(error) {
+					// User cancelled or error occurred
+					if (error.name !== 'AbortError') {
+						// If share was not aborted, try fallback
+						fallbackShare($btn, url);
+					} else {
+						// User cancelled - just remove animation
+						$btn.removeClass('animating');
+					}
+				});
 		} else {
-			fallbackShare(url);
+			// Fallback to clipboard
+			fallbackShare($btn, url);
 		}
 	}
 
 	/**
 	 * Fallback share method (copy to clipboard)
 	 */
-	function fallbackShare(url) {
-		// Create temporary input
-		var $temp = $('<input>');
-		$('body').append($temp);
-		$temp.val(url).select();
-
-		try {
-			document.execCommand('copy');
-			alert(fanficActions.strings.linkCopied || 'Link copied to clipboard!');
-		} catch (err) {
-			prompt(fanficActions.strings.copyLink || 'Copy this link:', url);
+	function fallbackShare($btn, url) {
+		// Use modern Clipboard API if available
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(url)
+				.then(function() {
+					// Success animation
+					$btn.addClass('success-flash');
+					setTimeout(function() {
+						$btn.removeClass('success-flash animating');
+					}, 500);
+					showMessage($btn, fanficActions.strings.linkCopied || 'Link copied to clipboard!', 'success');
+				})
+				.catch(function(err) {
+					console.error('Clipboard write failed:', err);
+					$btn.removeClass('animating');
+					// Final fallback: show prompt
+					fallbackPrompt($btn, url);
+				});
+		} else {
+			// Very old browser - use prompt as last resort
+			fallbackPrompt($btn, url);
 		}
+	}
 
-		$temp.remove();
+	/**
+	 * Final fallback: prompt user to copy manually
+	 */
+	function fallbackPrompt($btn, url) {
+		$btn.removeClass('animating');
+		// Create a custom modal or use prompt
+		var copied = prompt(fanficActions.strings.copyPrompt || 'Copy this link (Ctrl+C or Cmd+C):', url);
+		if (copied !== null) {
+			showMessage($btn, fanficActions.strings.linkReady || 'Link ready to copy!', 'success');
+		}
 	}
 
 	/**

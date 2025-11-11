@@ -94,7 +94,7 @@ class Fanfic_Shortcodes_Actions {
 			true
 		);
 
-		// Localize script with AJAX URL and nonce
+		// Localize script with AJAX URL, nonce, and translatable strings
 		wp_localize_script(
 			'fanfic-actions',
 			'fanficActions',
@@ -104,6 +104,32 @@ class Fanfic_Shortcodes_Actions {
 				'loginUrl'      => wp_login_url( get_permalink() ),
 				'isLoggedIn'    => is_user_logged_in(),
 				'recaptchaSite' => get_option( 'fanfic_recaptcha_site_key', '' ),
+				'strings'       => array(
+					// General messages
+					'error'             => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
+					'loginRequired'     => __( 'Login required', 'fanfiction-manager' ),
+
+					// Bookmark strings
+					'bookmarked'        => __( 'Bookmarked', 'fanfiction-manager' ),
+					'bookmark'          => __( 'Bookmark', 'fanfiction-manager' ),
+					'storyBookmarked'   => __( 'Story Bookmarked', 'fanfiction-manager' ),
+					'bookmarkStory'     => __( 'Bookmark Story', 'fanfiction-manager' ),
+
+					// Follow strings
+					'following'         => __( 'Following', 'fanfiction-manager' ),
+					'follow'            => __( 'Follow', 'fanfiction-manager' ),
+
+					// Share strings
+					'shareSuccess'      => __( 'Shared successfully!', 'fanfiction-manager' ),
+					'linkCopied'        => __( 'Link copied to clipboard!', 'fanfiction-manager' ),
+					'copyPrompt'        => __( 'Copy this link (Ctrl+C or Cmd+C):', 'fanfiction-manager' ),
+					'linkReady'         => __( 'Link ready to copy!', 'fanfiction-manager' ),
+					'shareText'         => get_bloginfo( 'name' ), // Site name for share text
+
+					// Report strings
+					'reasonRequired'    => __( 'Please provide a reason for reporting.', 'fanfiction-manager' ),
+					'submitting'        => __( 'Submitting report...', 'fanfiction-manager' ),
+				),
 			)
 		);
 
