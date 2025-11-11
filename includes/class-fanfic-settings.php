@@ -154,6 +154,7 @@ class Fanfic_Settings {
 			'recaptcha_require_logged_in'    => false,
 			'enable_likes'                   => true,
 			'enable_subscribe'               => true,
+			'enable_share'                   => true,
 			'enable_report'                  => true,
 			'allow_anonymous_likes'          => false,
 			'allow_anonymous_reports'        => false,
@@ -1230,6 +1231,19 @@ class Fanfic_Settings {
 								<label>
 									<input type="checkbox" id="enable_subscribe" name="fanfic_settings[enable_subscribe]" value="1" <?php checked( isset( $settings['enable_subscribe'] ) ? $settings['enable_subscribe'] : true, true ); ?>>
 									<?php esc_html_e( 'Allow users to subscribe to story updates via email (available to all visitors)', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<!-- Enable Share -->
+						<tr>
+							<th scope="row">
+								<label for="enable_share"><?php esc_html_e( 'Enable Share Button', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_share" name="fanfic_settings[enable_share]" value="1" <?php checked( isset( $settings['enable_share'] ) ? $settings['enable_share'] : true, true ); ?>>
+									<?php esc_html_e( 'Show share button on stories, chapters, and author profiles (available to all visitors)', 'fanfiction-manager' ); ?>
 								</label>
 							</td>
 						</tr>

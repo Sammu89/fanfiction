@@ -165,6 +165,7 @@ class Fanfic_Shortcodes_Actions {
 		$settings = get_option( 'fanfic_settings', array() );
 		$enable_likes = isset( $settings['enable_likes'] ) ? $settings['enable_likes'] : true;
 		$enable_subscribe = isset( $settings['enable_subscribe'] ) ? $settings['enable_subscribe'] : true;
+		$enable_share = isset( $settings['enable_share'] ) ? $settings['enable_share'] : true;
 		$enable_report = isset( $settings['enable_report'] ) ? $settings['enable_report'] : true;
 		$allow_anonymous_likes = isset( $settings['allow_anonymous_likes'] ) ? $settings['allow_anonymous_likes'] : false;
 		$allow_anonymous_reports = isset( $settings['allow_anonymous_reports'] ) ? $settings['allow_anonymous_reports'] : false;
@@ -282,19 +283,21 @@ class Fanfic_Shortcodes_Actions {
 			}
 
 			// Share button for author profile
-			$author_url = get_author_posts_url( $author_id );
-			$author_name = get_the_author_meta( 'display_name', $author_id );
+			if ( $enable_share ) {
+				$author_url = get_author_posts_url( $author_id );
+				$author_name = get_the_author_meta( 'display_name', $author_id );
 
-			$output .= sprintf(
-				'<button class="fanfic-action-btn fanfic-share-btn" data-url="%s" data-title="%s" aria-label="%s">
-					<span class="fanfic-icon" aria-hidden="true">&#128279;</span>
-					<span class="fanfic-text">%s</span>
-				</button>',
-				esc_url( $author_url ),
-				esc_attr( $author_name ),
-				esc_attr__( 'Share author profile', 'fanfiction-manager' ),
-				esc_html__( 'Share', 'fanfiction-manager' )
-			);
+				$output .= sprintf(
+					'<button class="fanfic-action-btn fanfic-share-btn" data-url="%s" data-title="%s" aria-label="%s">
+						<span class="fanfic-icon" aria-hidden="true">&#128279;</span>
+						<span class="fanfic-text">%s</span>
+					</button>',
+					esc_url( $author_url ),
+					esc_attr( $author_name ),
+					esc_attr__( 'Share author profile', 'fanfiction-manager' ),
+					esc_html__( 'Share', 'fanfiction-manager' )
+				);
+			}
 
 			$output .= '</div>';
 			return $output;
@@ -469,19 +472,21 @@ class Fanfic_Shortcodes_Actions {
 		}
 
 		// Share button (available to all users)
-		$share_url = get_permalink( $item_id );
-		$share_title = get_the_title( $item_id );
+		if ( $enable_share ) {
+			$share_url = get_permalink( $item_id );
+			$share_title = get_the_title( $item_id );
 
-		$output .= sprintf(
-			'<button class="fanfic-action-btn fanfic-share-btn" data-url="%s" data-title="%s" aria-label="%s">
-				<span class="fanfic-icon" aria-hidden="true">&#128279;</span>
-				<span class="fanfic-text">%s</span>
-			</button>',
-			esc_url( $share_url ),
-			esc_attr( $share_title ),
-			esc_attr__( 'Share content', 'fanfiction-manager' ),
-			esc_html__( 'Share', 'fanfiction-manager' )
-		);
+			$output .= sprintf(
+				'<button class="fanfic-action-btn fanfic-share-btn" data-url="%s" data-title="%s" aria-label="%s">
+					<span class="fanfic-icon" aria-hidden="true">&#128279;</span>
+					<span class="fanfic-text">%s</span>
+				</button>',
+				esc_url( $share_url ),
+				esc_attr( $share_title ),
+				esc_attr__( 'Share content', 'fanfiction-manager' ),
+				esc_html__( 'Share', 'fanfiction-manager' )
+			);
+		}
 
 		// Report button (requires login OR anonymous reporting with reCAPTCHA)
 		if ( $enable_report ) {
@@ -549,6 +554,10 @@ class Fanfic_Shortcodes_Actions {
 			'story-actions'
 		);
 
+		// Get admin settings
+		$settings = get_option( 'fanfic_settings', array() );
+		$enable_share = isset( $settings['enable_share'] ) ? $settings['enable_share'] : true;
+
 		$is_logged_in = is_user_logged_in();
 		$user_id = get_current_user_id();
 		$is_bookmarked = false;
@@ -582,7 +591,7 @@ class Fanfic_Shortcodes_Actions {
 		}
 
 		// Share button
-		if ( 'yes' === $atts['show_share'] ) {
+		if ( 'yes' === $atts['show_share'] && $enable_share ) {
 			$share_url = get_permalink( $story_id );
 			$share_title = get_the_title( $story_id );
 
@@ -655,6 +664,10 @@ class Fanfic_Shortcodes_Actions {
 			'chapter-actions'
 		);
 
+		// Get admin settings
+		$settings = get_option( 'fanfic_settings', array() );
+		$enable_share = isset( $settings['enable_share'] ) ? $settings['enable_share'] : true;
+
 		$is_logged_in = is_user_logged_in();
 		$user_id = get_current_user_id();
 		$is_bookmarked = false;
@@ -704,7 +717,7 @@ class Fanfic_Shortcodes_Actions {
 		}
 
 		// Share button (shares the chapter)
-		if ( 'yes' === $atts['show_share'] ) {
+		if ( 'yes' === $atts['show_share'] && $enable_share ) {
 			$share_url = get_permalink( $chapter_id );
 			$share_title = get_the_title( $chapter_id );
 
