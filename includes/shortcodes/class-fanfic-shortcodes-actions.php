@@ -31,7 +31,7 @@ class Fanfic_Shortcodes_Actions {
 	 */
 	public static function register() {
 		// Register unified shortcode
-		add_shortcode( 'content-actions', array( __CLASS__, 'content_actions' ) );
+		add_shortcode( 'fanfic-content-actions', array( __CLASS__, 'content_actions' ) );
 
 		// Register AJAX handlers for logged-in users
 		add_action( 'wp_ajax_fanfic_bookmark_story', array( __CLASS__, 'ajax_bookmark_story' ) );
@@ -146,7 +146,7 @@ class Fanfic_Shortcodes_Actions {
 	/**
 	 * Unified content actions shortcode with auto-detection
 	 *
-	 * [content-actions]
+	 * [fanfic-content-actions]
 	 *
 	 * Auto-detects context (story/chapter/author) and displays appropriate buttons.
 	 * Adapts based on user permissions and admin settings.

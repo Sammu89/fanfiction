@@ -61,7 +61,7 @@ function fanfic_get_default_story_view_template() {
 	</div>
 
 	<div class="fanfic-story-actions">
-		[content-actions]
+		[fanfic-content-actions]
 	</div>
 
 	<div class="fanfic-story-navigation">

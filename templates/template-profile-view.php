@@ -45,7 +45,7 @@ function fanfic_get_default_profile_view_template() {
 	</header>
 
 	<div class="fanfic-profile-actions">
-		[content-actions]
+		[fanfic-content-actions]
 	</div>
 
 	<div class="fanfic-profile-bio">
