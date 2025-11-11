@@ -155,6 +155,8 @@ class Fanfic_Settings {
 			'enable_likes'                   => true,
 			'enable_subscribe'               => true,
 			'enable_report'                  => true,
+			'allow_anonymous_likes'          => false,
+			'allow_anonymous_reports'        => false,
 		);
 	}
 
@@ -1242,6 +1244,52 @@ class Fanfic_Settings {
 									<input type="checkbox" id="enable_report" name="fanfic_settings[enable_report]" value="1" <?php checked( isset( $settings['enable_report'] ) ? $settings['enable_report'] : true, true ); ?>>
 									<?php esc_html_e( 'Allow logged-in users to report inappropriate content', 'fanfiction-manager' ); ?>
 								</label>
+							</td>
+						</tr>
+
+						<!-- Allow Anonymous Likes -->
+						<tr>
+							<th scope="row">
+								<label for="allow_anonymous_likes"><?php esc_html_e( 'Allow Anonymous Likes', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="allow_anonymous_likes" name="fanfic_settings[allow_anonymous_likes]" value="1" <?php checked( isset( $settings['allow_anonymous_likes'] ) ? $settings['allow_anonymous_likes'] : false, true ); ?>>
+									<?php esc_html_e( 'Allow non-logged users to like content (one like per IP per day, optimized with transients)', 'fanfiction-manager' ); ?>
+								</label>
+								<p class="description">
+									<?php esc_html_e( 'Uses IP-based rate limiting similar to star ratings. Likes are stored in transients and synced to database via cron for better performance.', 'fanfiction-manager' ); ?>
+								</p>
+							</td>
+						</tr>
+
+						<!-- Allow Anonymous Reports -->
+						<tr>
+							<th scope="row">
+								<label for="allow_anonymous_reports"><?php esc_html_e( 'Allow Anonymous Reports', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<?php
+								$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
+								$recaptcha_secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
+								$has_recaptcha = ! empty( $recaptcha_site_key ) && ! empty( $recaptcha_secret_key );
+								$anonymous_reports_disabled = ! $has_recaptcha;
+								?>
+								<label>
+									<input type="checkbox" id="allow_anonymous_reports" name="fanfic_settings[allow_anonymous_reports]" value="1" <?php checked( isset( $settings['allow_anonymous_reports'] ) && $has_recaptcha ? $settings['allow_anonymous_reports'] : false, true ); ?> <?php disabled( $anonymous_reports_disabled ); ?>>
+									<?php esc_html_e( 'Allow non-logged users to report content (requires reCAPTCHA)', 'fanfiction-manager' ); ?>
+								</label>
+								<?php if ( ! $has_recaptcha ) : ?>
+									<p class="description" style="color: #d63638; font-weight: 600;">
+										<span class="dashicons dashicons-warning" style="color: #d63638;"></span>
+										<?php esc_html_e( 'REQUIRED: You must configure reCAPTCHA keys above to enable anonymous reporting. This prevents spam and abuse.', 'fanfiction-manager' ); ?>
+									</p>
+								<?php else : ?>
+									<p class="description">
+										<span class="dashicons dashicons-yes-alt" style="color: #46b450;"></span>
+										<?php esc_html_e( 'reCAPTCHA is configured. Anonymous reports will be protected against spam.', 'fanfiction-manager' ); ?>
+									</p>
+								<?php endif; ?>
 							</td>
 						</tr>
 					</tbody>

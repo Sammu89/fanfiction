@@ -51,6 +51,26 @@ class Fanfic_Shortcodes_Actions {
 		add_action( 'wp_ajax_fanfic_subscribe_to_story', array( __CLASS__, 'ajax_subscribe_to_story' ) );
 		add_action( 'wp_ajax_nopriv_fanfic_subscribe_to_story', array( __CLASS__, 'ajax_subscribe_to_story' ) );
 
+		// Register cron job for syncing anonymous likes
+		add_action( 'fanfic_daily_sync_anonymous_likes', array( __CLASS__, 'sync_anonymous_likes_to_database' ) );
+
+		// Schedule cron job if not already scheduled
+		if ( ! wp_next_scheduled( 'fanfic_daily_sync_anonymous_likes' ) ) {
+			$settings = get_option( 'fanfic_settings', array() );
+			$cron_hour = isset( $settings['cron_hour'] ) ? absint( $settings['cron_hour'] ) : 3;
+
+			// Calculate next run time
+			$current_time = current_time( 'timestamp' );
+			$scheduled_time = strtotime( gmdate( 'Y-m-d' ) . ' ' . $cron_hour . ':00:00' );
+
+			// If the scheduled time for today has already passed, schedule for tomorrow
+			if ( $scheduled_time <= $current_time ) {
+				$scheduled_time = strtotime( '+1 day', $scheduled_time );
+			}
+
+			wp_schedule_event( $scheduled_time, 'daily', 'fanfic_daily_sync_anonymous_likes' );
+		}
+
 		// Enqueue scripts
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_scripts' ) );
 	}
@@ -116,6 +136,18 @@ class Fanfic_Shortcodes_Actions {
 		$enable_likes = isset( $settings['enable_likes'] ) ? $settings['enable_likes'] : true;
 		$enable_subscribe = isset( $settings['enable_subscribe'] ) ? $settings['enable_subscribe'] : true;
 		$enable_report = isset( $settings['enable_report'] ) ? $settings['enable_report'] : true;
+		$allow_anonymous_likes = isset( $settings['allow_anonymous_likes'] ) ? $settings['allow_anonymous_likes'] : false;
+		$allow_anonymous_reports = isset( $settings['allow_anonymous_reports'] ) ? $settings['allow_anonymous_reports'] : false;
+
+		// Check if reCAPTCHA is configured (required for anonymous reports)
+		$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
+		$recaptcha_secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
+		$has_recaptcha = ! empty( $recaptcha_site_key ) && ! empty( $recaptcha_secret_key );
+
+		// Disable anonymous reports if reCAPTCHA is not configured
+		if ( $allow_anonymous_reports && ! $has_recaptcha ) {
+			$allow_anonymous_reports = false;
+		}
 
 		$is_logged_in = is_user_logged_in();
 		$user_id = get_current_user_id();
@@ -161,9 +193,12 @@ class Fanfic_Shortcodes_Actions {
 				$is_marked_read = self::is_chapter_marked_read( $chapter_id, $user_id );
 			}
 			$is_subscribed = self::is_subscribed_to_story( $story_id, $user_id );
+		} elseif ( $allow_anonymous_likes ) {
+			// Check if anonymous user (by IP) has already liked this content today
+			$is_liked = self::has_anonymous_user_liked( $item_id, $context );
 		}
 
-		// Get like count
+		// Get like count (includes both logged-in and anonymous likes)
 		$like_count = self::get_like_count( $item_id, $context );
 
 		// Build output
@@ -231,10 +266,12 @@ class Fanfic_Shortcodes_Actions {
 			$like_text = $is_liked
 				? esc_html__( 'Liked', 'fanfiction-manager' )
 				: esc_html__( 'Like', 'fanfiction-manager' );
-			$like_disabled = ! $is_logged_in ? 'disabled' : '';
+			// Disable only if user is not logged in AND anonymous likes are not allowed
+			$like_disabled = ( ! $is_logged_in && ! $allow_anonymous_likes ) ? 'disabled' : '';
+			$like_data_anonymous = $allow_anonymous_likes ? ' data-allow-anonymous="1"' : '';
 
 			$output .= sprintf(
-				'<button class="fanfic-action-btn fanfic-like-btn %s %s" data-item-id="%d" data-item-type="%s" data-action="%s" aria-label="%s" aria-pressed="%s" %s>
+				'<button class="fanfic-action-btn fanfic-like-btn %s %s" data-item-id="%d" data-item-type="%s" data-action="%s"%s aria-label="%s" aria-pressed="%s" %s>
 					<span class="fanfic-icon" aria-hidden="true">%s</span>
 					<span class="fanfic-text">%s <span class="fanfic-like-count">(%d)</span></span>
 					%s
@@ -244,13 +281,14 @@ class Fanfic_Shortcodes_Actions {
 				absint( $item_id ),
 				esc_attr( $context ),
 				$is_liked ? 'unlike' : 'like',
+				$like_data_anonymous,
 				esc_attr( $is_liked ? __( 'Unlike', 'fanfiction-manager' ) : __( 'Like this', 'fanfiction-manager' ) ),
 				$is_liked ? 'true' : 'false',
-				! $is_logged_in ? 'disabled="disabled"' : '',
+				( ! $is_logged_in && ! $allow_anonymous_likes ) ? 'disabled="disabled"' : '',
 				$is_liked ? '&#10084;' : '&#129293;',
 				$like_text,
 				absint( $like_count ),
-				! $is_logged_in ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
+				( ! $is_logged_in && ! $allow_anonymous_likes ) ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
 			);
 		}
 
@@ -349,12 +387,14 @@ class Fanfic_Shortcodes_Actions {
 			esc_html__( 'Share', 'fanfiction-manager' )
 		);
 
-		// Report button (requires login)
+		// Report button (requires login OR anonymous reporting with reCAPTCHA)
 		if ( $enable_report ) {
-			$report_disabled = ! $is_logged_in ? 'disabled' : '';
+			// Disable only if user is not logged in AND anonymous reports are not allowed
+			$report_disabled = ( ! $is_logged_in && ! $allow_anonymous_reports ) ? 'disabled' : '';
+			$report_data_anonymous = $allow_anonymous_reports ? ' data-allow-anonymous="1"' : '';
 
 			$output .= sprintf(
-				'<button class="fanfic-action-btn fanfic-report-btn %s" data-item-id="%d" data-item-type="%s" aria-label="%s" %s>
+				'<button class="fanfic-action-btn fanfic-report-btn %s" data-item-id="%d" data-item-type="%s"%s aria-label="%s" %s>
 					<span class="fanfic-icon" aria-hidden="true">&#9888;</span>
 					<span class="fanfic-text">%s</span>
 					%s
@@ -362,10 +402,11 @@ class Fanfic_Shortcodes_Actions {
 				esc_attr( $report_disabled ),
 				absint( $item_id ),
 				esc_attr( $context ),
+				$report_data_anonymous,
 				esc_attr__( 'Report this content', 'fanfiction-manager' ),
-				! $is_logged_in ? 'disabled="disabled"' : '',
+				( ! $is_logged_in && ! $allow_anonymous_reports ) ? 'disabled="disabled"' : '',
 				esc_html__( 'Report', 'fanfiction-manager' ),
-				! $is_logged_in ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
+				( ! $is_logged_in && ! $allow_anonymous_reports ) ? '<span class="fanfic-lock-icon" aria-hidden="true">&#128274;</span>' : ''
 			);
 		}
 
@@ -1441,5 +1482,149 @@ class Fanfic_Shortcodes_Actions {
 		);
 
 		return $output;
+	}
+
+	/**
+	 * Check if anonymous user (by IP) has liked content today
+	 *
+	 * @since 1.0.0
+	 * @param int    $item_id   Item ID.
+	 * @param string $item_type Item type (story/chapter).
+	 * @return bool True if liked, false otherwise.
+	 */
+	private static function has_anonymous_user_liked( $item_id, $item_type ) {
+		$user_ip = self::get_user_ip();
+		if ( empty( $user_ip ) ) {
+			return false;
+		}
+
+		// Create transient key: fanfic_anon_like_{item_type}_{item_id}_{ip_hash}_{date}
+		$ip_hash = md5( $user_ip );
+		$date = gmdate( 'Y-m-d' );
+		$transient_key = "fanfic_anon_like_{$item_type}_{$item_id}_{$ip_hash}_{$date}";
+
+		return (bool) get_transient( $transient_key );
+	}
+
+	/**
+	 * Record anonymous like in transient
+	 *
+	 * @since 1.0.0
+	 * @param int    $item_id   Item ID.
+	 * @param string $item_type Item type (story/chapter).
+	 * @return bool True on success, false on failure.
+	 */
+	public static function record_anonymous_like( $item_id, $item_type ) {
+		$user_ip = self::get_user_ip();
+		if ( empty( $user_ip ) ) {
+			return false;
+		}
+
+		// Create transient key for rate limiting
+		$ip_hash = md5( $user_ip );
+		$date = gmdate( 'Y-m-d' );
+		$transient_key = "fanfic_anon_like_{$item_type}_{$item_id}_{$ip_hash}_{$date}";
+
+		// Check if already liked today
+		if ( get_transient( $transient_key ) ) {
+			return false;
+		}
+
+		// Set transient (expires in 24 hours)
+		set_transient( $transient_key, 1, DAY_IN_SECONDS );
+
+		// Add to pending sync queue
+		$queue_key = 'fanfic_anon_likes_queue';
+		$queue = get_option( $queue_key, array() );
+
+		$queue[] = array(
+			'item_id'   => $item_id,
+			'item_type' => $item_type,
+			'ip'        => $user_ip,
+			'timestamp' => current_time( 'mysql' ),
+		);
+
+		update_option( $queue_key, $queue );
+
+		return true;
+	}
+
+	/**
+	 * Get user IP address
+	 *
+	 * @since 1.0.0
+	 * @return string User IP address.
+	 */
+	private static function get_user_ip() {
+		$ip = '';
+
+		// Check for shared internet/ISP IP
+		if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
+			$ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_CLIENT_IP'] ) );
+		} elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+			// Check for IP passed from proxy
+			$ip = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
+		} elseif ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
+			$ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
+		}
+
+		// Validate IP
+		if ( ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+			$ip = '';
+		}
+
+		return $ip;
+	}
+
+	/**
+	 * Sync anonymous likes from transients to database (called by cron)
+	 *
+	 * @since 1.0.0
+	 * @return int Number of likes synced.
+	 */
+	public static function sync_anonymous_likes_to_database() {
+		global $wpdb;
+
+		$queue_key = 'fanfic_anon_likes_queue';
+		$queue = get_option( $queue_key, array() );
+
+		if ( empty( $queue ) ) {
+			return 0;
+		}
+
+		$table_name = $wpdb->prefix . 'fanfic_likes';
+		$synced_count = 0;
+
+		foreach ( $queue as $like ) {
+			// Check if this IP+item combination already exists in database
+			$exists = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM {$table_name} WHERE item_id = %d AND item_type = %s AND user_id = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
+				$like['item_id'],
+				$like['item_type']
+			) );
+
+			if ( ! $exists ) {
+				// Insert as anonymous like (user_id = 0)
+				$inserted = $wpdb->insert(
+					$table_name,
+					array(
+						'item_id'    => $like['item_id'],
+						'item_type'  => $like['item_type'],
+						'user_id'    => 0, // 0 indicates anonymous like
+						'created_at' => $like['timestamp'],
+					),
+					array( '%d', '%s', '%d', '%s' )
+				);
+
+				if ( $inserted ) {
+					$synced_count++;
+				}
+			}
+		}
+
+		// Clear the queue
+		delete_option( $queue_key );
+
+		return $synced_count;
 	}
 }
