@@ -1188,8 +1188,12 @@ class Fanfic_Shortcodes_Actions {
 			) );
 		}
 
-		// Check if user is logged in
-		if ( ! is_user_logged_in() ) {
+		// Check if user is logged in OR anonymous reports are allowed with reCAPTCHA
+		$is_logged_in = is_user_logged_in();
+		$settings = get_option( 'fanfic_settings', array() );
+		$allow_anonymous_reports = isset( $settings['allow_anonymous_reports'] ) ? $settings['allow_anonymous_reports'] : false;
+
+		if ( ! $is_logged_in && ! $allow_anonymous_reports ) {
 			wp_send_json_error( array(
 				'message' => esc_html__( 'You must be logged in to report content.', 'fanfiction-manager' ),
 			) );
@@ -1199,6 +1203,12 @@ class Fanfic_Shortcodes_Actions {
 		$item_type = isset( $_POST['item_type'] ) ? sanitize_text_field( $_POST['item_type'] ) : '';
 		$reason = isset( $_POST['reason'] ) ? sanitize_textarea_field( $_POST['reason'] ) : '';
 		$recaptcha_response = isset( $_POST['recaptcha_response'] ) ? sanitize_text_field( $_POST['recaptcha_response'] ) : '';
+
+		// Get metadata
+		$item_title = isset( $_POST['item_title'] ) ? sanitize_text_field( $_POST['item_title'] ) : '';
+		$item_url = isset( $_POST['item_url'] ) ? esc_url_raw( $_POST['item_url'] ) : '';
+		$author_id = isset( $_POST['author_id'] ) ? absint( $_POST['author_id'] ) : 0;
+		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
 
 		if ( ! $item_id || ! $item_type || ! $reason ) {
 			wp_send_json_error( array(
@@ -1213,6 +1223,12 @@ class Fanfic_Shortcodes_Actions {
 			) );
 		}
 
+		// Get chapter title if reporting a chapter
+		$chapter_title = '';
+		if ( 'chapter' === $item_type ) {
+			$chapter_title = get_the_title( $item_id );
+		}
+
 		// Verify item exists
 		if ( 'comment' === $item_type ) {
 			$comment = get_comment( $item_id );
@@ -1223,7 +1239,7 @@ class Fanfic_Shortcodes_Actions {
 			}
 
 			// Prevent users from reporting their own comments
-			if ( absint( $comment->user_id ) === get_current_user_id() ) {
+			if ( $is_logged_in && absint( $comment->user_id ) === get_current_user_id() ) {
 				wp_send_json_error( array(
 					'message' => esc_html__( 'You cannot report your own comment.', 'fanfiction-manager' ),
 				) );
@@ -1238,9 +1254,9 @@ class Fanfic_Shortcodes_Actions {
 			}
 		}
 
-		// Verify reCAPTCHA if configured
+		// Verify reCAPTCHA if configured (mandatory for anonymous reports)
 		$recaptcha_secret = get_option( 'fanfic_recaptcha_secret_key', '' );
-		if ( ! empty( $recaptcha_secret ) ) {
+		if ( ! empty( $recaptcha_secret ) && ( ! $is_logged_in || $allow_anonymous_reports ) ) {
 			if ( empty( $recaptcha_response ) ) {
 				wp_send_json_error( array(
 					'message' => esc_html__( 'Please complete the reCAPTCHA verification.', 'fanfiction-manager' ),
@@ -1269,18 +1285,29 @@ class Fanfic_Shortcodes_Actions {
 			}
 		}
 
-		$user_id = get_current_user_id();
+		$user_id = $is_logged_in ? get_current_user_id() : null;
+		$user_ip = self::get_user_ip();
 
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'fanfic_reports';
 
-		// Check if user has already reported this item
-		$existing = $wpdb->get_var( $wpdb->prepare(
-			"SELECT id FROM {$table_name} WHERE reported_item_id = %d AND reported_item_type = %s AND reporter_id = %d",
-			$item_id,
-			$item_type,
-			$user_id
-		) );
+		// Check if user/IP has already reported this item
+		if ( $is_logged_in ) {
+			$existing = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM {$table_name} WHERE reported_item_id = %d AND reported_item_type = %s AND reporter_id = %d",
+				$item_id,
+				$item_type,
+				$user_id
+			) );
+		} else {
+			// For anonymous, check by IP
+			$existing = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM {$table_name} WHERE reported_item_id = %d AND reported_item_type = %s AND reporter_ip = %s AND reporter_id IS NULL",
+				$item_id,
+				$item_type,
+				$user_ip
+			) );
+		}
 
 		if ( $existing ) {
 			wp_send_json_error( array(
@@ -1288,17 +1315,22 @@ class Fanfic_Shortcodes_Actions {
 			) );
 		}
 
-		// Insert report
+		// Insert report with enhanced metadata
 		$inserted = $wpdb->insert(
 			$table_name,
 			array(
-				'reported_item_id'   => $item_id,
-				'reported_item_type' => $item_type,
-				'reporter_id'        => $user_id,
-				'reason'             => $reason,
-				'status'             => 'pending',
+				'reported_item_id'        => $item_id,
+				'reported_item_type'      => $item_type,
+				'reported_item_title'     => $item_title,
+				'reported_item_url'       => $item_url,
+				'reported_item_author_id' => $author_id,
+				'chapter_title'           => $chapter_title,
+				'reporter_id'             => $user_id,
+				'reporter_ip'             => $user_ip,
+				'reason'                  => $reason,
+				'status'                  => 'pending',
 			),
-			array( '%d', '%s', '%d', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%s' )
 		);
 
 		if ( false === $inserted ) {
