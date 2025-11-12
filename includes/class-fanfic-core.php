@@ -80,7 +80,13 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-shortcodes.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-author-dashboard.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-comments.php';
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-ratings.php';
+
+		// New optimized rating and like system (v2.0)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-user-identifier.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-rating-system.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-like-system.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';
+
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-bookmarks.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-follows.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-views.php';
@@ -181,8 +187,10 @@ class Fanfic_Core {
 		// Initialize comments system
 		Fanfic_Comments::init();
 
-		// Initialize ratings system
-		Fanfic_Ratings::init();
+		// Initialize new rating and like system (v2.0)
+		Fanfic_Rating_System::init();
+		Fanfic_Like_System::init();
+		Fanfic_Cron_Cleanup::init();
 
 		// Initialize bookmarks system
 		Fanfic_Bookmarks::init();
@@ -808,6 +816,10 @@ class Fanfic_Core {
 		// Schedule cache cleanup cron
 		Fanfic_Cache_Admin::schedule_cleanup();
 
+		// Schedule rating/like anonymization cron (v2.0)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';
+		Fanfic_Cron_Cleanup::schedule_cron();
+
 		// For multisite, store blog-specific activation
 		if ( is_multisite() ) {
 			update_option( 'fanfic_activated_blog_' . $blog_id, true );
@@ -820,6 +832,10 @@ class Fanfic_Core {
 	public static function deactivate() {
 		// Flush rewrite rules
 		flush_rewrite_rules();
+
+		// Unschedule cron jobs
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';
+		Fanfic_Cron_Cleanup::unschedule_cron();
 
 		// Check if user wants to delete all data
 		$delete_data = get_option( 'fanfic_delete_on_deactivate', false );
@@ -998,19 +1014,21 @@ class Fanfic_Core {
 		$charset_collate = $wpdb->get_charset_collate();
 		$table_prefix = $wpdb->prefix . 'fanfic_';
 
-		// Ratings table
+		// Ratings table (chapters only - stories are derived from chapter ratings)
 		$ratings_table = $table_prefix . 'ratings';
 		$sql_ratings = "CREATE TABLE IF NOT EXISTS {$ratings_table} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			chapter_id bigint(20) UNSIGNED NOT NULL,
-			user_id bigint(20) UNSIGNED NOT NULL,
+			user_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
 			rating tinyint(1) UNSIGNED NOT NULL,
+			identifier_hash varchar(32) DEFAULT NULL,
 			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
-			UNIQUE KEY unique_rating (chapter_id, user_id),
+			UNIQUE KEY unique_rating_logged_in (chapter_id, user_id),
+			UNIQUE KEY unique_rating_anonymous (chapter_id, identifier_hash),
 			KEY chapter_id (chapter_id),
-			KEY user_id (user_id),
-			KEY created_at (created_at)
+			KEY created_at (created_at),
+			KEY identifier_hash (identifier_hash)
 		) $charset_collate;";
 
 		// Bookmarks table
@@ -1085,20 +1103,20 @@ class Fanfic_Core {
 			KEY author_id (reported_item_author_id)
 		) $charset_collate;";
 
-		// Likes table (for story/chapter likes)
+		// Likes table (chapters only - story likes are sum of chapter likes)
 		$likes_table = $table_prefix . 'likes';
 		$sql_likes = "CREATE TABLE IF NOT EXISTS {$likes_table} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			item_id bigint(20) UNSIGNED NOT NULL,
-			item_type varchar(20) NOT NULL,
-			user_id bigint(20) UNSIGNED NOT NULL,
+			chapter_id bigint(20) UNSIGNED NOT NULL,
+			user_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
+			identifier_hash varchar(32) DEFAULT NULL,
 			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
-			UNIQUE KEY unique_like (item_id, item_type, user_id),
-			KEY item_id (item_id),
-			KEY user_id (user_id),
-			KEY item_type (item_type),
-			KEY created_at (created_at)
+			UNIQUE KEY unique_like_logged_in (chapter_id, user_id),
+			UNIQUE KEY unique_like_anonymous (chapter_id, identifier_hash),
+			KEY chapter_id (chapter_id),
+			KEY created_at (created_at),
+			KEY identifier_hash (identifier_hash)
 		) $charset_collate;";
 
 		// Reading progress table (tracks which chapter user is on)
