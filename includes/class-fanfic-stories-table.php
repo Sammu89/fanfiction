@@ -298,12 +298,14 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 */
 	public function column_average_rating( $item ) {
 		$story_id = absint( $item->ID );
-		$rating = Fanfic_Ratings::get_story_rating( $story_id );
-		$count = Fanfic_Ratings::get_story_rating_count( $story_id );
+		$rating_data = Fanfic_Rating_System::get_story_rating( $story_id );
 
-		if ( $count === 0 ) {
+		if ( ! $rating_data || $rating_data->total_votes === 0 ) {
 			return '<span class="rating-none">' . __( 'No ratings', 'fanfiction-manager' ) . '</span>';
 		}
+
+		$rating = $rating_data->average_rating;
+		$count = $rating_data->total_votes;
 
 		return sprintf(
 			'<span class="rating-display" title="%s">%.1f (%d)</span>',
@@ -515,7 +517,8 @@ class Fanfic_Stories_Table extends WP_List_Table {
 				}
 
 				if ( 'average_rating' === $orderby ) {
-					$story->rating = Fanfic_Ratings::get_story_rating( $story_id );
+					$rating_data = Fanfic_Rating_System::get_story_rating( $story_id );
+					$story->rating = $rating_data ? $rating_data->average_rating : 0;
 				}
 			}
 

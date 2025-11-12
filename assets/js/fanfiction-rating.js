@@ -1,49 +1,101 @@
 /**
- * Fanfiction Manager - Rating System JavaScript
+ * Fanfiction Manager - Rating System JavaScript (v2.0)
  *
- * Handles interactive star rating functionality.
+ * Handles interactive star rating with browser fingerprinting.
+ * Features:
+ * - Browser fingerprint generation (cached per session)
+ * - 1-5 star ratings (no half-stars for simplicity)
+ * - Real-time updates with incremental cache
+ * - Anonymous + logged-in user support
  *
  * @package FanfictionManager
- * @since 1.0.0
+ * @since 2.0.0
  */
 
 (function($) {
 	'use strict';
 
+	var userFingerprint = null; // Cached fingerprint for session
+
+	/**
+	 * Collect browser fingerprint
+	 * Called once per page load, cached in memory
+	 */
+	function collectFingerprint() {
+		return JSON.stringify({
+			ua: navigator.userAgent,
+			screen: screen.width + 'x' + screen.height,
+			tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+			lang: navigator.language,
+			platform: navigator.platform,
+			colorDepth: screen.colorDepth,
+			cores: navigator.hardwareConcurrency || 0
+		});
+	}
+
+	/**
+	 * Get fingerprint (with caching)
+	 */
+	function getFingerprint() {
+		if (!userFingerprint) {
+			userFingerprint = collectFingerprint();
+		}
+		return userFingerprint;
+	}
+
 	/**
 	 * Initialize rating system
 	 */
 	function init() {
-		// Interactive star ratings
-		$(document).on('mouseenter', '.fanfic-rating-interactive .fanfic-star', handleStarHover);
-		$(document).on('mouseleave', '.fanfic-rating-interactive', handleRatingLeave);
-		$(document).on('click', '.fanfic-rating-interactive .fanfic-star', handleStarClick);
+		// Initialize all rating widgets
+		$('.fanfic-rating-widget').each(function() {
+			initRatingWidget($(this));
+		});
 
-		// Keyboard navigation for ratings
-		$(document).on('keydown', '.fanfic-rating-interactive', handleRatingKeyboard);
+		// Star interaction handlers
+		$(document).on('click', '.fanfic-rating-stars .fanfic-star', handleStarClick);
+		$(document).on('mouseenter', '.fanfic-rating-stars .fanfic-star', handleStarHover);
+		$(document).on('mouseleave', '.fanfic-rating-stars', handleRatingLeave);
 	}
 
 	/**
-	 * Handle star hover
+	 * Initialize individual rating widget
 	 */
-	function handleStarHover(e) {
-		var $star = $(this);
-		var $container = $star.closest('.fanfic-rating-interactive');
-		var value = parseFloat($star.data('value'));
+	function initRatingWidget($widget) {
+		var chapterId = $widget.data('chapter-id');
 
-		// Highlight stars up to hovered star
-		updateStarDisplay($container, value);
+		if (!chapterId) {
+			return;
+		}
+
+		// Check eligibility and existing rating
+		checkRatingEligibility(chapterId, function(data) {
+			if (data.existing_rating) {
+				// User already rated - show their rating
+				updateStarDisplay($widget.find('.fanfic-rating-stars'), data.existing_rating);
+			}
+		});
 	}
 
 	/**
-	 * Handle mouse leave from rating container
+	 * Check if user can rate (and get existing rating)
 	 */
-	function handleRatingLeave(e) {
-		var $container = $(this);
-		var currentRating = parseFloat($container.data('rating')) || 0;
-
-		// Reset to current rating
-		updateStarDisplay($container, currentRating);
+	function checkRatingEligibility(chapterId, callback) {
+		$.ajax({
+			url: fanficRating.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'fanfic_check_rating_eligibility',
+				nonce: fanficRating.nonce,
+				chapter_id: chapterId,
+				fingerprint: getFingerprint()
+			},
+			success: function(response) {
+				if (response.success) {
+					callback(response.data);
+				}
+			}
+		});
 	}
 
 	/**
@@ -53,76 +105,69 @@
 		e.preventDefault();
 
 		var $star = $(this);
-		var $container = $star.closest('.fanfic-rating-interactive');
-		var $wrapper = $container.closest('.fanfic-chapter-rating, .fanfic-story-rating');
-		var chapterId = $wrapper.data('chapter-id');
-		var value = parseFloat($star.data('value'));
+		var $container = $star.closest('.fanfic-rating-stars');
+		var $widget = $star.closest('.fanfic-rating-widget');
+		var chapterId = $widget.data('chapter-id');
+		var rating = parseInt($star.data('value'));
 
-		// Check if clicking on half-star position
-		var clickX = e.pageX - $star.offset().left;
-		var starWidth = $star.outerWidth();
-		var isHalf = clickX < starWidth / 2;
-
-		var rating = isHalf ? value - 0.5 : value;
-
-		// Update display immediately
-		updateStarDisplay($container, rating);
-		$container.data('rating', rating);
-
-		// Submit rating via AJAX
-		submitRating(chapterId, rating, $wrapper);
-	}
-
-	/**
-	 * Handle keyboard navigation
-	 */
-	function handleRatingKeyboard(e) {
-		var $container = $(this);
-		var currentRating = parseFloat($container.data('rating')) || 0;
-		var newRating = currentRating;
-
-		// Arrow keys to adjust rating
-		if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-			e.preventDefault();
-			newRating = Math.min(5, currentRating + 0.5);
-		} else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-			e.preventDefault();
-			newRating = Math.max(0.5, currentRating - 0.5);
-		} else if (e.key === 'Enter' || e.key === ' ') {
-			e.preventDefault();
-			// Submit current rating
-			var $wrapper = $container.closest('.fanfic-chapter-rating, .fanfic-story-rating');
-			var chapterId = $wrapper.data('chapter-id');
-			if (currentRating > 0) {
-				submitRating(chapterId, currentRating, $wrapper);
-			}
-			return;
-		} else {
+		if (!chapterId || !rating) {
 			return;
 		}
 
-		// Update display
-		updateStarDisplay($container, newRating);
-		$container.data('rating', newRating);
-		$container.attr('aria-valuenow', newRating);
+		// Update display immediately (optimistic update)
+		updateStarDisplay($container, rating);
+
+		// Disable clicks temporarily
+		$container.addClass('fanfic-rating-submitting');
+
+		// Submit rating
+		submitRating(chapterId, rating, $widget);
+	}
+
+	/**
+	 * Handle star hover (preview)
+	 */
+	function handleStarHover(e) {
+		var $star = $(this);
+		var $container = $star.closest('.fanfic-rating-stars');
+		var rating = parseInt($star.data('value'));
+
+		// Don't hover if currently submitting
+		if ($container.hasClass('fanfic-rating-submitting')) {
+			return;
+		}
+
+		updateStarDisplay($container, rating);
+	}
+
+	/**
+	 * Handle mouse leave (reset to actual rating)
+	 */
+	function handleRatingLeave(e) {
+		var $container = $(this);
+		var $widget = $container.closest('.fanfic-rating-widget');
+		var currentRating = $widget.data('user-rating') || 0;
+
+		// Don't reset if currently submitting
+		if ($container.hasClass('fanfic-rating-submitting')) {
+			return;
+		}
+
+		updateStarDisplay($container, currentRating);
 	}
 
 	/**
 	 * Update star display
 	 */
 	function updateStarDisplay($container, rating) {
-		$container.find('.fanfic-star').each(function(index) {
+		$container.find('.fanfic-star').each(function() {
 			var $star = $(this);
-			var starValue = index + 1;
+			var starValue = parseInt($star.data('value'));
 
-			$star.removeClass('fanfic-star-full fanfic-star-half fanfic-star-empty');
-
-			if (starValue <= Math.floor(rating)) {
-				$star.addClass('fanfic-star-full');
-			} else if (starValue - 0.5 <= rating) {
-				$star.addClass('fanfic-star-half');
+			if (starValue <= rating) {
+				$star.addClass('active');
 			} else {
-				$star.addClass('fanfic-star-empty');
+				$star.removeClass('active');
 			}
 		});
 	}
@@ -130,7 +175,7 @@
 	/**
 	 * Submit rating via AJAX
 	 */
-	function submitRating(chapterId, rating, $wrapper) {
+	function submitRating(chapterId, rating, $widget) {
 		$.ajax({
 			url: fanficRating.ajaxUrl,
 			type: 'POST',
@@ -138,28 +183,71 @@
 				action: 'fanfic_submit_rating',
 				nonce: fanficRating.nonce,
 				chapter_id: chapterId,
-				rating: rating
+				rating: rating,
+				fingerprint: getFingerprint()
 			},
 			success: function(response) {
-				if (response.success) {
-					// Update average rating display
-					$wrapper.find('.fanfic-rating-average').text(formatRating(response.data.avg_rating));
+				var $container = $widget.find('.fanfic-rating-stars');
+				$container.removeClass('fanfic-rating-submitting');
 
-					// Update rating count
-					var countText = response.data.total_ratings === 1
-						? '(1 ' + (fanficRating.strings.rating || 'rating') + ')'
-						: '(' + response.data.total_ratings + ' ' + (fanficRating.strings.ratings || 'ratings') + ')';
-					$wrapper.find('.fanfic-rating-count').text(countText);
+				if (response.success) {
+					// Store user's rating
+					$widget.data('user-rating', rating);
+
+					// Update average and count display
+					if ($widget.find('.fanfic-rating-average').length) {
+						$widget.find('.fanfic-rating-average').text(response.data.average_rating.toFixed(1));
+					}
+
+					if ($widget.find('.fanfic-rating-count').length) {
+						var countText = response.data.total_votes === 1
+							? '1 rating'
+							: response.data.total_votes + ' ratings';
+						$widget.find('.fanfic-rating-count').text(countText);
+					}
+
+					// Show message
+					showMessage($widget, response.data.message, 'success');
+				} else {
+					// Error - reset display
+					var currentRating = $widget.data('user-rating') || 0;
+					updateStarDisplay($container, currentRating);
+					showMessage($widget, response.data.message || fanficRating.strings.error, 'error');
 				}
+			},
+			error: function() {
+				var $container = $widget.find('.fanfic-rating-stars');
+				$container.removeClass('fanfic-rating-submitting');
+
+				// Reset display
+				var currentRating = $widget.data('user-rating') || 0;
+				updateStarDisplay($container, currentRating);
+				showMessage($widget, fanficRating.strings.error, 'error');
 			}
 		});
 	}
 
 	/**
-	 * Format rating number
+	 * Show message to user
 	 */
-	function formatRating(rating) {
-		return parseFloat(rating).toFixed(1);
+	function showMessage($widget, message, type) {
+		var $message = $widget.find('.fanfic-rating-message');
+
+		if ($message.length === 0) {
+			$message = $('<div class="fanfic-rating-message"></div>');
+			$widget.append($message);
+		}
+
+		$message
+			.removeClass('success error')
+			.addClass(type)
+			.text(message)
+			.fadeIn(200);
+
+		// Hide after 3 seconds
+		setTimeout(function() {
+			$message.fadeOut(200);
+		}, 3000);
 	}
 
 	// Initialize when document is ready
