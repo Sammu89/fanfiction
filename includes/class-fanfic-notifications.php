@@ -31,6 +31,9 @@ class Fanfic_Notifications {
 	const TYPE_NEW_FOLLOWER = 'new_follower';
 	const TYPE_NEW_CHAPTER = 'new_chapter';
 	const TYPE_NEW_STORY = 'new_story';
+	const TYPE_COMMENT_REPLY = 'comment_reply';
+	const TYPE_STORY_UPDATE = 'story_update';
+	const TYPE_FOLLOW_STORY = 'follow_story';
 
 	/**
 	 * Initialize the notifications class
@@ -48,6 +51,12 @@ class Fanfic_Notifications {
 		if ( ! wp_next_scheduled( 'fanfic_cleanup_old_notifications' ) ) {
 			self::schedule_cleanup_cron();
 		}
+
+		// Hook into WordPress comment system
+		add_action( 'wp_insert_comment', array( __CLASS__, 'handle_new_comment' ), 10, 2 );
+
+		// Hook into chapter publish
+		add_action( 'transition_post_status', array( __CLASS__, 'handle_post_transition' ), 10, 3 );
 	}
 
 	/**
@@ -57,10 +66,10 @@ class Fanfic_Notifications {
 	 * @param int    $user_id User ID to receive notification.
 	 * @param string $type    Notification type (use class constants).
 	 * @param string $message Notification message.
-	 * @param string $link    URL link for notification.
+	 * @param array  $data    Additional data (stored as JSON).
 	 * @return int|false Notification ID on success, false on failure.
 	 */
-	public static function create_notification( $user_id, $type, $message, $link = '' ) {
+	public static function create_notification( $user_id, $type, $message, $data = array() ) {
 		global $wpdb;
 
 		// Validate inputs
@@ -74,6 +83,9 @@ class Fanfic_Notifications {
 			self::TYPE_NEW_FOLLOWER,
 			self::TYPE_NEW_CHAPTER,
 			self::TYPE_NEW_STORY,
+			self::TYPE_COMMENT_REPLY,
+			self::TYPE_STORY_UPDATE,
+			self::TYPE_FOLLOW_STORY,
 		);
 
 		if ( ! in_array( $type, $valid_types, true ) ) {
@@ -81,7 +93,9 @@ class Fanfic_Notifications {
 		}
 
 		$message = sanitize_text_field( $message );
-		$link = esc_url_raw( $link );
+
+		// Encode data as JSON
+		$data_json = ! empty( $data ) ? wp_json_encode( $data ) : null;
 
 		// Insert notification
 		$table_name = $wpdb->prefix . 'fanfic_notifications';
@@ -91,7 +105,7 @@ class Fanfic_Notifications {
 				'user_id'    => $user_id,
 				'type'       => $type,
 				'message'    => $message,
-				'link'       => $link,
+				'data'       => $data_json,
 				'is_read'    => 0,
 				'created_at' => current_time( 'mysql' ),
 			),
@@ -452,5 +466,284 @@ class Fanfic_Notifications {
 		} else {
 			return date_i18n( get_option( 'date_format' ), strtotime( $timestamp ) );
 		}
+	}
+
+	/**
+	 * Batch create notifications for multiple users
+	 *
+	 * More efficient than looping create_notification() - uses single multi-row INSERT.
+	 *
+	 * @since 1.0.0
+	 * @param array  $user_ids Array of user IDs to notify.
+	 * @param string $type     Notification type.
+	 * @param string $message  Notification message.
+	 * @param array  $data     Additional data (stored as JSON).
+	 * @return int Count of created notifications.
+	 */
+	public static function batch_create_notifications( $user_ids, $type, $message, $data = array() ) {
+		global $wpdb;
+
+		if ( empty( $user_ids ) || ! is_array( $user_ids ) ) {
+			return 0;
+		}
+
+		// Validate type
+		$valid_types = array(
+			self::TYPE_NEW_COMMENT,
+			self::TYPE_NEW_FOLLOWER,
+			self::TYPE_NEW_CHAPTER,
+			self::TYPE_NEW_STORY,
+			self::TYPE_COMMENT_REPLY,
+			self::TYPE_STORY_UPDATE,
+			self::TYPE_FOLLOW_STORY,
+		);
+
+		if ( ! in_array( $type, $valid_types, true ) ) {
+			return 0;
+		}
+
+		$message = sanitize_text_field( $message );
+		$data_json = ! empty( $data ) ? wp_json_encode( $data ) : null;
+		$created_at = current_time( 'mysql' );
+
+		// Build multi-row INSERT query
+		$table_name = $wpdb->prefix . 'fanfic_notifications';
+		$values = array();
+		$placeholders = array();
+
+		foreach ( $user_ids as $user_id ) {
+			$user_id = absint( $user_id );
+			if ( ! $user_id || ! get_user_by( 'ID', $user_id ) ) {
+				continue;
+			}
+
+			$placeholders[] = '(%d, %s, %s, %s, 0, %s)';
+			$values[] = $user_id;
+			$values[] = $type;
+			$values[] = $message;
+			$values[] = $data_json;
+			$values[] = $created_at;
+		}
+
+		if ( empty( $placeholders ) ) {
+			return 0;
+		}
+
+		// Execute multi-row INSERT
+		$sql = "INSERT INTO {$table_name} (user_id, type, message, data, is_read, created_at) VALUES " . implode( ', ', $placeholders );
+		$result = $wpdb->query( $wpdb->prepare( $sql, $values ) );
+
+		// Fire action hook
+		do_action( 'fanfic_batch_notifications_created', $user_ids, $type );
+
+		return $result ? $result : 0;
+	}
+
+	/**
+	 * Create follow notification
+	 *
+	 * Notifies content creator when someone follows them or their story.
+	 *
+	 * @since 1.0.0
+	 * @param int    $follower_id Follower user ID.
+	 * @param int    $creator_id  Content creator user ID.
+	 * @param string $follow_type Follow type: 'story' or 'author'.
+	 * @param int    $target_id   Target ID (story ID or author ID).
+	 * @return int|false Notification ID on success, false on failure.
+	 */
+	public static function create_follow_notification( $follower_id, $creator_id, $follow_type, $target_id ) {
+		$follower = get_userdata( $follower_id );
+		if ( ! $follower ) {
+			return false;
+		}
+
+		if ( 'story' === $follow_type ) {
+			$story = get_post( $target_id );
+			if ( ! $story ) {
+				return false;
+			}
+
+			$message = sprintf(
+				/* translators: 1: follower name, 2: story title */
+				__( '%1$s is now following your story "%2$s"', 'fanfiction-manager' ),
+				$follower->display_name,
+				$story->post_title
+			);
+
+			$data = array(
+				'follower_id'   => $follower_id,
+				'follower_name' => $follower->display_name,
+				'story_id'      => $target_id,
+				'story_title'   => $story->post_title,
+			);
+		} else {
+			$message = sprintf(
+				/* translators: %s: follower name */
+				__( '%s is now following you', 'fanfiction-manager' ),
+				$follower->display_name
+			);
+
+			$data = array(
+				'follower_id'   => $follower_id,
+				'follower_name' => $follower->display_name,
+			);
+		}
+
+		return self::create_notification( $creator_id, self::TYPE_NEW_FOLLOWER, $message, $data );
+	}
+
+	/**
+	 * Create chapter notification
+	 *
+	 * Called when new chapter is published. Creates in-app notifications for followers.
+	 * Email notifications are handled by Email Queue class.
+	 *
+	 * @since 1.0.0
+	 * @param int $chapter_id Chapter ID.
+	 * @param int $story_id   Story ID.
+	 * @return int Count of notifications created.
+	 */
+	public static function create_chapter_notification( $chapter_id, $story_id ) {
+		global $wpdb;
+
+		$chapter = get_post( $chapter_id );
+		$story = get_post( $story_id );
+
+		if ( ! $chapter || ! $story ) {
+			return 0;
+		}
+
+		$author_id = $story->post_author;
+
+		// Get all followers (both story and author follows)
+		$followers = $wpdb->get_col( $wpdb->prepare(
+			"SELECT DISTINCT user_id FROM {$wpdb->prefix}fanfic_follows
+			WHERE (target_id = %d AND follow_type = 'story')
+			OR (target_id = %d AND follow_type = 'author')",
+			$story_id,
+			$author_id
+		) );
+
+		if ( empty( $followers ) ) {
+			return 0;
+		}
+
+		$message = sprintf(
+			/* translators: %s: story title */
+			__( 'New chapter published in "%s"', 'fanfiction-manager' ),
+			$story->post_title
+		);
+
+		$data = array(
+			'chapter_id'     => $chapter_id,
+			'story_id'       => $story_id,
+			'story_title'    => $story->post_title,
+			'chapter_title'  => $chapter->post_title,
+			'chapter_number' => get_post_meta( $chapter_id, '_chapter_number', true ),
+		);
+
+		return self::batch_create_notifications( $followers, self::TYPE_NEW_CHAPTER, $message, $data );
+	}
+
+	/**
+	 * Create comment notification
+	 *
+	 * Notifies post author when comment is posted.
+	 *
+	 * @since 1.0.0
+	 * @param int $comment_id Comment ID.
+	 * @return int|false Notification ID on success, false on failure.
+	 */
+	public static function create_comment_notification( $comment_id ) {
+		$comment = get_comment( $comment_id );
+		if ( ! $comment ) {
+			return false;
+		}
+
+		$post = get_post( $comment->comment_post_ID );
+		if ( ! $post ) {
+			return false;
+		}
+
+		// Don't notify author of their own comments
+		if ( $post->post_author == $comment->user_id ) {
+			return false;
+		}
+
+		$commenter = get_userdata( $comment->user_id );
+		$commenter_name = $commenter ? $commenter->display_name : $comment->comment_author;
+
+		$message = sprintf(
+			/* translators: 1: commenter name, 2: post title */
+			__( '%1$s commented on "%2$s"', 'fanfiction-manager' ),
+			$commenter_name,
+			$post->post_title
+		);
+
+		$data = array(
+			'comment_id'     => $comment_id,
+			'post_id'        => $post->ID,
+			'post_title'     => $post->post_title,
+			'commenter_name' => $commenter_name,
+			'comment_text'   => wp_trim_words( $comment->comment_content, 20 ),
+		);
+
+		return self::create_notification( $post->post_author, self::TYPE_NEW_COMMENT, $message, $data );
+	}
+
+	/**
+	 * Handle new comment
+	 *
+	 * WordPress hook handler for wp_insert_comment.
+	 *
+	 * @since 1.0.0
+	 * @param int        $comment_id Comment ID.
+	 * @param int|string $approved   Comment approval status.
+	 * @return void
+	 */
+	public static function handle_new_comment( $comment_id, $approved ) {
+		// Only process approved comments
+		if ( 1 !== $approved && 'approved' !== $approved ) {
+			return;
+		}
+
+		$comment = get_comment( $comment_id );
+		if ( ! $comment ) {
+			return;
+		}
+
+		$post = get_post( $comment->comment_post_ID );
+		if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+			return;
+		}
+
+		// Create notification
+		self::create_comment_notification( $comment_id );
+	}
+
+	/**
+	 * Handle post status transition
+	 *
+	 * WordPress hook handler for transition_post_status.
+	 *
+	 * @since 1.0.0
+	 * @param string  $new_status New post status.
+	 * @param string  $old_status Old post status.
+	 * @param WP_Post $post       Post object.
+	 * @return void
+	 */
+	public static function handle_post_transition( $new_status, $old_status, $post ) {
+		// Only handle chapter posts
+		if ( 'fanfiction_chapter' !== $post->post_type ) {
+			return;
+		}
+
+		// Only trigger on new publish
+		if ( 'publish' !== $new_status || 'publish' === $old_status ) {
+			return;
+		}
+
+		// Create chapter notification
+		self::create_chapter_notification( $post->ID, $post->post_parent );
 	}
 }

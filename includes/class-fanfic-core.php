@@ -63,6 +63,13 @@ class Fanfic_Core {
 		// Load cache hooks class (handles automatic cache invalidation)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache-hooks.php';
 
+		// Load security and performance classes (Phase 4: Security Hardening)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-performance-monitor.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-rate-limit.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-security.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache-manager.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-ajax-security.php';
+
 		// Load URL Manager (centralized URL management - replaces Rewrite, Dynamic_Pages, URL_Builder)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-manager.php';
 
@@ -90,10 +97,18 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-bookmarks.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-follows.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-views.php';
+
+		// Load input validation class (used by email/notification systems)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-input-validation.php';
+
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-notifications.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-notification-preferences.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-email-templates.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-email-sender.php';
+
+		// Load new email subscription and queue systems
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-email-subscriptions.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-email-queue.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-author-demotion.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-export.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-import.php';
@@ -213,11 +228,24 @@ class Fanfic_Core {
 		// Initialize email sender
 		Fanfic_Email_Sender::init();
 
+		// Initialize new email subscription and queue systems
+		Fanfic_Email_Subscriptions::init();
+		Fanfic_Email_Queue::init();
+
 		// Initialize author demotion
 		Fanfic_Author_Demotion::init();
 
 		// Initialize cache hooks (automatic cache invalidation)
 		Fanfic_Cache_Hooks::init();
+
+		// Initialize cache manager (Phase 4: Enhanced caching with incremental updates)
+		Fanfic_Cache_Manager::init();
+
+		// Initialize security and performance monitoring (Phase 4: Security Hardening)
+		Fanfic_Performance_Monitor::init();
+		Fanfic_Rate_Limit::init();
+		Fanfic_Security::init();
+		Fanfic_AJAX_Security::init();
 
 		// Initialize SEO
 		Fanfic_SEO::init();

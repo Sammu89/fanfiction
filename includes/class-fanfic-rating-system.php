@@ -2,13 +2,13 @@
 /**
  * Rating System Class
  *
- * Handles chapter and story ratings with incremental cache updates.
+ * Handles chapter ratings with cookie-based anonymous support and incremental cache updates.
  * Optimized for high-volume sites with minimal database queries.
  *
  * SYSTEM DESIGN:
  * - Users can rate chapters (1-5 stars)
  * - Stories get derived rating (mean of all chapter ratings)
- * - Anonymous users: Tracked by IP + fingerprint hash, 30-day window
+ * - Anonymous users: Cookie-based tracking (30 days, no IP storage)
  * - Logged-in users: Tracked by user_id, can change rating anytime
  * - Cache: Incremental updates (no rebuild on each vote)
  *
@@ -36,6 +36,13 @@ class Fanfic_Rating_System {
 	 * @var int
 	 */
 	const CACHE_DURATION = 86400; // 24 hours in seconds
+
+	/**
+	 * Cookie duration for anonymous ratings (30 days)
+	 *
+	 * @var int
+	 */
+	const COOKIE_DURATION = 2592000; // 30 days in seconds
 
 	/**
 	 * Initialize rating system
@@ -86,24 +93,20 @@ class Fanfic_Rating_System {
 	}
 
 	/**
-	 * Record vote on chapter with incremental cache update
+	 * Submit rating with cookie-based anonymous support
 	 *
 	 * @since 2.0.0
-	 * @param int   $chapter_id Chapter ID.
-	 * @param int   $rating     Rating value (1-5).
-	 * @param array $identifier User identifier from Fanfic_User_Identifier::get_identifier().
+	 * @param int      $chapter_id Chapter ID.
+	 * @param int      $rating     Rating value (1-5).
+	 * @param int|null $user_id    User ID (null for anonymous).
 	 * @return array|WP_Error Result array or error.
 	 */
-	public static function record_vote( $chapter_id, $rating, $identifier ) {
+	public static function submit_rating( $chapter_id, $rating, $user_id = null ) {
 		global $wpdb;
 
 		// Validate inputs
 		$chapter_id = absint( $chapter_id );
-		$rating = intval( $rating );
-
-		if ( ! $identifier || ! is_array( $identifier ) ) {
-			return new WP_Error( 'invalid_identifier', __( 'Invalid user identifier', 'fanfiction-manager' ) );
-		}
+		$rating     = intval( $rating );
 
 		if ( $rating < 1 || $rating > 5 ) {
 			return new WP_Error( 'invalid_rating', __( 'Rating must be between 1 and 5', 'fanfiction-manager' ) );
@@ -115,75 +118,101 @@ class Fanfic_Rating_System {
 			return new WP_Error( 'invalid_chapter', __( 'Invalid chapter', 'fanfiction-manager' ) );
 		}
 
+		// Check anonymous ratings settings
+		if ( ! $user_id && ! get_option( 'fanfic_allow_anonymous_ratings', true ) ) {
+			return new WP_Error( 'login_required', __( 'You must be logged in to rate', 'fanfiction-manager' ) );
+		}
+
+		// Cookie-based check for anonymous users
+		if ( ! $user_id ) {
+			$cookie_name = 'fanfic_rate_' . $chapter_id;
+			if ( isset( $_COOKIE[ $cookie_name ] ) ) {
+				return new WP_Error( 'already_rated', __( 'You have already rated this chapter', 'fanfiction-manager' ) );
+			}
+		}
+
 		$table_name = $wpdb->prefix . 'fanfic_ratings';
 		$old_rating = null;
 		$is_new_vote = true;
 
-		// Check for existing vote
-		if ( 'logged_in' === $identifier['type'] ) {
+		if ( $user_id ) {
+			// Check for existing vote (logged-in users)
 			$existing = $wpdb->get_row( $wpdb->prepare(
 				"SELECT id, rating FROM {$table_name} WHERE chapter_id = %d AND user_id = %d",
 				$chapter_id,
-				$identifier['user_id']
+				$user_id
 			) );
-		} else {
-			$existing = $wpdb->get_row( $wpdb->prepare(
-				"SELECT id, rating FROM {$table_name} WHERE chapter_id = %d AND identifier_hash = %s",
-				$chapter_id,
-				$identifier['hash']
-			) );
-		}
 
-		// Process vote
-		if ( $existing ) {
-			$old_rating = intval( $existing->rating );
+			if ( $existing ) {
+				$old_rating = intval( $existing->rating );
 
-			// Same rating - no change needed
-			if ( $old_rating === $rating ) {
-				return array(
-					'success' => true,
-					'action'  => 'unchanged',
-					'rating'  => $rating,
+				// Same rating - no change needed
+				if ( $old_rating === $rating ) {
+					return array(
+						'success' => true,
+						'action'  => 'unchanged',
+						'rating'  => $rating,
+					);
+				}
+
+				$is_new_vote = false;
+
+				// Update existing vote using REPLACE
+				$wpdb->replace(
+					$table_name,
+					array(
+						'chapter_id' => $chapter_id,
+						'user_id'    => $user_id,
+						'rating'     => $rating,
+						'created_at' => current_time( 'mysql' ),
+					),
+					array( '%d', '%d', '%d', '%s' )
 				);
+
+				$action = 'updated';
+			} else {
+				// Insert new vote
+				$wpdb->insert(
+					$table_name,
+					array(
+						'chapter_id' => $chapter_id,
+						'user_id'    => $user_id,
+						'rating'     => $rating,
+						'created_at' => current_time( 'mysql' ),
+					),
+					array( '%d', '%d', '%d', '%s' )
+				);
+
+				$action = 'created';
 			}
-
-			$is_new_vote = false;
-
-			// Update existing vote
-			$wpdb->update(
-				$table_name,
-				array( 'rating' => $rating ),
-				array( 'id' => $existing->id ),
-				array( '%d' ),
-				array( '%d' )
-			);
-
-			$action = 'updated';
-
 		} else {
-			// Insert new vote
+			// Anonymous user - insert only
 			$wpdb->insert(
 				$table_name,
 				array(
-					'chapter_id'      => $chapter_id,
-					'user_id'         => $identifier['user_id'],
-					'rating'          => $rating,
-					'identifier_hash' => $identifier['hash'],
-					'created_at'      => current_time( 'mysql' ),
+					'chapter_id' => $chapter_id,
+					'user_id'    => null,
+					'rating'     => $rating,
+					'created_at' => current_time( 'mysql' ),
 				),
-				array( '%d', '%d', '%d', '%s', '%s' )
+				array( '%d', '%d', '%d', '%s' )
 			);
+
+			// Set cookie
+			$cookie_name = 'fanfic_rate_' . $chapter_id;
+			$expire = time() + self::COOKIE_DURATION;
+			setcookie( $cookie_name, $rating, $expire, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
 
 			$action = 'created';
 		}
 
 		// Update chapter cache incrementally
-		self::update_chapter_rating_cache_incremental( $chapter_id, $rating, $old_rating, $is_new_vote );
+		self::update_rating_cache_incrementally( $chapter_id, $rating, $old_rating, $is_new_vote );
 
 		// Update story cache incrementally
 		$story_id = wp_get_post_parent_id( $chapter_id );
 		if ( $story_id ) {
-			self::update_story_rating_cache_incremental( $story_id, $rating, $old_rating, $is_new_vote );
+			self::update_story_rating_cache_incrementally( $story_id, $rating, $old_rating, $is_new_vote );
 		}
 
 		return array(
@@ -203,7 +232,7 @@ class Fanfic_Rating_System {
 	 * @param bool     $is_new_vote True if new vote, false if changed.
 	 * @return void
 	 */
-	private static function update_chapter_rating_cache_incremental( $chapter_id, $new_rating, $old_rating, $is_new_vote ) {
+	public static function update_rating_cache_incrementally( $chapter_id, $new_rating, $old_rating = null, $is_new_vote = true ) {
 		$cache_key = 'fanfic_chapter_' . $chapter_id . '_rating';
 		$data = get_transient( $cache_key );
 
@@ -255,7 +284,7 @@ class Fanfic_Rating_System {
 	 * @param bool     $is_new_vote True if new vote, false if changed.
 	 * @return void
 	 */
-	private static function update_story_rating_cache_incremental( $story_id, $new_rating, $old_rating, $is_new_vote ) {
+	private static function update_story_rating_cache_incrementally( $story_id, $new_rating, $old_rating, $is_new_vote ) {
 		$cache_key = 'fanfic_story_' . $story_id . '_rating';
 		$data = get_transient( $cache_key );
 
@@ -349,7 +378,7 @@ class Fanfic_Rating_System {
 
 		// Get published chapters
 		$chapter_ids = $wpdb->get_col( $wpdb->prepare(
-			"SELECT id FROM {$wpdb->posts}
+			"SELECT ID FROM {$wpdb->posts}
 			WHERE post_parent = %d
 			AND post_type = 'fanfiction_chapter'
 			AND post_status = 'publish'",
@@ -402,13 +431,13 @@ class Fanfic_Rating_System {
 	}
 
 	/**
-	 * Get chapter rating (cached)
+	 * Get chapter rating stats (cached)
 	 *
 	 * @since 2.0.0
 	 * @param int $chapter_id Chapter ID.
 	 * @return object Rating data object.
 	 */
-	public static function get_chapter_rating( $chapter_id ) {
+	public static function get_chapter_rating_stats( $chapter_id ) {
 		$cache_key = 'fanfic_chapter_' . $chapter_id . '_rating';
 		$data = get_transient( $cache_key );
 
@@ -440,6 +469,84 @@ class Fanfic_Rating_System {
 	}
 
 	/**
+	 * Batch get ratings for multiple chapters (ONE query)
+	 *
+	 * @since 2.0.0
+	 * @param array $chapter_ids Array of chapter IDs.
+	 * @return array Indexed array of rating stats by chapter_id.
+	 */
+	public static function batch_get_ratings( $chapter_ids ) {
+		if ( empty( $chapter_ids ) ) {
+			return array();
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_ratings';
+		$chapter_ids = array_map( 'intval', $chapter_ids );
+		$placeholders = implode( ',', array_fill( 0, count( $chapter_ids ), '%d' ) );
+
+		$results = $wpdb->get_results( $wpdb->prepare(
+			"SELECT
+				chapter_id,
+				COUNT(*) as total_votes,
+				ROUND(AVG(rating), 2) as average_rating
+			FROM {$table_name}
+			WHERE chapter_id IN ($placeholders)
+			GROUP BY chapter_id",
+			...$chapter_ids
+		), ARRAY_A );
+
+		// Index by chapter_id
+		$indexed = array();
+		foreach ( $results as $row ) {
+			$indexed[ $row['chapter_id'] ] = $row;
+		}
+
+		// Fill in missing chapters with zeros
+		foreach ( $chapter_ids as $chapter_id ) {
+			if ( ! isset( $indexed[ $chapter_id ] ) ) {
+				$indexed[ $chapter_id ] = array(
+					'chapter_id' => $chapter_id,
+					'total_votes' => 0,
+					'average_rating' => 0,
+				);
+			}
+		}
+
+		return $indexed;
+	}
+
+	/**
+	 * Check if user has rated chapter
+	 *
+	 * @since 2.0.0
+	 * @param int      $chapter_id Chapter ID.
+	 * @param int|null $user_id    User ID (null for anonymous).
+	 * @return bool|int False if not rated, rating value if rated.
+	 */
+	public static function user_has_rated( $chapter_id, $user_id = null ) {
+		if ( ! $user_id ) {
+			// Check cookie for anonymous
+			$cookie_name = 'fanfic_rate_' . $chapter_id;
+			if ( isset( $_COOKIE[ $cookie_name ] ) ) {
+				return intval( $_COOKIE[ $cookie_name ] );
+			}
+			return false;
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_ratings';
+
+		$rating = $wpdb->get_var( $wpdb->prepare(
+			"SELECT rating FROM {$table_name} WHERE chapter_id = %d AND user_id = %d",
+			$chapter_id,
+			$user_id
+		) );
+
+		return $rating ? intval( $rating ) : false;
+	}
+
+	/**
 	 * AJAX: Check rating eligibility
 	 *
 	 * @since 2.0.0
@@ -449,41 +556,17 @@ class Fanfic_Rating_System {
 		check_ajax_referer( 'fanfic_rating_nonce', 'nonce' );
 
 		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
-		$fingerprint = isset( $_POST['fingerprint'] ) ? sanitize_text_field( $_POST['fingerprint'] ) : '';
 
 		if ( ! $chapter_id ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid chapter ID', 'fanfiction-manager' ) ) );
 		}
 
-		// Get user identifier
-		$identifier = Fanfic_User_Identifier::get_identifier( $fingerprint );
-
-		if ( ! $identifier ) {
-			wp_send_json_error( array( 'message' => __( 'Could not identify user', 'fanfiction-manager' ) ) );
-		}
-
-		// Get existing rating
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'fanfic_ratings';
-		$existing_rating = null;
-
-		if ( 'logged_in' === $identifier['type'] ) {
-			$existing_rating = $wpdb->get_var( $wpdb->prepare(
-				"SELECT rating FROM {$table_name} WHERE chapter_id = %d AND user_id = %d",
-				$chapter_id,
-				$identifier['user_id']
-			) );
-		} else {
-			$existing_rating = $wpdb->get_var( $wpdb->prepare(
-				"SELECT rating FROM {$table_name} WHERE chapter_id = %d AND identifier_hash = %s",
-				$chapter_id,
-				$identifier['hash']
-			) );
-		}
+		$user_id = get_current_user_id();
+		$existing_rating = self::user_has_rated( $chapter_id, $user_id ?: null );
 
 		wp_send_json_success( array(
 			'can_vote'        => true,
-			'existing_rating' => $existing_rating ? intval( $existing_rating ) : null,
+			'existing_rating' => $existing_rating ?: null,
 		) );
 	}
 
@@ -498,24 +581,17 @@ class Fanfic_Rating_System {
 
 		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
 		$rating = isset( $_POST['rating'] ) ? intval( $_POST['rating'] ) : 0;
-		$fingerprint = isset( $_POST['fingerprint'] ) ? sanitize_text_field( $_POST['fingerprint'] ) : '';
-
-		// Get user identifier
-		$identifier = Fanfic_User_Identifier::get_identifier( $fingerprint );
-
-		if ( ! $identifier ) {
-			wp_send_json_error( array( 'message' => __( 'Could not identify user', 'fanfiction-manager' ) ) );
-		}
+		$user_id = get_current_user_id();
 
 		// Record vote
-		$result = self::record_vote( $chapter_id, $rating, $identifier );
+		$result = self::submit_rating( $chapter_id, $rating, $user_id ?: null );
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
 
 		// Get updated rating data
-		$rating_data = self::get_chapter_rating( $chapter_id );
+		$rating_data = self::get_chapter_rating_stats( $chapter_id );
 
 		wp_send_json_success( array(
 			'action'         => $result['action'],
@@ -588,48 +664,6 @@ class Fanfic_Rating_System {
 		set_transient( $cache_key, $story_ratings, 30 * MINUTE_IN_SECONDS );
 
 		return $story_ratings;
-	}
-
-	/**
-	 * Get recently rated stories
-	 *
-	 * Returns story IDs ordered by most recent rating activity.
-	 *
-	 * @since 2.0.0
-	 * @param int $limit Number of stories to retrieve.
-	 * @return array Array of story IDs.
-	 */
-	public static function get_recently_rated_stories( $limit = 10 ) {
-		// Try to get from transient cache
-		$cache_key = 'fanfic_recently_rated_stories_v2_' . $limit;
-		$cached = get_transient( $cache_key );
-
-		if ( false !== $cached ) {
-			return $cached;
-		}
-
-		global $wpdb;
-		$ratings_table = $wpdb->prefix . 'fanfic_ratings';
-
-		// Get recently rated chapters with their parent stories
-		$results = $wpdb->get_col( $wpdb->prepare(
-			"SELECT DISTINCT p.post_parent
-			FROM {$ratings_table} r
-			INNER JOIN {$wpdb->posts} p ON r.chapter_id = p.ID
-			WHERE p.post_type = 'fanfiction_chapter'
-			AND p.post_status = 'publish'
-			AND p.post_parent IN (SELECT ID FROM {$wpdb->posts} WHERE post_type = 'fanfiction_story' AND post_status = 'publish')
-			ORDER BY r.created_at DESC
-			LIMIT %d",
-			absint( $limit )
-		) );
-
-		$story_ids = array_map( 'absint', $results );
-
-		// Cache for 5 minutes
-		set_transient( $cache_key, $story_ids, 5 * MINUTE_IN_SECONDS );
-
-		return $story_ids;
 	}
 
 	/**

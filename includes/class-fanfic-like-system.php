@@ -2,13 +2,13 @@
 /**
  * Like System Class
  *
- * Handles chapter likes with incremental cache updates.
+ * Handles chapter likes with cookie-based anonymous support and incremental cache updates.
  * Story likes are derived as sum of all chapter likes.
  *
  * SYSTEM DESIGN:
  * - Users can like/unlike chapters (binary toggle)
  * - Stories get derived likes (sum of all chapter likes)
- * - Anonymous users: Tracked by IP + fingerprint hash, 30-day window
+ * - Anonymous users: Cookie-based tracking (30 days, no IP storage)
  * - Logged-in users: Tracked by user_id
  * - Cache: Incremental updates (no rebuild on each like/unlike)
  *
@@ -36,6 +36,13 @@ class Fanfic_Like_System {
 	 * @var int
 	 */
 	const CACHE_DURATION = 86400; // 24 hours in seconds
+
+	/**
+	 * Cookie duration for anonymous likes (30 days)
+	 *
+	 * @var int
+	 */
+	const COOKIE_DURATION = 2592000; // 30 days in seconds
 
 	/**
 	 * Initialize like system
@@ -86,22 +93,18 @@ class Fanfic_Like_System {
 	}
 
 	/**
-	 * Toggle like on chapter
+	 * Toggle like on chapter with cookie-based anonymous support
 	 *
 	 * @since 2.0.0
-	 * @param int   $chapter_id Chapter ID.
-	 * @param array $identifier User identifier.
+	 * @param int      $chapter_id Chapter ID.
+	 * @param int|null $user_id    User ID (null for anonymous).
 	 * @return array|WP_Error Result array or error.
 	 */
-	public static function toggle_like( $chapter_id, $identifier ) {
+	public static function toggle_like( $chapter_id, $user_id = null ) {
 		global $wpdb;
 
 		// Validate inputs
 		$chapter_id = absint( $chapter_id );
-
-		if ( ! $identifier || ! is_array( $identifier ) ) {
-			return new WP_Error( 'invalid_identifier', __( 'Invalid user identifier', 'fanfiction-manager' ) );
-		}
 
 		// Verify chapter exists
 		$chapter = get_post( $chapter_id );
@@ -110,36 +113,43 @@ class Fanfic_Like_System {
 		}
 
 		$table_name = $wpdb->prefix . 'fanfic_likes';
+		$cookie_name = 'fanfic_like_' . $chapter_id;
 
-		// Check if already liked
-		if ( 'logged_in' === $identifier['type'] ) {
+		// Check existing like
+		$existing = false;
+		if ( $user_id ) {
+			// Logged-in user
 			$existing = $wpdb->get_var( $wpdb->prepare(
 				"SELECT id FROM {$table_name} WHERE chapter_id = %d AND user_id = %d",
 				$chapter_id,
-				$identifier['user_id']
+				$user_id
 			) );
 		} else {
-			$existing = $wpdb->get_var( $wpdb->prepare(
-				"SELECT id FROM {$table_name} WHERE chapter_id = %d AND identifier_hash = %s",
-				$chapter_id,
-				$identifier['hash']
-			) );
+			// Anonymous user - check cookie
+			if ( isset( $_COOKIE[ $cookie_name ] ) ) {
+				$existing = true;
+			}
 		}
 
 		if ( $existing ) {
 			// Already liked - UNLIKE (DELETE)
-			$wpdb->delete(
-				$table_name,
-				array( 'id' => $existing ),
-				array( '%d' )
-			);
+			if ( $user_id ) {
+				$wpdb->delete(
+					$table_name,
+					array( 'id' => $existing ),
+					array( '%d' )
+				);
+			} else {
+				// Delete cookie by setting past expiration
+				setcookie( $cookie_name, '', time() - 3600, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+			}
 
 			// Update caches (decrement)
-			self::update_like_cache_incremental( $chapter_id, -1 );
+			self::update_like_cache_incrementally( $chapter_id, -1 );
 
 			$story_id = wp_get_post_parent_id( $chapter_id );
 			if ( $story_id ) {
-				self::update_story_like_cache_incremental( $story_id, -1 );
+				self::update_story_like_cache_incrementally( $story_id, -1 );
 			}
 
 			return array(
@@ -150,23 +160,39 @@ class Fanfic_Like_System {
 
 		} else {
 			// Not liked - LIKE (INSERT)
-			$wpdb->insert(
-				$table_name,
-				array(
-					'chapter_id'      => $chapter_id,
-					'user_id'         => $identifier['user_id'],
-					'identifier_hash' => $identifier['hash'],
-					'created_at'      => current_time( 'mysql' ),
-				),
-				array( '%d', '%d', '%s', '%s' )
-			);
+			if ( $user_id ) {
+				$wpdb->insert(
+					$table_name,
+					array(
+						'chapter_id' => $chapter_id,
+						'user_id'    => $user_id,
+						'created_at' => current_time( 'mysql' ),
+					),
+					array( '%d', '%d', '%s' )
+				);
+			} else {
+				// Set cookie
+				$expire = time() + self::COOKIE_DURATION;
+				setcookie( $cookie_name, '1', $expire, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+
+				// Also insert anonymous record in DB for counting
+				$wpdb->insert(
+					$table_name,
+					array(
+						'chapter_id' => $chapter_id,
+						'user_id'    => null,
+						'created_at' => current_time( 'mysql' ),
+					),
+					array( '%d', '%d', '%s' )
+				);
+			}
 
 			// Update caches (increment)
-			self::update_like_cache_incremental( $chapter_id, +1 );
+			self::update_like_cache_incrementally( $chapter_id, +1 );
 
 			$story_id = wp_get_post_parent_id( $chapter_id );
 			if ( $story_id ) {
-				self::update_story_like_cache_incremental( $story_id, +1 );
+				self::update_story_like_cache_incrementally( $story_id, +1 );
 			}
 
 			return array(
@@ -182,10 +208,10 @@ class Fanfic_Like_System {
 	 *
 	 * @since 2.0.0
 	 * @param int $chapter_id Chapter ID.
-	 * @param int $delta      +1 for like, -1 for unlike.
+	 * @param int $increment  +1 for like, -1 for unlike.
 	 * @return void
 	 */
-	private static function update_like_cache_incremental( $chapter_id, $delta ) {
+	public static function update_like_cache_incrementally( $chapter_id, $increment ) {
 		$cache_key = 'fanfic_chapter_' . $chapter_id . '_likes';
 		$count = get_transient( $cache_key );
 
@@ -195,7 +221,7 @@ class Fanfic_Like_System {
 		}
 
 		// Update incrementally
-		$count = max( 0, intval( $count ) + $delta );
+		$count = max( 0, intval( $count ) + $increment );
 
 		// Update cache
 		set_transient( $cache_key, $count, self::CACHE_DURATION );
@@ -205,11 +231,11 @@ class Fanfic_Like_System {
 	 * Update story like count incrementally
 	 *
 	 * @since 2.0.0
-	 * @param int $story_id Story ID.
-	 * @param int $delta    +1 for like, -1 for unlike.
+	 * @param int $story_id  Story ID.
+	 * @param int $increment +1 for like, -1 for unlike.
 	 * @return void
 	 */
-	private static function update_story_like_cache_incremental( $story_id, $delta ) {
+	private static function update_story_like_cache_incrementally( $story_id, $increment ) {
 		$cache_key = 'fanfic_story_' . $story_id . '_likes';
 		$count = get_transient( $cache_key );
 
@@ -219,7 +245,7 @@ class Fanfic_Like_System {
 		}
 
 		// Update incrementally
-		$count = max( 0, intval( $count ) + $delta );
+		$count = max( 0, intval( $count ) + $increment );
 
 		// Update cache
 		set_transient( $cache_key, $count, self::CACHE_DURATION );
@@ -257,7 +283,7 @@ class Fanfic_Like_System {
 
 		// Get published chapters
 		$chapter_ids = $wpdb->get_col( $wpdb->prepare(
-			"SELECT id FROM {$wpdb->posts}
+			"SELECT ID FROM {$wpdb->posts}
 			WHERE post_parent = %d
 			AND post_type = 'fanfiction_chapter'
 			AND post_status = 'publish'",
@@ -319,34 +345,69 @@ class Fanfic_Like_System {
 	}
 
 	/**
+	 * Batch get likes for multiple chapters (ONE query)
+	 *
+	 * @since 2.0.0
+	 * @param array $chapter_ids Array of chapter IDs.
+	 * @return array Indexed array of like counts by chapter_id.
+	 */
+	public static function batch_get_likes( $chapter_ids ) {
+		if ( empty( $chapter_ids ) ) {
+			return array();
+		}
+
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'fanfic_likes';
+		$chapter_ids = array_map( 'intval', $chapter_ids );
+		$placeholders = implode( ',', array_fill( 0, count( $chapter_ids ), '%d' ) );
+
+		$results = $wpdb->get_results( $wpdb->prepare(
+			"SELECT chapter_id, COUNT(*) as like_count
+			FROM {$table_name}
+			WHERE chapter_id IN ($placeholders)
+			GROUP BY chapter_id",
+			...$chapter_ids
+		), ARRAY_A );
+
+		// Index by chapter_id
+		$indexed = array();
+		foreach ( $results as $row ) {
+			$indexed[ $row['chapter_id'] ] = intval( $row['like_count'] );
+		}
+
+		// Fill in missing chapters with zeros
+		foreach ( $chapter_ids as $chapter_id ) {
+			if ( ! isset( $indexed[ $chapter_id ] ) ) {
+				$indexed[ $chapter_id ] = 0;
+			}
+		}
+
+		return $indexed;
+	}
+
+	/**
 	 * Check if user has liked chapter
 	 *
 	 * @since 2.0.0
-	 * @param int   $chapter_id Chapter ID.
-	 * @param array $identifier User identifier.
+	 * @param int      $chapter_id Chapter ID.
+	 * @param int|null $user_id    User ID (null for anonymous).
 	 * @return bool True if liked, false otherwise.
 	 */
-	public static function user_has_liked( $chapter_id, $identifier ) {
-		if ( ! $identifier || ! is_array( $identifier ) ) {
-			return false;
+	public static function user_has_liked( $chapter_id, $user_id = null ) {
+		if ( ! $user_id ) {
+			// Check cookie for anonymous
+			$cookie_name = 'fanfic_like_' . $chapter_id;
+			return isset( $_COOKIE[ $cookie_name ] );
 		}
 
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'fanfic_likes';
 
-		if ( 'logged_in' === $identifier['type'] ) {
-			$exists = $wpdb->get_var( $wpdb->prepare(
-				"SELECT 1 FROM {$table_name} WHERE chapter_id = %d AND user_id = %d",
-				$chapter_id,
-				$identifier['user_id']
-			) );
-		} else {
-			$exists = $wpdb->get_var( $wpdb->prepare(
-				"SELECT 1 FROM {$table_name} WHERE chapter_id = %d AND identifier_hash = %s",
-				$chapter_id,
-				$identifier['hash']
-			) );
-		}
+		$exists = $wpdb->get_var( $wpdb->prepare(
+			"SELECT 1 FROM {$table_name} WHERE chapter_id = %d AND user_id = %d",
+			$chapter_id,
+			$user_id
+		) );
 
 		return (bool) $exists;
 	}
@@ -361,20 +422,13 @@ class Fanfic_Like_System {
 		check_ajax_referer( 'fanfic_like_nonce', 'nonce' );
 
 		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
-		$fingerprint = isset( $_POST['fingerprint'] ) ? sanitize_text_field( $_POST['fingerprint'] ) : '';
 
 		if ( ! $chapter_id ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid chapter ID', 'fanfiction-manager' ) ) );
 		}
 
-		// Get user identifier
-		$identifier = Fanfic_User_Identifier::get_identifier( $fingerprint );
-
-		if ( ! $identifier ) {
-			wp_send_json_error( array( 'message' => __( 'Could not identify user', 'fanfiction-manager' ) ) );
-		}
-
-		$has_liked = self::user_has_liked( $chapter_id, $identifier );
+		$user_id = get_current_user_id();
+		$has_liked = self::user_has_liked( $chapter_id, $user_id ?: null );
 		$count = self::get_chapter_likes( $chapter_id );
 
 		wp_send_json_success( array(
@@ -393,20 +447,13 @@ class Fanfic_Like_System {
 		check_ajax_referer( 'fanfic_like_nonce', 'nonce' );
 
 		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
-		$fingerprint = isset( $_POST['fingerprint'] ) ? sanitize_text_field( $_POST['fingerprint'] ) : '';
-
-		// Get user identifier
-		$identifier = Fanfic_User_Identifier::get_identifier( $fingerprint );
-
-		if ( ! $identifier ) {
-			wp_send_json_error( array( 'message' => __( 'Could not identify user', 'fanfiction-manager' ) ) );
-		}
+		$user_id = get_current_user_id();
 
 		// Toggle like
-		$result = self::toggle_like( $chapter_id, $identifier );
+		$result = self::toggle_like( $chapter_id, $user_id ?: null );
 
 		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) ) );
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
 
 		// Get updated counts
