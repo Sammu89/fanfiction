@@ -6,7 +6,9 @@
       "Bash(php -l:*)",
       "Bash(whereis:*)",
       "Bash(git diff --no-pager templates/template-error.php)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(git add:*)",
+      "Bash(git config:*)"
     ],
     "deny": [],
     "ask": []
