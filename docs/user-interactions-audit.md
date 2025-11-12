@@ -858,6 +858,839 @@ ALTER TABLE wp_fanfic_notifications ADD INDEX...
 
 ---
 
-**Version**: 1.0.0
+---
+
+## Email Notifications Integration
+
+### Current Email System Analysis
+
+**Existing Infrastructure**: ✅ Already Implemented
+
+```
+includes/
+├── class-fanfic-email-sender.php           (Queue + batch sending)
+├── class-fanfic-email-templates.php        (Template management)
+└── class-fanfic-notification-preferences.php (User preferences)
+```
+
+**Current Features**:
+- ✅ Queue-based sending (wp-cron every 30 minutes)
+- ✅ Batch processing (50 emails per batch)
+- ✅ User preference checking
+- ✅ Template system with variable substitution
+- ✅ Retry logic for failed sends
+- ✅ Hook into notification creation
+
+**Current Architecture**:
+
+```
+Notification Created → Email Queued → Cron Job → Batch Send
+                          ↓
+                    Check User Preference
+                          ↓
+                    Add to Queue Option
+                          ↓
+                    Process Every 30 Minutes
+```
+
+### Issues with Current Implementation
+
+1. **❌ No Integration with Optimized Batch Notifications**
+   - When 100 followers are notified → 100 individual email queue entries
+   - Should batch queue operations
+
+2. **❌ Queue Stored in wp_options**
+   - Serialized array in single option row
+   - Race conditions on high-concurrency
+   - Should use dedicated table
+
+3. **❌ No Digest Email Support**
+   - Every notification = separate email
+   - User gets spammed with 50+ emails if author publishes 50 chapters
+   - Should have digest options (hourly, daily, weekly)
+
+4. **❌ No Rate Limiting**
+   - Can send unlimited emails to same user
+   - No protection against email overload
+   - Should limit emails per user per hour
+
+5. **❌ Synchronous Queue Addition**
+   - Adding 1000 emails to queue = loading large serialized array 1000 times
+   - Performance bottleneck on large batches
+
+### Recommended Optimizations
+
+---
+
+### 1. Email Queue Table (Critical)
+
+**Replace wp_options storage with dedicated table**:
+
+```sql
+CREATE TABLE IF NOT EXISTS wp_fanfic_email_queue (
+    id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT(20) UNSIGNED NOT NULL,
+    notification_type VARCHAR(50) NOT NULL,
+    notification_id BIGINT(20) UNSIGNED DEFAULT NULL,
+    subject VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    variables TEXT, -- JSON encoded
+    priority TINYINT(1) NOT NULL DEFAULT 5, -- 1=high, 10=low
+    status ENUM('pending', 'processing', 'sent', 'failed') NOT NULL DEFAULT 'pending',
+    attempts TINYINT(1) NOT NULL DEFAULT 0,
+    queued_at DATETIME NOT NULL,
+    next_retry DATETIME NOT NULL,
+    sent_at DATETIME DEFAULT NULL,
+    error_message TEXT,
+    PRIMARY KEY (id),
+    KEY user_id (user_id),
+    KEY status_priority (status, priority),
+    KEY next_retry (next_retry),
+    KEY queued_at (queued_at),
+    KEY notification_type (notification_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+**Benefits**:
+- ✅ No race conditions (database handles concurrency)
+- ✅ Atomic operations (INSERT vs array manipulation)
+- ✅ Indexed queries (fast batch selection)
+- ✅ Support for status tracking
+- ✅ Priority queue support
+
+---
+
+### 2. Enhanced Email Sender System
+
+**New Class**: `Fanfic_Email_Queue_System`
+
+```php
+class Fanfic_Email_Queue_System {
+    const PRIORITY_HIGH = 1;
+    const PRIORITY_NORMAL = 5;
+    const PRIORITY_LOW = 10;
+
+    /**
+     * Batch queue emails (synchronized with notification batch)
+     * CRITICAL: Called from Fanfic_Notifications_System::batch_create()
+     */
+    public static function batch_queue( $user_ids, $notification_type, $variables ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'fanfic_email_queue';
+
+        // Filter users who have email notifications enabled
+        $enabled_users = self::filter_users_with_email_enabled( $user_ids, $notification_type );
+
+        if ( empty( $enabled_users ) ) {
+            return 0;
+        }
+
+        // Check digest preferences
+        $digest_users = [];
+        $instant_users = [];
+
+        foreach ( $enabled_users as $user_id ) {
+            $digest_pref = Fanfic_Notification_Preferences::get_digest_preference( $user_id );
+
+            if ( 'instant' === $digest_pref ) {
+                $instant_users[] = $user_id;
+            } else {
+                // Store for digest processing
+                $digest_users[ $digest_pref ][] = $user_id;
+            }
+        }
+
+        $queued = 0;
+
+        // Queue instant emails (batch INSERT)
+        if ( ! empty( $instant_users ) ) {
+            $queued += self::batch_insert_emails( $instant_users, $notification_type, $variables );
+        }
+
+        // Add to digest queue (separate table)
+        foreach ( $digest_users as $frequency => $user_ids_for_frequency ) {
+            self::add_to_digest_queue( $user_ids_for_frequency, $notification_type, $variables, $frequency );
+        }
+
+        return $queued;
+    }
+
+    /**
+     * Batch INSERT emails (single query for 100+ users)
+     */
+    private static function batch_insert_emails( $user_ids, $notification_type, $variables ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'fanfic_email_queue';
+
+        // Get template
+        $template = Fanfic_Email_Templates::get_template( $notification_type );
+
+        // Prepare values for multi-row INSERT
+        $values = [];
+        $placeholders = [];
+        $now = current_time( 'mysql' );
+
+        foreach ( $user_ids as $user_id ) {
+            // Render template with variables for this user
+            $subject = self::render_template( $template['subject'], $variables, $user_id );
+            $body = self::render_template( $template['body'], $variables, $user_id );
+
+            $values[] = $user_id;
+            $values[] = $notification_type;
+            $values[] = $subject;
+            $values[] = $body;
+            $values[] = wp_json_encode( $variables );
+            $values[] = self::PRIORITY_NORMAL;
+            $values[] = $now;
+            $values[] = $now; // next_retry
+
+            $placeholders[] = '(%d, %s, %s, %s, %s, %d, %s, %s)';
+        }
+
+        // Single INSERT with multiple rows
+        $sql = "INSERT INTO {$table}
+                (user_id, notification_type, subject, body, variables, priority, queued_at, next_retry)
+                VALUES " . implode( ', ', $placeholders );
+
+        $wpdb->query( $wpdb->prepare( $sql, $values ) );
+
+        return count( $user_ids );
+    }
+
+    /**
+     * Filter users with email enabled for notification type
+     * Uses cached user preferences to avoid N queries
+     */
+    private static function filter_users_with_email_enabled( $user_ids, $notification_type ) {
+        $enabled = [];
+
+        foreach ( $user_ids as $user_id ) {
+            if ( Fanfic_Notification_Preferences::should_send_email( $user_id, $notification_type ) ) {
+                $enabled[] = $user_id;
+            }
+        }
+
+        return $enabled;
+    }
+
+    /**
+     * Process email queue (cron job)
+     * Sends emails in batches with rate limiting
+     */
+    public static function process_queue() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'fanfic_email_queue';
+        $batch_size = 50; // Send 50 emails per run
+
+        // Get pending emails (ordered by priority, then queue time)
+        $emails = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$table}
+             WHERE status = 'pending'
+             AND next_retry <= %s
+             ORDER BY priority ASC, queued_at ASC
+             LIMIT %d",
+            current_time( 'mysql' ),
+            $batch_size
+        ) );
+
+        if ( empty( $emails ) ) {
+            return 0;
+        }
+
+        $sent = 0;
+        $failed = 0;
+
+        foreach ( $emails as $email ) {
+            // Mark as processing
+            $wpdb->update(
+                $table,
+                ['status' => 'processing'],
+                ['id' => $email->id]
+            );
+
+            // Get user email
+            $user = get_user_by( 'ID', $email->user_id );
+            if ( ! $user ) {
+                self::mark_failed( $email->id, 'User not found' );
+                $failed++;
+                continue;
+            }
+
+            // Check rate limit (max 10 emails per hour per user)
+            if ( self::is_rate_limited( $email->user_id ) ) {
+                // Reschedule for later
+                $wpdb->update(
+                    $table,
+                    [
+                        'status' => 'pending',
+                        'next_retry' => date( 'Y-m-d H:i:s', strtotime( '+1 hour' ) )
+                    ],
+                    ['id' => $email->id]
+                );
+                continue;
+            }
+
+            // Send email via wp_mail
+            $result = wp_mail(
+                $user->user_email,
+                $email->subject,
+                $email->body,
+                ['Content-Type: text/html; charset=UTF-8']
+            );
+
+            if ( $result ) {
+                // Mark as sent
+                $wpdb->update(
+                    $table,
+                    [
+                        'status' => 'sent',
+                        'sent_at' => current_time( 'mysql' )
+                    ],
+                    ['id' => $email->id]
+                );
+
+                // Track sent email for rate limiting
+                self::track_sent_email( $email->user_id );
+
+                $sent++;
+            } else {
+                // Mark as failed, increment attempts
+                $attempts = $email->attempts + 1;
+
+                if ( $attempts >= 3 ) {
+                    self::mark_failed( $email->id, 'Max retry attempts reached' );
+                } else {
+                    // Retry with exponential backoff
+                    $retry_delay = pow( 2, $attempts ) * HOUR_IN_SECONDS;
+                    $wpdb->update(
+                        $table,
+                        [
+                            'status' => 'pending',
+                            'attempts' => $attempts,
+                            'next_retry' => date( 'Y-m-d H:i:s', time() + $retry_delay )
+                        ],
+                        ['id' => $email->id]
+                    );
+                }
+
+                $failed++;
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * Check if user is rate limited (max 10 emails/hour)
+     */
+    private static function is_rate_limited( $user_id ) {
+        $cache_key = "fanfic_email_rate_{$user_id}";
+        $sent_count = get_transient( $cache_key );
+
+        if ( false === $sent_count ) {
+            return false; // No limit
+        }
+
+        return (int) $sent_count >= 10;
+    }
+
+    /**
+     * Track sent email for rate limiting
+     */
+    private static function track_sent_email( $user_id ) {
+        $cache_key = "fanfic_email_rate_{$user_id}";
+        $sent_count = (int) get_transient( $cache_key );
+
+        $sent_count++;
+
+        set_transient( $cache_key, $sent_count, HOUR_IN_SECONDS );
+    }
+}
+```
+
+---
+
+### 3. Digest Email System
+
+**New Table**: `wp_fanfic_email_digests`
+
+```sql
+CREATE TABLE IF NOT EXISTS wp_fanfic_email_digests (
+    id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT(20) UNSIGNED NOT NULL,
+    frequency ENUM('hourly', 'daily', 'weekly') NOT NULL,
+    notification_type VARCHAR(50) NOT NULL,
+    notification_data TEXT, -- JSON array of notifications
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    KEY user_frequency (user_id, frequency),
+    KEY created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+**Digest Processing**:
+
+```php
+class Fanfic_Email_Digest_System {
+    /**
+     * Add notifications to digest queue
+     */
+    public static function add_to_digest( $user_ids, $notification_type, $data, $frequency ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'fanfic_email_digests';
+
+        $values = [];
+        $placeholders = [];
+        $now = current_time( 'mysql' );
+
+        foreach ( $user_ids as $user_id ) {
+            $values[] = $user_id;
+            $values[] = $frequency;
+            $values[] = $notification_type;
+            $values[] = wp_json_encode( [$data] ); // Array of notifications
+            $values[] = $now;
+
+            $placeholders[] = '(%d, %s, %s, %s, %s)';
+        }
+
+        // Try to merge with existing digest entry
+        // If user already has a digest pending, append to it
+
+        $sql = "INSERT INTO {$table}
+                (user_id, frequency, notification_type, notification_data, created_at)
+                VALUES " . implode( ', ', $placeholders ) . "
+                ON DUPLICATE KEY UPDATE
+                notification_data = CONCAT(notification_data, ',', VALUES(notification_data))";
+
+        $wpdb->query( $wpdb->prepare( $sql, $values ) );
+    }
+
+    /**
+     * Process digests (cron job)
+     * Hourly: Every hour
+     * Daily: 8 AM daily
+     * Weekly: Monday 8 AM
+     */
+    public static function process_digests( $frequency ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'fanfic_email_digests';
+
+        // Get all digests for this frequency
+        $digests = $wpdb->get_results( $wpdb->prepare(
+            "SELECT user_id, GROUP_CONCAT(notification_type) as types,
+                    GROUP_CONCAT(notification_data SEPARATOR '|||') as all_data
+             FROM {$table}
+             WHERE frequency = %s
+             GROUP BY user_id",
+            $frequency
+        ) );
+
+        foreach ( $digests as $digest ) {
+            // Render digest email
+            $email_body = self::render_digest_email( $digest );
+
+            // Queue single digest email
+            Fanfic_Email_Queue_System::queue_single(
+                $digest->user_id,
+                "Digest: {$frequency}",
+                $email_body,
+                Fanfic_Email_Queue_System::PRIORITY_NORMAL
+            );
+
+            // Delete processed digest entries
+            $wpdb->delete(
+                $table,
+                ['user_id' => $digest->user_id, 'frequency' => $frequency]
+            );
+        }
+    }
+
+    /**
+     * Render digest email (grouped notifications)
+     */
+    private static function render_digest_email( $digest ) {
+        // Parse all notifications
+        $all_notifications = [];
+
+        // Group by type:
+        // - New chapters by story
+        // - New followers (count)
+        // - New comments by story
+
+        $html = '<h2>Your Digest</h2>';
+
+        // Example: "3 new chapters in stories you follow"
+        $html .= '<h3>New Chapters</h3>';
+        $html .= '<ul>...</ul>';
+
+        return $html;
+    }
+}
+```
+
+**Cron Jobs**:
+
+```php
+// Hourly digest
+add_action( 'fanfic_process_hourly_digest', function() {
+    Fanfic_Email_Digest_System::process_digests( 'hourly' );
+} );
+
+// Daily digest (8 AM)
+add_action( 'fanfic_process_daily_digest', function() {
+    Fanfic_Email_Digest_System::process_digests( 'daily' );
+} );
+
+// Weekly digest (Monday 8 AM)
+add_action( 'fanfic_process_weekly_digest', function() {
+    Fanfic_Email_Digest_System::process_digests( 'weekly' );
+} );
+```
+
+---
+
+### 4. User Preferences Enhancement
+
+**Add Digest Preferences**:
+
+```php
+class Fanfic_Notification_Preferences {
+    const DIGEST_INSTANT = 'instant';
+    const DIGEST_HOURLY = 'hourly';
+    const DIGEST_DAILY = 'daily';
+    const DIGEST_WEEKLY = 'weekly';
+    const DIGEST_NEVER = 'never';
+
+    /**
+     * Get user's digest preference for notification type
+     */
+    public static function get_digest_preference( $user_id, $notification_type = 'all' ) {
+        $key = self::PREFIX_EMAIL . 'digest_' . $notification_type;
+        $value = get_user_meta( $user_id, $key, true );
+
+        if ( empty( $value ) ) {
+            return self::DIGEST_INSTANT; // Default: instant emails
+        }
+
+        return $value;
+    }
+
+    /**
+     * Set digest preference
+     */
+    public static function set_digest_preference( $user_id, $notification_type, $frequency ) {
+        $key = self::PREFIX_EMAIL . 'digest_' . $notification_type;
+
+        return update_user_meta( $user_id, $key, $frequency );
+    }
+
+    /**
+     * Get all preferences with caching
+     */
+    public static function get_all_preferences( $user_id ) {
+        $cache_key = "fanfic_user_{$user_id}_email_prefs";
+
+        $prefs = wp_cache_get( $cache_key, 'fanfic_prefs' );
+
+        if ( false === $prefs ) {
+            // Load from user meta
+            $prefs = [
+                'new_comment' => [
+                    'enabled' => self::should_send_email( $user_id, 'new_comment' ),
+                    'digest' => self::get_digest_preference( $user_id, 'new_comment' ),
+                ],
+                'new_chapter' => [
+                    'enabled' => self::should_send_email( $user_id, 'new_chapter' ),
+                    'digest' => self::get_digest_preference( $user_id, 'new_chapter' ),
+                ],
+                // ... etc
+            ];
+
+            wp_cache_set( $cache_key, $prefs, 'fanfic_prefs', HOUR_IN_SECONDS );
+        }
+
+        return $prefs;
+    }
+}
+```
+
+**Settings UI** (user profile):
+
+```
+Email Notification Preferences:
+
+☑ New Chapters (from followed authors)
+  Frequency: [Instant ▼]  [Hourly] [Daily] [Weekly] [Never]
+
+☑ New Stories (from followed authors)
+  Frequency: [Daily ▼]
+
+☑ New Followers
+  Frequency: [Weekly ▼]
+
+☑ New Comments (on your stories)
+  Frequency: [Instant ▼]
+```
+
+---
+
+### 5. Integration with Optimized Notification System
+
+**Hook Integration**:
+
+```php
+// In Fanfic_Notifications_System::batch_create()
+
+public static function batch_create( $user_ids, $notification_data ) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'fanfic_notifications';
+
+    // 1. Create in-app notifications (existing code)
+    // ... batch INSERT to notifications table ...
+
+    // 2. Queue email notifications (NEW)
+    Fanfic_Email_Queue_System::batch_queue(
+        $user_ids,
+        $notification_data['type'],
+        $notification_data
+    );
+
+    // 3. Clear caches
+    foreach ( $user_ids as $user_id ) {
+        self::clear_user_notification_cache( $user_id );
+    }
+}
+```
+
+**Data Flow**:
+
+```
+Story Published
+       ↓
+Get Followers (100 users, cached)
+       ↓
+Batch Create Notifications (1 INSERT for 100 rows)
+       ↓
+       ├─→ In-App: 100 notifications created
+       │
+       └─→ Email System:
+              ├─→ Check Preferences (cached)
+              ├─→ Filter: 60 instant, 30 daily, 10 disabled
+              ├─→ Batch Queue Instant: 1 INSERT for 60 rows
+              └─→ Add to Digest: 1 INSERT for 30 rows
+       ↓
+Cron Job (every 30 min)
+       ↓
+Process Email Queue: Send 50 emails per run
+```
+
+---
+
+### 6. Performance Characteristics
+
+**Before Optimization**:
+
+```
+100 Followers Notified:
+- 100 x wp_options reads (queue array)
+- 100 x wp_options updates (queue array)
+- 100 x user_meta reads (preferences)
+- Time: ~5-10 seconds (blocking)
+```
+
+**After Optimization**:
+
+```
+100 Followers Notified:
+- 1 x batch INSERT (notifications)
+- 1 x batch INSERT (email queue)
+- 100 x cached preference reads (or 1 x batch user_meta query)
+- Time: ~0.5 seconds (non-blocking)
+```
+
+**Improvement**: **10-20x faster** + non-blocking
+
+---
+
+### 7. Email Sending Best Practices
+
+**Rate Limiting**:
+- Max 10 emails per user per hour
+- Prevents user email overload
+- Stored in transients (auto-expires)
+
+**Batch Processing**:
+- 50 emails per cron run
+- Prevents SMTP server overload
+- Runs every 30 minutes
+
+**Retry Logic**:
+- 3 attempts max
+- Exponential backoff (2h, 4h, 8h)
+- Failed emails logged for debugging
+
+**Priority Queue**:
+- High (1): Password resets, critical alerts
+- Normal (5): New chapters, comments
+- Low (10): Weekly digests, newsletters
+
+**Spam Prevention**:
+- Unsubscribe link in every email
+- Digest options to reduce frequency
+- Clear opt-out on preferences page
+- Respect user's digest preference
+
+---
+
+### 8. Cron Job Schedule
+
+```php
+// Email queue processing (every 30 minutes)
+wp_schedule_event( time(), 'every_30_minutes', 'fanfic_process_email_queue' );
+
+// Hourly digest (top of every hour)
+wp_schedule_event( strtotime( 'next hour' ), 'hourly', 'fanfic_process_hourly_digest' );
+
+// Daily digest (8 AM daily)
+$daily_time = strtotime( 'tomorrow 8:00 AM' );
+wp_schedule_event( $daily_time, 'daily', 'fanfic_process_daily_digest' );
+
+// Weekly digest (Monday 8 AM)
+$weekly_time = strtotime( 'next Monday 8:00 AM' );
+wp_schedule_event( $weekly_time, 'weekly', 'fanfic_process_weekly_digest' );
+
+// Cleanup old sent emails (daily at 3 AM)
+wp_schedule_event( strtotime( 'tomorrow 3:00 AM' ), 'daily', 'fanfic_cleanup_email_queue' );
+```
+
+**Cleanup Job**:
+
+```php
+public static function cleanup_old_emails() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'fanfic_email_queue';
+
+    // Delete sent emails older than 30 days
+    $wpdb->query(
+        "DELETE FROM {$table}
+         WHERE status = 'sent'
+         AND sent_at < DATE_SUB(NOW(), INTERVAL 30 DAY)"
+    );
+
+    // Delete failed emails older than 7 days
+    $wpdb->query(
+        "DELETE FROM {$table}
+         WHERE status = 'failed'
+         AND queued_at < DATE_SUB(NOW(), INTERVAL 7 DAY)"
+    );
+}
+```
+
+---
+
+### 9. Database Schema Summary
+
+**Tables Required**:
+
+1. `wp_fanfic_email_queue` - Email queue (replaces wp_options)
+2. `wp_fanfic_email_digests` - Digest aggregation
+3. `wp_fanfic_notifications` - In-app notifications (existing)
+
+**User Meta** (preferences):
+- `fanfic_email_new_comment` - boolean
+- `fanfic_email_new_chapter` - boolean
+- `fanfic_email_new_story` - boolean
+- `fanfic_email_new_follower` - boolean
+- `fanfic_email_digest_new_comment` - enum (instant/hourly/daily/weekly/never)
+- `fanfic_email_digest_new_chapter` - enum
+- etc.
+
+---
+
+### 10. Monitoring & Debugging
+
+**Key Metrics to Track**:
+
+1. **Queue Size**: Number of pending emails
+2. **Send Rate**: Emails sent per hour
+3. **Failure Rate**: Failed / Total sent
+4. **Rate Limit Hits**: Users hitting 10/hour limit
+5. **Digest Stats**: Users per frequency type
+
+**Debug Tools**:
+
+```php
+// View queue status
+function fanfic_email_queue_status() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'fanfic_email_queue';
+
+    return $wpdb->get_results(
+        "SELECT status, COUNT(*) as count, MIN(queued_at) as oldest
+         FROM {$table}
+         GROUP BY status"
+    );
+}
+
+// View user's email history
+function fanfic_user_email_history( $user_id, $limit = 50 ) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'fanfic_email_queue';
+
+    return $wpdb->get_results( $wpdb->prepare(
+        "SELECT * FROM {$table}
+         WHERE user_id = %d
+         ORDER BY queued_at DESC
+         LIMIT %d",
+        $user_id, $limit
+    ) );
+}
+```
+
+---
+
+### 11. Implementation Checklist
+
+**Phase 1: Core Infrastructure** (Week 1)
+- [ ] Create `wp_fanfic_email_queue` table
+- [ ] Migrate from wp_options to table-based queue
+- [ ] Implement batch queue operations
+- [ ] Add rate limiting
+
+**Phase 2: Digest System** (Week 2)
+- [ ] Create `wp_fanfic_email_digests` table
+- [ ] Implement digest aggregation
+- [ ] Add digest cron jobs
+- [ ] Create digest email templates
+
+**Phase 3: User Preferences** (Week 3)
+- [ ] Add digest preference options
+- [ ] Create preferences UI
+- [ ] Implement unsubscribe links
+- [ ] Add preference caching
+
+**Phase 4: Integration** (Week 4)
+- [ ] Integrate with batch notification system
+- [ ] Update all notification triggers
+- [ ] Test email flow end-to-end
+- [ ] Monitor queue performance
+
+---
+
+### 12. Email Performance Summary
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Queue Operations (100 followers) | 200 queries | 2 queries | **99% reduction** |
+| Email Creation Time | 5-10 seconds | 0.5 seconds | **10-20x faster** |
+| User Email Overload | Unlimited | Max 10/hour | **Rate limited** |
+| Spam Complaints | High risk | Low risk | **Digest options** |
+| Database Storage | wp_options (serialized) | Dedicated table | **No race conditions** |
+| Concurrent Safety | ❌ Race conditions | ✅ Atomic operations | **Production ready** |
+
+---
+
+**Version**: 1.1.0
 **Created**: 2025-11-12
+**Updated**: 2025-11-12 (Email Notifications Section Added)
 **Author**: Development Team
