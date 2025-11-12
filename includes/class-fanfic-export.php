@@ -99,8 +99,9 @@ class Fanfic_Export {
 
 			// Get average rating
 			$rating = 0.0;
-			if ( class_exists( 'Fanfic_Ratings' ) ) {
-				$rating = Fanfic_Ratings::get_story_rating( $story->ID );
+			if ( class_exists( 'Fanfic_Rating_System' ) ) {
+				$rating_data = Fanfic_Rating_System::get_story_rating( $story->ID );
+				$rating = $rating_data ? $rating_data->average_rating : 0.0;
 			}
 
 			// Get featured status
@@ -198,8 +199,9 @@ class Fanfic_Export {
 
 			// Get average rating
 			$rating = 0.0;
-			if ( class_exists( 'Fanfic_Ratings' ) ) {
-				$rating = Fanfic_Ratings::get_chapter_rating( $chapter->ID );
+			if ( class_exists( 'Fanfic_Rating_System' ) ) {
+				$rating_data = Fanfic_Rating_System::get_chapter_rating( $chapter->ID );
+				$rating = $rating_data ? $rating_data->average_rating : 0.0;
 			}
 
 			// Write row
