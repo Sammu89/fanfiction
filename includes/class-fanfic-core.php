@@ -837,6 +837,9 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';
 		Fanfic_Cron_Cleanup::unschedule_cron();
 
+		// Unschedule old cron jobs from previous versions (pre-v2.0)
+		wp_clear_scheduled_hook( 'fanfic_daily_sync_anonymous_likes' );
+
 		// Check if user wants to delete all data
 		$delete_data = get_option( 'fanfic_delete_on_deactivate', false );
 

@@ -527,4 +527,147 @@ class Fanfic_Rating_System {
 				: __( 'Rating submitted!', 'fanfiction-manager' ),
 		) );
 	}
+
+	/**
+	 * Get top rated stories
+	 *
+	 * Returns stories with highest average rating (requires minimum number of votes).
+	 *
+	 * @since 2.0.0
+	 * @param int $limit       Number of stories to retrieve.
+	 * @param int $min_ratings Minimum number of ratings required.
+	 * @return array Array of story data with rating info.
+	 */
+	public static function get_top_rated_stories( $limit = 10, $min_ratings = 5 ) {
+		// Try to get from transient cache
+		$cache_key = 'fanfic_top_rated_stories_v2_' . $limit . '_' . $min_ratings;
+		$cached = get_transient( $cache_key );
+
+		if ( false !== $cached ) {
+			return $cached;
+		}
+
+		// Get all published stories
+		$stories = get_posts( array(
+			'post_type'      => 'fanfiction_story',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		) );
+
+		if ( empty( $stories ) ) {
+			return array();
+		}
+
+		// Calculate ratings for each story
+		$story_ratings = array();
+		foreach ( $stories as $story_id ) {
+			$rating_data = self::get_story_rating( $story_id );
+
+			if ( $rating_data && $rating_data->total_votes >= $min_ratings ) {
+				$story_ratings[] = array(
+					'story_id' => $story_id,
+					'rating'   => $rating_data->average_rating,
+					'count'    => $rating_data->total_votes,
+				);
+			}
+		}
+
+		// Sort by rating (descending)
+		usort( $story_ratings, function( $a, $b ) {
+			if ( abs( $a['rating'] - $b['rating'] ) < 0.01 ) {
+				return $b['count'] - $a['count']; // If equal rating, sort by count
+			}
+			return $b['rating'] > $a['rating'] ? 1 : -1;
+		} );
+
+		// Limit results
+		$story_ratings = array_slice( $story_ratings, 0, absint( $limit ) );
+
+		// Cache for 30 minutes
+		set_transient( $cache_key, $story_ratings, 30 * MINUTE_IN_SECONDS );
+
+		return $story_ratings;
+	}
+
+	/**
+	 * Get recently rated stories
+	 *
+	 * Returns story IDs ordered by most recent rating activity.
+	 *
+	 * @since 2.0.0
+	 * @param int $limit Number of stories to retrieve.
+	 * @return array Array of story IDs.
+	 */
+	public static function get_recently_rated_stories( $limit = 10 ) {
+		// Try to get from transient cache
+		$cache_key = 'fanfic_recently_rated_stories_v2_' . $limit;
+		$cached = get_transient( $cache_key );
+
+		if ( false !== $cached ) {
+			return $cached;
+		}
+
+		global $wpdb;
+		$ratings_table = $wpdb->prefix . 'fanfic_ratings';
+
+		// Get recently rated chapters with their parent stories
+		$results = $wpdb->get_col( $wpdb->prepare(
+			"SELECT DISTINCT p.post_parent
+			FROM {$ratings_table} r
+			INNER JOIN {$wpdb->posts} p ON r.chapter_id = p.ID
+			WHERE p.post_type = 'fanfiction_chapter'
+			AND p.post_status = 'publish'
+			AND p.post_parent IN (SELECT ID FROM {$wpdb->posts} WHERE post_type = 'fanfiction_story' AND post_status = 'publish')
+			ORDER BY r.created_at DESC
+			LIMIT %d",
+			absint( $limit )
+		) );
+
+		$story_ids = array_map( 'absint', $results );
+
+		// Cache for 5 minutes
+		set_transient( $cache_key, $story_ids, 5 * MINUTE_IN_SECONDS );
+
+		return $story_ids;
+	}
+
+	/**
+	 * Generate star rating HTML
+	 *
+	 * Returns HTML markup for displaying star ratings.
+	 *
+	 * @since 2.0.0
+	 * @param float  $rating      Rating value (0-5).
+	 * @param bool   $interactive Whether stars are interactive.
+	 * @param string $size        Size class (small, medium, large).
+	 * @return string Star rating HTML.
+	 */
+	public static function get_stars_html( $rating, $interactive = false, $size = 'medium' ) {
+		$rating = floatval( $rating );
+		$interactive_class = $interactive ? 'fanfic-rating-interactive' : 'fanfic-rating-readonly';
+		$size_class = 'fanfic-rating-' . sanitize_html_class( $size );
+
+		$html = '<div class="fanfic-rating-stars ' . esc_attr( $interactive_class ) . ' ' . esc_attr( $size_class ) . '" data-rating="' . esc_attr( $rating ) . '"';
+
+		if ( $interactive ) {
+			$html .= ' role="slider" aria-label="' . esc_attr__( 'Rate from 1 to 5 stars', 'fanfiction-manager' ) . '" aria-valuemin="0" aria-valuemax="5" aria-valuenow="' . esc_attr( $rating ) . '" tabindex="0"';
+		}
+
+		$html .= '>';
+
+		for ( $i = 1; $i <= 5; $i++ ) {
+			$star_class = 'fanfic-star';
+
+			if ( $i <= floor( $rating ) ) {
+				$star_class .= ' active';
+			}
+
+			$html .= '<span class="' . esc_attr( $star_class ) . '" data-value="' . esc_attr( $i ) . '" aria-hidden="true">&#9733;</span>';
+		}
+
+		$html .= '</div>';
+
+		return $html;
+	}
 }
