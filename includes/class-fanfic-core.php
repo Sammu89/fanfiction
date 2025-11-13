@@ -94,8 +94,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-author-dashboard.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-comments.php';
 
-		// New optimized rating and like system (v2.0)
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-user-identifier.php';
+		// Optimized rating and like system with cookie-based anonymous tracking
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-rating-system.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-like-system.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';

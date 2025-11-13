@@ -12,7 +12,8 @@
       "Bash(for file in class-fanfic-rating-system.php class-fanfic-like-system.php class-fanfic-bookmarks.php class-fanfic-follows.php class-fanfic-reading-progress.php class-fanfic-notifications.php class-fanfic-email-queue.php class-fanfic-email-subscriptions.php class-fanfic-security.php class-fanfic-rate-limit.php class-fanfic-cache-manager.php class-fanfic-ajax-handlers.php)",
       "Bash(do echo \"Checking $file...\")",
       "Bash(done)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(test:*)"
     ],
     "deny": [],
     "ask": []

@@ -126,6 +126,27 @@ class Fanfic_AJAX_Handlers {
 				'capability'  => 'read',
 			)
 		);
+
+		// Notification endpoints (authenticated only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_delete_notification',
+			array( __CLASS__, 'ajax_delete_notification' ),
+			true, // Require login
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'read',
+			)
+		);
+
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_get_notifications',
+			array( __CLASS__, 'ajax_get_notifications' ),
+			true, // Require login
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'read',
+			)
+		);
 	}
 
 	/**
@@ -173,12 +194,11 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		// Get user identifier (user_id for logged-in, cookie for anonymous)
+		// Get user ID (null for anonymous - cookies handled by rating system)
 		$user_id = is_user_logged_in() ? get_current_user_id() : null;
-		$identifier = Fanfic_User_Identifier::get_identifier();
 
 		// Submit rating
-		$result = Fanfic_Rating_System::submit_rating( $chapter_id, $rating, $user_id, $identifier );
+		$result = Fanfic_Rating_System::submit_rating( $chapter_id, $rating, $user_id );
 
 		if ( is_wp_error( $result ) ) {
 			Fanfic_AJAX_Security::send_error_response(
@@ -230,12 +250,11 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		// Get user identifier
+		// Get user ID (null for anonymous - cookies handled by like system)
 		$user_id = is_user_logged_in() ? get_current_user_id() : null;
-		$identifier = Fanfic_User_Identifier::get_identifier();
 
 		// Toggle like
-		$result = Fanfic_Like_System::toggle_like( $chapter_id, $user_id, $identifier );
+		$result = Fanfic_Like_System::toggle_like( $chapter_id, $user_id );
 
 		if ( is_wp_error( $result ) ) {
 			Fanfic_AJAX_Security::send_error_response(
@@ -585,6 +604,139 @@ class Fanfic_AJAX_Handlers {
 		Fanfic_AJAX_Security::send_success_response(
 			array( 'stats' => $stats ),
 			__( 'Stats loaded successfully.', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * AJAX: Delete notification
+	 *
+	 * Permanently deletes a notification from the database.
+	 * Authenticated users only.
+	 *
+	 * @since 1.0.15
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_delete_notification() {
+		// Get and validate parameters
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array( 'notification_id' ),
+			array()
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				$params->get_error_code(),
+				$params->get_error_message(),
+				400
+			);
+		}
+
+		$notification_id = absint( $params['notification_id'] );
+		$user_id = get_current_user_id();
+
+		if ( ! $notification_id ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'invalid_notification',
+				__( 'Invalid notification ID.', 'fanfiction-manager' ),
+				400
+			);
+		}
+
+		// Delete notification
+		$result = Fanfic_Notifications::delete_notification( $notification_id, $user_id );
+
+		if ( ! $result ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'delete_failed',
+				__( 'Failed to delete notification. It may not exist or belong to another user.', 'fanfiction-manager' ),
+				400
+			);
+		}
+
+		// Get updated unread count
+		$unread_count = Fanfic_Notifications::get_unread_count( $user_id );
+
+		// Return success with updated count
+		Fanfic_AJAX_Security::send_success_response(
+			array( 'unread_count' => $unread_count ),
+			__( 'Notification dismissed.', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * AJAX: Get notifications with pagination
+	 *
+	 * Retrieves paginated notifications for the current user.
+	 * Authenticated users only.
+	 *
+	 * @since 1.0.15
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_get_notifications() {
+		// Get and validate parameters
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array( 'page' ),
+			array( 'unread_only' )
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				$params->get_error_code(),
+				$params->get_error_message(),
+				400
+			);
+		}
+
+		$page = absint( $params['page'] );
+		$unread_only = isset( $params['unread_only'] ) ? (bool) $params['unread_only'] : true;
+		$user_id = get_current_user_id();
+
+		// Validate page number
+		if ( $page < 1 ) {
+			$page = 1;
+		}
+
+		// Max 5 pages (50 notifications)
+		if ( $page > 5 ) {
+			$page = 5;
+		}
+
+		// Calculate offset (10 per page)
+		$per_page = 10;
+		$offset = ( $page - 1 ) * $per_page;
+
+		// Get notifications
+		$notifications = Fanfic_Notifications::get_user_notifications( $user_id, $unread_only, $per_page, $offset );
+
+		// Format notifications for frontend
+		$formatted_notifications = array();
+		foreach ( $notifications as $notification ) {
+			$formatted_notifications[] = array(
+				'id'              => $notification->id,
+				'type'            => $notification->type,
+				'message'         => $notification->message,
+				'created_at'      => $notification->created_at,
+				'relative_time'   => Fanfic_Notifications::get_relative_time( $notification->created_at ),
+				'is_read'         => (bool) $notification->is_read,
+				'data'            => ! empty( $notification->data ) ? json_decode( $notification->data, true ) : array(),
+			);
+		}
+
+		// Get total count and pages
+		$total_count = Fanfic_Notifications::get_unread_count( $user_id );
+		$total_pages = min( ceil( $total_count / $per_page ), 5 );
+
+		// Return notifications
+		Fanfic_AJAX_Security::send_success_response(
+			array(
+				'notifications'   => $formatted_notifications,
+				'page'            => $page,
+				'total_pages'     => $total_pages,
+				'total_count'     => $total_count,
+				'unread_count'    => $total_count,
+				'has_more'        => $page < $total_pages,
+			),
+			__( 'Notifications loaded successfully.', 'fanfiction-manager' )
 		);
 	}
 }

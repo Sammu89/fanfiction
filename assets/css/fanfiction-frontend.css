@@ -4771,3 +4771,289 @@ h2.fanfic-chapter-title {
 		width: 100%;
 	}
 }
+
+/* ============================================
+   NOTIFICATIONS WIDGET
+   Dashboard sidebar notifications display
+   ============================================ */
+
+/* Notification widget container */
+.fanfic-notifications-widget {
+	position: relative;
+}
+
+/* Notification heading with badge */
+.fanfic-notifications-widget h3 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	position: relative;
+}
+
+/* Unread count badge - WordPress admin style */
+.fanfic-notification-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 20px;
+	height: 20px;
+	padding: 0 6px;
+	background: #d63638; /* WordPress admin red */
+	color: #fff;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1;
+	border-radius: 10px;
+	text-align: center;
+}
+
+/* Notifications container */
+.fanfic-notifications-container {
+	position: relative;
+	min-height: 100px;
+}
+
+/* Notifications list */
+.fanfic-notifications-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+/* Individual notification item */
+.fanfic-notification-item {
+	display: flex;
+	gap: 10px;
+	padding: 10px;
+	background: #f0f0f1; /* WordPress admin gray background */
+	border-left: 3px solid #2271b1; /* WordPress admin blue */
+	border-radius: 4px;
+	transition: all 0.2s ease;
+	position: relative;
+}
+
+.fanfic-notification-item:hover {
+	background: #f6f7f7;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Notification being dismissed - fade out */
+.fanfic-notification-item.dismissing {
+	opacity: 0;
+	transform: translateX(-10px);
+	transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Notification icon container */
+.fanfic-notification-icon {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #2271b1; /* WordPress admin blue */
+}
+
+.fanfic-notification-icon .dashicons {
+	font-size: 20px;
+	width: 20px;
+	height: 20px;
+}
+
+/* Different colors for different notification types */
+.fanfic-notification-new_comment .fanfic-notification-icon,
+.fanfic-notification-comment_reply .fanfic-notification-icon {
+	color: #2271b1; /* Blue for comments */
+}
+
+.fanfic-notification-new_follower .fanfic-notification-icon,
+.fanfic-notification-follow_story .fanfic-notification-icon {
+	color: #d63638; /* Red for follows/likes */
+}
+
+.fanfic-notification-new_chapter .fanfic-notification-icon,
+.fanfic-notification-new_story .fanfic-notification-icon,
+.fanfic-notification-story_update .fanfic-notification-icon {
+	color: #00a32a; /* Green for new content */
+}
+
+/* Notification content */
+.fanfic-notification-content {
+	flex-grow: 1;
+	min-width: 0;
+}
+
+.fanfic-notification-message {
+	margin: 0 0 4px 0;
+	font-size: 13px;
+	line-height: 1.4;
+	color: #1d2327; /* WordPress admin dark text */
+	word-wrap: break-word;
+}
+
+.fanfic-notification-timestamp {
+	display: block;
+	font-size: 11px;
+	color: #646970; /* WordPress admin gray text */
+	font-style: italic;
+}
+
+/* Notification actions */
+.fanfic-notification-actions {
+	flex-shrink: 0;
+	display: flex;
+	align-items: flex-start;
+}
+
+.fanfic-notification-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	background: transparent;
+	border: none;
+	color: #646970;
+	cursor: pointer;
+	border-radius: 3px;
+	transition: all 0.2s ease;
+}
+
+.fanfic-notification-dismiss:hover {
+	background: #dcdcde;
+	color: #d63638;
+}
+
+.fanfic-notification-dismiss:focus {
+	outline: 2px solid #2271b1;
+	outline-offset: 1px;
+}
+
+.fanfic-notification-dismiss:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.fanfic-notification-dismiss .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+/* Empty state */
+.fanfic-notifications-empty {
+	padding: 20px;
+	text-align: center;
+	color: #646970;
+	font-size: 13px;
+}
+
+.fanfic-notifications-empty p {
+	margin: 0;
+}
+
+/* Loading state */
+.fanfic-notifications-loading {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 30px 20px;
+	text-align: center;
+}
+
+.fanfic-notifications-loading .spinner {
+	float: none;
+	margin: 0 auto 10px;
+}
+
+.fanfic-notifications-loading p {
+	margin: 0;
+	font-size: 13px;
+	color: #646970;
+}
+
+/* Pagination */
+.fanfic-notifications-pagination {
+	display: flex;
+	gap: 4px;
+	justify-content: center;
+	padding: 8px 0;
+	border-top: 1px solid #dcdcde;
+	margin-top: 8px;
+}
+
+.fanfic-notification-page-btn {
+	min-width: 32px;
+	height: 32px;
+	padding: 0 8px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	color: #2271b1;
+	font-size: 13px;
+	font-weight: 400;
+	cursor: pointer;
+	border-radius: 3px;
+	transition: all 0.2s ease;
+}
+
+.fanfic-notification-page-btn:hover {
+	background: #f0f0f1;
+	border-color: #2271b1;
+	color: #135e96;
+}
+
+.fanfic-notification-page-btn.active {
+	background: #2271b1;
+	border-color: #2271b1;
+	color: #fff;
+	font-weight: 600;
+	cursor: default;
+}
+
+.fanfic-notification-page-btn:focus {
+	outline: 2px solid #2271b1;
+	outline-offset: 1px;
+}
+
+.fanfic-notification-page-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	background: #f6f7f7;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.fanfic-notification-item {
+		gap: 8px;
+		padding: 8px;
+	}
+
+	.fanfic-notification-icon {
+		width: 20px;
+		height: 20px;
+	}
+
+	.fanfic-notification-icon .dashicons {
+		font-size: 18px;
+		width: 18px;
+		height: 18px;
+	}
+
+	.fanfic-notification-message {
+		font-size: 12px;
+	}
+
+	.fanfic-notification-timestamp {
+		font-size: 10px;
+	}
+
+	.fanfic-notification-page-btn {
+		min-width: 28px;
+		height: 28px;
+		font-size: 12px;
+	}
+}
