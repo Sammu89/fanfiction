@@ -54,6 +54,9 @@ class Fanfic_Core {
 	 * Load plugin dependencies
 	 */
 	private function load_dependencies() {
+		// Phase 1: Database Setup (must be available for activation hook)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-database-setup.php';
+
 		// Load cache class first (used by many other classes)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache.php';
 
@@ -69,6 +72,9 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-security.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache-manager.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-ajax-security.php';
+
+		// Load AJAX handlers (Phase 5: Unified AJAX endpoints)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-ajax-handlers.php';
 
 		// Load URL Manager (centralized URL management - replaces Rewrite, Dynamic_Pages, URL_Builder)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-manager.php';
@@ -97,6 +103,8 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-bookmarks.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-follows.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-views.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-reading-progress.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-batch-loader.php';
 
 		// Load input validation class (used by email/notification systems)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-input-validation.php';
@@ -246,6 +254,12 @@ class Fanfic_Core {
 		Fanfic_Rate_Limit::init();
 		Fanfic_Security::init();
 		Fanfic_AJAX_Security::init();
+
+		// Initialize AJAX handlers (Phase 5: Unified AJAX endpoints)
+		Fanfic_AJAX_Handlers::init();
+
+		// Initialize reading progress tracking
+		Fanfic_Reading_Progress::init();
 
 		// Initialize SEO
 		Fanfic_SEO::init();
@@ -770,6 +784,46 @@ class Fanfic_Core {
 				)
 			);
 		}
+
+		// Enqueue unified interactions JS (Phase 5)
+		$interactions_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-interactions.js';
+		if ( file_exists( $interactions_js_file ) ) {
+			wp_enqueue_script(
+				'fanfiction-interactions',
+				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-interactions.js',
+				array( 'jquery' ),
+				FANFIC_VERSION,
+				true
+			);
+
+			// Localize script with comprehensive settings
+			wp_localize_script(
+				'fanfiction-interactions',
+				'fanficInteractions',
+				array(
+					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'nonce'   => wp_create_nonce( 'fanfic_ajax_nonce' ),
+					'debug'   => defined( 'WP_DEBUG' ) && WP_DEBUG,
+					'strings' => array(
+						'ratingSubmitted'   => __( 'Rating submitted!', 'fanfiction-manager' ),
+						'ratingUpdated'     => __( 'Rating updated!', 'fanfiction-manager' ),
+						'liked'             => __( 'Liked!', 'fanfiction-manager' ),
+						'unliked'           => __( 'Like removed', 'fanfiction-manager' ),
+						'bookmarkAdded'     => __( 'Bookmark added!', 'fanfiction-manager' ),
+						'bookmarkRemoved'   => __( 'Bookmark removed', 'fanfiction-manager' ),
+						'followAdded'       => __( 'Now following!', 'fanfiction-manager' ),
+						'followRemoved'     => __( 'Unfollowed', 'fanfiction-manager' ),
+						'emailEnabled'      => __( 'Email notifications enabled', 'fanfiction-manager' ),
+						'emailDisabled'     => __( 'Email notifications disabled', 'fanfiction-manager' ),
+						'markedRead'        => __( 'Marked as read', 'fanfiction-manager' ),
+						'subscribed'        => __( 'Subscription successful!', 'fanfiction-manager' ),
+						'error'             => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
+						'rateLimited'       => __( 'Too many requests. Please wait a moment.', 'fanfiction-manager' ),
+						'loginRequired'     => __( 'You must be logged in to do that.', 'fanfiction-manager' ),
+					),
+				)
+			);
+		}
 	}
 
 	/**
@@ -821,7 +875,14 @@ class Fanfic_Core {
 			update_option( 'fanfic_theme_type', $theme_type );
 		}
 
-		// Create database tables
+		// Create database tables using Database Setup class (Phase 1)
+		$db_result = Fanfic_Database_Setup::init();
+		if ( is_wp_error( $db_result ) ) {
+			// Log error but don't halt activation
+			error_log( 'Fanfiction Manager: Database setup error - ' . $db_result->get_error_message() );
+		}
+
+		// Also create legacy tables for backward compatibility
 		self::create_tables();
 
 		// Register post types and taxonomies for rewrite rules
