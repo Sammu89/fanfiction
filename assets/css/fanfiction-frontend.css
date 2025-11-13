@@ -5057,3 +5057,155 @@ h2.fanfic-chapter-title {
 		font-size: 12px;
 	}
 }
+
+/* ============================================
+   BOOKMARK DISPLAY STYLES
+   ============================================ */
+
+/* Bookmark Display Styles */
+.fanfic-user-bookmarks {
+    position: relative;
+}
+
+.fanfic-bookmarks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.fanfic-bookmark-item {
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background: #f9f9f9;
+    transition: all 0.2s ease;
+}
+
+.fanfic-bookmark-item:hover {
+    background: #f0f0f0;
+    border-color: #2271b1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.fanfic-bookmark-item h4 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.fanfic-bookmark-item h4 a {
+    color: #2271b1;
+    text-decoration: none;
+}
+
+.fanfic-bookmark-item h4 a:hover {
+    text-decoration: underline;
+}
+
+.fanfic-bookmark-meta {
+    margin: 4px 0;
+    font-size: 12px;
+    color: #666;
+}
+
+.fanfic-bookmark-last-chapter {
+    margin: 4px 0;
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+}
+
+.fanfic-bookmark-last-chapter a {
+    color: #2271b1;
+    text-decoration: none;
+}
+
+.fanfic-bookmark-last-chapter a:hover {
+    text-decoration: underline;
+}
+
+.fanfic-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    margin-top: 4px;
+}
+
+.fanfic-badge.read {
+    background: #d4edda;
+    color: #155724;
+}
+
+.fanfic-load-more-bookmarks {
+    display: block;
+    margin: 16px auto 0;
+    padding: 8px 16px;
+    background: #2271b1;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.fanfic-load-more-bookmarks:hover {
+    background: #1d5a96;
+}
+
+.fanfic-load-more-bookmarks:active {
+    transform: scale(0.98);
+}
+
+.fanfic-load-more-bookmarks:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.fanfic-bookmarks-loading {
+    text-align: center;
+    padding: 16px;
+    font-size: 13px;
+    color: #666;
+}
+
+.fanfic-bookmarks-loading::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: 4px;
+    background: #2271b1;
+    border-radius: 50%;
+    animation: fanfic-pulse 1.5s infinite;
+}
+
+@keyframes fanfic-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .fanfic-bookmarks-list {
+        gap: 10px;
+    }
+
+    .fanfic-bookmark-item {
+        padding: 10px;
+    }
+
+    .fanfic-bookmark-item h4 {
+        font-size: 13px;
+    }
+
+    .fanfic-load-more-bookmarks {
+        width: 90%;
+        max-width: 300px;
+    }
+}

@@ -422,16 +422,31 @@ $current_user = wp_get_current_user();
 			</div>
 		</section>
 
-		<!-- Bookmarked Stories -->
-		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarked-stories-heading">
-			<h3 id="bookmarked-stories-heading"><?php esc_html_e( 'Bookmarked Stories', 'fanfiction-manager' ); ?></h3>
-			<?php echo Fanfic_Shortcodes_Stats::render_most_bookmarked( array( 'limit' => 5, 'timeframe' => 'week' ) ); ?>
-		</section>
-
-		<!-- Bookmarked Authors -->
-		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarked-authors-heading">
-			<h3 id="bookmarked-authors-heading"><?php esc_html_e( 'Bookmarked Authors', 'fanfiction-manager' ); ?></h3>
-			<?php echo Fanfic_Shortcodes_Stats::render_most_followed( array( 'limit' => 5, 'timeframe' => 'week' ) ); ?>
+		<!-- User's Bookmarked Stories & Chapters -->
+		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarks-heading">
+			<h3 id="bookmarks-heading"><?php esc_html_e( 'My Bookmarks', 'fanfiction-manager' ); ?></h3>
+			<div class="fanfic-user-bookmarks" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-current-offset="0">
+				<div class="fanfic-bookmarks-list">
+					<?php
+					echo Fanfic_Bookmarks::render_user_bookmarks_dashboard(
+						get_current_user_id(),
+						20,  // Limit to 20 items per page
+						0    // Start at offset 0
+					);
+					?>
+				</div>
+				<?php
+				$total_bookmarks = Fanfic_Bookmarks::get_bookmarks_count( get_current_user_id() );
+				if ( $total_bookmarks > 20 ) :
+				?>
+					<button class="fanfic-load-more-bookmarks" data-offset="20">
+						<?php esc_html_e( 'Show More', 'fanfiction-manager' ); ?>
+					</button>
+				<?php endif; ?>
+				<div class="fanfic-bookmarks-loading" style="display: none;">
+					<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
+				</div>
+			</div>
 		</section>
 	</aside>
 </div>

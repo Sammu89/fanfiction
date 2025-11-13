@@ -605,4 +605,233 @@ class Fanfic_Bookmarks {
 		// Clear stats cache
 		delete_transient( 'fanfic_bookmark_stats' );
 	}
+
+	/**
+	 * Render user bookmarks dashboard
+	 *
+	 * @since 1.0.0
+	 * @param int $user_id User ID.
+	 * @param int $limit   Number of bookmarks to retrieve.
+	 * @param int $offset  Offset for pagination.
+	 * @return string HTML output of bookmarks list.
+	 */
+	public static function render_user_bookmarks_dashboard( $user_id, $limit = 20, $offset = 0 ) {
+		$user_id = absint( $user_id );
+		$limit = absint( $limit );
+		$offset = absint( $offset );
+
+		if ( ! $user_id ) {
+			return '';
+		}
+
+		// Get user bookmarks (all types)
+		$bookmarks = self::get_user_bookmarks( $user_id, null, $limit, $offset );
+
+		if ( empty( $bookmarks ) ) {
+			return '<div class="fanfic-user-bookmarks-list"><p>' . esc_html__( 'No bookmarks found.', 'fanfiction-manager' ) . '</p></div>';
+		}
+
+		$output = '<div class="fanfic-user-bookmarks-list">';
+
+		foreach ( $bookmarks as $bookmark ) {
+			if ( 'chapter' === $bookmark['bookmark_type'] ) {
+				$output .= self::render_chapter_bookmark_item( $bookmark );
+			} elseif ( 'story' === $bookmark['bookmark_type'] ) {
+				$output .= self::render_story_bookmark_item( $bookmark );
+			}
+		}
+
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Render individual chapter bookmark item
+	 *
+	 * @since 1.0.0
+	 * @param array $bookmark_data Bookmark data array with keys: post_id, bookmark_type, created_at.
+	 * @return string HTML output for chapter bookmark item.
+	 */
+	public static function render_chapter_bookmark_item( $bookmark_data ) {
+		if ( empty( $bookmark_data['post_id'] ) ) {
+			return '';
+		}
+
+		$chapter = get_post( $bookmark_data['post_id'] );
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+			return '';
+		}
+
+		$story = get_post( $chapter->post_parent );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			return '';
+		}
+
+		$author = get_userdata( $story->post_author );
+		$author_name = $author ? $author->display_name : __( 'Unknown Author', 'fanfiction-manager' );
+
+		$chapter_number = get_post_meta( $chapter->ID, '_fanfic_chapter_number', true );
+		$chapter_label = self::get_chapter_label_helper( $chapter->ID );
+
+		// Determine date to display
+		$post_date = strtotime( $chapter->post_date );
+		$post_modified = strtotime( $chapter->post_modified );
+		$display_date = ( $post_modified > $post_date ) ? $chapter->post_modified : $chapter->post_date;
+		$formatted_date = wp_date( get_option( 'date_format' ), strtotime( $display_date ) );
+
+		// Get read status using batch load
+		$current_user_id = get_current_user_id();
+		$is_read = false;
+		if ( $current_user_id && class_exists( 'Fanfic_Reading_Progress' ) ) {
+			$read_chapters = Fanfic_Reading_Progress::batch_load_read_chapters( $current_user_id, $story->ID );
+			$is_read = in_array( absint( $chapter_number ), $read_chapters, true );
+		}
+
+		$output = '<div class="fanfic-bookmark-item fanfic-bookmark-chapter">';
+		$output .= '<h4><a href="' . esc_url( get_permalink( $chapter->ID ) ) . '">' . esc_html( $chapter_label ) . '</a></h4>';
+		$output .= '<p class="fanfic-bookmark-meta">';
+		$output .= esc_html__( 'part of', 'fanfiction-manager' ) . ' ';
+		$output .= '<a href="' . esc_url( get_permalink( $story->ID ) ) . '">' . esc_html( $story->post_title ) . '</a>, ';
+		$output .= esc_html__( 'by', 'fanfiction-manager' ) . ' ' . esc_html( $author_name ) . ', ';
+		$output .= esc_html__( 'updated on', 'fanfiction-manager' ) . ' ' . esc_html( $formatted_date );
+		$output .= '</p>';
+
+		if ( $is_read ) {
+			$output .= '<span class="fanfic-badge read">' . esc_html__( '✓ Read', 'fanfiction-manager' ) . '</span>';
+		}
+
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Render individual story bookmark item
+	 *
+	 * @since 1.0.0
+	 * @param array $bookmark_data Bookmark data array with keys: post_id, bookmark_type, created_at.
+	 * @return string HTML output for story bookmark item.
+	 */
+	public static function render_story_bookmark_item( $bookmark_data ) {
+		if ( empty( $bookmark_data['post_id'] ) ) {
+			return '';
+		}
+
+		$story = get_post( $bookmark_data['post_id'] );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			return '';
+		}
+
+		$author = get_userdata( $story->post_author );
+		$author_name = $author ? $author->display_name : __( 'Unknown Author', 'fanfiction-manager' );
+
+		$formatted_date = wp_date( get_option( 'date_format' ), strtotime( $story->post_date ) );
+
+		// Get latest chapter
+		$chapters = self::get_story_chapters_helper( $story->ID );
+		$latest_chapter = null;
+		$latest_chapter_label = '';
+		$latest_chapter_date = '';
+		$is_read = false;
+
+		if ( ! empty( $chapters ) ) {
+			$latest_chapter = end( $chapters );
+			$latest_chapter_number = get_post_meta( $latest_chapter->ID, '_fanfic_chapter_number', true );
+			$latest_chapter_label = self::get_chapter_label_helper( $latest_chapter->ID );
+
+			// Determine latest chapter date
+			$post_date = strtotime( $latest_chapter->post_date );
+			$post_modified = strtotime( $latest_chapter->post_modified );
+			$display_date = ( $post_modified > $post_date ) ? $latest_chapter->post_modified : $latest_chapter->post_date;
+			$latest_chapter_date = wp_date( get_option( 'date_format' ), strtotime( $display_date ) );
+
+			// Get read status for latest chapter
+			$current_user_id = get_current_user_id();
+			if ( $current_user_id && class_exists( 'Fanfic_Reading_Progress' ) ) {
+				$read_chapters = Fanfic_Reading_Progress::batch_load_read_chapters( $current_user_id, $story->ID );
+				$is_read = in_array( absint( $latest_chapter_number ), $read_chapters, true );
+			}
+		}
+
+		$output = '<div class="fanfic-bookmark-item fanfic-bookmark-story">';
+		$output .= '<h4><a href="' . esc_url( get_permalink( $story->ID ) ) . '">' . esc_html( $story->post_title ) . '</a></h4>';
+		$output .= '<p class="fanfic-bookmark-meta">';
+		$output .= esc_html__( 'by', 'fanfiction-manager' ) . ' ' . esc_html( $author_name ) . ', ';
+		$output .= esc_html__( 'published on', 'fanfiction-manager' ) . ' ' . esc_html( $formatted_date );
+		$output .= '</p>';
+
+		if ( $latest_chapter ) {
+			$output .= '<p class="fanfic-bookmark-last-chapter">';
+			$output .= esc_html__( 'Last chapter:', 'fanfiction-manager' ) . ' ';
+			$output .= '<a href="' . esc_url( get_permalink( $latest_chapter->ID ) ) . '">' . esc_html( $latest_chapter_label ) . '</a>, ';
+			$output .= esc_html( $latest_chapter_date );
+			$output .= '</p>';
+		}
+
+		if ( $is_read ) {
+			$output .= '<span class="fanfic-badge read">' . esc_html__( '✓ Read', 'fanfiction-manager' ) . '</span>';
+		}
+
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Get story chapters (helper method)
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story ID.
+	 * @return array Array of chapter post objects.
+	 */
+	private static function get_story_chapters_helper( $story_id ) {
+		$chapters = get_posts( array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'orderby'        => 'date',
+			'order'          => 'ASC',
+		) );
+
+		if ( empty( $chapters ) ) {
+			return array();
+		}
+
+		// Sort chapters by chapter number
+		usort( $chapters, function( $a, $b ) {
+			$number_a = get_post_meta( $a->ID, '_fanfic_chapter_number', true );
+			$number_b = get_post_meta( $b->ID, '_fanfic_chapter_number', true );
+
+			// Convert to integers for proper comparison
+			$number_a = absint( $number_a );
+			$number_b = absint( $number_b );
+
+			// Prologue (0) comes first, then regular chapters (1-999), then epilogue (1000+)
+			return $number_a - $number_b;
+		} );
+
+		return $chapters;
+	}
+
+	/**
+	 * Get chapter label based on type and number (helper method)
+	 *
+	 * @since 1.0.0
+	 * @param int $chapter_id Chapter ID.
+	 * @return string Chapter label (e.g., "Prologue", "Chapter 1", "Epilogue").
+	 */
+	private static function get_chapter_label_helper( $chapter_id ) {
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+		$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+
+		if ( 'prologue' === $chapter_type ) {
+			return __( 'Prologue', 'fanfiction-manager' );
+		} elseif ( 'epilogue' === $chapter_type ) {
+			return __( 'Epilogue', 'fanfiction-manager' );
+		} else {
+			return sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number );
+		}
+	}
 }

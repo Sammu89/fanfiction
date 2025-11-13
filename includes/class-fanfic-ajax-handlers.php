@@ -147,6 +147,17 @@ class Fanfic_AJAX_Handlers {
 				'capability'  => 'read',
 			)
 		);
+
+		// Bookmark pagination (authenticated only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_load_user_bookmarks',
+			array( __CLASS__, 'ajax_load_user_bookmarks' ),
+			true, // Require login
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'read',
+			)
+		);
 	}
 
 	/**
@@ -737,6 +748,79 @@ class Fanfic_AJAX_Handlers {
 				'has_more'        => $page < $total_pages,
 			),
 			__( 'Notifications loaded successfully.', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * AJAX: Load user bookmarks with pagination
+	 *
+	 * Retrieves paginated bookmarks for the current user.
+	 * Authenticated users only.
+	 *
+	 * @since 1.0.15
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_load_user_bookmarks() {
+		// Get and validate parameters
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array( 'offset' ),
+			array( 'bookmark_type' )
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				$params->get_error_code(),
+				$params->get_error_message(),
+				400
+			);
+		}
+
+		$offset = absint( $params['offset'] );
+		$bookmark_type = isset( $params['bookmark_type'] ) ? sanitize_text_field( $params['bookmark_type'] ) : 'all';
+		$user_id = get_current_user_id();
+
+		// Validate bookmark_type
+		$allowed_types = array( 'all', 'story', 'chapter' );
+		if ( ! in_array( $bookmark_type, $allowed_types, true ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'invalid_bookmark_type',
+				__( 'Invalid bookmark type.', 'fanfiction-manager' ),
+				400
+			);
+		}
+
+		// Convert 'all' to null for get_user_bookmarks function
+		$bookmark_type_param = ( 'all' === $bookmark_type ) ? null : $bookmark_type;
+
+		// Get bookmarks (20 per page)
+		$per_page = 20;
+		$bookmarks = Fanfic_Bookmarks::get_user_bookmarks( $user_id, $bookmark_type_param, $per_page, $offset );
+
+		// Get total count for has_more calculation
+		$total_count = Fanfic_Bookmarks::get_bookmarks_count( $user_id, $bookmark_type_param );
+
+		// Build HTML for each bookmark
+		$html_output = '';
+		foreach ( $bookmarks as $bookmark ) {
+			if ( 'chapter' === $bookmark['bookmark_type'] ) {
+				$html_output .= Fanfic_Bookmarks::render_chapter_bookmark_item( $bookmark );
+			} else {
+				$html_output .= Fanfic_Bookmarks::render_story_bookmark_item( $bookmark );
+			}
+		}
+
+		// Calculate has_more
+		$has_more = ( $offset + $per_page ) < $total_count;
+
+		// Return success response
+		Fanfic_AJAX_Security::send_success_response(
+			array(
+				'html'        => $html_output,
+				'count'       => count( $bookmarks ),
+				'total_count' => $total_count,
+				'has_more'    => $has_more,
+			),
+			__( 'Bookmarks loaded successfully.', 'fanfiction-manager' )
 		);
 	}
 }

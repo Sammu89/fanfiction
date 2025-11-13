@@ -1690,4 +1690,113 @@
 		initNotifications();
 	});
 
+	/**
+	 * ============================================
+	 * BOOKMARKS SYSTEM
+	 * User bookmarks display with AJAX pagination
+	 * ============================================
+	 */
+
+	// Initialize bookmarks pagination on document ready
+	$(document).ready(function() {
+		initializeBookmarksPagination();
+	});
+
+	function initializeBookmarksPagination() {
+		// Find bookmarks container
+		var $bookmarksContainer = $('.fanfic-user-bookmarks');
+		if (!$bookmarksContainer.length) {
+			return;
+		}
+
+		// Show "Show More" button only if there are bookmarks
+		if ($('.fanfic-bookmark-item', $bookmarksContainer).length > 0) {
+			var $loadMoreBtn = $('.fanfic-load-more-bookmarks', $bookmarksContainer);
+			$loadMoreBtn.show();
+		}
+	}
+
+	// Handle "Show More" button click
+	$(document).on('click', '.fanfic-load-more-bookmarks', function(e) {
+		e.preventDefault();
+
+		var $btn = $(this);
+		var $container = $btn.closest('.fanfic-user-bookmarks');
+		var $loadingDiv = $('.fanfic-bookmarks-loading', $container);
+		var $bookmarksList = $('.fanfic-bookmarks-list', $container);
+
+		// Get current offset from button
+		var offset = parseInt($btn.data('offset'), 10) || 0;
+		var userId = parseInt($container.data('user-id'), 10);
+		var bookmarkType = $container.data('bookmark-type') || 'all';
+
+		// Disable button and show loading
+		$btn.prop('disabled', true);
+		$loadingDiv.show();
+
+		// AJAX request to load more bookmarks
+		$.ajax({
+			url: fanficData.ajaxUrl,
+			type: 'POST',
+			dataType: 'json',
+			data: {
+				action: 'fanfic_load_user_bookmarks',
+				offset: offset,
+				bookmark_type: bookmarkType,
+				nonce: fanficData.nonce
+			},
+			success: function(response) {
+				if (response.success && response.data.html) {
+					// APPEND new bookmarks to list (not replace)
+					$bookmarksList.append(response.data.html);
+
+					// Update offset for next load
+					var nextOffset = offset + 20;
+					$btn.data('offset', nextOffset);
+
+					// Hide button if no more bookmarks
+					if (!response.data.has_more) {
+						$btn.hide();
+					}
+				} else {
+					console.error('Failed to load bookmarks:', response.message);
+					showBookmarksError('Failed to load bookmarks. Please try again.');
+				}
+			},
+			error: function(xhr, status, error) {
+				console.error('AJAX error:', error);
+				showBookmarksError('An error occurred while loading bookmarks. Please try again.');
+			},
+			complete: function() {
+				// Hide loading and re-enable button
+				$loadingDiv.hide();
+				$btn.prop('disabled', false);
+			}
+		});
+	});
+
+	function showBookmarksError(message) {
+		// Create error message div
+		var $error = $('<div class="fanfic-error-message">')
+			.text(message)
+			.css({
+				'padding': '8px 12px',
+				'margin': '8px 0',
+				'background': '#f8d7da',
+				'color': '#721c24',
+				'border': '1px solid #f5c6cb',
+				'border-radius': '4px'
+			});
+
+		var $container = $('.fanfic-user-bookmarks');
+		$container.append($error);
+
+		// Auto-remove error after 5 seconds
+		setTimeout(function() {
+			$error.fadeOut(300, function() {
+				$(this).remove();
+			});
+		}, 5000);
+	}
+
 })(jQuery);
