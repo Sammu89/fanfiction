@@ -151,7 +151,7 @@ class Fanfic_Shortcodes_Buttons {
 				break;
 
 			case 'chapter':
-				$actions = array( 'like', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
+				$actions = array( 'follow', 'like', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
 				break;
 
 			case 'author':
@@ -264,8 +264,8 @@ class Fanfic_Shortcodes_Buttons {
 		// Add action-specific data attributes
 		if ( 'follow' === $action ) {
 			// Determine target_id and follow_type based on context
-			if ( isset( $context_ids['story_id'] ) && ! isset( $context_ids['chapter_id'] ) ) {
-				// Story context - follow the story
+			if ( isset( $context_ids['story_id'] ) ) {
+				// Story or chapter context - follow the story
 				$data_attrs['data-target-id'] = $context_ids['story_id'];
 				$data_attrs['data-follow-type'] = 'story';
 			} elseif ( isset( $context_ids['author_id'] ) ) {
@@ -630,14 +630,12 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		if ( ! $content_id ) {
-			error_log( 'Edit button: No content_id for context: ' . $context . ', context_ids: ' . print_r( $context_ids, true ) );
 			return '';
 		}
 
 		// Check permissions using the fanfic permission function
 		// This checks: author, moderators (moderate_fanfiction), and admins (manage_options)
 		if ( ! fanfic_current_user_can_edit( $content_type, $content_id ) ) {
-			error_log( 'Edit button: Permission denied for user_id: ' . $user_id . ', content_type: ' . $content_type . ', content_id: ' . $content_id );
 			return '';
 		}
 
@@ -656,16 +654,15 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		if ( ! $edit_url ) {
-			error_log( 'Edit button: No edit_url for content_type: ' . $content_type . ', content_id: ' . $content_id );
 			return '';
 		}
-
-		error_log( 'Edit button: SUCCESS - Rendering button for ' . $content_type . ' ' . $content_id . ' with URL: ' . $edit_url );
 
 		$label = __( 'Edit', 'fanfiction-manager' );
 		$icon = '&#9998;'; // Pencil icon
 
-		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-action-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '">';
+		// Render as link (not button) since it navigates to a different page
+		// Uses same structure and classes as other action buttons for visual consistency
+		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-action-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '" role="button">';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
 		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
 		$output .= '</a>';
