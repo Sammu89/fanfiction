@@ -62,7 +62,7 @@
 			}
 
 			// Save current step data (only for steps that need saving)
-			if (currentStep === 2 || currentStep === 3 || currentStep === 4) {
+			if (currentStep === 1 || currentStep === 2 || currentStep === 3 || currentStep === 4) {
 				this.saveStep(currentStep, function(response) {
 					if (response.success) {
 						console.log('Fanfic Wizard: AJAX success - Navigating to:', response.data.next_url);
