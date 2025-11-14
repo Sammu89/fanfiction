@@ -83,6 +83,10 @@
 
 			// Share buttons
 			this.initShareButtons();
+		// Subscribe buttons (open modal)
+		this.initSubscribeButtons();
+		// Report buttons
+		this.initReportButtons();
 
 			this.log('Fanfic Interactions initialized');
 		},
@@ -314,24 +318,27 @@
 
 				self.log('Share button clicked:', { url, title });
 
-				// Try Web Share API first (native mobile/desktop sharing)
-				if (navigator.share) {
+				// Check if we should use Web Share API (mobile devices primarily)
+				const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+				// Try Web Share API on mobile devices (where it works reliably)
+				if (navigator.share && isMobile) {
 					navigator.share({
 						title: title,
 						url: url
 					}).then(function() {
-						self.log('Share successful');
-						self.showSuccess($button, 'Shared successfully!');
+						self.log('Share successful via Web Share API');
+						// Don't show success message for native share - the OS handles it
 					}).catch(function(err) {
-						// User cancelled or error - fail silently for cancellation
+						// User cancelled or error
 						if (err.name !== 'AbortError') {
 							self.log('Share failed:', err);
-							// Fallback to clipboard on error (but not on cancellation)
+							// Fallback to clipboard on error
 							self.copyToClipboard(url, $button);
 						}
 					});
 				} else if (navigator.clipboard && navigator.clipboard.writeText) {
-					// Fallback to clipboard API
+					// Use clipboard API for desktop (more reliable than Web Share on desktop)
 					self.copyToClipboard(url, $button);
 				} else {
 					// Last resort - show prompt for manual copy
@@ -375,6 +382,73 @@
 
 			$temp.remove();
 		},
+
+	/**
+	 * Initialize report buttons
+	 */
+	initReportButtons: function() {
+		const self = this;
+
+		$(document).on('click', '.fanfic-report-button', function(e) {
+			e.preventDefault();
+
+			const $button = $(this);
+			const contentId = $button.data('content-id');
+			const reportType = $button.data('report-type');
+
+			// Prevent double-click
+			if ($button.hasClass('loading')) {
+				return;
+			}
+
+			self.log('Report button clicked:', { contentId, reportType });
+
+			// Show confirmation dialog
+			const confirmed = confirm(self.strings.reportConfirm || 'Are you sure you want to report this content?');
+			if (!confirmed) {
+				return;
+			}
+
+			// Show prompt for report reason
+			const reason = prompt(self.strings.reportReason || 'Please provide a reason for reporting (optional):');
+			if (reason === null) {
+				return; // User cancelled
+			}
+
+			// Submit report
+			self.submitReport(contentId, reportType, reason, $button);
+		});
+	},
+
+	/**
+	 * Initialize subscribe buttons (open modal)
+	 */
+	initSubscribeButtons: function() {
+		const self = this;
+
+		$(document).on('click', '.fanfic-subscribe-button', function(e) {
+			e.preventDefault();
+
+			const $button = $(this);
+			const targetId = $button.data('target-id');
+			const subscriptionType = $button.data('subscription-type');
+
+			self.log('Subscribe button clicked:', { targetId, subscriptionType });
+
+			// Open the subscription modal
+			const modalId = 'fanfic-subscribe-modal-' + subscriptionType + '-' + targetId;
+			
+			// Use EnhancedModal if available, otherwise use basic Modal
+			if (typeof window.EnhancedModal !== 'undefined') {
+				window.EnhancedModal.open(modalId);
+			} else if (typeof window.Modal !== 'undefined') {
+				window.Modal.open(modalId);
+			} else {
+				// Fallback: just show the modal
+				$('#' + modalId).fadeIn(200);
+			}
+		});
+	},
 
 		/**
 		 * Submit rating to server
@@ -681,6 +755,43 @@
 				}
 			});
 		},
+
+	/**
+	 * Submit report to server
+	 */
+	submitReport: function(contentId, reportType, reason, $button) {
+		const self = this;
+
+		$button.addClass('loading');
+
+		$.ajax({
+			url: this.config.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'fanfic_submit_report',
+				nonce: this.config.nonce,
+				content_id: contentId,
+				report_type: reportType,
+				reason: reason
+			},
+			success: function(response) {
+				self.log('Report response:', response);
+
+				if (response.success) {
+					self.showSuccess($button, response.data.message || 'Report submitted successfully. Thank you!');
+				} else {
+					self.showError($button, response.data.message || self.strings.error);
+				}
+			},
+			error: function(xhr) {
+				self.log('Report error:', xhr);
+				self.handleAjaxError(xhr, $button);
+			},
+			complete: function() {
+				$button.removeClass('loading');
+			}
+		});
+	},
 
 		/**
 		 * Update rating display (optimistic)

@@ -222,11 +222,19 @@ class Fanfic_Shortcodes_Buttons {
 	private static function render_button( $action, $context, $context_ids, $nonce ) {
 		$user_id = get_current_user_id();
 
-		// Check if user can edit this content
+		// Handle Edit button separately (it's a link, not a button)
 		if ( 'edit' === $action ) {
-			if ( ! $user_id || $user_id !== absint( $context_ids['author_id'] ) ) {
-				return ''; // Only show edit button to the author
-			}
+			return self::render_edit_link( $context, $context_ids, $user_id );
+		}
+
+		// Handle Report button separately (opens modal/form)
+		if ( 'report' === $action ) {
+			return self::render_report_button( $context, $context_ids, $nonce );
+		}
+
+		// Handle Subscribe button separately (opens modal/form)
+		if ( 'subscribe' === $action ) {
+			return self::render_subscribe_button( $context, $context_ids, $nonce );
 		}
 
 		// Get current state for toggle buttons
@@ -281,15 +289,37 @@ class Fanfic_Shortcodes_Buttons {
 		$icon = self::get_button_icon( $action, $current_state );
 		$aria_label = self::get_button_aria_label( $action, $current_state, $context );
 
+		// Get inactive and active labels for JavaScript toggle
+		$inactive_label = self::get_button_label( $action, false );
+		$active_label = self::get_button_label( $action, true );
+
+		// Get text class name for JavaScript updates
+		$text_class = self::get_text_class_for_action( $action );
+
 		// Build button HTML
 		$output = '<button class="' . esc_attr( implode( ' ', $classes ) ) . '"';
 		foreach ( $data_attrs as $key => $value ) {
 			$output .= ' ' . esc_attr( $key ) . '="' . esc_attr( $value ) . '"';
 		}
+
+		// Add data attributes for text toggling (used by JavaScript)
+		if ( $text_class ) {
+			$data_attr_names = self::get_data_attr_names_for_action( $action );
+			$output .= ' data-' . esc_attr( $data_attr_names['inactive'] ) . '="' . esc_attr( $inactive_label ) . '"';
+			$output .= ' data-' . esc_attr( $data_attr_names['active'] ) . '="' . esc_attr( $active_label ) . '"';
+		}
+
 		$output .= ' aria-label="' . esc_attr( $aria_label ) . '"';
 		$output .= ' type="button">';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
-		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '">' . esc_html( $label ) . '</span>';
+
+		// Add count display for like button
+		if ( 'like' === $action && isset( $context_ids['chapter_id'] ) ) {
+			$like_count = Fanfic_Like_System::get_chapter_likes( $context_ids['chapter_id'] );
+			$output .= ' <span class="fanfic-button-count like-count">(' . absint( $like_count ) . ')</span>';
+		}
+
 		$output .= '</button>';
 
 		return $output;
@@ -348,13 +378,13 @@ class Fanfic_Shortcodes_Buttons {
 				// Check if user has email subscription for this story
 				if ( isset( $context_ids['story_id'] ) ) {
 					global $wpdb;
-					$table_name = $wpdb->prefix . 'fanfic_subscriptions';
+					$table_name = $wpdb->prefix . 'fanfic_email_subscriptions';
 					$user = wp_get_current_user();
 					if ( ! $user->exists() ) {
 						return false;
 					}
 					$subscribed = $wpdb->get_var( $wpdb->prepare(
-						"SELECT COUNT(*) FROM {$table_name} WHERE story_id = %d AND email = %s AND is_active = 1",
+						"SELECT COUNT(*) FROM {$table_name} WHERE target_id = %d AND email = %s AND subscription_type = 'story' AND verified = 1",
 						$context_ids['story_id'],
 						$user->user_email
 					) );
@@ -518,5 +548,274 @@ class Fanfic_Shortcodes_Buttons {
 
 		$state = $current_state ? 'active' : 'inactive';
 		return isset( $labels[ $action ][ $state ] ) ? $labels[ $action ][ $state ] : ucfirst( $action );
+	}
+
+	/**
+	 * Get text class name for action (used by JavaScript for text updates)
+	 *
+	 * Maps action types to their CSS class names that JavaScript uses to update text.
+	 *
+	 * @since 2.0.0
+	 * @param string $action Action type.
+	 * @return string Text class name.
+	 */
+	private static function get_text_class_for_action( $action ) {
+		$text_classes = array(
+			'like'      => 'like-text',
+			'bookmark'  => 'bookmark-text',
+			'follow'    => 'follow-text',
+			'mark-read' => 'read-text',
+			// 'subscribe' is NOT a toggle button - it opens a subscription form
+		);
+
+		return isset( $text_classes[ $action ] ) ? $text_classes[ $action ] : '';
+	}
+
+	/**
+	 * Get data attribute names for action (used by JavaScript for text toggling)
+	 *
+	 * Returns the inactive and active data attribute names that JavaScript expects.
+	 *
+	 * @since 2.0.0
+	 * @param string $action Action type.
+	 * @return array Array with 'inactive' and 'active' keys.
+	 */
+	private static function get_data_attr_names_for_action( $action ) {
+		$data_attrs = array(
+			'like' => array(
+				'inactive' => 'like-text',
+				'active'   => 'liked-text',
+			),
+			'bookmark' => array(
+				'inactive' => 'bookmark-text',
+				'active'   => 'bookmarked-text',
+			),
+			'follow' => array(
+				'inactive' => 'follow-text',
+				'active'   => 'following-text',
+			),
+			'mark-read' => array(
+				'inactive' => 'unread-text',
+				'active'   => 'read-text',
+			),
+			// 'subscribe' is NOT a toggle button - it opens a subscription form
+		);
+
+		return isset( $data_attrs[ $action ] ) ? $data_attrs[ $action ] : array( 'inactive' => $action . '-text', 'active' => $action . 'd-text' );
+	}
+
+	/**
+	 * Render edit link (for content authors only)
+	 *
+	 * @since 2.0.0
+	 * @param string $context     Context (story, chapter, author).
+	 * @param array  $context_ids Context IDs.
+	 * @param int    $user_id     Current user ID.
+	 * @return string Edit link HTML or empty string.
+	 */
+	private static function render_edit_link( $context, $context_ids, $user_id ) {
+		// Get the post ID or user ID to check permissions
+		$content_id = 0;
+		$content_type = '';
+
+		if ( 'chapter' === $context && isset( $context_ids['chapter_id'] ) ) {
+			$content_id = $context_ids['chapter_id'];
+			$content_type = 'chapter';
+		} elseif ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
+			$content_id = $context_ids['story_id'];
+			$content_type = 'story';
+		} elseif ( 'author' === $context && isset( $context_ids['author_id'] ) ) {
+			$content_id = $context_ids['author_id'];
+			$content_type = 'profile';
+		}
+
+		if ( ! $content_id ) {
+			return '';
+		}
+
+		// Check permissions using the fanfic permission function
+		// This checks: author, moderators (moderate_fanfiction), and admins (manage_options)
+		if ( ! fanfic_current_user_can_edit( $content_type, $content_id ) ) {
+			return '';
+		}
+
+		// Get edit link
+		$edit_url = '';
+		if ( 'profile' === $content_type ) {
+			// For author profiles, link to author dashboard or profile edit page
+			$edit_url = fanfic_get_page_url( 'dashboard' );
+		} else {
+			// For stories and chapters, use WordPress edit post link
+			$edit_url = get_edit_post_link( $content_id );
+		}
+
+		if ( ! $edit_url ) {
+			return '';
+		}
+
+		$label = __( 'Edit', 'fanfiction-manager' );
+		$icon = '&#9998;'; // Pencil icon
+
+		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-action-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '">';
+		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
+		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= '</a>';
+
+		return $output;
+	}
+
+	/**
+	 * Render report button
+	 *
+	 * @since 2.0.0
+	 * @param string $context     Context (story, chapter, author).
+	 * @param array  $context_ids Context IDs.
+	 * @param string $nonce       AJAX nonce.
+	 * @return string Report button HTML.
+	 */
+	private static function render_report_button( $context, $context_ids, $nonce ) {
+		// Get the content ID to report
+		$content_id = 0;
+		$report_type = '';
+
+		if ( 'chapter' === $context && isset( $context_ids['chapter_id'] ) ) {
+			$content_id = $context_ids['chapter_id'];
+			$report_type = 'chapter';
+		} elseif ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
+			$content_id = $context_ids['story_id'];
+			$report_type = 'story';
+		} elseif ( 'author' === $context && isset( $context_ids['author_id'] ) ) {
+			$content_id = $context_ids['author_id'];
+			$report_type = 'author';
+		}
+
+		if ( ! $content_id ) {
+			return '';
+		}
+
+		$label = __( 'Report', 'fanfiction-manager' );
+		$icon = '&#9888;'; // Warning icon
+
+		$output = '<button type="button" class="fanfic-action-button fanfic-report-button" ';
+		$output .= 'data-content-id="' . absint( $content_id ) . '" ';
+		$output .= 'data-report-type="' . esc_attr( $report_type ) . '" ';
+		$output .= 'data-nonce="' . esc_attr( $nonce ) . '" ';
+		$output .= 'aria-label="' . esc_attr( sprintf( __( 'Report this %s', 'fanfiction-manager' ), $context ) ) . '">';
+		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
+		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= '</button>';
+
+		return $output;
+	}
+
+	/**
+	 * Render subscribe button (opens subscription modal)
+	 *
+	 * @since 2.0.0
+	 * @param string $context     Context (story, chapter, author).
+	 * @param array  $context_ids Context IDs.
+	 * @param string $nonce       AJAX nonce.
+	 * @return string Subscribe button HTML.
+	 */
+	private static function render_subscribe_button( $context, $context_ids, $nonce ) {
+		// Get the target ID for subscription
+		$target_id = 0;
+		$subscription_type = '';
+
+		if ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
+			$target_id = $context_ids['story_id'];
+			$subscription_type = 'story';
+		} elseif ( 'chapter' === $context && isset( $context_ids['story_id'] ) ) {
+			// For chapters, subscribe to the parent story
+			$target_id = $context_ids['story_id'];
+			$subscription_type = 'story';
+		} elseif ( 'author' === $context && isset( $context_ids['author_id'] ) ) {
+			$target_id = $context_ids['author_id'];
+			$subscription_type = 'author';
+		}
+
+		if ( ! $target_id ) {
+			return '';
+		}
+
+		$label = __( 'Subscribe', 'fanfiction-manager' );
+		$icon = '&#128276;'; // Bell icon
+
+		$output = '<button type="button" class="fanfic-action-button fanfic-subscribe-button" ';
+		$output .= 'data-target-id="' . absint( $target_id ) . '" ';
+		$output .= 'data-subscription-type="' . esc_attr( $subscription_type ) . '" ';
+		$output .= 'data-nonce="' . esc_attr( $nonce ) . '" ';
+		$output .= 'aria-label="' . esc_attr( sprintf( __( 'Subscribe to updates for this %s', 'fanfiction-manager' ), $context ) ) . '">';
+		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
+		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= '</button>';
+
+		// Add the subscription modal HTML (will be shown when button is clicked)
+		$output .= self::render_subscription_modal( $target_id, $subscription_type, $context );
+
+		return $output;
+	}
+
+	/**
+	 * Render subscription modal HTML
+	 *
+	 * @since 2.0.0
+	 * @param int    $target_id         Story or Author ID.
+	 * @param string $subscription_type 'story' or 'author'.
+	 * @param string $context           Context for display.
+	 * @return string Modal HTML.
+	 */
+	private static function render_subscription_modal( $target_id, $subscription_type, $context ) {
+		$modal_id = 'fanfic-subscribe-modal-' . $subscription_type . '-' . $target_id;
+
+		$title = 'story' === $subscription_type
+			? __( 'Subscribe to Story Updates', 'fanfiction-manager' )
+			: __( 'Subscribe to Author Updates', 'fanfiction-manager' );
+
+		$description = 'story' === $subscription_type
+			? __( 'Get notified by email when new chapters are published for this story.', 'fanfiction-manager' )
+			: __( 'Get notified by email when this author publishes new stories or chapters.', 'fanfiction-manager' );
+
+		ob_start();
+		?>
+		<div id="<?php echo esc_attr( $modal_id ); ?>" class="fanfic-modal" role="dialog" aria-hidden="true" aria-labelledby="<?php echo esc_attr( $modal_id ); ?>-title">
+			<div class="fanfic-modal-overlay"></div>
+			<div class="fanfic-modal-content">
+				<button type="button" class="fanfic-modal-close" aria-label="<?php esc_attr_e( 'Close', 'fanfiction-manager' ); ?>">&times;</button>
+				<h2 id="<?php echo esc_attr( $modal_id ); ?>-title"><?php echo esc_html( $title ); ?></h2>
+				<p><?php echo esc_html( $description ); ?></p>
+
+				<form class="fanfic-email-subscription-form" data-target-id="<?php echo absint( $target_id ); ?>" data-subscription-type="<?php echo esc_attr( $subscription_type ); ?>">
+					<div class="form-group">
+						<label for="<?php echo esc_attr( $modal_id ); ?>-email">
+							<?php esc_html_e( 'Email Address', 'fanfiction-manager' ); ?>
+						</label>
+						<input
+							type="email"
+							id="<?php echo esc_attr( $modal_id ); ?>-email"
+							name="email"
+							required
+							placeholder="<?php esc_attr_e( 'your@email.com', 'fanfiction-manager' ); ?>"
+							autocomplete="email"
+						/>
+					</div>
+
+					<div class="form-actions">
+						<button type="submit" class="button button-primary">
+							<?php esc_html_e( 'Subscribe', 'fanfiction-manager' ); ?>
+						</button>
+						<button type="button" class="button fanfic-modal-close">
+							<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+						</button>
+					</div>
+
+					<p class="description">
+						<?php esc_html_e( 'You will receive a confirmation email to verify your subscription.', 'fanfiction-manager' ); ?>
+					</p>
+				</form>
+			</div>
+		</div>
+		<?php
+		return ob_get_clean();
 	}
 }
