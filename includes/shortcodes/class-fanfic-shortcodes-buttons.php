@@ -281,15 +281,30 @@ class Fanfic_Shortcodes_Buttons {
 		$icon = self::get_button_icon( $action, $current_state );
 		$aria_label = self::get_button_aria_label( $action, $current_state, $context );
 
+		// Get inactive and active labels for JavaScript toggle
+		$inactive_label = self::get_button_label( $action, false );
+		$active_label = self::get_button_label( $action, true );
+
+		// Get text class name for JavaScript updates
+		$text_class = self::get_text_class_for_action( $action );
+
 		// Build button HTML
 		$output = '<button class="' . esc_attr( implode( ' ', $classes ) ) . '"';
 		foreach ( $data_attrs as $key => $value ) {
 			$output .= ' ' . esc_attr( $key ) . '="' . esc_attr( $value ) . '"';
 		}
+
+		// Add data attributes for text toggling (used by JavaScript)
+		if ( $text_class ) {
+			$data_attr_names = self::get_data_attr_names_for_action( $action );
+			$output .= ' data-' . esc_attr( $data_attr_names['inactive'] ) . '="' . esc_attr( $inactive_label ) . '"';
+			$output .= ' data-' . esc_attr( $data_attr_names['active'] ) . '="' . esc_attr( $active_label ) . '"';
+		}
+
 		$output .= ' aria-label="' . esc_attr( $aria_label ) . '"';
 		$output .= ' type="button">';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
-		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '">' . esc_html( $label ) . '</span>';
 		$output .= '</button>';
 
 		return $output;
@@ -518,5 +533,62 @@ class Fanfic_Shortcodes_Buttons {
 
 		$state = $current_state ? 'active' : 'inactive';
 		return isset( $labels[ $action ][ $state ] ) ? $labels[ $action ][ $state ] : ucfirst( $action );
+	}
+
+	/**
+	 * Get text class name for action (used by JavaScript for text updates)
+	 *
+	 * Maps action types to their CSS class names that JavaScript uses to update text.
+	 *
+	 * @since 2.0.0
+	 * @param string $action Action type.
+	 * @return string Text class name.
+	 */
+	private static function get_text_class_for_action( $action ) {
+		$text_classes = array(
+			'like'      => 'like-text',
+			'bookmark'  => 'bookmark-text',
+			'follow'    => 'follow-text',
+			'mark-read' => 'read-text',
+			'subscribe' => 'subscribe-text',
+		);
+
+		return isset( $text_classes[ $action ] ) ? $text_classes[ $action ] : '';
+	}
+
+	/**
+	 * Get data attribute names for action (used by JavaScript for text toggling)
+	 *
+	 * Returns the inactive and active data attribute names that JavaScript expects.
+	 *
+	 * @since 2.0.0
+	 * @param string $action Action type.
+	 * @return array Array with 'inactive' and 'active' keys.
+	 */
+	private static function get_data_attr_names_for_action( $action ) {
+		$data_attrs = array(
+			'like' => array(
+				'inactive' => 'like-text',
+				'active'   => 'liked-text',
+			),
+			'bookmark' => array(
+				'inactive' => 'bookmark-text',
+				'active'   => 'bookmarked-text',
+			),
+			'follow' => array(
+				'inactive' => 'follow-text',
+				'active'   => 'following-text',
+			),
+			'mark-read' => array(
+				'inactive' => 'unread-text',
+				'active'   => 'read-text',
+			),
+			'subscribe' => array(
+				'inactive' => 'subscribe-text',
+				'active'   => 'subscribed-text',
+			),
+		);
+
+		return isset( $data_attrs[ $action ] ) ? $data_attrs[ $action ] : array( 'inactive' => $action . '-text', 'active' => $action . 'd-text' );
 	}
 }
