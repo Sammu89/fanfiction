@@ -956,15 +956,7 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function save_url_settings_step() {
-		// 1. Save main page mode (also saved in step 1, kept for consistency)
-		if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
-			$main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
-			if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
-				update_option( 'fanfic_main_page_mode', $main_page_mode );
-			}
-		}
-
-		// 2. Validate and save base slug
+		// 1. Validate and save base slug
 		if ( isset( $_POST['fanfic_base_slug'] ) ) {
 			$base_slug = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
 			$validation = Fanfic_URL_Schema::validate_slug( $base_slug, array( 'base' ) );
@@ -976,7 +968,7 @@ private function render_choice_screen() {
 			update_option( 'fanfic_base_slug', $base_slug );
 		}
 
-		// 3. Validate and save story path
+		// 2. Validate and save story path
 		if ( isset( $_POST['fanfic_story_path'] ) ) {
 			$story_path = sanitize_title( wp_unslash( $_POST['fanfic_story_path'] ) );
 			$validation = Fanfic_URL_Schema::validate_slug( $story_path, array( 'story_path' ) );
@@ -988,7 +980,7 @@ private function render_choice_screen() {
 			update_option( 'fanfic_story_path', $story_path );
 		}
 
-		// 4. Validate and save dynamic page paths (dashboard, members, search)
+		// 3. Validate and save dynamic page paths (dashboard, members, search)
 		$secondary_slugs_input = array();
 		$secondary_config = Fanfic_URL_Schema::get_slugs_by_group( 'dynamic' );
 
@@ -1031,7 +1023,7 @@ private function render_choice_screen() {
 			}
 		}
 
-		// 5. Validate and save chapter slugs (prologue, chapter, epilogue)
+		// 4. Validate and save chapter slugs (prologue, chapter, epilogue)
 		$chapter_slugs_input = array();
 		$chapter_config = Fanfic_URL_Schema::get_slugs_by_group( 'chapters' );
 
@@ -1062,7 +1054,7 @@ private function render_choice_screen() {
 		// Save chapter slugs
 		update_option( 'fanfic_chapter_slugs', $chapter_slugs_input );
 
-		// 6. Validate and save system page slugs
+		// 5. Validate and save system page slugs
 		if ( isset( $_POST['fanfic_system_page_slugs'] ) && is_array( $_POST['fanfic_system_page_slugs'] ) ) {
 			$slugs = array_map( 'sanitize_title', wp_unslash( $_POST['fanfic_system_page_slugs'] ) );
 
@@ -1115,13 +1107,13 @@ private function render_choice_screen() {
 			}
 		}
 
-		// 7. Create/update system pages with new slugs
+		// 6. Create/update system pages with new slugs
 		if ( class_exists( 'Fanfic_Templates' ) ) {
 			$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
 			Fanfic_Templates::create_system_pages( $base_slug );
 		}
 
-		// 8. Flush rewrite rules
+		// 7. Flush rewrite rules
 		$this->flush_rewrite_rules();
 	}
 
