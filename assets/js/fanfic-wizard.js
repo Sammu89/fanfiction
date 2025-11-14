@@ -106,7 +106,8 @@
 				dataType: 'json',
 				data: {
 					action: 'fanfic_wizard_complete',
-					nonce: fanficWizard.nonce
+					nonce: fanficWizard.nonce,
+					create_samples: $('#fanfic_create_samples').is(':checked') ? '1' : '0'
 				},
 				success: function(response) {
 					if (response.success) {
