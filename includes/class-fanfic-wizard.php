@@ -532,24 +532,76 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function render_welcome_step() {
+		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
 		?>
-		<div class="fanfic-wizard-welcome">
-			<div class="fanfic-wizard-welcome-icon">
-				<span class="dashicons dashicons-book-alt" style="font-size: 80px; width: 80px; height: 80px;"></span>
+		<form id="fanfic-wizard-form-step-1" class="fanfic-wizard-form">
+			<div class="fanfic-wizard-welcome">
+				<div class="fanfic-wizard-welcome-icon">
+					<span class="dashicons dashicons-book-alt" style="font-size: 80px; width: 80px; height: 80px;"></span>
+				</div>
+				<h3><?php esc_html_e( 'Welcome to Fanfiction Manager!', 'fanfiction-manager' ); ?></h3>
+				<p><?php esc_html_e( 'This wizard will help you set up your fanfiction platform in just a few steps.', 'fanfiction-manager' ); ?></p>
+				<p><?php esc_html_e( 'We will configure:', 'fanfiction-manager' ); ?></p>
+				<ul style="list-style: disc; margin-left: 2em;">
+					<li><?php esc_html_e( 'Base URL slug for your fanfiction pages', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'Story subdirectory to avoid conflicts with system pages', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'Secondary path customization (dashboard, user, search)', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'User roles (moderators and administrators)', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'Default taxonomy terms (Genre and Status)', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'System pages creation', 'fanfiction-manager' ); ?></li>
+				</ul>
+
+				<!-- Statistical Data Notice -->
+				<div class="notice notice-info inline" style="margin: 20px 0;">
+					<p>
+						<strong><?php esc_html_e( 'Anonymous Usage Statistics:', 'fanfiction-manager' ); ?></strong>
+						<?php esc_html_e( 'This plugin collects anonymous statistical data to help improve and maintain the plugin. This includes basic usage metrics such as plugin version, WordPress version, and feature usage. No personal or sensitive information is collected.', 'fanfiction-manager' ); ?>
+					</p>
+				</div>
+
+				<!-- Main Page Display Mode -->
+				<div style="margin-top: 30px; padding: 20px; border: 1px solid #ddd; background: #f9f9f9;">
+					<h4 style="margin-top: 0;"><?php esc_html_e( 'How do you want your site organized?', 'fanfiction-manager' ); ?></h4>
+					<p class="description">
+						<?php esc_html_e( 'Choose whether your homepage shows the story archive directly or allows for custom content.', 'fanfiction-manager' ); ?>
+					</p>
+
+					<div style="margin-top: 15px;">
+						<label style="display: block; margin-bottom: 15px; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+							<input
+								type="radio"
+								name="fanfic_main_page_mode"
+								value="stories_homepage"
+								<?php checked( $main_page_mode, 'stories_homepage' ); ?>
+								style="margin-right: 10px;"
+							>
+							<strong><?php esc_html_e( 'Stories Archive as Homepage', 'fanfiction-manager' ); ?></strong>
+							<br>
+							<span class="description" style="margin-left: 24px;">
+								<?php esc_html_e( 'Your main page displays the story archive directly', 'fanfiction-manager' ); ?>
+							</span>
+						</label>
+
+						<label style="display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+							<input
+								type="radio"
+								name="fanfic_main_page_mode"
+								value="custom_homepage"
+								<?php checked( $main_page_mode, 'custom_homepage' ); ?>
+								style="margin-right: 10px;"
+							>
+							<strong><?php esc_html_e( 'Custom Homepage', 'fanfiction-manager' ); ?></strong>
+							<br>
+							<span class="description" style="margin-left: 24px;">
+								<?php esc_html_e( 'Create a custom homepage with separate archive page', 'fanfiction-manager' ); ?>
+							</span>
+						</label>
+					</div>
+				</div>
+
+				<p style="margin-top: 20px;"><strong><?php esc_html_e( 'By clicking "Next", you accept the collection of anonymous usage statistics and agree to proceed with the setup process.', 'fanfiction-manager' ); ?></strong></p>
 			</div>
-			<h3><?php esc_html_e( 'Welcome to Fanfiction Manager!', 'fanfiction-manager' ); ?></h3>
-			<p><?php esc_html_e( 'This wizard will help you set up your fanfiction platform in just a few steps.', 'fanfiction-manager' ); ?></p>
-			<p><?php esc_html_e( 'We will configure:', 'fanfiction-manager' ); ?></p>
-			<ul style="list-style: disc; margin-left: 2em;">
-				<li><?php esc_html_e( 'Base URL slug for your fanfiction pages', 'fanfiction-manager' ); ?></li>
-				<li><?php esc_html_e( 'Story subdirectory to avoid conflicts with system pages', 'fanfiction-manager' ); ?></li>
-				<li><?php esc_html_e( 'Secondary path customization (dashboard, user, search)', 'fanfiction-manager' ); ?></li>
-				<li><?php esc_html_e( 'User roles (moderators and administrators)', 'fanfiction-manager' ); ?></li>
-				<li><?php esc_html_e( 'Default taxonomy terms (Genre and Status)', 'fanfiction-manager' ); ?></li>
-				<li><?php esc_html_e( 'System pages creation', 'fanfiction-manager' ); ?></li>
-			</ul>
-			<p><strong><?php esc_html_e( 'Click "Next" to begin the setup process.', 'fanfiction-manager' ); ?></strong></p>
-		</div>
+		</form>
 		<?php
 	}
 
@@ -847,6 +899,9 @@ private function render_choice_screen() {
 
 		// Save step data based on step number
 		switch ( $step ) {
+			case 1:
+				$this->save_welcome_step();
+				break;
 			case 2:
 				$this->save_url_settings_step();
 				break;
@@ -857,7 +912,7 @@ private function render_choice_screen() {
 				$this->save_taxonomy_terms_step();
 				break;
 			default:
-				// Steps 1 and 5 don't require saving
+				// Step 5 doesn't require saving
 				break;
 		}
 
@@ -875,6 +930,24 @@ private function render_choice_screen() {
 	}
 
 	/**
+	 * Save welcome step data
+	 *
+	 * Saves the main page mode selection from step 1.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private function save_welcome_step() {
+		// Save main page mode
+		if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
+			$main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
+			if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
+				update_option( 'fanfic_main_page_mode', $main_page_mode );
+			}
+		}
+	}
+
+	/**
 	 * Save URL settings step data
 	 *
 	 * Refactored to use Fanfic_URL_Schema for validation and consistency.
@@ -883,7 +956,7 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function save_url_settings_step() {
-		// 1. Save main page mode
+		// 1. Save main page mode (also saved in step 1, kept for consistency)
 		if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
 			$main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
 			if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
