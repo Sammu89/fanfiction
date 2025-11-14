@@ -29,43 +29,6 @@ class Fanfic_Roles_Caps {
 	 */
 	public static function init() {
 		add_filter( 'map_meta_cap', array( __CLASS__, 'map_meta_cap' ), 10, 4 );
-
-		// Set default role for new users to fanfiction_reader instead of subscriber
-		add_filter( 'pre_option_default_role', array( __CLASS__, 'set_default_role' ) );
-
-		// Also hook into user_register to ensure role is set correctly
-		add_action( 'user_register', array( __CLASS__, 'set_new_user_role' ), 10, 1 );
-	}
-
-	/**
-	 * Set default role to fanfiction_reader instead of subscriber.
-	 *
-	 * @since 1.0.0
-	 * @param string $default_role The default role slug.
-	 * @return string The modified default role slug.
-	 */
-	public static function set_default_role( $default_role ) {
-		return 'fanfiction_reader';
-	}
-
-	/**
-	 * Ensure new users get fanfiction_reader role on registration.
-	 *
-	 * This ensures any user registration method (including WordPress core)
-	 * results in users having the fanfiction_reader role.
-	 *
-	 * @since 1.0.0
-	 * @param int $user_id The newly created user ID.
-	 * @return void
-	 */
-	public static function set_new_user_role( $user_id ) {
-		$user = new WP_User( $user_id );
-
-		// Only change role if it's the default subscriber role
-		// Don't interfere with programmatically assigned roles
-		if ( $user->roles && in_array( 'subscriber', $user->roles, true ) ) {
-			$user->set_role( 'fanfiction_reader' );
-		}
 	}
 
 	/**
