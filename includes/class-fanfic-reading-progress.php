@@ -275,7 +275,7 @@ class Fanfic_Reading_Progress {
 	}
 
 	/**
-	 * AJAX: Mark chapter as read
+	 * AJAX: Toggle mark chapter as read/unread
 	 */
 	public static function ajax_mark_as_read() {
 		// Verify nonce
@@ -290,18 +290,40 @@ class Fanfic_Reading_Progress {
 		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
 		$chapter_number = isset( $_POST['chapter_number'] ) ? absint( $_POST['chapter_number'] ) : 0;
 
-		$result = self::mark_as_read( $user_id, $story_id, $chapter_number );
+		// Check if chapter is already marked as read
+		$is_read = self::is_chapter_read( $user_id, $story_id, $chapter_number );
 
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		if ( $is_read ) {
+			// Unmark as read
+			$result = self::unmark_as_read( $user_id, $story_id, $chapter_number );
+
+			if ( is_wp_error( $result ) ) {
+				wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+			}
+
+			$progress = self::get_progress_percentage( $user_id, $story_id );
+
+			wp_send_json_success( array(
+				'message'  => __( 'Chapter unmarked as read', 'fanfiction-manager' ),
+				'progress' => $progress,
+				'is_read'  => false,
+			) );
+		} else {
+			// Mark as read
+			$result = self::mark_as_read( $user_id, $story_id, $chapter_number );
+
+			if ( is_wp_error( $result ) ) {
+				wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+			}
+
+			$progress = self::get_progress_percentage( $user_id, $story_id );
+
+			wp_send_json_success( array(
+				'message'  => __( 'Chapter marked as read', 'fanfiction-manager' ),
+				'progress' => $progress,
+				'is_read'  => true,
+			) );
 		}
-
-		$progress = self::get_progress_percentage( $user_id, $story_id );
-
-		wp_send_json_success( array(
-			'message'  => __( 'Chapter marked as read', 'fanfiction-manager' ),
-			'progress' => $progress,
-		) );
 	}
 
 	/**

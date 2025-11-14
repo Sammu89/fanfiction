@@ -337,16 +337,10 @@ class Fanfic_Shortcodes_Buttons {
 				return false;
 
 			case 'mark-read':
-				// For mark-read, we check if reading progress exists for this story
-				if ( isset( $context_ids['story_id'] ) ) {
-					global $wpdb;
-					$table_name = $wpdb->prefix . 'fanfic_reading_progress';
-					$progress = $wpdb->get_var( $wpdb->prepare(
-						"SELECT COUNT(*) FROM {$table_name} WHERE story_id = %d AND user_id = %d",
-						$context_ids['story_id'],
-						$user_id
-					) );
-					return $progress > 0;
+				// For mark-read, check if THIS specific chapter has been marked as read
+				if ( isset( $context_ids['story_id'] ) && isset( $context_ids['chapter_number'] ) ) {
+					// Use the Reading Progress class method for accurate chapter-specific check
+					return Fanfic_Reading_Progress::is_chapter_read( $user_id, $context_ids['story_id'], $context_ids['chapter_number'] );
 				}
 				return false;
 

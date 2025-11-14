@@ -281,13 +281,16 @@
 					return;
 				}
 
-				self.log('Mark as read clicked:', { storyId, chapterNumber });
+				// Check current read state
+				const isCurrentlyRead = $button.hasClass('read');
 
-				// Optimistic UI update
-				self.updateReadDisplay($button, true);
+				self.log('Mark as read clicked:', { storyId, chapterNumber, isCurrentlyRead });
 
-				// Mark as read
-				self.markAsRead(storyId, chapterNumber, $button);
+				// Optimistic UI update (toggle)
+				self.updateReadDisplay($button, !isCurrentlyRead);
+
+				// Toggle read status
+				self.markAsRead(storyId, chapterNumber, $button, isCurrentlyRead);
 			});
 		},
 
@@ -637,9 +640,9 @@
 		},
 
 		/**
-		 * Mark chapter as read on server
+		 * Toggle chapter read status on server
 		 */
-		markAsRead: function(storyId, chapterNumber, $button) {
+		markAsRead: function(storyId, chapterNumber, $button, wasRead) {
 			const self = this;
 
 			$button.addClass('loading');
@@ -657,14 +660,20 @@
 					self.log('Mark as read response:', response);
 
 					if (response.success) {
-						self.updateReadDisplay($button, true);
+						const isRead = response.data.is_read;
+						// Update from server response
+						self.updateReadDisplay($button, isRead);
 						self.showSuccess($button, response.data.message || self.strings.markedRead);
 					} else {
+						// Revert optimistic update on error
+						self.updateReadDisplay($button, wasRead);
 						self.showError($button, response.data.message || self.strings.error);
 					}
 				},
 				error: function(xhr) {
 					self.log('Mark as read error:', xhr);
+					// Revert optimistic update on error
+					self.updateReadDisplay($button, wasRead);
 					self.handleAjaxError(xhr, $button);
 				},
 				complete: function() {
@@ -754,12 +763,15 @@
 		},
 
 		/**
-		 * Update read display (optimistic)
+		 * Update read display (toggle)
 		 */
 		updateReadDisplay: function($button, isRead) {
 			if (isRead) {
-				$button.addClass('read').prop('disabled', true);
+				$button.addClass('read').removeClass('unread');
 				$button.find('.read-text').text($button.data('read-text') || 'Read');
+			} else {
+				$button.addClass('unread').removeClass('read');
+				$button.find('.read-text').text($button.data('unread-text') || 'Mark as Read');
 			}
 		},
 
