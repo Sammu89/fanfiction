@@ -646,9 +646,9 @@ class Fanfic_Shortcodes_Forms {
 			update_user_meta( $user_id, 'description', $bio );
 		}
 
-		// Set default role to Fanfic_Reader
+		// Set default role to Fanfiction Reader
 		$user = new WP_User( $user_id );
-		$user->set_role( 'fanfic_reader' );
+		$user->set_role( 'fanfiction_reader' );
 
 		// Success - redirect to login with success message
 		wp_redirect( add_query_arg( 'register', 'success', wp_get_referer() ) );
