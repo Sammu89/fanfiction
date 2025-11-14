@@ -710,26 +710,23 @@ class Fanfic_Notifications {
 			}
 		}
 
-		// 2. Check if post author has fanfiction_author role and notify them of ALL comments
-		$post_author = get_userdata( $post->post_author );
-		if ( $post_author && in_array( 'fanfiction_author', (array) $post_author->roles, true ) ) {
-			// Don't notify author of their own comments
-			// Don't notify if already notified as parent comment author
-			if ( $post->post_author != $comment->user_id && ! in_array( $post->post_author, $notified_users, true ) ) {
-				$author_message = sprintf(
-					/* translators: 1: commenter name, 2: post title */
-					__( '%1$s commented on "%2$s"', 'fanfiction-manager' ),
-					$commenter_name,
-					$post->post_title
-				);
+		// 2. Notify the post author (story/chapter author) of ALL comments on their content
+		// Don't notify author of their own comments
+		// Don't notify if already notified as parent comment author
+		if ( $post->post_author > 0 && $post->post_author != $comment->user_id && ! in_array( $post->post_author, $notified_users, true ) ) {
+			$author_message = sprintf(
+				/* translators: 1: commenter name, 2: post title */
+				__( '%1$s commented on "%2$s"', 'fanfiction-manager' ),
+				$commenter_name,
+				$post->post_title
+			);
 
-				self::create_notification(
-					$post->post_author,
-					self::TYPE_NEW_COMMENT,
-					$author_message,
-					$data
-				);
-			}
+			self::create_notification(
+				$post->post_author,
+				self::TYPE_NEW_COMMENT,
+				$author_message,
+				$data
+			);
 		}
 
 		return true;
