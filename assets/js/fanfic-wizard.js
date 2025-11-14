@@ -82,57 +82,48 @@
 		/**
 		 * Handle complete button click
 		 */
-		handleComplete: function(e) {
-			e.preventDefault();
+	handleComplete: function(e) {
+		e.preventDefault();
 
-			var $button = $(e.currentTarget);
+		var $button = $(e.currentTarget);
 
-			// Show confirmation
-			if (!confirm(fanficWizard.strings.confirm || 'Are you sure you want to complete the setup? This will create all system pages.')) {
-				return;
-			}
+		// Disable button and show loading
+		$button.prop('disabled', true);
+		$button.html('<span class="spinner is-active" style="float: none; margin: 0 8px 0 0;"></span>' + fanficWizard.strings.completing);
 
-			// Disable button and show loading
-			$button.prop('disabled', true);
-			$button.html('<span class="spinner is-active" style="float: none; margin: 0 8px 0 0;"></span>' + fanficWizard.strings.completing);
+		// Show progress status
+		$('#fanfic-wizard-completion-status').show();
 
-			// Show progress status
-			$('#fanfic-wizard-completion-status').show();
-
-			// Send AJAX request to complete wizard
-			$.ajax({
-				url: fanficWizard.ajax_url,
-				type: 'POST',
-				dataType: 'json',
-				data: {
-					action: 'fanfic_wizard_complete',
-					nonce: fanficWizard.nonce
-				},
-				success: function(response) {
-					if (response.success) {
-						// Show success message
-						FanficWizard.showMessage('success', response.data.message);
-
-						// Redirect after a short delay
-						setTimeout(function() {
-							window.location.href = response.data.redirect_url;
-						}, 1500);
-					} else {
-						// Show error message
-						FanficWizard.showMessage('error', response.data.message || fanficWizard.strings.error);
-						$button.prop('disabled', false);
-						$button.text(fanficWizard.strings.complete_setup || 'Complete Setup');
-						$('#fanfic-wizard-completion-status').hide();
-					}
-				},
-				error: function() {
-					FanficWizard.showMessage('error', fanficWizard.strings.error);
+		// Send AJAX request to complete wizard
+		$.ajax({
+			url: fanficWizard.ajax_url,
+			type: 'POST',
+			dataType: 'json',
+			data: {
+				action: 'fanfic_wizard_complete',
+				nonce: fanficWizard.nonce,
+				create_samples: $('#fanfic_create_samples').is(':checked') ? '1' : '0'
+			},
+			success: function(response) {
+				if (response.success) {
+					// Redirect immediately on success
+					window.location.href = response.data.redirect_url;
+				} else {
+					// Show error message only on failure
+					FanficWizard.showMessage('error', response.data.message || fanficWizard.strings.error);
 					$button.prop('disabled', false);
 					$button.text(fanficWizard.strings.complete_setup || 'Complete Setup');
 					$('#fanfic-wizard-completion-status').hide();
 				}
-			});
-		},
+			},
+			error: function() {
+				FanficWizard.showMessage('error', fanficWizard.strings.error);
+				$button.prop('disabled', false);
+				$button.text(fanficWizard.strings.complete_setup || 'Complete Setup');
+				$('#fanfic-wizard-completion-status').hide();
+			}
+		});
+	},
 
 		/**
 		 * Validate current step

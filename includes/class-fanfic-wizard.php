@@ -795,6 +795,22 @@ private function render_choice_screen() {
 					<li><?php esc_html_e( 'Initialize the fanfiction platform', 'fanfiction-manager' ); ?></li>
 				</ul>
 				<p><strong><?php esc_html_e( 'This process may take a few seconds.', 'fanfiction-manager' ); ?></strong></p>
+
+				<div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; background: #f9f9f9;">
+					<h4 style="margin-top: 0;"><?php esc_html_e( 'Optional: Create Sample Stories', 'fanfiction-manager' ); ?></h4>
+					<p class="description"><?php esc_html_e( 'Create 2 test stories with chapters to help you understand how the system works.', 'fanfiction-manager' ); ?></p>
+					<label style="display: block; margin-top: 10px;">
+						<input type="checkbox" name="fanfic_create_samples" id="fanfic_create_samples" value="1" />
+						<strong><?php esc_html_e( 'Create sample stories for testing', 'fanfiction-manager' ); ?></strong>
+					</label>
+					<p class="description" style="margin-left: 24px; margin-top: 5px;">
+						<?php esc_html_e( 'This will create 2 sample stories with different statuses and genres:', 'fanfiction-manager' ); ?>
+					</p>
+					<ul style="list-style: disc; margin-left: 3.5em; margin-top: 5px;">
+						<li><?php esc_html_e( 'Story 1: "Lorem Ipsum" (Draft) with 2 chapters', 'fanfiction-manager' ); ?></li>
+						<li><?php esc_html_e( 'Story 2: "De finibus bonorum et malorum" (Published) with prologue + chapter', 'fanfiction-manager' ); ?></li>
+					</ul>
+				</div>
 			</div>
 
 			<div id="fanfic-wizard-completion-status" style="display: none; margin-top: 20px;">
@@ -1159,6 +1175,11 @@ private function render_choice_screen() {
 		// Assign user roles
 		$this->assign_user_roles();
 
+		// Create sample stories if requested
+		if ( isset( $_POST['create_samples'] ) && '1' === $_POST['create_samples'] ) {
+			$this->create_sample_stories();
+		}
+
 		// Flush rewrite rules using shared helper method
 		$this->flush_rewrite_rules();
 
@@ -1180,7 +1201,7 @@ private function render_choice_screen() {
 
 		wp_send_json_success( array(
 			'message'      => __( 'Setup completed successfully! Redirecting...', 'fanfiction-manager' ),
-			'redirect_url' => admin_url( 'admin.php?page=fanfiction-manager' ),
+			'redirect_url' => admin_url( 'admin.php?page=fanfiction-settings&tab=general' ),
 		) );
 	}
 
@@ -1252,6 +1273,149 @@ private function render_choice_screen() {
 				// Add fanfiction capabilities to their existing role
 				$user->add_cap( 'manage_fanfiction' );
 				$user->add_cap( 'moderate_fanfiction' );
+			}
+		}
+	}
+
+	/**
+	 * Create sample stories for testing
+	 *
+	 * Creates 2 sample stories with chapters using random taxonomies.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private function create_sample_stories() {
+		$current_user_id = get_current_user_id();
+
+		// Get random genre and status terms
+		$genre_terms = get_terms( array(
+			'taxonomy'   => 'fanfiction_genre',
+			'hide_empty' => false,
+		) );
+		$status_terms = get_terms( array(
+			'taxonomy'   => 'fanfiction_status',
+			'hide_empty' => false,
+		) );
+
+		if ( empty( $status_terms ) || is_wp_error( $status_terms ) ) {
+			return; // No status terms available
+		}
+
+		// Pick random status terms
+		$random_status_1 = $status_terms[ array_rand( $status_terms ) ];
+		$random_status_2 = $status_terms[ array_rand( $status_terms ) ];
+
+		// Pick random genre terms (1-2 for each story)
+		$random_genres_1 = array();
+		$random_genres_2 = array();
+		if ( ! empty( $genre_terms ) && ! is_wp_error( $genre_terms ) ) {
+			shuffle( $genre_terms );
+			$random_genres_1 = array_slice( $genre_terms, 0, rand( 1, min( 2, count( $genre_terms ) ) ) );
+			shuffle( $genre_terms );
+			$random_genres_2 = array_slice( $genre_terms, 0, rand( 1, min( 2, count( $genre_terms ) ) ) );
+		}
+
+		// Lorem ipsum content
+		$lorem_intro = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+		$lorem_chapter = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.\n\nNemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.\n\nUt enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?";
+
+		// Story 2 introduction
+		$story2_intro = "Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio. Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.\n\nDumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.\n\nDumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio. Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.";
+
+		// ===== STORY 1: Lorem Ipsum (Draft) =====
+		$story1_id = wp_insert_post( array(
+			'post_title'   => 'Lorem Ipsum',
+			'post_content' => $lorem_intro,
+			'post_status'  => 'draft',
+			'post_type'    => 'fanfiction_story',
+			'post_author'  => $current_user_id,
+		) );
+
+		if ( ! is_wp_error( $story1_id ) && $story1_id > 0 ) {
+			// Set status taxonomy
+			wp_set_object_terms( $story1_id, $random_status_1->term_id, 'fanfiction_status', false );
+
+			// Set genre taxonomy (1-2 genres)
+			if ( ! empty( $random_genres_1 ) ) {
+				$genre_ids = wp_list_pluck( $random_genres_1, 'term_id' );
+				wp_set_object_terms( $story1_id, $genre_ids, 'fanfiction_genre', false );
+			}
+
+			// Chapter 1 (Published)
+			$chapter1_id = wp_insert_post( array(
+				'post_title'   => 'Lorem Ipsum',
+				'post_content' => $lorem_chapter,
+				'post_status'  => 'publish',
+				'post_type'    => 'fanfiction_chapter',
+				'post_parent'  => $story1_id,
+				'post_author'  => $current_user_id,
+			) );
+
+			if ( ! is_wp_error( $chapter1_id ) && $chapter1_id > 0 ) {
+				update_post_meta( $chapter1_id, '_fanfic_chapter_number', 1 );
+			}
+
+			// Chapter 2 (Draft)
+			$chapter2_id = wp_insert_post( array(
+				'post_title'   => 'Lorem Ipsum',
+				'post_content' => $lorem_chapter,
+				'post_status'  => 'draft',
+				'post_type'    => 'fanfiction_chapter',
+				'post_parent'  => $story1_id,
+				'post_author'  => $current_user_id,
+			) );
+
+			if ( ! is_wp_error( $chapter2_id ) && $chapter2_id > 0 ) {
+				update_post_meta( $chapter2_id, '_fanfic_chapter_number', 2 );
+			}
+		}
+
+		// ===== STORY 2: De finibus bonorum et malorum (Published) =====
+		$story2_id = wp_insert_post( array(
+			'post_title'   => 'De finibus bonorum et malorum',
+			'post_content' => $story2_intro,
+			'post_status'  => 'publish',
+			'post_type'    => 'fanfiction_story',
+			'post_author'  => $current_user_id,
+		) );
+
+		if ( ! is_wp_error( $story2_id ) && $story2_id > 0 ) {
+			// Set status taxonomy
+			wp_set_object_terms( $story2_id, $random_status_2->term_id, 'fanfiction_status', false );
+
+			// Set genre taxonomy (1-2 genres)
+			if ( ! empty( $random_genres_2 ) ) {
+				$genre_ids = wp_list_pluck( $random_genres_2, 'term_id' );
+				wp_set_object_terms( $story2_id, $genre_ids, 'fanfiction_genre', false );
+			}
+
+			// Prologue (Published, NO TITLE - blank title)
+			$prologue_id = wp_insert_post( array(
+				'post_title'   => '', // Blank title as requested
+				'post_content' => $lorem_chapter,
+				'post_status'  => 'publish',
+				'post_type'    => 'fanfiction_chapter',
+				'post_parent'  => $story2_id,
+				'post_author'  => $current_user_id,
+			) );
+
+			if ( ! is_wp_error( $prologue_id ) && $prologue_id > 0 ) {
+				update_post_meta( $prologue_id, '_fanfic_chapter_number', 'prologue' );
+			}
+
+			// Chapter 1 (Published)
+			$chapter1_s2_id = wp_insert_post( array(
+				'post_title'   => 'Lorem Ipsum',
+				'post_content' => $lorem_chapter,
+				'post_status'  => 'publish',
+				'post_type'    => 'fanfiction_chapter',
+				'post_parent'  => $story2_id,
+				'post_author'  => $current_user_id,
+			) );
+
+			if ( ! is_wp_error( $chapter1_s2_id ) && $chapter1_s2_id > 0 ) {
+				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_number', 1 );
 			}
 		}
 	}

@@ -51,12 +51,7 @@ class Fanfic_Rating_System {
 	 * @return void
 	 */
 	public static function init() {
-		// Register AJAX handlers
-		add_action( 'wp_ajax_fanfic_submit_rating', array( __CLASS__, 'ajax_submit_rating' ) );
-		add_action( 'wp_ajax_nopriv_fanfic_submit_rating', array( __CLASS__, 'ajax_submit_rating' ) );
-
-		add_action( 'wp_ajax_fanfic_check_rating_eligibility', array( __CLASS__, 'ajax_check_eligibility' ) );
-		add_action( 'wp_ajax_nopriv_fanfic_check_rating_eligibility', array( __CLASS__, 'ajax_check_eligibility' ) );
+		// AJAX handlers are now registered in class-fanfic-ajax-handlers.php
 
 		// Enqueue scripts
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_scripts' ) );

@@ -827,14 +827,14 @@ if ( $validation_errors ) {
 
 					<!-- Chapter Title -->
 					<div class="fanfic-form-field" style="flex: 1;">
-						<label for="fanfic_chapter_title"><?php esc_html_e( 'Chapter Title', 'fanfiction-manager' ); ?></label>
+						<label for="fanfic_chapter_title"><?php esc_html_e( 'Chapter Title', 'fanfiction-manager' ); ?> <span class="description"><?php esc_html_e( '(Optional)', 'fanfiction-manager' ); ?></span></label>
 						<input
 							type="text"
 							id="fanfic_chapter_title"
 							name="fanfic_chapter_title"
 							class="fanfic-input"
 							value="<?php echo isset( $_POST['fanfic_chapter_title'] ) ? esc_attr( $_POST['fanfic_chapter_title'] ) : ( $is_edit_mode ? esc_attr( $chapter->post_title ) : '' ); ?>"
-							required
+							placeholder="<?php esc_attr_e( 'Leave blank to use chapter number only', 'fanfiction-manager' ); ?>"
 						/>
 						<?php if ( isset( $field_errors['chapter_title'] ) ) : ?>
 							<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_title'] ); ?></p>

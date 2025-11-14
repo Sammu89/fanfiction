@@ -46,6 +46,7 @@ class Fanfic_Notifications {
 	public static function init() {
 		// Register cron hooks
 		add_action( 'fanfic_cleanup_old_notifications', array( __CLASS__, 'delete_old_notifications' ) );
+		add_action( 'fanfic_process_debounced_notification', array( __CLASS__, 'process_debounced_notification' ), 10, 1 );
 
 		// Schedule cron job on init if not already scheduled
 		if ( ! wp_next_scheduled( 'fanfic_cleanup_old_notifications' ) ) {
@@ -57,6 +58,12 @@ class Fanfic_Notifications {
 
 		// Hook into chapter publish
 		add_action( 'transition_post_status', array( __CLASS__, 'handle_post_transition' ), 10, 3 );
+
+		// Hook into taxonomy changes
+		add_action( 'set_object_terms', array( __CLASS__, 'handle_taxonomy_change' ), 10, 6 );
+
+		// Hook into post updates (for title changes)
+		add_action( 'post_updated', array( __CLASS__, 'handle_title_change' ), 10, 3 );
 	}
 
 	/**
@@ -665,20 +672,8 @@ class Fanfic_Notifications {
 			return false;
 		}
 
-		// Don't notify author of their own comments
-		if ( $post->post_author == $comment->user_id ) {
-			return false;
-		}
-
 		$commenter = get_userdata( $comment->user_id );
 		$commenter_name = $commenter ? $commenter->display_name : $comment->comment_author;
-
-		$message = sprintf(
-			/* translators: 1: commenter name, 2: post title */
-			__( '%1$s commented on "%2$s"', 'fanfiction-manager' ),
-			$commenter_name,
-			$post->post_title
-		);
 
 		$data = array(
 			'comment_id'     => $comment_id,
@@ -688,7 +683,53 @@ class Fanfic_Notifications {
 			'comment_text'   => wp_trim_words( $comment->comment_content, 20 ),
 		);
 
-		return self::create_notification( $post->post_author, self::TYPE_NEW_COMMENT, $message, $data );
+		$notified_users = array();
+
+		// 1. If this is a reply to another comment, notify the parent comment author
+		if ( $comment->comment_parent > 0 ) {
+			$parent_comment = get_comment( $comment->comment_parent );
+			if ( $parent_comment && $parent_comment->user_id > 0 ) {
+				// Don't notify if replying to own comment
+				if ( $parent_comment->user_id != $comment->user_id ) {
+					$reply_message = sprintf(
+						/* translators: 1: commenter name, 2: post title */
+						__( '%1$s replied to your comment on "%2$s"', 'fanfiction-manager' ),
+						$commenter_name,
+						$post->post_title
+					);
+
+					self::create_notification(
+						$parent_comment->user_id,
+						self::TYPE_COMMENT_REPLY,
+						$reply_message,
+						$data
+					);
+
+					$notified_users[] = $parent_comment->user_id;
+				}
+			}
+		}
+
+		// 2. Notify the post author (story/chapter author) of ALL comments on their content
+		// Don't notify author of their own comments
+		// Don't notify if already notified as parent comment author
+		if ( $post->post_author > 0 && $post->post_author != $comment->user_id && ! in_array( $post->post_author, $notified_users, true ) ) {
+			$author_message = sprintf(
+				/* translators: 1: commenter name, 2: post title */
+				__( '%1$s commented on "%2$s"', 'fanfiction-manager' ),
+				$commenter_name,
+				$post->post_title
+			);
+
+			self::create_notification(
+				$post->post_author,
+				self::TYPE_NEW_COMMENT,
+				$author_message,
+				$data
+			);
+		}
+
+		return true;
 	}
 
 	/**
@@ -733,17 +774,682 @@ class Fanfic_Notifications {
 	 * @return void
 	 */
 	public static function handle_post_transition( $new_status, $old_status, $post ) {
-		// Only handle chapter posts
-		if ( 'fanfiction_chapter' !== $post->post_type ) {
+		// Handle chapter publish
+		if ( 'fanfiction_chapter' === $post->post_type ) {
+			// Only trigger on new publish
+			if ( 'publish' !== $new_status || 'publish' === $old_status ) {
+				return;
+			}
+
+			// Create chapter notification
+			self::create_chapter_notification( $post->ID, $post->post_parent );
 			return;
 		}
 
-		// Only trigger on new publish
-		if ( 'publish' !== $new_status || 'publish' === $old_status ) {
+		// Handle story status changes
+		if ( 'fanfiction_story' === $post->post_type ) {
+			// Only notify if both old and new status are publish (status updated while live)
+			if ( 'publish' !== $new_status || 'publish' !== $old_status ) {
+				return;
+			}
+
+			// Check if story status taxonomy changed (e.g., ongoing → completed)
+			// This is handled by taxonomy change hook, not status transition
+			return;
+		}
+	}
+
+	/**
+	 * Handle taxonomy changes for stories
+	 *
+	 * Notifies story followers when taxonomies change (genre, status, custom taxonomies).
+	 *
+	 * @since 1.0.16
+	 * @param int    $object_id  Object ID (post ID).
+	 * @param array  $terms      Term IDs being set.
+	 * @param array  $tt_ids     Term taxonomy IDs.
+	 * @param string $taxonomy   Taxonomy slug.
+	 * @param bool   $append     Whether to append or replace terms.
+	 * @param array  $old_tt_ids Old term taxonomy IDs.
+	 * @return void
+	 */
+	public static function handle_taxonomy_change( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
+		// Get the post
+		$post = get_post( $object_id );
+
+		if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
 			return;
 		}
 
-		// Create chapter notification
-		self::create_chapter_notification( $post->ID, $post->post_parent );
+		// Only notify for published stories
+		if ( 'publish' !== $post->post_status ) {
+			return;
+		}
+
+		// Check if terms actually changed
+		if ( $tt_ids === $old_tt_ids ) {
+			return;
+		}
+
+		// Get relevant taxonomies (genre, status, and custom taxonomies)
+		$relevant_taxonomies = array( 'fanfiction_genre', 'fanfiction_status' );
+
+		// Add custom taxonomies registered for stories
+		$custom_taxonomies = get_object_taxonomies( 'fanfiction_story', 'names' );
+		foreach ( $custom_taxonomies as $custom_tax ) {
+			if ( ! in_array( $custom_tax, $relevant_taxonomies, true ) ) {
+				$relevant_taxonomies[] = $custom_tax;
+			}
+		}
+
+		// Only notify for relevant taxonomies
+		if ( ! in_array( $taxonomy, $relevant_taxonomies, true ) ) {
+			return;
+		}
+
+		// Queue debounced notification (waits 20 minutes, consolidates multiple changes)
+		self::queue_debounced_notification(
+			$object_id,
+			'taxonomy_' . $taxonomy,
+			array(
+				'taxonomy' => $taxonomy,
+				'tt_ids'   => $tt_ids,
+			)
+		);
+	}
+
+	/**
+	 * Handle title changes for stories and chapters
+	 *
+	 * Notifies story followers when story or chapter titles change.
+	 *
+	 * @since 1.0.16
+	 * @param int     $post_id     Post ID.
+	 * @param WP_Post $post_after  Post object after update.
+	 * @param WP_Post $post_before Post object before update.
+	 * @return void
+	 */
+	public static function handle_title_change( $post_id, $post_after, $post_before ) {
+		// Only handle stories and chapters
+		if ( ! in_array( $post_after->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+			return;
+		}
+
+		// Only notify for published content
+		if ( 'publish' !== $post_after->post_status ) {
+			return;
+		}
+
+		// Check if title actually changed
+		if ( $post_before->post_title === $post_after->post_title ) {
+			return;
+		}
+
+		// Handle story title changes - queue debounced notification
+		if ( 'fanfiction_story' === $post_after->post_type ) {
+			self::queue_debounced_notification(
+				$post_id,
+				'title',
+				array(
+					'old_title' => $post_before->post_title,
+					'new_title' => $post_after->post_title,
+				)
+			);
+		}
+
+		// Handle chapter title changes - queue debounced notification for parent story
+		if ( 'fanfiction_chapter' === $post_after->post_type ) {
+			$story_id = $post_after->post_parent;
+
+			if ( $story_id ) {
+				self::queue_debounced_notification(
+					$story_id,
+					'chapter_title_' . $post_id,
+					array(
+						'chapter_id' => $post_id,
+						'old_title'  => $post_before->post_title,
+						'new_title'  => $post_after->post_title,
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Notify followers when story title changes
+	 *
+	 * @since 1.0.16
+	 * @param int    $story_id  Story ID.
+	 * @param string $old_title Old title.
+	 * @param string $new_title New title.
+	 * @param int    $author_id Author ID.
+	 * @return void
+	 */
+	private static function notify_story_title_change( $story_id, $old_title, $new_title, $author_id ) {
+		// Get story followers
+		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
+
+		if ( empty( $followers ) ) {
+			return;
+		}
+
+		$story_url = get_permalink( $story_id );
+
+		// Build notification message
+		$message = sprintf(
+			/* translators: 1: Old title, 2: New title */
+			__( 'Story title changed from "%1$s" to "%2$s"', 'fanfiction-manager' ),
+			$old_title,
+			$new_title
+		);
+
+		// Notify all followers
+		foreach ( $followers as $follower ) {
+			$follower_id = absint( $follower['user_id'] );
+
+			// Don't notify the story author
+			if ( $follower_id === absint( $author_id ) ) {
+				continue;
+			}
+
+			// Create notification
+			self::create_notification(
+				$follower_id,
+				self::TYPE_STORY_UPDATE,
+				$message,
+				array(
+					'story_id'  => $story_id,
+					'story_url' => $story_url,
+					'old_title' => $old_title,
+					'new_title' => $new_title,
+				)
+			);
+
+			// Queue email if user has email notifications enabled
+			if ( ! empty( $follower['email_enabled'] ) ) {
+				Fanfic_Email_Queue::queue_email(
+					$follower_id,
+					'story_title_update',
+					$message,
+					array(
+						'story_id'  => $story_id,
+						'story_url' => $story_url,
+						'old_title' => $old_title,
+						'new_title' => $new_title,
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Notify followers when chapter title changes
+	 *
+	 * @since 1.0.16
+	 * @param int    $chapter_id Chapter ID.
+	 * @param string $old_title  Old title.
+	 * @param string $new_title  New title.
+	 * @param int    $story_id   Parent story ID.
+	 * @param int    $author_id  Author ID.
+	 * @return void
+	 */
+	private static function notify_chapter_title_change( $chapter_id, $old_title, $new_title, $story_id, $author_id ) {
+		// Get story followers (followers follow the story, not individual chapters)
+		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
+
+		if ( empty( $followers ) ) {
+			return;
+		}
+
+		$story_title = get_the_title( $story_id );
+		$chapter_url = get_permalink( $chapter_id );
+
+		// Get chapter label (Prologue, Chapter X, Epilogue)
+		$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+
+		if ( 'prologue' === $chapter_type || 'prologue' === $chapter_number ) {
+			$chapter_label = __( 'Prologue', 'fanfiction-manager' );
+		} elseif ( 'epilogue' === $chapter_type || 'epilogue' === $chapter_number ) {
+			$chapter_label = __( 'Epilogue', 'fanfiction-manager' );
+		} else {
+			$chapter_label = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number );
+		}
+
+		// Handle empty titles (optional titles)
+		$old_display = ! empty( $old_title ) ? $old_title : $chapter_label;
+		$new_display = ! empty( $new_title ) ? $new_title : $chapter_label;
+
+		// Build notification message
+		$message = sprintf(
+			/* translators: 1: Story title, 2: Chapter label, 3: Old title, 4: New title */
+			__( 'Story "%1$s" - %2$s title changed from "%3$s" to "%4$s"', 'fanfiction-manager' ),
+			$story_title,
+			$chapter_label,
+			$old_display,
+			$new_display
+		);
+
+		// Notify all followers
+		foreach ( $followers as $follower ) {
+			$follower_id = absint( $follower['user_id'] );
+
+			// Don't notify the story author
+			if ( $follower_id === absint( $author_id ) ) {
+				continue;
+			}
+
+			// Create notification
+			self::create_notification(
+				$follower_id,
+				self::TYPE_STORY_UPDATE,
+				$message,
+				array(
+					'story_id'      => $story_id,
+					'story_title'   => $story_title,
+					'chapter_id'    => $chapter_id,
+					'chapter_url'   => $chapter_url,
+					'chapter_label' => $chapter_label,
+					'old_title'     => $old_title,
+					'new_title'     => $new_title,
+				)
+			);
+
+			// Queue email if user has email notifications enabled
+			if ( ! empty( $follower['email_enabled'] ) ) {
+				Fanfic_Email_Queue::queue_email(
+					$follower_id,
+					'chapter_title_update',
+					$message,
+					array(
+						'story_id'      => $story_id,
+						'story_title'   => $story_title,
+						'chapter_id'    => $chapter_id,
+						'chapter_url'   => $chapter_url,
+						'chapter_label' => $chapter_label,
+						'old_title'     => $old_title,
+						'new_title'     => $new_title,
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Queue a debounced notification for story updates
+	 *
+	 * Instead of sending notifications immediately, this queues the notification
+	 * and waits 20 minutes. If more changes happen, the timer resets. Only the
+	 * final net changes are notified.
+	 *
+	 * @since 1.0.16
+	 * @param int    $story_id Story ID.
+	 * @param string $change_type Type of change: 'title', 'taxonomy', 'chapter_title'.
+	 * @param array  $change_data Data about the change.
+	 * @return void
+	 */
+	private static function queue_debounced_notification( $story_id, $change_type, $change_data ) {
+		$story_id = absint( $story_id );
+		$transient_key = 'fanfic_debounced_notify_' . $story_id;
+
+		// Get existing pending notification data
+		$pending = get_transient( $transient_key );
+
+		if ( false === $pending ) {
+			// First change - capture original state
+			$pending = array(
+				'story_id'       => $story_id,
+				'original_state' => self::capture_story_state( $story_id ),
+				'changes'        => array(),
+				'first_change'   => current_time( 'timestamp' ),
+			);
+		}
+
+		// Add this change to the pending changes
+		$pending['changes'][ $change_type ] = $change_data;
+		$pending['last_change'] = current_time( 'timestamp' );
+
+		// Store updated pending notification (expires in 30 minutes as safety)
+		set_transient( $transient_key, $pending, 30 * MINUTE_IN_SECONDS );
+
+		// Cancel any existing scheduled notification
+		$hook = 'fanfic_process_debounced_notification';
+		$scheduled_time = wp_next_scheduled( $hook, array( $story_id ) );
+		if ( $scheduled_time ) {
+			wp_unschedule_event( $scheduled_time, $hook, array( $story_id ) );
+		}
+
+		// Schedule new notification for 20 minutes from now
+		wp_schedule_single_event( time() + ( 20 * MINUTE_IN_SECONDS ), $hook, array( $story_id ) );
+	}
+
+	/**
+	 * Process debounced notification
+	 *
+	 * This is called 20 minutes after the last change. It compares the current
+	 * state with the original state and sends notifications only for net changes.
+	 *
+	 * @since 1.0.16
+	 * @param int $story_id Story ID.
+	 * @return void
+	 */
+	public static function process_debounced_notification( $story_id ) {
+		$story_id = absint( $story_id );
+		$transient_key = 'fanfic_debounced_notify_' . $story_id;
+
+		// Get pending notification data
+		$pending = get_transient( $transient_key );
+
+		if ( false === $pending ) {
+			// No pending notification (maybe already processed or expired)
+			return;
+		}
+
+		// Get current state
+		$current_state = self::capture_story_state( $story_id );
+		$original_state = $pending['original_state'];
+
+		// Get story post
+		$story = get_post( $story_id );
+		if ( ! $story || 'publish' !== $story->post_status ) {
+			// Story no longer exists or not published
+			delete_transient( $transient_key );
+			return;
+		}
+
+		// Get story followers
+		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
+
+		if ( empty( $followers ) ) {
+			// No followers, clean up and exit
+			delete_transient( $transient_key );
+			return;
+		}
+
+		// Compare states and build list of net changes
+		$net_changes = array();
+
+		// Check title change
+		if ( $original_state['title'] !== $current_state['title'] ) {
+			$net_changes['title'] = array(
+				'old' => $original_state['title'],
+				'new' => $current_state['title'],
+			);
+		}
+
+		// Check taxonomy changes
+		foreach ( array( 'fanfiction_genre', 'fanfiction_status' ) as $taxonomy ) {
+			$orig_terms = isset( $original_state['taxonomies'][ $taxonomy ] ) ? $original_state['taxonomies'][ $taxonomy ] : array();
+			$curr_terms = isset( $current_state['taxonomies'][ $taxonomy ] ) ? $current_state['taxonomies'][ $taxonomy ] : array();
+
+			// Sort for comparison
+			sort( $orig_terms );
+			sort( $curr_terms );
+
+			if ( $orig_terms !== $curr_terms ) {
+				$net_changes['taxonomy_' . $taxonomy] = array(
+					'taxonomy' => $taxonomy,
+					'old'      => $orig_terms,
+					'new'      => $curr_terms,
+				);
+			}
+		}
+
+		// Check custom taxonomies
+		if ( isset( $original_state['custom_taxonomies'] ) ) {
+			foreach ( $original_state['custom_taxonomies'] as $custom_tax ) {
+				$orig_terms = isset( $original_state['taxonomies'][ $custom_tax ] ) ? $original_state['taxonomies'][ $custom_tax ] : array();
+				$curr_terms = isset( $current_state['taxonomies'][ $custom_tax ] ) ? $current_state['taxonomies'][ $custom_tax ] : array();
+
+				sort( $orig_terms );
+				sort( $curr_terms );
+
+				if ( $orig_terms !== $curr_terms ) {
+					$net_changes['taxonomy_' . $custom_tax] = array(
+						'taxonomy' => $custom_tax,
+						'old'      => $orig_terms,
+						'new'      => $curr_terms,
+					);
+				}
+			}
+		}
+
+		// Check chapter title changes
+		$orig_chapters = isset( $original_state['chapters'] ) ? $original_state['chapters'] : array();
+		$curr_chapters = isset( $current_state['chapters'] ) ? $current_state['chapters'] : array();
+
+		foreach ( $curr_chapters as $chapter_id => $curr_title ) {
+			// Check if chapter existed in original state and title changed
+			if ( isset( $orig_chapters[ $chapter_id ] ) && $orig_chapters[ $chapter_id ] !== $curr_title ) {
+				$net_changes[ 'chapter_title_' . $chapter_id ] = array(
+					'chapter_id' => $chapter_id,
+					'old'        => $orig_chapters[ $chapter_id ],
+					'new'        => $curr_title,
+				);
+			}
+		}
+
+		// If no net changes, don't send notification
+		if ( empty( $net_changes ) ) {
+			delete_transient( $transient_key );
+			return;
+		}
+
+		// Build consolidated notification message
+		$message = self::build_consolidated_message( $story_id, $net_changes );
+		$story_url = get_permalink( $story_id );
+
+		// Notify all followers
+		foreach ( $followers as $follower ) {
+			$follower_id = absint( $follower['user_id'] );
+
+			// Don't notify the story author
+			if ( $follower_id === absint( $story->post_author ) ) {
+				continue;
+			}
+
+			// Create notification
+			self::create_notification(
+				$follower_id,
+				self::TYPE_STORY_UPDATE,
+				$message,
+				array(
+					'story_id'    => $story_id,
+					'story_title' => $current_state['title'],
+					'story_url'   => $story_url,
+					'changes'     => $net_changes,
+				)
+			);
+
+			// Queue email if user has email notifications enabled
+			if ( ! empty( $follower['email_enabled'] ) ) {
+				Fanfic_Email_Queue::queue_email(
+					$follower_id,
+					'story_updates',
+					$message,
+					array(
+						'story_id'    => $story_id,
+						'story_title' => $current_state['title'],
+						'story_url'   => $story_url,
+						'changes'     => $net_changes,
+					)
+				);
+			}
+		}
+
+		// Clean up transient
+		delete_transient( $transient_key );
+	}
+
+	/**
+	 * Capture current state of a story
+	 *
+	 * @since 1.0.16
+	 * @param int $story_id Story ID.
+	 * @return array Story state data.
+	 */
+	private static function capture_story_state( $story_id ) {
+		$story = get_post( $story_id );
+
+		if ( ! $story ) {
+			return array();
+		}
+
+		$state = array(
+			'title'      => $story->post_title,
+			'taxonomies' => array(),
+			'chapters'   => array(),
+		);
+
+		// Capture standard taxonomies
+		$taxonomies = array( 'fanfiction_genre', 'fanfiction_status' );
+
+		foreach ( $taxonomies as $taxonomy ) {
+			$terms = wp_get_object_terms( $story_id, $taxonomy, array( 'fields' => 'names' ) );
+			if ( ! is_wp_error( $terms ) ) {
+				$state['taxonomies'][ $taxonomy ] = $terms;
+			}
+		}
+
+		// Capture custom taxonomies
+		$custom_taxonomies = get_object_taxonomies( 'fanfiction_story', 'names' );
+		$state['custom_taxonomies'] = array();
+
+		foreach ( $custom_taxonomies as $custom_tax ) {
+			if ( ! in_array( $custom_tax, $taxonomies, true ) ) {
+				$state['custom_taxonomies'][] = $custom_tax;
+				$terms = wp_get_object_terms( $story_id, $custom_tax, array( 'fields' => 'names' ) );
+				if ( ! is_wp_error( $terms ) ) {
+					$state['taxonomies'][ $custom_tax ] = $terms;
+				}
+			}
+		}
+
+		// Capture chapter titles
+		$chapters = get_posts(
+			array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story_id,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'menu_order',
+				'order'          => 'ASC',
+			)
+		);
+
+		foreach ( $chapters as $chapter ) {
+			$state['chapters'][ $chapter->ID ] = $chapter->post_title;
+		}
+
+		return $state;
+	}
+
+	/**
+	 * Build consolidated notification message
+	 *
+	 * Creates a human-readable message describing multiple changes.
+	 *
+	 * @since 1.0.16
+	 * @param int   $story_id    Story ID.
+	 * @param array $net_changes Array of net changes.
+	 * @return string Notification message.
+	 */
+	private static function build_consolidated_message( $story_id, $net_changes ) {
+		$story_title = get_the_title( $story_id );
+		$change_descriptions = array();
+
+		foreach ( $net_changes as $change_type => $change_data ) {
+			if ( 'title' === $change_type ) {
+				// Title change
+				$change_descriptions[] = sprintf(
+					/* translators: 1: Old title, 2: New title */
+					__( 'title changed from "%1$s" to "%2$s"', 'fanfiction-manager' ),
+					$change_data['old'],
+					$change_data['new']
+				);
+			} elseif ( strpos( $change_type, 'chapter_title_' ) === 0 ) {
+				// Chapter title change
+				$chapter_id = $change_data['chapter_id'];
+				$old_title = $change_data['old'];
+				$new_title = $change_data['new'];
+
+				// Get chapter label (Prologue, Chapter X, Epilogue)
+				$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+				$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+
+				if ( 'prologue' === $chapter_type || 'prologue' === $chapter_number ) {
+					$chapter_label = __( 'Prologue', 'fanfiction-manager' );
+				} elseif ( 'epilogue' === $chapter_type || 'epilogue' === $chapter_number ) {
+					$chapter_label = __( 'Epilogue', 'fanfiction-manager' );
+				} else {
+					$chapter_label = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number );
+				}
+
+				// Handle empty titles (optional titles)
+				$old_display = ! empty( $old_title ) ? $old_title : $chapter_label;
+				$new_display = ! empty( $new_title ) ? $new_title : $chapter_label;
+
+				$change_descriptions[] = sprintf(
+					/* translators: 1: Chapter label, 2: Old title, 3: New title */
+					__( '%1$s title changed from "%2$s" to "%3$s"', 'fanfiction-manager' ),
+					$chapter_label,
+					$old_display,
+					$new_display
+				);
+			} elseif ( strpos( $change_type, 'taxonomy_' ) === 0 ) {
+				// Taxonomy change
+				$taxonomy = $change_data['taxonomy'];
+				$tax_obj = get_taxonomy( $taxonomy );
+				$tax_label = $tax_obj ? $tax_obj->labels->singular_name : ucfirst( str_replace( array( 'fanfiction_', '_' ), array( '', ' ' ), $taxonomy ) );
+
+				$old_terms = $change_data['old'];
+				$new_terms = $change_data['new'];
+
+				if ( empty( $old_terms ) && ! empty( $new_terms ) ) {
+					// Terms added
+					$change_descriptions[] = sprintf(
+						/* translators: 1: Taxonomy label, 2: New terms */
+						__( '%1$s set to %2$s', 'fanfiction-manager' ),
+						$tax_label,
+						implode( ', ', $new_terms )
+					);
+				} elseif ( ! empty( $old_terms ) && empty( $new_terms ) ) {
+					// Terms removed
+					$change_descriptions[] = sprintf(
+						/* translators: %s: Taxonomy label */
+						__( '%s removed', 'fanfiction-manager' ),
+						$tax_label
+					);
+				} else {
+					// Terms changed
+					$change_descriptions[] = sprintf(
+						/* translators: 1: Taxonomy label, 2: Old terms, 3: New terms */
+						__( '%1$s changed from %2$s to %3$s', 'fanfiction-manager' ),
+						$tax_label,
+						implode( ', ', $old_terms ),
+						implode( ', ', $new_terms )
+					);
+				}
+			}
+		}
+
+		// Build final message
+		if ( count( $change_descriptions ) === 1 ) {
+			// Single change
+			return sprintf(
+				/* translators: 1: Story title, 2: Change description */
+				__( 'Story "%1$s" updated: %2$s', 'fanfiction-manager' ),
+				$story_title,
+				$change_descriptions[0]
+			);
+		} else {
+			// Multiple changes
+			return sprintf(
+				/* translators: 1: Story title, 2: List of changes */
+				__( 'Story "%1$s" updated: %2$s', 'fanfiction-manager' ),
+				$story_title,
+				implode( ', ', $change_descriptions )
+			);
+		}
 	}
 }

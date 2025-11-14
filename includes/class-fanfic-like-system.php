@@ -51,12 +51,7 @@ class Fanfic_Like_System {
 	 * @return void
 	 */
 	public static function init() {
-		// Register AJAX handlers
-		add_action( 'wp_ajax_fanfic_toggle_like', array( __CLASS__, 'ajax_toggle_like' ) );
-		add_action( 'wp_ajax_nopriv_fanfic_toggle_like', array( __CLASS__, 'ajax_toggle_like' ) );
-
-		add_action( 'wp_ajax_fanfic_check_like_status', array( __CLASS__, 'ajax_check_like_status' ) );
-		add_action( 'wp_ajax_nopriv_fanfic_check_like_status', array( __CLASS__, 'ajax_check_like_status' ) );
+		// AJAX handlers are now registered in class-fanfic-ajax-handlers.php
 
 		// Enqueue scripts
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_scripts' ) );

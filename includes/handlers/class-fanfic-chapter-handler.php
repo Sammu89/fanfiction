@@ -113,9 +113,8 @@ class Fanfic_Chapter_Handler {
 			$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
 		}
 
-		if ( empty( $title ) ) {
-			$errors[] = __( 'Chapter title is required.', 'fanfiction-manager' );
-		}
+		// Note: Chapter title is optional - chapters can have no title
+		// and will display as "Prologue", "Chapter X", "Epilogue" instead
 
 		if ( empty( $content ) ) {
 			$errors[] = __( 'Chapter content is required.', 'fanfiction-manager' );
@@ -315,9 +314,8 @@ class Fanfic_Chapter_Handler {
 			$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
 		}
 
-		if ( empty( $title ) ) {
-			$errors[] = __( 'Chapter title is required.', 'fanfiction-manager' );
-		}
+		// Note: Chapter title is optional - chapters can have no title
+		// and will display as "Prologue", "Chapter X", "Epilogue" instead
 
 		if ( empty( $content ) ) {
 			$errors[] = __( 'Chapter content is required.', 'fanfiction-manager' );

@@ -188,6 +188,35 @@ class Fanfic_Shortcodes_Navigation {
 	}
 
 	/**
+	 * Get chapter display title
+	 *
+	 * Returns the full display title for a chapter. If the chapter has a custom title,
+	 * returns "Label: Title" (e.g., "Chapter 1: Lorem Ipsum"). If no title, returns just
+	 * the label (e.g., "Chapter 1", "Prologue").
+	 *
+	 * @since 1.0.0
+	 * @param int    $chapter_id    Chapter ID.
+	 * @param string $chapter_title Optional. Chapter title (if already fetched).
+	 * @return string Full display title.
+	 */
+	private static function get_chapter_display_title( $chapter_id, $chapter_title = '' ) {
+		if ( empty( $chapter_title ) ) {
+			$chapter_title = get_the_title( $chapter_id );
+		}
+
+		// Get chapter label
+		$label = self::get_chapter_label( $chapter_id );
+
+		// If title is empty, return just the label
+		if ( empty( $chapter_title ) ) {
+			return $label;
+		}
+
+		// Has a title, return label + title
+		return sprintf( '%s: %s', $label, $chapter_title );
+	}
+
+	/**
 	 * Chapters list shortcode
 	 *
 	 * [chapters-list]
@@ -212,12 +241,11 @@ class Fanfic_Shortcodes_Navigation {
 		$output = '<ul class="chapters-list">';
 
 		foreach ( $chapters as $chapter ) {
-			$chapter_label = self::get_chapter_label( $chapter->ID );
+			$display_title = self::get_chapter_display_title( $chapter->ID, $chapter->post_title );
 			$output .= sprintf(
-				'<li class="chapter-item"><a href="%s" class="chapter-link">%s: %s</a></li>',
+				'<li class="chapter-item"><a href="%s" class="chapter-link">%s</a></li>',
 				esc_url( get_permalink( $chapter->ID ) ),
-				esc_html( $chapter_label ),
-				esc_html( $chapter->post_title )
+				esc_html( $display_title )
 			);
 		}
 
@@ -308,6 +336,11 @@ class Fanfic_Shortcodes_Navigation {
 		$story_title = get_the_title( $story_id );
 		$story_url = get_permalink( $story_id );
 		$chapter_title = get_the_title( $chapter_id );
+
+		// If chapter has no title, use the label instead
+		if ( empty( $chapter_title ) ) {
+			$chapter_title = self::get_chapter_label( $chapter_id );
+		}
 
 		$output = '<nav class="chapter-breadcrumb" aria-label="' . esc_attr__( 'Breadcrumb', 'fanfiction-manager' ) . '">';
 		$output .= '<ol>';
@@ -413,14 +446,13 @@ class Fanfic_Shortcodes_Navigation {
 		foreach ( $chapters as $chapter ) {
 			$selected = ( $chapter->ID === $current_chapter_id ) ? ' selected' : '';
 			$aria_current = ( $chapter->ID === $current_chapter_id ) ? ' aria-current="page"' : '';
-			$chapter_label = self::get_chapter_label( $chapter->ID );
+			$display_title = self::get_chapter_display_title( $chapter->ID, $chapter->post_title );
 			$output .= sprintf(
-				'<option value="%s"%s%s>%s: %s</option>',
+				'<option value="%s"%s%s>%s</option>',
 				esc_url( get_permalink( $chapter->ID ) ),
 				$selected,
 				$aria_current,
-				esc_html( $chapter_label ),
-				esc_html( $chapter->post_title )
+				esc_html( $display_title )
 			);
 		}
 

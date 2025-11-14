@@ -81,6 +81,9 @@
 			// Reading progress
 			this.initReadingProgress();
 
+			// Share buttons
+			this.initShareButtons();
+
 			this.log('Fanfic Interactions initialized');
 		},
 
@@ -278,14 +281,99 @@
 					return;
 				}
 
-				self.log('Mark as read clicked:', { storyId, chapterNumber });
+				// Check current read state
+				const isCurrentlyRead = $button.hasClass('read');
 
-				// Optimistic UI update
-				self.updateReadDisplay($button, true);
+				self.log('Mark as read clicked:', { storyId, chapterNumber, isCurrentlyRead });
 
-				// Mark as read
-				self.markAsRead(storyId, chapterNumber, $button);
+				// Optimistic UI update (toggle)
+				self.updateReadDisplay($button, !isCurrentlyRead);
+
+				// Toggle read status
+				self.markAsRead(storyId, chapterNumber, $button, isCurrentlyRead);
 			});
+		},
+
+		/**
+		 * Initialize share buttons
+		 */
+		initShareButtons: function() {
+			const self = this;
+
+			$(document).on('click', '.fanfic-share-button', function(e) {
+				e.preventDefault();
+
+				const $button = $(this);
+				const url = window.location.href;
+				const title = document.title;
+
+				// Prevent double-click
+				if ($button.hasClass('loading')) {
+					return;
+				}
+
+				self.log('Share button clicked:', { url, title });
+
+				// Try Web Share API first (native mobile/desktop sharing)
+				if (navigator.share) {
+					navigator.share({
+						title: title,
+						url: url
+					}).then(function() {
+						self.log('Share successful');
+						self.showSuccess($button, 'Shared successfully!');
+					}).catch(function(err) {
+						// User cancelled or error - fail silently for cancellation
+						if (err.name !== 'AbortError') {
+							self.log('Share failed:', err);
+							// Fallback to clipboard on error (but not on cancellation)
+							self.copyToClipboard(url, $button);
+						}
+					});
+				} else if (navigator.clipboard && navigator.clipboard.writeText) {
+					// Fallback to clipboard API
+					self.copyToClipboard(url, $button);
+				} else {
+					// Last resort - show prompt for manual copy
+					self.showPromptCopy(url, $button);
+				}
+			});
+		},
+
+		/**
+		 * Copy URL to clipboard
+		 */
+		copyToClipboard: function(url, $button) {
+			const self = this;
+
+			navigator.clipboard.writeText(url).then(function() {
+				self.log('Link copied to clipboard');
+				self.showSuccess($button, 'Link copied to clipboard!');
+			}).catch(function(err) {
+				self.log('Clipboard copy failed:', err);
+				// Fallback to prompt
+				self.showPromptCopy(url, $button);
+			});
+		},
+
+		/**
+		 * Show prompt for manual copy (last resort)
+		 */
+		showPromptCopy: function(url, $button) {
+			// Create a temporary input to select and copy
+			const $temp = $('<input>').val(url).appendTo('body').select();
+
+			try {
+				document.execCommand('copy');
+				this.showSuccess($button, 'Link copied to clipboard!');
+				this.log('Link copied via execCommand');
+			} catch (err) {
+				this.log('execCommand copy failed:', err);
+				// Ultimate fallback - show alert with URL
+				alert('Copy this link:\n\n' + url);
+			}
+
+			$temp.remove();
 		},
 
 		/**
@@ -552,9 +640,9 @@
 		},
 
 		/**
-		 * Mark chapter as read on server
+		 * Toggle chapter read status on server
 		 */
-		markAsRead: function(storyId, chapterNumber, $button) {
+		markAsRead: function(storyId, chapterNumber, $button, wasRead) {
 			const self = this;
 
 			$button.addClass('loading');
@@ -572,14 +660,20 @@
 					self.log('Mark as read response:', response);
 
 					if (response.success) {
-						self.updateReadDisplay($button, true);
+						const isRead = response.data.is_read;
+						// Update from server response
+						self.updateReadDisplay($button, isRead);
 						self.showSuccess($button, response.data.message || self.strings.markedRead);
 					} else {
+						// Revert optimistic update on error
+						self.updateReadDisplay($button, wasRead);
 						self.showError($button, response.data.message || self.strings.error);
 					}
 				},
 				error: function(xhr) {
 					self.log('Mark as read error:', xhr);
+					// Revert optimistic update on error
+					self.updateReadDisplay($button, wasRead);
 					self.handleAjaxError(xhr, $button);
 				},
 				complete: function() {
@@ -669,12 +763,15 @@
 		},
 
 		/**
-		 * Update read display (optimistic)
+		 * Update read display (toggle)
 		 */
 		updateReadDisplay: function($button, isRead) {
 			if (isRead) {
-				$button.addClass('read').prop('disabled', true);
+				$button.addClass('read').removeClass('unread');
 				$button.find('.read-text').text($button.data('read-text') || 'Read');
+			} else {
+				$button.addClass('unread').removeClass('read');
+				$button.find('.read-text').text($button.data('unread-text') || 'Mark as Read');
 			}
 		},
 
