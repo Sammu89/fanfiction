@@ -1201,7 +1201,7 @@ private function render_choice_screen() {
 
 		wp_send_json_success( array(
 			'message'      => __( 'Setup completed successfully! Redirecting...', 'fanfiction-manager' ),
-			'redirect_url' => admin_url( 'admin.php?page=fanfiction-manager' ),
+			'redirect_url' => admin_url( 'admin.php?page=fanfiction-settings&tab=general' ),
 		) );
 	}
 
