@@ -778,7 +778,7 @@ class Fanfic_Shortcodes_Buttons {
 
 		ob_start();
 		?>
-		<div id="<?php echo esc_attr( $modal_id ); ?>" class="fanfic-modal" role="dialog" aria-hidden="true" aria-labelledby="<?php echo esc_attr( $modal_id ); ?>-title">
+		<div id="<?php echo esc_attr( $modal_id ); ?>" class="fanfic-modal" role="dialog" aria-hidden="true" aria-labelledby="<?php echo esc_attr( $modal_id ); ?>-title" style="display:none;">
 			<div class="fanfic-modal-overlay"></div>
 			<div class="fanfic-modal-content">
 				<button type="button" class="fanfic-modal-close" aria-label="<?php esc_attr_e( 'Close', 'fanfiction-manager' ); ?>">&times;</button>
