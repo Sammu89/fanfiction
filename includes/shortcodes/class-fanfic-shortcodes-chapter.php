@@ -68,13 +68,14 @@ class Fanfic_Shortcodes_Chapter {
 	/**
 	 * Chapter title shortcode
 	 *
-	 * Displays the chapter title without a link
+	 * Displays the chapter title without a link. If the chapter has no title,
+	 * returns the chapter label instead (e.g., "Prologue", "Chapter 1").
 	 *
 	 * [fanfic-chapter-title]
 	 *
 	 * @since 1.0.13
 	 * @param array $atts Shortcode attributes.
-	 * @return string Chapter title.
+	 * @return string Chapter title or label.
 	 */
 	public static function chapter_title( $atts ) {
 		$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
@@ -84,6 +85,21 @@ class Fanfic_Shortcodes_Chapter {
 		}
 
 		$chapter_title = get_the_title( $chapter_id );
+
+		// If no title, return chapter label instead
+		if ( empty( $chapter_title ) ) {
+			$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+			$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+
+			if ( 'prologue' === $chapter_type ) {
+				return esc_html__( 'Prologue', 'fanfiction-manager' );
+			} elseif ( 'epilogue' === $chapter_type ) {
+				return esc_html__( 'Epilogue', 'fanfiction-manager' );
+			} else {
+				return esc_html( sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number ) );
+			}
+		}
+
 		return esc_html( $chapter_title );
 	}
 
