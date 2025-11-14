@@ -1241,8 +1241,15 @@ private function render_choice_screen() {
 		$this->assign_user_roles();
 
 		// Create sample stories if requested
+		$create_samples_value = isset( $_POST['create_samples'] ) ? $_POST['create_samples'] : 'not set';
+		error_log( 'Fanfic Wizard: create_samples POST value: ' . $create_samples_value );
+
 		if ( isset( $_POST['create_samples'] ) && '1' === $_POST['create_samples'] ) {
+			error_log( 'Fanfic Wizard: Creating sample stories...' );
 			$this->create_sample_stories();
+			error_log( 'Fanfic Wizard: Sample stories creation complete' );
+		} else {
+			error_log( 'Fanfic Wizard: Skipping sample stories creation' );
 		}
 
 		// Flush rewrite rules using shared helper method
@@ -1351,7 +1358,10 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function create_sample_stories() {
+		error_log( 'Fanfic Wizard: create_sample_stories() method called' );
+
 		$current_user_id = get_current_user_id();
+		error_log( 'Fanfic Wizard: Current user ID: ' . $current_user_id );
 
 		// Get random genre and status terms
 		$genre_terms = get_terms( array(
@@ -1363,7 +1373,11 @@ private function render_choice_screen() {
 			'hide_empty' => false,
 		) );
 
+		error_log( 'Fanfic Wizard: Genre terms count: ' . ( is_array( $genre_terms ) ? count( $genre_terms ) : '0 or error' ) );
+		error_log( 'Fanfic Wizard: Status terms count: ' . ( is_array( $status_terms ) ? count( $status_terms ) : '0 or error' ) );
+
 		if ( empty( $status_terms ) || is_wp_error( $status_terms ) ) {
+			error_log( 'Fanfic Wizard: No status terms available - exiting early' );
 			return; // No status terms available
 		}
 
@@ -1483,6 +1497,8 @@ private function render_choice_screen() {
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_number', 1 );
 			}
 		}
+
+		error_log( 'Fanfic Wizard: Finished creating sample stories' );
 	}
 
 	/**
