@@ -472,7 +472,7 @@ class Fanfic_Shortcodes_Forms {
 		}
 
 		// Get chapter rating data from new rating system
-		$rating_data = Fanfic_Rating_System::get_chapter_rating( $chapter_id );
+		$rating_data = Fanfic_Rating_System::get_chapter_rating_stats( $chapter_id );
 
 		$avg_rating = $rating_data ? $rating_data->average_rating : 0;
 		$total_ratings = $rating_data ? $rating_data->total_votes : 0;
