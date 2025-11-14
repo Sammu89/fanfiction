@@ -348,13 +348,13 @@ class Fanfic_Shortcodes_Buttons {
 				// Check if user has email subscription for this story
 				if ( isset( $context_ids['story_id'] ) ) {
 					global $wpdb;
-					$table_name = $wpdb->prefix . 'fanfic_subscriptions';
+					$table_name = $wpdb->prefix . 'fanfic_email_subscriptions';
 					$user = wp_get_current_user();
 					if ( ! $user->exists() ) {
 						return false;
 					}
 					$subscribed = $wpdb->get_var( $wpdb->prepare(
-						"SELECT COUNT(*) FROM {$table_name} WHERE story_id = %d AND email = %s AND is_active = 1",
+						"SELECT COUNT(*) FROM {$table_name} WHERE target_id = %d AND email = %s AND subscription_type = 'story' AND verified = 1",
 						$context_ids['story_id'],
 						$user->user_email
 					) );
