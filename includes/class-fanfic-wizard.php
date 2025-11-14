@@ -1241,15 +1241,8 @@ private function render_choice_screen() {
 		$this->assign_user_roles();
 
 		// Create sample stories if requested
-		$create_samples_value = isset( $_POST['create_samples'] ) ? $_POST['create_samples'] : 'not set';
-		error_log( 'Fanfic Wizard: create_samples POST value: ' . $create_samples_value );
-
 		if ( isset( $_POST['create_samples'] ) && '1' === $_POST['create_samples'] ) {
-			error_log( 'Fanfic Wizard: Creating sample stories...' );
 			$this->create_sample_stories();
-			error_log( 'Fanfic Wizard: Sample stories creation complete' );
-		} else {
-			error_log( 'Fanfic Wizard: Skipping sample stories creation' );
 		}
 
 		// Flush rewrite rules using shared helper method
@@ -1358,10 +1351,7 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function create_sample_stories() {
-		error_log( 'Fanfic Wizard: create_sample_stories() method called' );
-
 		$current_user_id = get_current_user_id();
-		error_log( 'Fanfic Wizard: Current user ID: ' . $current_user_id );
 
 		// Get random genre and status terms
 		$genre_terms = get_terms( array(
@@ -1373,11 +1363,7 @@ private function render_choice_screen() {
 			'hide_empty' => false,
 		) );
 
-		error_log( 'Fanfic Wizard: Genre terms count: ' . ( is_array( $genre_terms ) ? count( $genre_terms ) : '0 or error' ) );
-		error_log( 'Fanfic Wizard: Status terms count: ' . ( is_array( $status_terms ) ? count( $status_terms ) : '0 or error' ) );
-
 		if ( empty( $status_terms ) || is_wp_error( $status_terms ) ) {
-			error_log( 'Fanfic Wizard: No status terms available - exiting early' );
 			return; // No status terms available
 		}
 
@@ -1403,7 +1389,6 @@ private function render_choice_screen() {
 		$story2_intro = "Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio. Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.\n\nDumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.\n\nDumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio. Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.";
 
 		// ===== STORY 1: Lorem Ipsum (Draft) =====
-		error_log( 'Fanfic Wizard: Creating Story 1...' );
 		$story1_id = wp_insert_post( array(
 			'post_title'   => 'Lorem Ipsum',
 			'post_content' => $lorem_intro,
@@ -1411,8 +1396,6 @@ private function render_choice_screen() {
 			'post_type'    => 'fanfiction_story',
 			'post_author'  => $current_user_id,
 		) );
-
-		error_log( 'Fanfic Wizard: Story 1 ID: ' . ( is_wp_error( $story1_id ) ? 'ERROR: ' . $story1_id->get_error_message() : $story1_id ) );
 
 		if ( ! is_wp_error( $story1_id ) && $story1_id > 0 ) {
 			// Set status taxonomy
@@ -1425,7 +1408,6 @@ private function render_choice_screen() {
 			}
 
 			// Chapter 1 (Published)
-			error_log( 'Fanfic Wizard: Creating Story 1 Chapter 1...' );
 			$chapter1_id = wp_insert_post( array(
 				'post_title'   => 'Lorem Ipsum',
 				'post_content' => $lorem_chapter,
@@ -1435,14 +1417,11 @@ private function render_choice_screen() {
 				'post_author'  => $current_user_id,
 			) );
 
-			error_log( 'Fanfic Wizard: Story 1 Chapter 1 ID: ' . ( is_wp_error( $chapter1_id ) ? 'ERROR: ' . $chapter1_id->get_error_message() : $chapter1_id ) );
-
 			if ( ! is_wp_error( $chapter1_id ) && $chapter1_id > 0 ) {
 				update_post_meta( $chapter1_id, '_fanfic_chapter_number', 1 );
 			}
 
 			// Chapter 2 (Draft)
-			error_log( 'Fanfic Wizard: Creating Story 1 Chapter 2...' );
 			$chapter2_id = wp_insert_post( array(
 				'post_title'   => 'Lorem Ipsum',
 				'post_content' => $lorem_chapter,
@@ -1452,17 +1431,12 @@ private function render_choice_screen() {
 				'post_author'  => $current_user_id,
 			) );
 
-			error_log( 'Fanfic Wizard: Story 1 Chapter 2 ID: ' . ( is_wp_error( $chapter2_id ) ? 'ERROR: ' . $chapter2_id->get_error_message() : $chapter2_id ) );
-
 			if ( ! is_wp_error( $chapter2_id ) && $chapter2_id > 0 ) {
 				update_post_meta( $chapter2_id, '_fanfic_chapter_number', 2 );
 			}
-		} else {
-			error_log( 'Fanfic Wizard: Story 1 creation failed or returned invalid ID' );
 		}
 
 		// ===== STORY 2: De finibus bonorum et malorum (Published) =====
-		error_log( 'Fanfic Wizard: Creating Story 2...' );
 		$story2_id = wp_insert_post( array(
 			'post_title'   => 'De finibus bonorum et malorum',
 			'post_content' => $story2_intro,
@@ -1470,8 +1444,6 @@ private function render_choice_screen() {
 			'post_type'    => 'fanfiction_story',
 			'post_author'  => $current_user_id,
 		) );
-
-		error_log( 'Fanfic Wizard: Story 2 ID: ' . ( is_wp_error( $story2_id ) ? 'ERROR: ' . $story2_id->get_error_message() : $story2_id ) );
 
 		if ( ! is_wp_error( $story2_id ) && $story2_id > 0 ) {
 			// Set status taxonomy
@@ -1484,7 +1456,6 @@ private function render_choice_screen() {
 			}
 
 			// Prologue (Published, NO TITLE - blank title)
-			error_log( 'Fanfic Wizard: Creating Story 2 Prologue...' );
 			$prologue_id = wp_insert_post( array(
 				'post_title'   => '', // Blank title as requested
 				'post_content' => $lorem_chapter,
@@ -1494,15 +1465,11 @@ private function render_choice_screen() {
 				'post_author'  => $current_user_id,
 			) );
 
-			error_log( 'Fanfic Wizard: Prologue ID: ' . ( is_wp_error( $prologue_id ) ? 'ERROR: ' . $prologue_id->get_error_message() : $prologue_id ) );
-
 			if ( ! is_wp_error( $prologue_id ) && $prologue_id > 0 ) {
 				update_post_meta( $prologue_id, '_fanfic_chapter_number', 'prologue' );
-				error_log( 'Fanfic Wizard: Set prologue chapter_number meta' );
 			}
 
 			// Chapter 1 (Published)
-			error_log( 'Fanfic Wizard: Creating Story 2 Chapter 1...' );
 			$chapter1_s2_id = wp_insert_post( array(
 				'post_title'   => 'Lorem Ipsum',
 				'post_content' => $lorem_chapter,
@@ -1512,18 +1479,10 @@ private function render_choice_screen() {
 				'post_author'  => $current_user_id,
 			) );
 
-			error_log( 'Fanfic Wizard: Chapter 1 ID: ' . ( is_wp_error( $chapter1_s2_id ) ? 'ERROR: ' . $chapter1_s2_id->get_error_message() : $chapter1_s2_id ) );
-
 			if ( ! is_wp_error( $chapter1_s2_id ) && $chapter1_s2_id > 0 ) {
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_number', 1 );
-				error_log( 'Fanfic Wizard: Set chapter 1 chapter_number meta' );
 			}
-		} else {
-			error_log( 'Fanfic Wizard: Story 2 creation failed or returned invalid ID' );
 		}
-
-		error_log( 'Fanfic Wizard: Finished creating sample stories' );
-		error_log( 'Fanfic Wizard: Summary - Story 1 ID: ' . ( isset( $story1_id ) ? $story1_id : 'not created' ) . ', Story 2 ID: ' . ( isset( $story2_id ) ? $story2_id : 'not created' ) );
 	}
 
 	/**

@@ -86,10 +86,6 @@
 		e.preventDefault();
 
 		var $button = $(e.currentTarget);
-		var createSamples = $('#fanfic_create_samples').is(':checked') ? '1' : '0';
-
-		console.log('Fanfic Wizard: Complete button clicked');
-		console.log('Fanfic Wizard: Create samples checkbox value:', createSamples);
 
 		// Disable button and show loading
 		$button.prop('disabled', true);
@@ -106,7 +102,7 @@
 			data: {
 				action: 'fanfic_wizard_complete',
 				nonce: fanficWizard.nonce,
-				create_samples: createSamples
+				create_samples: $('#fanfic_create_samples').is(':checked') ? '1' : '0'
 			},
 			success: function(response) {
 				if (response.success) {
