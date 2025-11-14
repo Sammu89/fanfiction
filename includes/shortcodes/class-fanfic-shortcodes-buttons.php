@@ -232,6 +232,11 @@ class Fanfic_Shortcodes_Buttons {
 			return self::render_report_button( $context, $context_ids, $nonce );
 		}
 
+		// Handle Subscribe button separately (opens modal/form)
+		if ( 'subscribe' === $action ) {
+			return self::render_subscribe_button( $context, $context_ids, $nonce );
+		}
+
 		// Get current state for toggle buttons
 		$current_state = self::get_button_state( $action, $context_ids, $user_id );
 
@@ -701,5 +706,116 @@ class Fanfic_Shortcodes_Buttons {
 		$output .= '</button>';
 
 		return $output;
+	}
+
+	/**
+	 * Render subscribe button (opens subscription modal)
+	 *
+	 * @since 2.0.0
+	 * @param string $context     Context (story, chapter, author).
+	 * @param array  $context_ids Context IDs.
+	 * @param string $nonce       AJAX nonce.
+	 * @return string Subscribe button HTML.
+	 */
+	private static function render_subscribe_button( $context, $context_ids, $nonce ) {
+		// Get the target ID for subscription
+		$target_id = 0;
+		$subscription_type = '';
+
+		if ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
+			$target_id = $context_ids['story_id'];
+			$subscription_type = 'story';
+		} elseif ( 'chapter' === $context && isset( $context_ids['story_id'] ) ) {
+			// For chapters, subscribe to the parent story
+			$target_id = $context_ids['story_id'];
+			$subscription_type = 'story';
+		} elseif ( 'author' === $context && isset( $context_ids['author_id'] ) ) {
+			$target_id = $context_ids['author_id'];
+			$subscription_type = 'author';
+		}
+
+		if ( ! $target_id ) {
+			return '';
+		}
+
+		$label = __( 'Subscribe', 'fanfiction-manager' );
+		$icon = '&#128276;'; // Bell icon
+
+		$output = '<button type="button" class="fanfic-action-button fanfic-subscribe-button" ';
+		$output .= 'data-target-id="' . absint( $target_id ) . '" ';
+		$output .= 'data-subscription-type="' . esc_attr( $subscription_type ) . '" ';
+		$output .= 'data-nonce="' . esc_attr( $nonce ) . '" ';
+		$output .= 'aria-label="' . esc_attr( sprintf( __( 'Subscribe to updates for this %s', 'fanfiction-manager' ), $context ) ) . '">';
+		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
+		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= '</button>';
+
+		// Add the subscription modal HTML (will be shown when button is clicked)
+		$output .= self::render_subscription_modal( $target_id, $subscription_type, $context );
+
+		return $output;
+	}
+
+	/**
+	 * Render subscription modal HTML
+	 *
+	 * @since 2.0.0
+	 * @param int    $target_id         Story or Author ID.
+	 * @param string $subscription_type 'story' or 'author'.
+	 * @param string $context           Context for display.
+	 * @return string Modal HTML.
+	 */
+	private static function render_subscription_modal( $target_id, $subscription_type, $context ) {
+		$modal_id = 'fanfic-subscribe-modal-' . $subscription_type . '-' . $target_id;
+
+		$title = 'story' === $subscription_type
+			? __( 'Subscribe to Story Updates', 'fanfiction-manager' )
+			: __( 'Subscribe to Author Updates', 'fanfiction-manager' );
+
+		$description = 'story' === $subscription_type
+			? __( 'Get notified by email when new chapters are published for this story.', 'fanfiction-manager' )
+			: __( 'Get notified by email when this author publishes new stories or chapters.', 'fanfiction-manager' );
+
+		ob_start();
+		?>
+		<div id="<?php echo esc_attr( $modal_id ); ?>" class="fanfic-modal" role="dialog" aria-hidden="true" aria-labelledby="<?php echo esc_attr( $modal_id ); ?>-title">
+			<div class="fanfic-modal-overlay"></div>
+			<div class="fanfic-modal-content">
+				<button type="button" class="fanfic-modal-close" aria-label="<?php esc_attr_e( 'Close', 'fanfiction-manager' ); ?>">&times;</button>
+				<h2 id="<?php echo esc_attr( $modal_id ); ?>-title"><?php echo esc_html( $title ); ?></h2>
+				<p><?php echo esc_html( $description ); ?></p>
+
+				<form class="fanfic-email-subscription-form" data-target-id="<?php echo absint( $target_id ); ?>" data-subscription-type="<?php echo esc_attr( $subscription_type ); ?>">
+					<div class="form-group">
+						<label for="<?php echo esc_attr( $modal_id ); ?>-email">
+							<?php esc_html_e( 'Email Address', 'fanfiction-manager' ); ?>
+						</label>
+						<input
+							type="email"
+							id="<?php echo esc_attr( $modal_id ); ?>-email"
+							name="email"
+							required
+							placeholder="<?php esc_attr_e( 'your@email.com', 'fanfiction-manager' ); ?>"
+							autocomplete="email"
+						/>
+					</div>
+
+					<div class="form-actions">
+						<button type="submit" class="button button-primary">
+							<?php esc_html_e( 'Subscribe', 'fanfiction-manager' ); ?>
+						</button>
+						<button type="button" class="button fanfic-modal-close">
+							<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+						</button>
+					</div>
+
+					<p class="description">
+						<?php esc_html_e( 'You will receive a confirmation email to verify your subscription.', 'fanfiction-manager' ); ?>
+					</p>
+				</form>
+			</div>
+		</div>
+		<?php
+		return ob_get_clean();
 	}
 }

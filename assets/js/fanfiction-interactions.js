@@ -83,6 +83,8 @@
 
 			// Share buttons
 			this.initShareButtons();
+		// Subscribe buttons (open modal)
+		this.initSubscribeButtons();
 		// Report buttons
 		this.initReportButtons();
 
@@ -415,6 +417,36 @@
 
 			// Submit report
 			self.submitReport(contentId, reportType, reason, $button);
+		});
+	},
+
+	/**
+	 * Initialize subscribe buttons (open modal)
+	 */
+	initSubscribeButtons: function() {
+		const self = this;
+
+		$(document).on('click', '.fanfic-subscribe-button', function(e) {
+			e.preventDefault();
+
+			const $button = $(this);
+			const targetId = $button.data('target-id');
+			const subscriptionType = $button.data('subscription-type');
+
+			self.log('Subscribe button clicked:', { targetId, subscriptionType });
+
+			// Open the subscription modal
+			const modalId = 'fanfic-subscribe-modal-' + subscriptionType + '-' + targetId;
+			
+			// Use EnhancedModal if available, otherwise use basic Modal
+			if (typeof window.EnhancedModal !== 'undefined') {
+				window.EnhancedModal.open(modalId);
+			} else if (typeof window.Modal !== 'undefined') {
+				window.Modal.open(modalId);
+			} else {
+				// Fallback: just show the modal
+				$('#' + modalId).fadeIn(200);
+			}
 		});
 	},
 
