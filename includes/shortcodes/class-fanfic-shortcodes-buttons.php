@@ -630,12 +630,14 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		if ( ! $content_id ) {
+			error_log( 'Edit button: No content_id for context: ' . $context . ', context_ids: ' . print_r( $context_ids, true ) );
 			return '';
 		}
 
 		// Check permissions using the fanfic permission function
 		// This checks: author, moderators (moderate_fanfiction), and admins (manage_options)
 		if ( ! fanfic_current_user_can_edit( $content_type, $content_id ) ) {
+			error_log( 'Edit button: Permission denied for user_id: ' . $user_id . ', content_type: ' . $content_type . ', content_id: ' . $content_id );
 			return '';
 		}
 
@@ -644,14 +646,21 @@ class Fanfic_Shortcodes_Buttons {
 		if ( 'profile' === $content_type ) {
 			// For author profiles, link to author dashboard or profile edit page
 			$edit_url = fanfic_get_page_url( 'dashboard' );
-		} else {
-			// For stories and chapters, use WordPress edit post link
-			$edit_url = get_edit_post_link( $content_id );
+		} elseif ( 'story' === $content_type ) {
+			// For stories, use fanfic edit story URL
+			$edit_url = fanfic_get_edit_story_url( $content_id );
+		} elseif ( 'chapter' === $content_type ) {
+			// For chapters, use fanfic edit chapter URL
+			$story_id = isset( $context_ids['story_id'] ) ? $context_ids['story_id'] : 0;
+			$edit_url = fanfic_get_edit_chapter_url( $content_id, $story_id );
 		}
 
 		if ( ! $edit_url ) {
+			error_log( 'Edit button: No edit_url for content_type: ' . $content_type . ', content_id: ' . $content_id );
 			return '';
 		}
+
+		error_log( 'Edit button: SUCCESS - Rendering button for ' . $content_type . ' ' . $content_id . ' with URL: ' . $edit_url );
 
 		$label = __( 'Edit', 'fanfiction-manager' );
 		$icon = '&#9998;'; // Pencil icon
