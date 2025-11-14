@@ -81,6 +81,9 @@
 			// Reading progress
 			this.initReadingProgress();
 
+			// Share buttons
+			this.initShareButtons();
+
 			this.log('Fanfic Interactions initialized');
 		},
 
@@ -286,6 +289,88 @@
 				// Mark as read
 				self.markAsRead(storyId, chapterNumber, $button);
 			});
+		},
+
+		/**
+		 * Initialize share buttons
+		 */
+		initShareButtons: function() {
+			const self = this;
+
+			$(document).on('click', '.fanfic-share-button', function(e) {
+				e.preventDefault();
+
+				const $button = $(this);
+				const url = window.location.href;
+				const title = document.title;
+
+				// Prevent double-click
+				if ($button.hasClass('loading')) {
+					return;
+				}
+
+				self.log('Share button clicked:', { url, title });
+
+				// Try Web Share API first (native mobile/desktop sharing)
+				if (navigator.share) {
+					navigator.share({
+						title: title,
+						url: url
+					}).then(function() {
+						self.log('Share successful');
+						self.showSuccess($button, 'Shared successfully!');
+					}).catch(function(err) {
+						// User cancelled or error - fail silently for cancellation
+						if (err.name !== 'AbortError') {
+							self.log('Share failed:', err);
+							// Fallback to clipboard on error (but not on cancellation)
+							self.copyToClipboard(url, $button);
+						}
+					});
+				} else if (navigator.clipboard && navigator.clipboard.writeText) {
+					// Fallback to clipboard API
+					self.copyToClipboard(url, $button);
+				} else {
+					// Last resort - show prompt for manual copy
+					self.showPromptCopy(url, $button);
+				}
+			});
+		},
+
+		/**
+		 * Copy URL to clipboard
+		 */
+		copyToClipboard: function(url, $button) {
+			const self = this;
+
+			navigator.clipboard.writeText(url).then(function() {
+				self.log('Link copied to clipboard');
+				self.showSuccess($button, 'Link copied to clipboard!');
+			}).catch(function(err) {
+				self.log('Clipboard copy failed:', err);
+				// Fallback to prompt
+				self.showPromptCopy(url, $button);
+			});
+		},
+
+		/**
+		 * Show prompt for manual copy (last resort)
+		 */
+		showPromptCopy: function(url, $button) {
+			// Create a temporary input to select and copy
+			const $temp = $('<input>').val(url).appendTo('body').select();
+
+			try {
+				document.execCommand('copy');
+				this.showSuccess($button, 'Link copied to clipboard!');
+				this.log('Link copied via execCommand');
+			} catch (err) {
+				this.log('execCommand copy failed:', err);
+				// Ultimate fallback - show alert with URL
+				alert('Copy this link:\n\n' + url);
+			}
+
+			$temp.remove();
 		},
 
 		/**

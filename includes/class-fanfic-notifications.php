@@ -57,6 +57,9 @@ class Fanfic_Notifications {
 
 		// Hook into chapter publish
 		add_action( 'transition_post_status', array( __CLASS__, 'handle_post_transition' ), 10, 3 );
+
+		// Hook into taxonomy changes
+		add_action( 'set_object_terms', array( __CLASS__, 'handle_taxonomy_change' ), 10, 6 );
 	}
 
 	/**
@@ -733,17 +736,184 @@ class Fanfic_Notifications {
 	 * @return void
 	 */
 	public static function handle_post_transition( $new_status, $old_status, $post ) {
-		// Only handle chapter posts
-		if ( 'fanfiction_chapter' !== $post->post_type ) {
+		// Handle chapter publish
+		if ( 'fanfiction_chapter' === $post->post_type ) {
+			// Only trigger on new publish
+			if ( 'publish' !== $new_status || 'publish' === $old_status ) {
+				return;
+			}
+
+			// Create chapter notification
+			self::create_chapter_notification( $post->ID, $post->post_parent );
 			return;
 		}
 
-		// Only trigger on new publish
-		if ( 'publish' !== $new_status || 'publish' === $old_status ) {
+		// Handle story status changes
+		if ( 'fanfiction_story' === $post->post_type ) {
+			// Only notify if both old and new status are publish (status updated while live)
+			if ( 'publish' !== $new_status || 'publish' !== $old_status ) {
+				return;
+			}
+
+			// Check if story status taxonomy changed (e.g., ongoing → completed)
+			// This is handled by taxonomy change hook, not status transition
+			return;
+		}
+	}
+
+	/**
+	 * Handle taxonomy changes for stories
+	 *
+	 * Notifies story followers when taxonomies change (genre, status, custom taxonomies).
+	 *
+	 * @since 1.0.16
+	 * @param int    $object_id  Object ID (post ID).
+	 * @param array  $terms      Term IDs being set.
+	 * @param array  $tt_ids     Term taxonomy IDs.
+	 * @param string $taxonomy   Taxonomy slug.
+	 * @param bool   $append     Whether to append or replace terms.
+	 * @param array  $old_tt_ids Old term taxonomy IDs.
+	 * @return void
+	 */
+	public static function handle_taxonomy_change( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
+		// Get the post
+		$post = get_post( $object_id );
+
+		if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
 			return;
 		}
 
-		// Create chapter notification
-		self::create_chapter_notification( $post->ID, $post->post_parent );
+		// Only notify for published stories
+		if ( 'publish' !== $post->post_status ) {
+			return;
+		}
+
+		// Check if terms actually changed
+		if ( $tt_ids === $old_tt_ids ) {
+			return;
+		}
+
+		// Get relevant taxonomies (genre, status, and custom taxonomies)
+		$relevant_taxonomies = array( 'fanfiction_genre', 'fanfiction_status' );
+
+		// Add custom taxonomies registered for stories
+		$custom_taxonomies = get_object_taxonomies( 'fanfiction_story', 'names' );
+		foreach ( $custom_taxonomies as $custom_tax ) {
+			if ( ! in_array( $custom_tax, $relevant_taxonomies, true ) ) {
+				$relevant_taxonomies[] = $custom_tax;
+			}
+		}
+
+		// Only notify for relevant taxonomies
+		if ( ! in_array( $taxonomy, $relevant_taxonomies, true ) ) {
+			return;
+		}
+
+		// Get story followers (people who follow this specific story)
+		$followers = Fanfic_Follows::get_target_followers( $object_id, 'story', 999 );
+
+		if ( empty( $followers ) ) {
+			return;
+		}
+
+		// Get taxonomy label
+		$tax_obj = get_taxonomy( $taxonomy );
+		$tax_label = $tax_obj ? $tax_obj->labels->singular_name : ucfirst( str_replace( array( 'fanfiction_', '_' ), array( '', ' ' ), $taxonomy ) );
+
+		// Get old and new term names
+		$old_term_names = array();
+		if ( ! empty( $old_tt_ids ) ) {
+			foreach ( $old_tt_ids as $tt_id ) {
+				$term = get_term_by( 'term_taxonomy_id', $tt_id );
+				if ( $term ) {
+					$old_term_names[] = $term->name;
+				}
+			}
+		}
+
+		$new_term_names = array();
+		if ( ! empty( $tt_ids ) ) {
+			foreach ( $tt_ids as $tt_id ) {
+				$term = get_term_by( 'term_taxonomy_id', $tt_id );
+				if ( $term ) {
+					$new_term_names[] = $term->name;
+				}
+			}
+		}
+
+		// Build notification message
+		$story_title = get_the_title( $object_id );
+		$story_url = get_permalink( $object_id );
+
+		if ( empty( $old_term_names ) && ! empty( $new_term_names ) ) {
+			// Terms added
+			$message = sprintf(
+				/* translators: 1: Story title, 2: Taxonomy label, 3: New terms */
+				__( 'Story "%1$s" %2$s updated to: %3$s', 'fanfiction-manager' ),
+				$story_title,
+				$tax_label,
+				implode( ', ', $new_term_names )
+			);
+		} elseif ( ! empty( $old_term_names ) && empty( $new_term_names ) ) {
+			// Terms removed
+			$message = sprintf(
+				/* translators: 1: Story title, 2: Taxonomy label */
+				__( 'Story "%1$s" %2$s removed', 'fanfiction-manager' ),
+				$story_title,
+				$tax_label
+			);
+		} else {
+			// Terms changed
+			$message = sprintf(
+				/* translators: 1: Story title, 2: Taxonomy label, 3: Old terms, 4: New terms */
+				__( 'Story "%1$s" %2$s changed from %3$s to %4$s', 'fanfiction-manager' ),
+				$story_title,
+				$tax_label,
+				implode( ', ', $old_term_names ),
+				implode( ', ', $new_term_names )
+			);
+		}
+
+		// Notify all followers
+		foreach ( $followers as $follower ) {
+			$follower_id = absint( $follower['user_id'] );
+
+			// Don't notify the story author
+			if ( $follower_id === absint( $post->post_author ) ) {
+				continue;
+			}
+
+			// Create notification
+			self::create_notification(
+				$follower_id,
+				self::TYPE_STORY_UPDATE,
+				$message,
+				array(
+					'story_id'    => $object_id,
+					'story_title' => $story_title,
+					'story_url'   => $story_url,
+					'taxonomy'    => $taxonomy,
+					'old_terms'   => $old_term_names,
+					'new_terms'   => $new_term_names,
+				)
+			);
+
+			// Queue email if user has email notifications enabled
+			if ( ! empty( $follower['email_enabled'] ) ) {
+				Fanfic_Email_Queue::queue_email(
+					$follower_id,
+					'story_taxonomy_update',
+					$message,
+					array(
+						'story_id'    => $object_id,
+						'story_title' => $story_title,
+						'story_url'   => $story_url,
+						'taxonomy'    => $tax_label,
+						'old_terms'   => implode( ', ', $old_term_names ),
+						'new_terms'   => implode( ', ', $new_term_names ),
+					)
+				);
+			}
+		}
 	}
 }
