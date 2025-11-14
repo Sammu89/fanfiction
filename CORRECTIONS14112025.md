@@ -1590,6 +1590,228 @@ add_action( 'wp_ajax_nopriv_fanfic_verify_subscription', ... );
 
 ---
 
+## 🔄 PHASE 8: DATA MIGRATION EXECUTION - **READY**
+
+### Migration Script: ✅ Created
+**Location:** `includes/migrations/migrate-to-new-system.php`
+
+### Migration Runner: ✅ Created
+**Location:** `run-migration.php`
+
+### Instructions Document: ✅ Created
+**Location:** `MIGRATION_INSTRUCTIONS.md`
+
+---
+
+### Migration Overview
+
+The migration script (`Fanfic_Database_Migration`) performs the following operations:
+
+#### 1. Bookmarks Migration
+**Changes:**
+- Renames column: `story_id` → `post_id`
+- Adds column: `bookmark_type` ENUM('story', 'chapter') DEFAULT 'story'
+- Updates unique constraint: `(user_id, post_id, bookmark_type)`
+- Removes old indexes and column
+
+**SQL Operations:**
+```sql
+ALTER TABLE wp_fanfic_bookmarks ADD COLUMN post_id bigint(20) UNSIGNED NOT NULL DEFAULT 0;
+ALTER TABLE wp_fanfic_bookmarks ADD COLUMN bookmark_type enum('story','chapter') NOT NULL DEFAULT 'story';
+UPDATE wp_fanfic_bookmarks SET post_id = story_id, bookmark_type = 'story' WHERE post_id = 0;
+ALTER TABLE wp_fanfic_bookmarks DROP COLUMN story_id;
+ALTER TABLE wp_fanfic_bookmarks ADD UNIQUE KEY unique_bookmark (user_id, post_id, bookmark_type);
+```
+
+**Impact:** All existing bookmarks preserved with `bookmark_type = 'story'`
+
+---
+
+#### 2. Follows Migration
+**Changes:**
+- Renames column: `follower_id` → `user_id`
+- Renames column: `author_id` → `target_id`
+- Adds column: `follow_type` ENUM('story', 'author') DEFAULT 'author'
+- Adds column: `email_enabled` TINYINT(1) DEFAULT 0
+- Updates unique constraint: `(user_id, target_id, follow_type)`
+
+**SQL Operations:**
+```sql
+ALTER TABLE wp_fanfic_follows ADD COLUMN user_id bigint(20) UNSIGNED NOT NULL DEFAULT 0;
+ALTER TABLE wp_fanfic_follows ADD COLUMN target_id bigint(20) UNSIGNED NOT NULL DEFAULT 0;
+ALTER TABLE wp_fanfic_follows ADD COLUMN follow_type enum('story','author') NOT NULL DEFAULT 'author';
+ALTER TABLE wp_fanfic_follows ADD COLUMN email_enabled tinyint(1) NOT NULL DEFAULT 0;
+UPDATE wp_fanfic_follows SET user_id = follower_id, target_id = author_id, follow_type = 'author';
+ALTER TABLE wp_fanfic_follows DROP COLUMN follower_id, DROP COLUMN author_id;
+```
+
+**Impact:** All existing follows preserved as author follows (`follow_type = 'author'`)
+
+---
+
+#### 3. Reading Progress Migration
+**Changes:**
+- **Complete schema change!**
+- Old: 1 row per story (tracks current position)
+- New: 1 row per chapter read (tracks all read chapters)
+- Unique key changes: `(story_id, user_id)` → `(user_id, story_id, chapter_number)`
+
+**Migration Logic:**
+```php
+// For each user's reading progress record:
+// Old: story_id=123, user_id=1, chapter_number=5 (means "at chapter 5")
+// New: Creates 5 rows for chapters 1, 2, 3, 4, 5 (means "read chapters 1-5")
+```
+
+**Impact:** Reading history expanded from current position to full read history
+
+---
+
+#### 4. Email Subscriptions Migration
+**Changes:**
+- Migrates data from: `wp_fanfic_subscriptions` → `wp_fanfic_email_subscriptions`
+- Maps columns: `story_id` → `target_id`
+- Adds column: `subscription_type` = 'story'
+- Maps columns: `is_active` → `verified`
+
+**SQL Operations:**
+```sql
+INSERT INTO wp_fanfic_email_subscriptions (email, target_id, subscription_type, token, verified, created_at)
+SELECT email, story_id, 'story', token, is_active, created_at
+FROM wp_fanfic_subscriptions
+WHERE NOT EXISTS (...);
+```
+
+**Impact:** All existing subscriptions migrated to new table
+
+---
+
+#### 5. Anonymous Data Handling
+**Changes:**
+- Logs count of anonymous likes/ratings with `identifier_hash`
+- Does NOT migrate anonymous data (new system uses cookies only)
+- Anonymous data in old format becomes orphaned
+
+**Result:** Anonymous users will need to re-like/re-rate (cookie-based)
+
+---
+
+### Migration Features
+
+#### Safety Mechanisms:
+1. **SQL Transactions:** All operations wrapped in START TRANSACTION / COMMIT / ROLLBACK
+2. **Idempotency Check:** Won't run if already completed (checks `fanfic_migration_status` option)
+3. **Verification Steps:** Checks row counts and data integrity after each migration
+4. **Error Logging:** Comprehensive logging via `Fanfic_Database_Migration::log_migration()`
+5. **Automatic Rollback:** All changes reverted if any step fails
+
+#### Migration Status Tracking:
+```php
+Option: 'fanfic_migration_status'
+Array(
+    'completed' => '1.0.1',
+    'completed_at' => '2025-11-14 15:45:00',
+    'stats' => Array(
+        'bookmarks_migrated' => 150,
+        'follows_migrated' => 75,
+        'reading_progress_converted' => 200,
+        'subscriptions_migrated' => 50,
+        'anonymous_likes_found' => 300,
+        'anonymous_ratings_found' => 120
+    )
+)
+```
+
+---
+
+### Execution Options
+
+#### Option 1: Via WordPress Admin
+Add to functions.php or admin page:
+```php
+require_once plugin_dir_path( __FILE__ ) . 'fanfiction/includes/migrations/migrate-to-new-system.php';
+$result = Fanfic_Database_Migration::run_migration();
+```
+
+#### Option 2: Via WP-CLI
+```bash
+wp eval-file wp-content/plugins/fanfiction/run-migration.php
+```
+
+#### Option 3: Via Manual SQL
+See `MIGRATION_INSTRUCTIONS.md` for full SQL commands
+
+---
+
+### Post-Migration Verification
+
+**1. Check Table Structures:**
+```sql
+SHOW COLUMNS FROM wp_fanfic_bookmarks;
+-- Expected: user_id, post_id, bookmark_type, created_at
+
+SHOW COLUMNS FROM wp_fanfic_follows;
+-- Expected: id, user_id, target_id, follow_type, email_enabled, created_at
+```
+
+**2. Check Migration Status:**
+```sql
+SELECT option_value FROM wp_options WHERE option_name = 'fanfic_migration_status';
+```
+
+**3. Verify Data Counts:**
+```sql
+-- Should match counts from old schema
+SELECT COUNT(*) FROM wp_fanfic_bookmarks;
+SELECT COUNT(*) FROM wp_fanfic_follows;
+SELECT bookmark_type, COUNT(*) FROM wp_fanfic_bookmarks GROUP BY bookmark_type;
+SELECT follow_type, COUNT(*) FROM wp_fanfic_follows GROUP BY follow_type;
+```
+
+---
+
+### Files Created for Phase 8:
+
+1. ✅ **`run-migration.php`** (43 lines)
+   - Simple CLI script to execute migration
+   - Loads WordPress and migration class
+   - Outputs results and statistics
+
+2. ✅ **`MIGRATION_INSTRUCTIONS.md`** (200+ lines)
+   - Complete execution guide
+   - Three execution options
+   - Manual SQL commands
+   - Verification queries
+   - Rollback instructions
+
+3. ✅ **`includes/migrations/migrate-to-new-system.php`** (680 lines - created in Phase 1)
+   - Complete migration logic
+   - Transaction handling
+   - Error handling and logging
+   - Verification checks
+
+---
+
+### Status: ✅ READY FOR EXECUTION
+
+**Prerequisites Met:**
+- ✅ Migration script created and tested (Phase 1)
+- ✅ New schema classes updated (Phase 1)
+- ✅ All code using new schema (Phases 2-7)
+- ✅ Old system removed (Phase 5)
+- ✅ Templates updated (Phase 6)
+- ✅ Execution scripts ready (Phase 8)
+
+**Ready to Execute:**
+- Developer can run migration via any of 3 methods
+- Migration is idempotent (safe to retry)
+- Full rollback on errors
+- Comprehensive logging
+
+**Next Step:** Developer executes migration in WordPress environment
+
+---
+
 ## 📊 OVERALL MIGRATION PROGRESS - UPDATED
 
 **Completed:** 7/10 phases (70%)
