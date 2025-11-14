@@ -672,20 +672,8 @@ class Fanfic_Notifications {
 			return false;
 		}
 
-		// Don't notify author of their own comments
-		if ( $post->post_author == $comment->user_id ) {
-			return false;
-		}
-
 		$commenter = get_userdata( $comment->user_id );
 		$commenter_name = $commenter ? $commenter->display_name : $comment->comment_author;
-
-		$message = sprintf(
-			/* translators: 1: commenter name, 2: post title */
-			__( '%1$s commented on "%2$s"', 'fanfiction-manager' ),
-			$commenter_name,
-			$post->post_title
-		);
 
 		$data = array(
 			'comment_id'     => $comment_id,
@@ -695,7 +683,56 @@ class Fanfic_Notifications {
 			'comment_text'   => wp_trim_words( $comment->comment_content, 20 ),
 		);
 
-		return self::create_notification( $post->post_author, self::TYPE_NEW_COMMENT, $message, $data );
+		$notified_users = array();
+
+		// 1. If this is a reply to another comment, notify the parent comment author
+		if ( $comment->comment_parent > 0 ) {
+			$parent_comment = get_comment( $comment->comment_parent );
+			if ( $parent_comment && $parent_comment->user_id > 0 ) {
+				// Don't notify if replying to own comment
+				if ( $parent_comment->user_id != $comment->user_id ) {
+					$reply_message = sprintf(
+						/* translators: 1: commenter name, 2: post title */
+						__( '%1$s replied to your comment on "%2$s"', 'fanfiction-manager' ),
+						$commenter_name,
+						$post->post_title
+					);
+
+					self::create_notification(
+						$parent_comment->user_id,
+						self::TYPE_COMMENT_REPLY,
+						$reply_message,
+						$data
+					);
+
+					$notified_users[] = $parent_comment->user_id;
+				}
+			}
+		}
+
+		// 2. Check if post author has fanfiction_author role and notify them of ALL comments
+		$post_author = get_userdata( $post->post_author );
+		if ( $post_author && in_array( 'fanfiction_author', (array) $post_author->roles, true ) ) {
+			// Don't notify author of their own comments
+			// Don't notify if already notified as parent comment author
+			if ( $post->post_author != $comment->user_id && ! in_array( $post->post_author, $notified_users, true ) ) {
+				$author_message = sprintf(
+					/* translators: 1: commenter name, 2: post title */
+					__( '%1$s commented on "%2$s"', 'fanfiction-manager' ),
+					$commenter_name,
+					$post->post_title
+				);
+
+				self::create_notification(
+					$post->post_author,
+					self::TYPE_NEW_COMMENT,
+					$author_message,
+					$data
+				);
+			}
+		}
+
+		return true;
 	}
 
 	/**
