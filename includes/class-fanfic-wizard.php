@@ -851,10 +851,12 @@ private function render_choice_screen() {
 				<div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; background: #f9f9f9;">
 					<h4 style="margin-top: 0;"><?php esc_html_e( 'Optional: Create Sample Stories', 'fanfiction-manager' ); ?></h4>
 					<p class="description"><?php esc_html_e( 'Create 2 test stories with chapters to help you understand how the system works.', 'fanfiction-manager' ); ?></p>
-					<label style="display: block; margin-top: 10px;">
-						<input type="checkbox" name="fanfic_create_samples" id="fanfic_create_samples" value="1" />
-						<strong><?php esc_html_e( 'Create sample stories for testing', 'fanfiction-manager' ); ?></strong>
-					</label>
+					<p style="margin-top: 10px;">
+						<input type="checkbox" name="fanfic_create_samples" id="fanfic_create_samples" value="1" style="margin-right: 8px;" />
+						<label for="fanfic_create_samples" style="cursor: pointer;">
+							<strong><?php esc_html_e( 'Create sample stories for testing', 'fanfiction-manager' ); ?></strong>
+						</label>
+					</p>
 					<p class="description" style="margin-left: 24px; margin-top: 5px;">
 						<?php esc_html_e( 'This will create 2 sample stories with different statuses and genres:', 'fanfiction-manager' ); ?>
 					</p>

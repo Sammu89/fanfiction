@@ -32,6 +32,11 @@
 			// Complete button click
 			$('.fanfic-wizard-complete').on('click', this.handleComplete.bind(this));
 
+			// Prevent checkbox from triggering any parent events
+			$('#fanfic_create_samples').on('click', function(e) {
+				e.stopPropagation();
+			});
+
 			// Live preview updates for base slug
 			$('#fanfic_base_slug').on('input', this.updateBaseSlugPreview.bind(this));
 
