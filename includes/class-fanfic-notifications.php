@@ -864,12 +864,20 @@ class Fanfic_Notifications {
 		}
 
 		// Handle chapter title changes - queue debounced notification for parent story
-		// Note: Chapter title changes are not currently tracked in debounced notifications
-		// as they would require more complex state tracking. Chapters are typically
-		// published once, and title changes are rare. If needed in future, this can be added.
 		if ( 'fanfiction_chapter' === $post_after->post_type ) {
-			// For now, notify chapter title changes immediately (they're rare)
-			self::notify_chapter_title_change( $post_id, $post_before->post_title, $post_after->post_title, $post_after->post_parent, $post_after->post_author );
+			$story_id = $post_after->post_parent;
+
+			if ( $story_id ) {
+				self::queue_debounced_notification(
+					$story_id,
+					'chapter_title_' . $post_id,
+					array(
+						'chapter_id' => $post_id,
+						'old_title'  => $post_before->post_title,
+						'new_title'  => $post_after->post_title,
+					)
+				);
+			}
 		}
 	}
 
@@ -1172,6 +1180,21 @@ class Fanfic_Notifications {
 			}
 		}
 
+		// Check chapter title changes
+		$orig_chapters = isset( $original_state['chapters'] ) ? $original_state['chapters'] : array();
+		$curr_chapters = isset( $current_state['chapters'] ) ? $current_state['chapters'] : array();
+
+		foreach ( $curr_chapters as $chapter_id => $curr_title ) {
+			// Check if chapter existed in original state and title changed
+			if ( isset( $orig_chapters[ $chapter_id ] ) && $orig_chapters[ $chapter_id ] !== $curr_title ) {
+				$net_changes[ 'chapter_title_' . $chapter_id ] = array(
+					'chapter_id' => $chapter_id,
+					'old'        => $orig_chapters[ $chapter_id ],
+					'new'        => $curr_title,
+				);
+			}
+		}
+
 		// If no net changes, don't send notification
 		if ( empty( $net_changes ) ) {
 			delete_transient( $transient_key );
@@ -1241,6 +1264,7 @@ class Fanfic_Notifications {
 		$state = array(
 			'title'      => $story->post_title,
 			'taxonomies' => array(),
+			'chapters'   => array(),
 		);
 
 		// Capture standard taxonomies
@@ -1265,6 +1289,22 @@ class Fanfic_Notifications {
 					$state['taxonomies'][ $custom_tax ] = $terms;
 				}
 			}
+		}
+
+		// Capture chapter titles
+		$chapters = get_posts(
+			array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $story_id,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'menu_order',
+				'order'          => 'ASC',
+			)
+		);
+
+		foreach ( $chapters as $chapter ) {
+			$state['chapters'][ $chapter->ID ] = $chapter->post_title;
 		}
 
 		return $state;
@@ -1292,6 +1332,35 @@ class Fanfic_Notifications {
 					__( 'title changed from "%1$s" to "%2$s"', 'fanfiction-manager' ),
 					$change_data['old'],
 					$change_data['new']
+				);
+			} elseif ( strpos( $change_type, 'chapter_title_' ) === 0 ) {
+				// Chapter title change
+				$chapter_id = $change_data['chapter_id'];
+				$old_title = $change_data['old'];
+				$new_title = $change_data['new'];
+
+				// Get chapter label (Prologue, Chapter X, Epilogue)
+				$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+				$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+
+				if ( 'prologue' === $chapter_type || 'prologue' === $chapter_number ) {
+					$chapter_label = __( 'Prologue', 'fanfiction-manager' );
+				} elseif ( 'epilogue' === $chapter_type || 'epilogue' === $chapter_number ) {
+					$chapter_label = __( 'Epilogue', 'fanfiction-manager' );
+				} else {
+					$chapter_label = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number );
+				}
+
+				// Handle empty titles (optional titles)
+				$old_display = ! empty( $old_title ) ? $old_title : $chapter_label;
+				$new_display = ! empty( $new_title ) ? $new_title : $chapter_label;
+
+				$change_descriptions[] = sprintf(
+					/* translators: 1: Chapter label, 2: Old title, 3: New title */
+					__( '%1$s title changed from "%2$s" to "%3$s"', 'fanfiction-manager' ),
+					$chapter_label,
+					$old_display,
+					$new_display
 				);
 			} elseif ( strpos( $change_type, 'taxonomy_' ) === 0 ) {
 				// Taxonomy change
