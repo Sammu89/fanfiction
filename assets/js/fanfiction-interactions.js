@@ -83,6 +83,8 @@
 
 			// Share buttons
 			this.initShareButtons();
+		// Report buttons
+		this.initReportButtons();
 
 			this.log('Fanfic Interactions initialized');
 		},
@@ -375,6 +377,43 @@
 
 			$temp.remove();
 		},
+
+	/**
+	 * Initialize report buttons
+	 */
+	initReportButtons: function() {
+		const self = this;
+
+		$(document).on('click', '.fanfic-report-button', function(e) {
+			e.preventDefault();
+
+			const $button = $(this);
+			const contentId = $button.data('content-id');
+			const reportType = $button.data('report-type');
+
+			// Prevent double-click
+			if ($button.hasClass('loading')) {
+				return;
+			}
+
+			self.log('Report button clicked:', { contentId, reportType });
+
+			// Show confirmation dialog
+			const confirmed = confirm(self.strings.reportConfirm || 'Are you sure you want to report this content?');
+			if (!confirmed) {
+				return;
+			}
+
+			// Show prompt for report reason
+			const reason = prompt(self.strings.reportReason || 'Please provide a reason for reporting (optional):');
+			if (reason === null) {
+				return; // User cancelled
+			}
+
+			// Submit report
+			self.submitReport(contentId, reportType, reason, $button);
+		});
+	},
 
 		/**
 		 * Submit rating to server
@@ -681,6 +720,43 @@
 				}
 			});
 		},
+
+	/**
+	 * Submit report to server
+	 */
+	submitReport: function(contentId, reportType, reason, $button) {
+		const self = this;
+
+		$button.addClass('loading');
+
+		$.ajax({
+			url: this.config.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'fanfic_submit_report',
+				nonce: this.config.nonce,
+				content_id: contentId,
+				report_type: reportType,
+				reason: reason
+			},
+			success: function(response) {
+				self.log('Report response:', response);
+
+				if (response.success) {
+					self.showSuccess($button, response.data.message || 'Report submitted successfully. Thank you!');
+				} else {
+					self.showError($button, response.data.message || self.strings.error);
+				}
+			},
+			error: function(xhr) {
+				self.log('Report error:', xhr);
+				self.handleAjaxError(xhr, $button);
+			},
+			complete: function() {
+				$button.removeClass('loading');
+			}
+		});
+	},
 
 		/**
 		 * Update rating display (optimistic)
