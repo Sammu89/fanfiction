@@ -147,7 +147,7 @@ class Fanfic_Shortcodes_Buttons {
 
 		switch ( $context ) {
 			case 'story':
-				$actions = array( 'bookmark', 'subscribe', 'share', 'report', 'edit' );
+				$actions = array( 'follow', 'bookmark', 'subscribe', 'share', 'report', 'edit' );
 				break;
 
 			case 'chapter':
@@ -190,6 +190,9 @@ class Fanfic_Shortcodes_Buttons {
 				$ids['chapter_id'] = $post->ID;
 				$ids['story_id'] = $post->post_parent;
 				$ids['author_id'] = $post->post_author;
+				// Get chapter number from post meta for mark-as-read functionality
+				$chapter_number = get_post_meta( $post->ID, '_fanfic_chapter_number', true );
+				$ids['chapter_number'] = $chapter_number ? absint( $chapter_number ) : 1;
 				break;
 
 			case 'author':
@@ -250,6 +253,29 @@ class Fanfic_Shortcodes_Buttons {
 			$data_attrs[ 'data-' . str_replace( '_', '-', $key ) ] = absint( $value );
 		}
 
+		// Add action-specific data attributes
+		if ( 'follow' === $action ) {
+			// Determine target_id and follow_type based on context
+			if ( isset( $context_ids['story_id'] ) && ! isset( $context_ids['chapter_id'] ) ) {
+				// Story context - follow the story
+				$data_attrs['data-target-id'] = $context_ids['story_id'];
+				$data_attrs['data-follow-type'] = 'story';
+			} elseif ( isset( $context_ids['author_id'] ) ) {
+				// Author context - follow the author
+				$data_attrs['data-target-id'] = $context_ids['author_id'];
+				$data_attrs['data-follow-type'] = 'author';
+			}
+		} elseif ( 'bookmark' === $action ) {
+			// Add bookmark_type for bookmark buttons
+			if ( isset( $context_ids['chapter_id'] ) ) {
+				$data_attrs['data-bookmark-type'] = 'chapter';
+				$data_attrs['data-post-id'] = $context_ids['chapter_id'];
+			} elseif ( isset( $context_ids['story_id'] ) ) {
+				$data_attrs['data-bookmark-type'] = 'story';
+				$data_attrs['data-post-id'] = $context_ids['story_id'];
+			}
+		}
+
 		// Get button label and icon
 		$label = self::get_button_label( $action, $current_state );
 		$icon = self::get_button_icon( $action, $current_state );
@@ -293,8 +319,12 @@ class Fanfic_Shortcodes_Buttons {
 				return false;
 
 			case 'follow':
-				if ( isset( $context_ids['author_id'] ) ) {
-					// Fanfic_Follows::is_following( $user_id, $target_id, $follow_type )
+				// Determine follow type based on available IDs
+				if ( isset( $context_ids['story_id'] ) && ! isset( $context_ids['chapter_id'] ) ) {
+					// Story context - follow the story
+					return Fanfic_Follows::is_following( $user_id, $context_ids['story_id'], 'story' );
+				} elseif ( isset( $context_ids['author_id'] ) ) {
+					// Author context - follow the author
 					return Fanfic_Follows::is_following( $user_id, $context_ids['author_id'], 'author' );
 				}
 				return false;

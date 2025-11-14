@@ -43,11 +43,7 @@ class Fanfic_Email_Subscriptions {
 		// Hook into follow notifications
 		add_action( 'fanfic_toggle_follow', array( __CLASS__, 'handle_follow_notify' ), 10, 4 );
 
-		// AJAX handlers
-		add_action( 'wp_ajax_fanfic_subscribe_email', array( __CLASS__, 'ajax_subscribe' ) );
-		add_action( 'wp_ajax_nopriv_fanfic_subscribe_email', array( __CLASS__, 'ajax_subscribe' ) );
-		add_action( 'wp_ajax_fanfic_verify_subscription', array( __CLASS__, 'ajax_verify_subscription' ) );
-		add_action( 'wp_ajax_nopriv_fanfic_verify_subscription', array( __CLASS__, 'ajax_verify_subscription' ) );
+		// AJAX handlers are now registered in class-fanfic-ajax-handlers.php
 
 		// Handle unsubscribe from query parameters
 		add_action( 'template_redirect', array( __CLASS__, 'handle_unsubscribe_link' ) );
