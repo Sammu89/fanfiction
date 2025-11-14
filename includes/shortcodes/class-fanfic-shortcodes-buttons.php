@@ -222,11 +222,14 @@ class Fanfic_Shortcodes_Buttons {
 	private static function render_button( $action, $context, $context_ids, $nonce ) {
 		$user_id = get_current_user_id();
 
-		// Check if user can edit this content
+		// Handle Edit button separately (it's a link, not a button)
 		if ( 'edit' === $action ) {
-			if ( ! $user_id || $user_id !== absint( $context_ids['author_id'] ) ) {
-				return ''; // Only show edit button to the author
-			}
+			return self::render_edit_link( $context, $context_ids, $user_id );
+		}
+
+		// Handle Report button separately (opens modal/form)
+		if ( 'report' === $action ) {
+			return self::render_report_button( $context, $context_ids, $nonce );
 		}
 
 		// Get current state for toggle buttons
@@ -305,6 +308,13 @@ class Fanfic_Shortcodes_Buttons {
 		$output .= ' type="button">';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
 		$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '">' . esc_html( $label ) . '</span>';
+
+		// Add count display for like button
+		if ( 'like' === $action && isset( $context_ids['chapter_id'] ) ) {
+			$like_count = Fanfic_Like_System::get_chapter_likes( $context_ids['chapter_id'] );
+			$output .= ' <span class="fanfic-button-count like-count">(' . absint( $like_count ) . ')</span>';
+		}
+
 		$output .= '</button>';
 
 		return $output;
@@ -587,5 +597,93 @@ class Fanfic_Shortcodes_Buttons {
 		);
 
 		return isset( $data_attrs[ $action ] ) ? $data_attrs[ $action ] : array( 'inactive' => $action . '-text', 'active' => $action . 'd-text' );
+	}
+
+	/**
+	 * Render edit link (for content authors only)
+	 *
+	 * @since 2.0.0
+	 * @param string $context     Context (story, chapter, author).
+	 * @param array  $context_ids Context IDs.
+	 * @param int    $user_id     Current user ID.
+	 * @return string Edit link HTML or empty string.
+	 */
+	private static function render_edit_link( $context, $context_ids, $user_id ) {
+		// Only show to author
+		if ( ! $user_id || $user_id !== absint( $context_ids['author_id'] ) ) {
+			return '';
+		}
+
+		// Get the post ID to edit
+		$post_id = 0;
+		if ( 'chapter' === $context && isset( $context_ids['chapter_id'] ) ) {
+			$post_id = $context_ids['chapter_id'];
+		} elseif ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
+			$post_id = $context_ids['story_id'];
+		}
+
+		if ( ! $post_id ) {
+			return '';
+		}
+
+		// Get edit link
+		$edit_url = get_edit_post_link( $post_id );
+		if ( ! $edit_url ) {
+			return '';
+		}
+
+		$label = __( 'Edit', 'fanfiction-manager' );
+		$icon = '&#9998;'; // Pencil icon
+
+		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-action-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '">';
+		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
+		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= '</a>';
+
+		return $output;
+	}
+
+	/**
+	 * Render report button
+	 *
+	 * @since 2.0.0
+	 * @param string $context     Context (story, chapter, author).
+	 * @param array  $context_ids Context IDs.
+	 * @param string $nonce       AJAX nonce.
+	 * @return string Report button HTML.
+	 */
+	private static function render_report_button( $context, $context_ids, $nonce ) {
+		// Get the content ID to report
+		$content_id = 0;
+		$report_type = '';
+
+		if ( 'chapter' === $context && isset( $context_ids['chapter_id'] ) ) {
+			$content_id = $context_ids['chapter_id'];
+			$report_type = 'chapter';
+		} elseif ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
+			$content_id = $context_ids['story_id'];
+			$report_type = 'story';
+		} elseif ( 'author' === $context && isset( $context_ids['author_id'] ) ) {
+			$content_id = $context_ids['author_id'];
+			$report_type = 'author';
+		}
+
+		if ( ! $content_id ) {
+			return '';
+		}
+
+		$label = __( 'Report', 'fanfiction-manager' );
+		$icon = '&#9888;'; // Warning icon
+
+		$output = '<button type="button" class="fanfic-action-button fanfic-report-button" ';
+		$output .= 'data-content-id="' . absint( $content_id ) . '" ';
+		$output .= 'data-report-type="' . esc_attr( $report_type ) . '" ';
+		$output .= 'data-nonce="' . esc_attr( $nonce ) . '" ';
+		$output .= 'aria-label="' . esc_attr( sprintf( __( 'Report this %s', 'fanfiction-manager' ), $context ) ) . '">';
+		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
+		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= '</button>';
+
+		return $output;
 	}
 }
