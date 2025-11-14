@@ -29,8 +29,8 @@
 			// Next button click
 			$('.fanfic-wizard-next').on('click', this.handleNext.bind(this));
 
-			// Complete button click
-			$('.fanfic-wizard-complete').on('click', this.handleComplete.bind(this));
+			// Complete button click (use button selector to avoid triggering on div clicks)
+			$('button.fanfic-wizard-complete').on('click', this.handleComplete.bind(this));
 
 			// Prevent checkbox from triggering any parent events
 			$('#fanfic_create_samples').on('click', function(e) {
