@@ -139,8 +139,8 @@
 
 				self.log('Like button clicked:', { chapterId });
 
-				// Optimistic UI update
-				const wasLiked = $button.hasClass('liked');
+				// Optimistic UI update - check for 'is-liked' class added by PHP
+				const wasLiked = $button.hasClass('is-liked') || $button.hasClass('liked');
 				self.updateLikeDisplay($button, !wasLiked);
 
 				// Toggle like
@@ -168,8 +168,8 @@
 
 				self.log('Bookmark button clicked:', { postId, bookmarkType });
 
-				// Optimistic UI update
-				const wasBookmarked = $button.hasClass('bookmarked');
+				// Optimistic UI update - check for 'is-bookmarked' class added by PHP
+				const wasBookmarked = $button.hasClass('is-bookmarked') || $button.hasClass('bookmarked');
 				self.updateBookmarkDisplay($button, !wasBookmarked);
 
 				// Toggle bookmark
@@ -198,8 +198,8 @@
 
 				self.log('Follow button clicked:', { targetId, followType });
 
-				// Optimistic UI update
-				const wasFollowing = $button.hasClass('following');
+				// Optimistic UI update - check for 'is-followd' class added by PHP
+				const wasFollowing = $button.hasClass('is-followd') || $button.hasClass('following');
 				self.updateFollowDisplay($button, !wasFollowing);
 
 				// Toggle follow
@@ -285,8 +285,8 @@
 					return;
 				}
 
-				// Check current read state
-				const isCurrentlyRead = $button.hasClass('read');
+				// Check current read state - check for 'is-markredd' class added by PHP
+				const isCurrentlyRead = $button.hasClass('is-markredd') || $button.hasClass('read');
 
 				self.log('Mark as read clicked:', { storyId, chapterNumber, isCurrentlyRead });
 
@@ -830,7 +830,7 @@
 		updateLikeCount: function($button, count) {
 			const $count = $button.find('.like-count');
 			if ($count.length) {
-				$count.text(count);
+				$count.text('(' + count + ')');
 			}
 		},
 

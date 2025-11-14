@@ -151,7 +151,7 @@ class Fanfic_Shortcodes_Buttons {
 				break;
 
 			case 'chapter':
-				$actions = array( 'like', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
+				$actions = array( 'follow', 'like', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
 				break;
 
 			case 'author':
@@ -264,8 +264,8 @@ class Fanfic_Shortcodes_Buttons {
 		// Add action-specific data attributes
 		if ( 'follow' === $action ) {
 			// Determine target_id and follow_type based on context
-			if ( isset( $context_ids['story_id'] ) && ! isset( $context_ids['chapter_id'] ) ) {
-				// Story context - follow the story
+			if ( isset( $context_ids['story_id'] ) ) {
+				// Story or chapter context - follow the story
 				$data_attrs['data-target-id'] = $context_ids['story_id'];
 				$data_attrs['data-follow-type'] = 'story';
 			} elseif ( isset( $context_ids['author_id'] ) ) {
