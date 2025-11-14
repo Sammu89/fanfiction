@@ -644,9 +644,13 @@ class Fanfic_Shortcodes_Buttons {
 		if ( 'profile' === $content_type ) {
 			// For author profiles, link to author dashboard or profile edit page
 			$edit_url = fanfic_get_page_url( 'dashboard' );
-		} else {
-			// For stories and chapters, use WordPress edit post link
-			$edit_url = get_edit_post_link( $content_id );
+		} elseif ( 'story' === $content_type ) {
+			// For stories, use fanfic edit story URL
+			$edit_url = fanfic_get_edit_story_url( $content_id );
+		} elseif ( 'chapter' === $content_type ) {
+			// For chapters, use fanfic edit chapter URL
+			$story_id = isset( $context_ids['story_id'] ) ? $context_ids['story_id'] : 0;
+			$edit_url = fanfic_get_edit_chapter_url( $content_id, $story_id );
 		}
 
 		if ( ! $edit_url ) {
