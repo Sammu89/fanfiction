@@ -550,7 +550,7 @@ class Fanfic_Shortcodes_Buttons {
 			'bookmark'  => 'bookmark-text',
 			'follow'    => 'follow-text',
 			'mark-read' => 'read-text',
-			'subscribe' => 'subscribe-text',
+			// 'subscribe' is NOT a toggle button - it opens a subscription form
 		);
 
 		return isset( $text_classes[ $action ] ) ? $text_classes[ $action ] : '';
@@ -583,10 +583,7 @@ class Fanfic_Shortcodes_Buttons {
 				'inactive' => 'unread-text',
 				'active'   => 'read-text',
 			),
-			'subscribe' => array(
-				'inactive' => 'subscribe-text',
-				'active'   => 'subscribed-text',
-			),
+			// 'subscribe' is NOT a toggle button - it opens a subscription form
 		);
 
 		return isset( $data_attrs[ $action ] ) ? $data_attrs[ $action ] : array( 'inactive' => $action . '-text', 'active' => $action . 'd-text' );
