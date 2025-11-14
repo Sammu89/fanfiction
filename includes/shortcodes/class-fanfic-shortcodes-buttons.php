@@ -609,25 +609,41 @@ class Fanfic_Shortcodes_Buttons {
 	 * @return string Edit link HTML or empty string.
 	 */
 	private static function render_edit_link( $context, $context_ids, $user_id ) {
-		// Only show to author
-		if ( ! $user_id || $user_id !== absint( $context_ids['author_id'] ) ) {
+		// Get the post ID or user ID to check permissions
+		$content_id = 0;
+		$content_type = '';
+
+		if ( 'chapter' === $context && isset( $context_ids['chapter_id'] ) ) {
+			$content_id = $context_ids['chapter_id'];
+			$content_type = 'chapter';
+		} elseif ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
+			$content_id = $context_ids['story_id'];
+			$content_type = 'story';
+		} elseif ( 'author' === $context && isset( $context_ids['author_id'] ) ) {
+			$content_id = $context_ids['author_id'];
+			$content_type = 'profile';
+		}
+
+		if ( ! $content_id ) {
 			return '';
 		}
 
-		// Get the post ID to edit
-		$post_id = 0;
-		if ( 'chapter' === $context && isset( $context_ids['chapter_id'] ) ) {
-			$post_id = $context_ids['chapter_id'];
-		} elseif ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
-			$post_id = $context_ids['story_id'];
-		}
-
-		if ( ! $post_id ) {
+		// Check permissions using the fanfic permission function
+		// This checks: author, moderators (moderate_fanfiction), and admins (manage_options)
+		if ( ! fanfic_current_user_can_edit( $content_type, $content_id ) ) {
 			return '';
 		}
 
 		// Get edit link
-		$edit_url = get_edit_post_link( $post_id );
+		$edit_url = '';
+		if ( 'profile' === $content_type ) {
+			// For author profiles, link to author dashboard or profile edit page
+			$edit_url = fanfic_get_page_url( 'dashboard' );
+		} else {
+			// For stories and chapters, use WordPress edit post link
+			$edit_url = get_edit_post_link( $content_id );
+		}
+
 		if ( ! $edit_url ) {
 			return '';
 		}

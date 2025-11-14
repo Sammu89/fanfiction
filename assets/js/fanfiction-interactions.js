@@ -316,24 +316,27 @@
 
 				self.log('Share button clicked:', { url, title });
 
-				// Try Web Share API first (native mobile/desktop sharing)
-				if (navigator.share) {
+				// Check if we should use Web Share API (mobile devices primarily)
+				const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+				// Try Web Share API on mobile devices (where it works reliably)
+				if (navigator.share && isMobile) {
 					navigator.share({
 						title: title,
 						url: url
 					}).then(function() {
-						self.log('Share successful');
-						self.showSuccess($button, 'Shared successfully!');
+						self.log('Share successful via Web Share API');
+						// Don't show success message for native share - the OS handles it
 					}).catch(function(err) {
-						// User cancelled or error - fail silently for cancellation
+						// User cancelled or error
 						if (err.name !== 'AbortError') {
 							self.log('Share failed:', err);
-							// Fallback to clipboard on error (but not on cancellation)
+							// Fallback to clipboard on error
 							self.copyToClipboard(url, $button);
 						}
 					});
 				} else if (navigator.clipboard && navigator.clipboard.writeText) {
-					// Fallback to clipboard API
+					// Use clipboard API for desktop (more reliable than Web Share on desktop)
 					self.copyToClipboard(url, $button);
 				} else {
 					// Last resort - show prompt for manual copy
