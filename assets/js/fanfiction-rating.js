@@ -82,11 +82,11 @@
 	 */
 	function checkRatingEligibility(chapterId, callback) {
 		$.ajax({
-			url: fanficRating.ajaxUrl,
+			url: fanficAjax.ajaxUrl,
 			type: 'POST',
 			data: {
 				action: 'fanfic_check_rating_eligibility',
-				nonce: fanficRating.nonce,
+				nonce: fanficAjax.nonce,
 				chapter_id: chapterId,
 				fingerprint: getFingerprint()
 			},
@@ -177,11 +177,11 @@
 	 */
 	function submitRating(chapterId, rating, $widget) {
 		$.ajax({
-			url: fanficRating.ajaxUrl,
+			url: fanficAjax.ajaxUrl,
 			type: 'POST',
 			data: {
 				action: 'fanfic_submit_rating',
-				nonce: fanficRating.nonce,
+				nonce: fanficAjax.nonce,
 				chapter_id: chapterId,
 				rating: rating,
 				fingerprint: getFingerprint()
@@ -212,7 +212,7 @@
 					// Error - reset display
 					var currentRating = $widget.data('user-rating') || 0;
 					updateStarDisplay($container, currentRating);
-					showMessage($widget, response.data.message || fanficRating.strings.error, 'error');
+					showMessage($widget, response.data.message || 'An error occurred. Please try again.', 'error');
 				}
 			},
 			error: function() {
@@ -222,7 +222,7 @@
 				// Reset display
 				var currentRating = $widget.data('user-rating') || 0;
 				updateStarDisplay($container, currentRating);
-				showMessage($widget, fanficRating.strings.error, 'error');
+				showMessage($widget, 'An error occurred. Please try again.', 'error');
 			}
 		});
 	}

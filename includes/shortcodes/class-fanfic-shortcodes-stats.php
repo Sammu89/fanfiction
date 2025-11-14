@@ -56,6 +56,12 @@ class Fanfic_Shortcodes_Stats {
 
 		// Author stats shortcode
 		add_shortcode( 'author-stats', array( __CLASS__, 'author_stats' ) );
+
+		// NEW: Like system shortcodes (v2.0)
+		add_shortcode( 'fanfiction-story-like-count', array( __CLASS__, 'story_like_count' ) );
+
+		// NEW: Compact rating shortcodes (v2.0)
+		add_shortcode( 'fanfiction-story-rating-compact', array( __CLASS__, 'story_rating_compact' ) );
 	}
 
 	/**
@@ -1170,6 +1176,115 @@ class Fanfic_Shortcodes_Stats {
 			case 'all-time':
 			default:
 				return esc_html__( '(All Time)', 'fanfiction-manager' );
+		}
+	}
+
+	/**
+	 * Story like count shortcode (NEW v2.0)
+	 *
+	 * [fanfiction-story-like-count id="123"]
+	 *
+	 * @since 2.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Like count HTML.
+	 */
+	public static function story_like_count( $atts ) {
+		$atts = Fanfic_Shortcodes::sanitize_atts(
+			$atts,
+			array(
+				'id' => 0,
+			),
+			'fanfiction-story-like-count'
+		);
+
+		$story_id = absint( $atts['id'] );
+
+		// Auto-detect story ID from context if not provided
+		if ( ! $story_id ) {
+			$story_id = Fanfic_Shortcodes::get_current_story_id();
+		}
+
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		// Get like count from Like System
+		$count = Fanfic_Like_System::get_story_likes( $story_id );
+
+		// Return empty string if no likes
+		if ( $count === 0 ) {
+			return '';
+		}
+
+		// Use _n() for proper translation (singular/plural)
+		return sprintf(
+			'<span class="fanfic-like-count">%s</span>',
+			sprintf(
+				esc_html( _n( '%d like', '%d likes', $count, 'fanfiction-manager' ) ),
+				number_format_i18n( $count )
+			)
+		);
+	}
+
+	/**
+	 * Compact story rating shortcode (NEW v2.0)
+	 *
+	 * [fanfiction-story-rating-compact id="123" format="short"]
+	 *
+	 * @since 2.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Compact rating HTML.
+	 */
+	public static function story_rating_compact( $atts ) {
+		$atts = Fanfic_Shortcodes::sanitize_atts(
+			$atts,
+			array(
+				'id'     => 0,
+				'format' => 'short',
+			),
+			'fanfiction-story-rating-compact'
+		);
+
+		$story_id = absint( $atts['id'] );
+
+		// Auto-detect story ID from context if not provided
+		if ( ! $story_id ) {
+			$story_id = Fanfic_Shortcodes::get_current_story_id();
+		}
+
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		// Get rating data from Rating System
+		$rating_data = Fanfic_Rating_System::get_story_rating( $story_id );
+
+		// Return "Not rated" if no ratings
+		if ( ! $rating_data || $rating_data->total_votes === 0 ) {
+			return '<span class="fanfic-rating-compact fanfic-no-rating">' . esc_html__( 'Not rated', 'fanfiction-manager' ) . '</span>';
+		}
+
+		$rating = $rating_data->average_rating;
+		$count = $rating_data->total_votes;
+		$format = sanitize_key( $atts['format'] );
+
+		// Format output based on format attribute
+		if ( 'long' === $format ) {
+			// Long format: "4.45 stars (23 ratings)"
+			return sprintf(
+				'<span class="fanfic-rating-compact fanfic-rating-long">%s %s</span>',
+				esc_html( number_format_i18n( $rating, 2 ) ),
+				sprintf(
+					esc_html( _n( 'star (%d rating)', 'stars (%d ratings)', $count, 'fanfiction-manager' ) ),
+					number_format_i18n( $count )
+				)
+			);
+		} else {
+			// Short format (default): "4.45 ★"
+			return sprintf(
+				'<span class="fanfic-rating-compact fanfic-rating-short">%s &#9733;</span>',
+				esc_html( number_format_i18n( $rating, 2 ) )
+			);
 		}
 	}
 }

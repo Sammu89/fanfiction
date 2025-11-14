@@ -79,15 +79,10 @@ class Fanfic_Like_System {
 
 		wp_localize_script(
 			'fanfic-likes',
-			'fanficLikes',
+			'fanficAjax',
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'fanfic_like_nonce' ),
-				'strings' => array(
-					'liked'   => __( 'Liked!', 'fanfiction-manager' ),
-					'unliked' => __( 'Unliked', 'fanfiction-manager' ),
-					'error'   => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
-				),
+				'nonce'   => wp_create_nonce( 'fanfic_ajax_nonce' ),
 			)
 		);
 	}

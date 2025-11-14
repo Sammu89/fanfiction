@@ -79,15 +79,10 @@ class Fanfic_Rating_System {
 
 		wp_localize_script(
 			'fanfic-rating',
-			'fanficRating',
+			'fanficAjax',
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'fanfic_rating_nonce' ),
-				'strings' => array(
-					'ratingSubmitted' => __( 'Rating submitted!', 'fanfiction-manager' ),
-					'ratingUpdated'   => __( 'Rating updated!', 'fanfiction-manager' ),
-					'error'           => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
-				),
+				'nonce'   => wp_create_nonce( 'fanfic_ajax_nonce' ),
 			)
 		);
 	}

@@ -80,11 +80,11 @@
 	 */
 	function checkLikeStatus(chapterId, callback) {
 		$.ajax({
-			url: fanficLikes.ajaxUrl,
+			url: fanficAjax.ajaxUrl,
 			type: 'POST',
 			data: {
 				action: 'fanfic_check_like_status',
-				nonce: fanficLikes.nonce,
+				nonce: fanficAjax.nonce,
 				chapter_id: chapterId,
 				fingerprint: getFingerprint()
 			},
@@ -121,11 +121,11 @@
 	 */
 	function toggleLike(chapterId, $button) {
 		$.ajax({
-			url: fanficLikes.ajaxUrl,
+			url: fanficAjax.ajaxUrl,
 			type: 'POST',
 			data: {
 				action: 'fanfic_toggle_like',
-				nonce: fanficLikes.nonce,
+				nonce: fanficAjax.nonce,
 				chapter_id: chapterId,
 				fingerprint: getFingerprint()
 			},
@@ -151,12 +151,12 @@
 					// Show message briefly
 					showMessage($button, response.data.message, 'success');
 				} else {
-					showMessage($button, response.data.message || fanficLikes.strings.error, 'error');
+					showMessage($button, response.data.message || 'An error occurred. Please try again.', 'error');
 				}
 			},
 			error: function() {
 				$button.removeClass('submitting');
-				showMessage($button, fanficLikes.strings.error, 'error');
+				showMessage($button, 'An error occurred. Please try again.', 'error');
 			}
 		});
 	}

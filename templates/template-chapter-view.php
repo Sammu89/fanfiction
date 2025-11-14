@@ -53,14 +53,16 @@ function fanfic_get_default_chapter_view_template() {
 <!-- Visual separator -->
 <hr class="fanfic-content-separator" aria-hidden="true">
 
-<!-- Action buttons (edit, bookmark, share, report) -->
-[fanfic-content-actions]
-
 <!-- Rating section -->
 <section class="fanfic-chapter-rating" aria-labelledby="rating-heading">
 	<h3 id="rating-heading"><?php esc_html_e( 'Rate this chapter', 'fanfiction-manager' ); ?></h3>
 	[chapter-rating-form]
 </section>
+
+<!-- Action buttons (like, bookmark, mark-read, subscribe, share, report, edit) -->
+<div class="fanfic-chapter-actions">
+	[fanfiction-action-buttons context="chapter"]
+</div>
 
 <!-- Chapter navigation (previous/next) -->
 <nav class="fanfic-chapter-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">

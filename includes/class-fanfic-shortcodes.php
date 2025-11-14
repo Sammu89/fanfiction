@@ -56,13 +56,13 @@ class Fanfic_Shortcodes {
 			'url',
 			'taxonomy',
 			'search',
-			'actions',
 			'user',
 			'forms',
 			'author-forms',
 			'comments',
 			'stats',
 			'utility',
+			'buttons', // NEW v2.0: Context-aware action buttons
 		);
 
 		foreach ( $handlers as $handler ) {
@@ -111,10 +111,6 @@ class Fanfic_Shortcodes {
 			Fanfic_Shortcodes_Search::register();
 		}
 
-		if ( class_exists( 'Fanfic_Shortcodes_Actions' ) ) {
-			Fanfic_Shortcodes_Actions::register();
-		}
-
 		if ( class_exists( 'Fanfic_Shortcodes_User' ) ) {
 			Fanfic_Shortcodes_User::init();
 			Fanfic_Shortcodes_User::register();
@@ -141,6 +137,10 @@ class Fanfic_Shortcodes {
 
 		if ( class_exists( 'Fanfic_Shortcodes_Utility' ) ) {
 			Fanfic_Shortcodes_Utility::register();
+		}
+
+		if ( class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
+			Fanfic_Shortcodes_Buttons::register();
 		}
 	}
 

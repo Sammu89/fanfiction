@@ -31,15 +31,15 @@
 		 * Configuration
 		 */
 		config: {
-			ajaxUrl: fanficInteractions.ajaxUrl || '/wp-admin/admin-ajax.php',
-			nonce: fanficInteractions.nonce || '',
-			debug: fanficInteractions.debug || false
+			ajaxUrl: fanficAjax.ajaxUrl || '/wp-admin/admin-ajax.php',
+			nonce: fanficAjax.nonce || '',
+			debug: fanficAjax.debug || false
 		},
 
 		/**
 		 * Localized strings
 		 */
-		strings: fanficInteractions.strings || {
+		strings: fanficAjax.strings || {
 			ratingSubmitted: 'Rating submitted!',
 			ratingUpdated: 'Rating updated!',
 			liked: 'Liked!',

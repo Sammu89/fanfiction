@@ -795,10 +795,10 @@ class Fanfic_Core {
 				true
 			);
 
-			// Localize script with comprehensive settings
+			// Localize script with unified nonce name (same as frontend and likes/rating)
 			wp_localize_script(
 				'fanfiction-interactions',
-				'fanficInteractions',
+				'fanficAjax',
 				array(
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 					'nonce'   => wp_create_nonce( 'fanfic_ajax_nonce' ),
@@ -1098,181 +1098,14 @@ class Fanfic_Core {
 
 	/**
 	 * Create custom database tables
+	 *
+	 * Database tables now managed by Fanfic_Database_Setup class
+	 * @see class-fanfic-database-setup.php
 	 */
 	private static function create_tables() {
-		global $wpdb;
-
-		$charset_collate = $wpdb->get_charset_collate();
-		$table_prefix = $wpdb->prefix . 'fanfic_';
-
-		// Ratings table (chapters only - stories are derived from chapter ratings)
-		$ratings_table = $table_prefix . 'ratings';
-		$sql_ratings = "CREATE TABLE IF NOT EXISTS {$ratings_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			chapter_id bigint(20) UNSIGNED NOT NULL,
-			user_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
-			rating tinyint(1) UNSIGNED NOT NULL,
-			identifier_hash varchar(32) DEFAULT NULL,
-			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_rating_logged_in (chapter_id, user_id),
-			UNIQUE KEY unique_rating_anonymous (chapter_id, identifier_hash),
-			KEY chapter_id (chapter_id),
-			KEY created_at (created_at),
-			KEY identifier_hash (identifier_hash)
-		) $charset_collate;";
-
-		// Bookmarks table
-		$bookmarks_table = $table_prefix . 'bookmarks';
-		$sql_bookmarks = "CREATE TABLE IF NOT EXISTS {$bookmarks_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			story_id bigint(20) UNSIGNED NOT NULL,
-			user_id bigint(20) UNSIGNED NOT NULL,
-			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_bookmark (story_id, user_id),
-			KEY story_id (story_id),
-			KEY user_id (user_id),
-			KEY user_created (user_id, created_at)
-		) $charset_collate;";
-
-		// Follows table (for following authors)
-		$follows_table = $table_prefix . 'follows';
-		$sql_follows = "CREATE TABLE IF NOT EXISTS {$follows_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			follower_id bigint(20) UNSIGNED NOT NULL,
-			author_id bigint(20) UNSIGNED NOT NULL,
-			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_follow (follower_id, author_id),
-			KEY follower_id (follower_id),
-			KEY author_id (author_id),
-			KEY author_created (author_id, created_at)
-		) $charset_collate;";
-
-		// Notifications table
-		$notifications_table = $table_prefix . 'notifications';
-		$sql_notifications = "CREATE TABLE IF NOT EXISTS {$notifications_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) UNSIGNED NOT NULL,
-			type varchar(50) NOT NULL,
-			content text NOT NULL,
-			is_read tinyint(1) NOT NULL DEFAULT 0,
-			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			KEY user_id (user_id),
-			KEY is_read (is_read),
-			KEY created_at (created_at),
-			KEY user_read (user_id, is_read),
-			KEY type_created (type, created_at)
-		) $charset_collate;";
-
-		// Reports table (for content moderation) - Enhanced with metadata
-		$reports_table = $table_prefix . 'reports';
-		$sql_reports = "CREATE TABLE IF NOT EXISTS {$reports_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			reported_item_id bigint(20) UNSIGNED NOT NULL,
-			reported_item_type varchar(20) NOT NULL,
-			reported_item_title text,
-			reported_item_url varchar(500),
-			reported_item_author_id bigint(20) UNSIGNED DEFAULT NULL,
-			chapter_title text,
-			reporter_id bigint(20) UNSIGNED DEFAULT NULL,
-			reporter_ip varchar(45) NOT NULL,
-			reason text NOT NULL,
-			status varchar(20) NOT NULL DEFAULT 'pending',
-			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			reviewed_by bigint(20) UNSIGNED DEFAULT NULL,
-			reviewed_at datetime DEFAULT NULL,
-			action_taken text,
-			PRIMARY KEY (id),
-			KEY reported_item_id (reported_item_id),
-			KEY reporter_id (reporter_id),
-			KEY status (status),
-			KEY created_at (created_at),
-			KEY status_created (status, created_at),
-			KEY author_id (reported_item_author_id)
-		) $charset_collate;";
-
-		// Likes table (chapters only - story likes are sum of chapter likes)
-		$likes_table = $table_prefix . 'likes';
-		$sql_likes = "CREATE TABLE IF NOT EXISTS {$likes_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			chapter_id bigint(20) UNSIGNED NOT NULL,
-			user_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
-			identifier_hash varchar(32) DEFAULT NULL,
-			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_like_logged_in (chapter_id, user_id),
-			UNIQUE KEY unique_like_anonymous (chapter_id, identifier_hash),
-			KEY chapter_id (chapter_id),
-			KEY created_at (created_at),
-			KEY identifier_hash (identifier_hash)
-		) $charset_collate;";
-
-		// Reading progress table (tracks which chapter user is on)
-		$reading_progress_table = $table_prefix . 'reading_progress';
-		$sql_reading_progress = "CREATE TABLE IF NOT EXISTS {$reading_progress_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			story_id bigint(20) UNSIGNED NOT NULL,
-			user_id bigint(20) UNSIGNED NOT NULL,
-			chapter_id bigint(20) UNSIGNED NOT NULL,
-			chapter_number int(11) NOT NULL,
-			is_completed tinyint(1) NOT NULL DEFAULT 0,
-			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_progress (story_id, user_id),
-			KEY story_id (story_id),
-			KEY user_id (user_id),
-			KEY chapter_id (chapter_id),
-			KEY updated_at (updated_at)
-		) $charset_collate;";
-
-		// Read lists table (custom reading lists)
-		$read_lists_table = $table_prefix . 'read_lists';
-		$sql_read_lists = "CREATE TABLE IF NOT EXISTS {$read_lists_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) UNSIGNED NOT NULL,
-			story_id bigint(20) UNSIGNED NOT NULL,
-			list_name varchar(100) NOT NULL DEFAULT 'Reading List',
-			added_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_list_item (user_id, story_id, list_name),
-			KEY user_id (user_id),
-			KEY story_id (story_id),
-			KEY added_at (added_at)
-		) $charset_collate;";
-
-		// Subscriptions table (email subscriptions for story updates)
-		$subscriptions_table = $table_prefix . 'subscriptions';
-		$sql_subscriptions = "CREATE TABLE IF NOT EXISTS {$subscriptions_table} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			story_id bigint(20) UNSIGNED NOT NULL,
-			user_id bigint(20) UNSIGNED DEFAULT NULL,
-			email varchar(255) NOT NULL,
-			token varchar(64) NOT NULL,
-			is_active tinyint(1) NOT NULL DEFAULT 1,
-			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_subscription (story_id, email),
-			KEY story_id (story_id),
-			KEY user_id (user_id),
-			KEY email (email),
-			KEY token (token),
-			KEY is_active (is_active)
-		) $charset_collate;";
-
-		// Execute table creation
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-		dbDelta( $sql_ratings );
-		dbDelta( $sql_bookmarks );
-		dbDelta( $sql_follows );
-		dbDelta( $sql_notifications );
-		dbDelta( $sql_reports );
-		dbDelta( $sql_likes );
-		dbDelta( $sql_reading_progress );
-		dbDelta( $sql_read_lists );
-		dbDelta( $sql_subscriptions );
+		// Database table creation delegated to Fanfic_Database_Setup::init()
+		// This method is kept for backwards compatibility but no longer creates tables
+		// All table management is now centralized in class-fanfic-database-setup.php
 	}
 
 	/**

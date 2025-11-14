@@ -30,7 +30,7 @@ class Fanfic_Follows {
 	 * @return void
 	 */
 	public static function init() {
-		// AJAX handlers already registered in class-fanfic-shortcodes-actions.php
+		// AJAX handlers registered in class-fanfic-ajax-handlers.php (unified endpoint system)
 		// This class provides helper methods for follow functionality
 
 		// Hook into story and chapter publication to notify followers
@@ -496,7 +496,7 @@ class Fanfic_Follows {
 		$table_name = $wpdb->prefix . 'fanfic_follows';
 
 		$count = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$table_name} WHERE author_id = %d",
+			"SELECT COUNT(*) FROM {$table_name} WHERE target_id = %d AND follow_type = 'author'",
 			$author_id
 		) );
 
@@ -535,8 +535,8 @@ class Fanfic_Follows {
 		$table_name = $wpdb->prefix . 'fanfic_follows';
 
 		$results = $wpdb->get_results( $wpdb->prepare(
-			"SELECT author_id, created_at FROM {$table_name}
-			WHERE follower_id = %d
+			"SELECT target_id as author_id, created_at FROM {$table_name}
+			WHERE user_id = %d AND follow_type = 'author'
 			ORDER BY created_at DESC
 			LIMIT %d OFFSET %d",
 			$follower_id,
@@ -572,7 +572,7 @@ class Fanfic_Follows {
 		$table_name = $wpdb->prefix . 'fanfic_follows';
 
 		$count = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$table_name} WHERE follower_id = %d",
+			"SELECT COUNT(*) FROM {$table_name} WHERE user_id = %d AND follow_type = 'author'",
 			$follower_id
 		) );
 
@@ -605,10 +605,11 @@ class Fanfic_Follows {
 		$table_name = $wpdb->prefix . 'fanfic_follows';
 
 		$results = $wpdb->get_results( $wpdb->prepare(
-			"SELECT f.author_id, COUNT(*) as follower_count
+			"SELECT f.target_id as author_id, COUNT(*) as follower_count
 			FROM {$table_name} f
-			INNER JOIN {$wpdb->users} u ON f.author_id = u.ID
-			GROUP BY f.author_id
+			INNER JOIN {$wpdb->users} u ON f.target_id = u.ID
+			WHERE f.follow_type = 'author'
+			GROUP BY f.target_id
 			HAVING follower_count >= %d
 			ORDER BY follower_count DESC
 			LIMIT %d",
@@ -649,8 +650,8 @@ class Fanfic_Follows {
 		$table_name = $wpdb->prefix . 'fanfic_follows';
 
 		$results = $wpdb->get_results( $wpdb->prepare(
-			"SELECT follower_id, created_at FROM {$table_name}
-			WHERE author_id = %d
+			"SELECT user_id as follower_id, created_at FROM {$table_name}
+			WHERE target_id = %d AND follow_type = 'author'
 			ORDER BY created_at DESC
 			LIMIT %d OFFSET %d",
 			$author_id,
@@ -693,10 +694,10 @@ class Fanfic_Follows {
 		$stats['total_follows'] = absint( $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name}" ) );
 
 		// Unique authors followed
-		$stats['unique_authors'] = absint( $wpdb->get_var( "SELECT COUNT(DISTINCT author_id) FROM {$table_name}" ) );
+		$stats['unique_authors'] = absint( $wpdb->get_var( "SELECT COUNT(DISTINCT target_id) FROM {$table_name} WHERE follow_type = 'author'" ) );
 
 		// Unique users who follow
-		$stats['unique_followers'] = absint( $wpdb->get_var( "SELECT COUNT(DISTINCT follower_id) FROM {$table_name}" ) );
+		$stats['unique_followers'] = absint( $wpdb->get_var( "SELECT COUNT(DISTINCT user_id) FROM {$table_name} WHERE follow_type = 'author'" ) );
 
 		// Average followers per author
 		if ( $stats['unique_authors'] > 0 ) {
@@ -875,7 +876,7 @@ class Fanfic_Follows {
 		$table_name = $wpdb->prefix . 'fanfic_follows';
 
 		$results = $wpdb->get_col( $wpdb->prepare(
-			"SELECT follower_id FROM {$table_name} WHERE author_id = %d",
+			"SELECT user_id FROM {$table_name} WHERE target_id = %d AND follow_type = 'author'",
 			absint( $author_id )
 		) );
 

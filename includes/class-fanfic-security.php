@@ -98,7 +98,10 @@ class Fanfic_Security {
 		// Verify nonce
 		$nonce = isset( $_POST[ $nonce_field ] ) ? sanitize_text_field( $_POST[ $nonce_field ] ) : '';
 
-		if ( ! wp_verify_nonce( $nonce, $action ) ) {
+		// Try verifying against action-specific nonce first, then fall back to unified nonce
+		$nonce_valid = wp_verify_nonce( $nonce, $action ) || wp_verify_nonce( $nonce, 'fanfic_ajax_nonce' );
+
+		if ( ! $nonce_valid ) {
 			self::log_security_event( 'invalid_nonce', array(
 				'action'      => $action,
 				'nonce_field' => $nonce_field,

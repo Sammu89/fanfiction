@@ -56,12 +56,13 @@ function fanfic_get_default_story_view_template() {
 			<span class="fanfic-story-word-count"><strong><?php esc_html_e( 'Words:', 'fanfiction-manager' ); ?></strong> [story-word-count-estimate]</span>
 			<span class="fanfic-story-chapters-count"><strong><?php esc_html_e( 'Chapters:', 'fanfiction-manager' ); ?></strong> [story-chapters]</span>
 			<span class="fanfic-story-views"><strong><?php esc_html_e( 'Views:', 'fanfiction-manager' ); ?></strong> [story-views]</span>
-			<span class="fanfic-story-rating"><strong><?php esc_html_e( 'Rating:', 'fanfiction-manager' ); ?></strong> [story-rating-form]</span>
+			<span class="fanfic-story-likes">[fanfiction-story-like-count]</span>
+			<span class="fanfic-story-rating">[fanfiction-story-rating-compact format="short"]</span>
 		</div>
 	</section>
 
 	<div class="fanfic-story-actions">
-		[fanfic-content-actions]
+		[fanfiction-action-buttons context="story"]
 	</div>
 
 	<nav class="fanfic-story-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">

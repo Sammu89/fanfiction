@@ -30,7 +30,7 @@ class Fanfic_Bookmarks {
 	 * @return void
 	 */
 	public static function init() {
-		// AJAX handlers already registered in class-fanfic-shortcodes-actions.php
+		// AJAX handlers registered in class-fanfic-ajax-handlers.php (unified endpoint system)
 		// This class provides helper methods for bookmark functionality
 	}
 
@@ -235,7 +235,7 @@ class Fanfic_Bookmarks {
 		$table_name = $wpdb->prefix . 'fanfic_bookmarks';
 
 		$count = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$table_name} WHERE story_id = %d",
+			"SELECT COUNT(*) FROM {$table_name} WHERE post_id = %d AND bookmark_type = 'story'",
 			$story_id
 		) );
 
@@ -459,12 +459,13 @@ class Fanfic_Bookmarks {
 		$table_name = $wpdb->prefix . 'fanfic_bookmarks';
 
 		$results = $wpdb->get_results( $wpdb->prepare(
-			"SELECT b.story_id, COUNT(*) as bookmark_count
+			"SELECT b.post_id as story_id, COUNT(*) as bookmark_count
 			FROM {$table_name} b
-			INNER JOIN {$wpdb->posts} p ON b.story_id = p.ID
-			WHERE p.post_type = 'fanfiction_story'
+			INNER JOIN {$wpdb->posts} p ON b.post_id = p.ID
+			WHERE b.bookmark_type = 'story'
+			AND p.post_type = 'fanfiction_story'
 			AND p.post_status = 'publish'
-			GROUP BY b.story_id
+			GROUP BY b.post_id
 			HAVING bookmark_count >= %d
 			ORDER BY bookmark_count DESC
 			LIMIT %d",
@@ -498,10 +499,11 @@ class Fanfic_Bookmarks {
 		$table_name = $wpdb->prefix . 'fanfic_bookmarks';
 
 		$results = $wpdb->get_col( $wpdb->prepare(
-			"SELECT DISTINCT b.story_id
+			"SELECT DISTINCT b.post_id
 			FROM {$table_name} b
-			INNER JOIN {$wpdb->posts} p ON b.story_id = p.ID
-			WHERE p.post_type = 'fanfiction_story'
+			INNER JOIN {$wpdb->posts} p ON b.post_id = p.ID
+			WHERE b.bookmark_type = 'story'
+			AND p.post_type = 'fanfiction_story'
 			AND p.post_status = 'publish'
 			ORDER BY b.created_at DESC
 			LIMIT %d",
@@ -545,7 +547,7 @@ class Fanfic_Bookmarks {
 		$stats['total_bookmarks'] = absint( $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name}" ) );
 
 		// Unique stories bookmarked
-		$stats['unique_stories'] = absint( $wpdb->get_var( "SELECT COUNT(DISTINCT story_id) FROM {$table_name}" ) );
+		$stats['unique_stories'] = absint( $wpdb->get_var( "SELECT COUNT(DISTINCT post_id) FROM {$table_name} WHERE bookmark_type = 'story'" ) );
 
 		// Unique users who bookmarked
 		$stats['unique_users'] = absint( $wpdb->get_var( "SELECT COUNT(DISTINCT user_id) FROM {$table_name}" ) );
