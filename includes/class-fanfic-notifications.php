@@ -60,6 +60,9 @@ class Fanfic_Notifications {
 
 		// Hook into taxonomy changes
 		add_action( 'set_object_terms', array( __CLASS__, 'handle_taxonomy_change' ), 10, 6 );
+
+		// Hook into post updates (for title changes)
+		add_action( 'post_updated', array( __CLASS__, 'handle_title_change' ), 10, 3 );
 	}
 
 	/**
@@ -911,6 +914,204 @@ class Fanfic_Notifications {
 						'taxonomy'    => $tax_label,
 						'old_terms'   => implode( ', ', $old_term_names ),
 						'new_terms'   => implode( ', ', $new_term_names ),
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Handle title changes for stories and chapters
+	 *
+	 * Notifies story followers when story or chapter titles change.
+	 *
+	 * @since 1.0.16
+	 * @param int     $post_id     Post ID.
+	 * @param WP_Post $post_after  Post object after update.
+	 * @param WP_Post $post_before Post object before update.
+	 * @return void
+	 */
+	public static function handle_title_change( $post_id, $post_after, $post_before ) {
+		// Only handle stories and chapters
+		if ( ! in_array( $post_after->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+			return;
+		}
+
+		// Only notify for published content
+		if ( 'publish' !== $post_after->post_status ) {
+			return;
+		}
+
+		// Check if title actually changed
+		if ( $post_before->post_title === $post_after->post_title ) {
+			return;
+		}
+
+		// Handle story title changes
+		if ( 'fanfiction_story' === $post_after->post_type ) {
+			self::notify_story_title_change( $post_id, $post_before->post_title, $post_after->post_title, $post_after->post_author );
+		}
+
+		// Handle chapter title changes
+		if ( 'fanfiction_chapter' === $post_after->post_type ) {
+			self::notify_chapter_title_change( $post_id, $post_before->post_title, $post_after->post_title, $post_after->post_parent, $post_after->post_author );
+		}
+	}
+
+	/**
+	 * Notify followers when story title changes
+	 *
+	 * @since 1.0.16
+	 * @param int    $story_id  Story ID.
+	 * @param string $old_title Old title.
+	 * @param string $new_title New title.
+	 * @param int    $author_id Author ID.
+	 * @return void
+	 */
+	private static function notify_story_title_change( $story_id, $old_title, $new_title, $author_id ) {
+		// Get story followers
+		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
+
+		if ( empty( $followers ) ) {
+			return;
+		}
+
+		$story_url = get_permalink( $story_id );
+
+		// Build notification message
+		$message = sprintf(
+			/* translators: 1: Old title, 2: New title */
+			__( 'Story title changed from "%1$s" to "%2$s"', 'fanfiction-manager' ),
+			$old_title,
+			$new_title
+		);
+
+		// Notify all followers
+		foreach ( $followers as $follower ) {
+			$follower_id = absint( $follower['user_id'] );
+
+			// Don't notify the story author
+			if ( $follower_id === absint( $author_id ) ) {
+				continue;
+			}
+
+			// Create notification
+			self::create_notification(
+				$follower_id,
+				self::TYPE_STORY_UPDATE,
+				$message,
+				array(
+					'story_id'  => $story_id,
+					'story_url' => $story_url,
+					'old_title' => $old_title,
+					'new_title' => $new_title,
+				)
+			);
+
+			// Queue email if user has email notifications enabled
+			if ( ! empty( $follower['email_enabled'] ) ) {
+				Fanfic_Email_Queue::queue_email(
+					$follower_id,
+					'story_title_update',
+					$message,
+					array(
+						'story_id'  => $story_id,
+						'story_url' => $story_url,
+						'old_title' => $old_title,
+						'new_title' => $new_title,
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Notify followers when chapter title changes
+	 *
+	 * @since 1.0.16
+	 * @param int    $chapter_id Chapter ID.
+	 * @param string $old_title  Old title.
+	 * @param string $new_title  New title.
+	 * @param int    $story_id   Parent story ID.
+	 * @param int    $author_id  Author ID.
+	 * @return void
+	 */
+	private static function notify_chapter_title_change( $chapter_id, $old_title, $new_title, $story_id, $author_id ) {
+		// Get story followers (followers follow the story, not individual chapters)
+		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
+
+		if ( empty( $followers ) ) {
+			return;
+		}
+
+		$story_title = get_the_title( $story_id );
+		$chapter_url = get_permalink( $chapter_id );
+
+		// Get chapter label (Prologue, Chapter X, Epilogue)
+		$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+
+		if ( 'prologue' === $chapter_type || 'prologue' === $chapter_number ) {
+			$chapter_label = __( 'Prologue', 'fanfiction-manager' );
+		} elseif ( 'epilogue' === $chapter_type || 'epilogue' === $chapter_number ) {
+			$chapter_label = __( 'Epilogue', 'fanfiction-manager' );
+		} else {
+			$chapter_label = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number );
+		}
+
+		// Handle empty titles (optional titles)
+		$old_display = ! empty( $old_title ) ? $old_title : $chapter_label;
+		$new_display = ! empty( $new_title ) ? $new_title : $chapter_label;
+
+		// Build notification message
+		$message = sprintf(
+			/* translators: 1: Story title, 2: Chapter label, 3: Old title, 4: New title */
+			__( 'Story "%1$s" - %2$s title changed from "%3$s" to "%4$s"', 'fanfiction-manager' ),
+			$story_title,
+			$chapter_label,
+			$old_display,
+			$new_display
+		);
+
+		// Notify all followers
+		foreach ( $followers as $follower ) {
+			$follower_id = absint( $follower['user_id'] );
+
+			// Don't notify the story author
+			if ( $follower_id === absint( $author_id ) ) {
+				continue;
+			}
+
+			// Create notification
+			self::create_notification(
+				$follower_id,
+				self::TYPE_STORY_UPDATE,
+				$message,
+				array(
+					'story_id'      => $story_id,
+					'story_title'   => $story_title,
+					'chapter_id'    => $chapter_id,
+					'chapter_url'   => $chapter_url,
+					'chapter_label' => $chapter_label,
+					'old_title'     => $old_title,
+					'new_title'     => $new_title,
+				)
+			);
+
+			// Queue email if user has email notifications enabled
+			if ( ! empty( $follower['email_enabled'] ) ) {
+				Fanfic_Email_Queue::queue_email(
+					$follower_id,
+					'chapter_title_update',
+					$message,
+					array(
+						'story_id'      => $story_id,
+						'story_title'   => $story_title,
+						'chapter_id'    => $chapter_id,
+						'chapter_url'   => $chapter_url,
+						'chapter_label' => $chapter_label,
+						'old_title'     => $old_title,
+						'new_title'     => $new_title,
 					)
 				);
 			}
