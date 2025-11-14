@@ -956,15 +956,7 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function save_url_settings_step() {
-		// 1. Save main page mode (also saved in step 1, kept for consistency)
-		if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
-			$main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
-			if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
-				update_option( 'fanfic_main_page_mode', $main_page_mode );
-			}
-		}
-
-		// 2. Validate and save base slug
+		// 1. Validate and save base slug
 		if ( isset( $_POST['fanfic_base_slug'] ) ) {
 			$base_slug = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
 			$validation = Fanfic_URL_Schema::validate_slug( $base_slug, array( 'base' ) );
@@ -976,7 +968,7 @@ private function render_choice_screen() {
 			update_option( 'fanfic_base_slug', $base_slug );
 		}
 
-		// 3. Validate and save story path
+		// 2. Validate and save story path
 		if ( isset( $_POST['fanfic_story_path'] ) ) {
 			$story_path = sanitize_title( wp_unslash( $_POST['fanfic_story_path'] ) );
 			$validation = Fanfic_URL_Schema::validate_slug( $story_path, array( 'story_path' ) );
@@ -988,7 +980,7 @@ private function render_choice_screen() {
 			update_option( 'fanfic_story_path', $story_path );
 		}
 
-		// 4. Validate and save dynamic page paths (dashboard, members, search)
+		// 3. Validate and save dynamic page paths (dashboard, members, search)
 		$secondary_slugs_input = array();
 		$secondary_config = Fanfic_URL_Schema::get_slugs_by_group( 'dynamic' );
 
@@ -1031,7 +1023,7 @@ private function render_choice_screen() {
 			}
 		}
 
-		// 5. Validate and save chapter slugs (prologue, chapter, epilogue)
+		// 4. Validate and save chapter slugs (prologue, chapter, epilogue)
 		$chapter_slugs_input = array();
 		$chapter_config = Fanfic_URL_Schema::get_slugs_by_group( 'chapters' );
 
@@ -1062,7 +1054,7 @@ private function render_choice_screen() {
 		// Save chapter slugs
 		update_option( 'fanfic_chapter_slugs', $chapter_slugs_input );
 
-		// 6. Validate and save system page slugs
+		// 5. Validate and save system page slugs
 		if ( isset( $_POST['fanfic_system_page_slugs'] ) && is_array( $_POST['fanfic_system_page_slugs'] ) ) {
 			$slugs = array_map( 'sanitize_title', wp_unslash( $_POST['fanfic_system_page_slugs'] ) );
 
@@ -1115,13 +1107,13 @@ private function render_choice_screen() {
 			}
 		}
 
-		// 7. Create/update system pages with new slugs
+		// 6. Create/update system pages with new slugs
 		if ( class_exists( 'Fanfic_Templates' ) ) {
 			$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
 			Fanfic_Templates::create_system_pages( $base_slug );
 		}
 
-		// 8. Flush rewrite rules
+		// 7. Flush rewrite rules
 		$this->flush_rewrite_rules();
 	}
 
@@ -1249,8 +1241,15 @@ private function render_choice_screen() {
 		$this->assign_user_roles();
 
 		// Create sample stories if requested
+		$create_samples_value = isset( $_POST['create_samples'] ) ? $_POST['create_samples'] : 'not set';
+		error_log( 'Fanfic Wizard: create_samples POST value: ' . $create_samples_value );
+
 		if ( isset( $_POST['create_samples'] ) && '1' === $_POST['create_samples'] ) {
+			error_log( 'Fanfic Wizard: Creating sample stories...' );
 			$this->create_sample_stories();
+			error_log( 'Fanfic Wizard: Sample stories creation complete' );
+		} else {
+			error_log( 'Fanfic Wizard: Skipping sample stories creation' );
 		}
 
 		// Flush rewrite rules using shared helper method
@@ -1359,7 +1358,10 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function create_sample_stories() {
+		error_log( 'Fanfic Wizard: create_sample_stories() method called' );
+
 		$current_user_id = get_current_user_id();
+		error_log( 'Fanfic Wizard: Current user ID: ' . $current_user_id );
 
 		// Get random genre and status terms
 		$genre_terms = get_terms( array(
@@ -1371,7 +1373,11 @@ private function render_choice_screen() {
 			'hide_empty' => false,
 		) );
 
+		error_log( 'Fanfic Wizard: Genre terms count: ' . ( is_array( $genre_terms ) ? count( $genre_terms ) : '0 or error' ) );
+		error_log( 'Fanfic Wizard: Status terms count: ' . ( is_array( $status_terms ) ? count( $status_terms ) : '0 or error' ) );
+
 		if ( empty( $status_terms ) || is_wp_error( $status_terms ) ) {
+			error_log( 'Fanfic Wizard: No status terms available - exiting early' );
 			return; // No status terms available
 		}
 
@@ -1491,6 +1497,8 @@ private function render_choice_screen() {
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_number', 1 );
 			}
 		}
+
+		error_log( 'Fanfic Wizard: Finished creating sample stories' );
 	}
 
 	/**

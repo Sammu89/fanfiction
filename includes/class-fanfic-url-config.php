@@ -181,7 +181,6 @@ class Fanfic_URL_Config {
      */
     public static function render_form_fields( $in_wizard = false ) {
         $current_slugs      = self::get_current_slugs();
-        $main_page_mode     = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
         $page_slugs         = get_option( 'fanfic_system_page_slugs', array() );
         $page_ids           = get_option( 'fanfic_system_page_ids', array() );
 
@@ -193,52 +192,6 @@ class Fanfic_URL_Config {
             echo '<input type="hidden" name="action" value="fanfic_save_url_config">';
         }
         ?>
-
-                <!-- ============================================ -->
-                <!-- SECTION 1: SITE ORGANIZATION -->
-                <!-- ============================================ -->
-                <div class="fanfic-config-section fanfic-section-main">
-                    <div class="fanfic-section-header">
-                        <h2><?php echo esc_html__( 'How do you want your site organized?', 'fanfiction-manager' ); ?></h2>
-                        <p class="description">
-                            <?php echo esc_html__( 'Choose whether your homepage shows the story archive directly or allows for custom content.', 'fanfiction-manager' ); ?>
-                        </p>
-                    </div>
-
-                    <div class="fanfic-section-content">
-                        <div class="fanfic-radio-cards">
-                            <label class="fanfic-radio-card <?php echo $main_page_mode === 'stories_homepage' ? 'selected' : ''; ?>">
-                                <input 
-                                    type="radio" 
-                                    name="fanfic_main_page_mode" 
-                                    value="stories_homepage" 
-                                    <?php checked( $main_page_mode, 'stories_homepage' ); ?>
-                                >
-                                <div class="fanfic-radio-card-content">
-                                    <strong><?php echo esc_html__( 'Stories Archive as Homepage', 'fanfiction-manager' ); ?></strong>
-                                    <span class="fanfic-radio-card-desc">
-                                        <?php echo esc_html__( 'Your main page displays the story archive directly', 'fanfiction-manager' ); ?>
-                                    </span>
-                                </div>
-                            </label>
-
-                            <label class="fanfic-radio-card <?php echo $main_page_mode === 'custom_homepage' ? 'selected' : ''; ?>">
-                                <input 
-                                    type="radio" 
-                                    name="fanfic_main_page_mode" 
-                                    value="custom_homepage" 
-                                    <?php checked( $main_page_mode, 'custom_homepage' ); ?>
-                                >
-                                <div class="fanfic-radio-card-content">
-                                    <strong><?php echo esc_html__( 'Custom Homepage', 'fanfiction-manager' ); ?></strong>
-                                    <span class="fanfic-radio-card-desc">
-                                        <?php echo esc_html__( 'Create a custom homepage with separate archive page', 'fanfiction-manager' ); ?>
-                                    </span>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- ============================================ -->
                 <!-- SECTION 2: PRIMARY URLs -->
@@ -1165,16 +1118,7 @@ class Fanfic_URL_Config {
         $success_messages = array();
         $slug_config = Fanfic_URL_Schema::get_slug_config();
 
-        // 1. Save main page mode
-        if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
-            $main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
-            if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
-                update_option( 'fanfic_main_page_mode', $main_page_mode );
-                $success_messages[] = __( 'Site organization mode saved.', 'fanfiction-manager' );
-            }
-        }
-
-        // 2. Save base slug (with special handling for main page)
+        // 1. Save base slug (with special handling for main page)
         if ( isset( $_POST['fanfic_base_slug'] ) ) {
             $new_base_slug = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
             $validation = $this->validate_slug( $new_base_slug, array( 'base' ) );
