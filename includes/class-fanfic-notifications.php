@@ -46,6 +46,7 @@ class Fanfic_Notifications {
 	public static function init() {
 		// Register cron hooks
 		add_action( 'fanfic_cleanup_old_notifications', array( __CLASS__, 'delete_old_notifications' ) );
+		add_action( 'fanfic_process_debounced_notification', array( __CLASS__, 'process_debounced_notification' ), 10, 1 );
 
 		// Schedule cron job on init if not already scheduled
 		if ( ! wp_next_scheduled( 'fanfic_cleanup_old_notifications' ) ) {
@@ -812,112 +813,15 @@ class Fanfic_Notifications {
 			return;
 		}
 
-		// Get story followers (people who follow this specific story)
-		$followers = Fanfic_Follows::get_target_followers( $object_id, 'story', 999 );
-
-		if ( empty( $followers ) ) {
-			return;
-		}
-
-		// Get taxonomy label
-		$tax_obj = get_taxonomy( $taxonomy );
-		$tax_label = $tax_obj ? $tax_obj->labels->singular_name : ucfirst( str_replace( array( 'fanfiction_', '_' ), array( '', ' ' ), $taxonomy ) );
-
-		// Get old and new term names
-		$old_term_names = array();
-		if ( ! empty( $old_tt_ids ) ) {
-			foreach ( $old_tt_ids as $tt_id ) {
-				$term = get_term_by( 'term_taxonomy_id', $tt_id );
-				if ( $term ) {
-					$old_term_names[] = $term->name;
-				}
-			}
-		}
-
-		$new_term_names = array();
-		if ( ! empty( $tt_ids ) ) {
-			foreach ( $tt_ids as $tt_id ) {
-				$term = get_term_by( 'term_taxonomy_id', $tt_id );
-				if ( $term ) {
-					$new_term_names[] = $term->name;
-				}
-			}
-		}
-
-		// Build notification message
-		$story_title = get_the_title( $object_id );
-		$story_url = get_permalink( $object_id );
-
-		if ( empty( $old_term_names ) && ! empty( $new_term_names ) ) {
-			// Terms added
-			$message = sprintf(
-				/* translators: 1: Story title, 2: Taxonomy label, 3: New terms */
-				__( 'Story "%1$s" %2$s updated to: %3$s', 'fanfiction-manager' ),
-				$story_title,
-				$tax_label,
-				implode( ', ', $new_term_names )
-			);
-		} elseif ( ! empty( $old_term_names ) && empty( $new_term_names ) ) {
-			// Terms removed
-			$message = sprintf(
-				/* translators: 1: Story title, 2: Taxonomy label */
-				__( 'Story "%1$s" %2$s removed', 'fanfiction-manager' ),
-				$story_title,
-				$tax_label
-			);
-		} else {
-			// Terms changed
-			$message = sprintf(
-				/* translators: 1: Story title, 2: Taxonomy label, 3: Old terms, 4: New terms */
-				__( 'Story "%1$s" %2$s changed from %3$s to %4$s', 'fanfiction-manager' ),
-				$story_title,
-				$tax_label,
-				implode( ', ', $old_term_names ),
-				implode( ', ', $new_term_names )
-			);
-		}
-
-		// Notify all followers
-		foreach ( $followers as $follower ) {
-			$follower_id = absint( $follower['user_id'] );
-
-			// Don't notify the story author
-			if ( $follower_id === absint( $post->post_author ) ) {
-				continue;
-			}
-
-			// Create notification
-			self::create_notification(
-				$follower_id,
-				self::TYPE_STORY_UPDATE,
-				$message,
-				array(
-					'story_id'    => $object_id,
-					'story_title' => $story_title,
-					'story_url'   => $story_url,
-					'taxonomy'    => $taxonomy,
-					'old_terms'   => $old_term_names,
-					'new_terms'   => $new_term_names,
-				)
-			);
-
-			// Queue email if user has email notifications enabled
-			if ( ! empty( $follower['email_enabled'] ) ) {
-				Fanfic_Email_Queue::queue_email(
-					$follower_id,
-					'story_taxonomy_update',
-					$message,
-					array(
-						'story_id'    => $object_id,
-						'story_title' => $story_title,
-						'story_url'   => $story_url,
-						'taxonomy'    => $tax_label,
-						'old_terms'   => implode( ', ', $old_term_names ),
-						'new_terms'   => implode( ', ', $new_term_names ),
-					)
-				);
-			}
-		}
+		// Queue debounced notification (waits 20 minutes, consolidates multiple changes)
+		self::queue_debounced_notification(
+			$object_id,
+			'taxonomy_' . $taxonomy,
+			array(
+				'taxonomy' => $taxonomy,
+				'tt_ids'   => $tt_ids,
+			)
+		);
 	}
 
 	/**
@@ -947,13 +851,24 @@ class Fanfic_Notifications {
 			return;
 		}
 
-		// Handle story title changes
+		// Handle story title changes - queue debounced notification
 		if ( 'fanfiction_story' === $post_after->post_type ) {
-			self::notify_story_title_change( $post_id, $post_before->post_title, $post_after->post_title, $post_after->post_author );
+			self::queue_debounced_notification(
+				$post_id,
+				'title',
+				array(
+					'old_title' => $post_before->post_title,
+					'new_title' => $post_after->post_title,
+				)
+			);
 		}
 
-		// Handle chapter title changes
+		// Handle chapter title changes - queue debounced notification for parent story
+		// Note: Chapter title changes are not currently tracked in debounced notifications
+		// as they would require more complex state tracking. Chapters are typically
+		// published once, and title changes are rare. If needed in future, this can be added.
 		if ( 'fanfiction_chapter' === $post_after->post_type ) {
+			// For now, notify chapter title changes immediately (they're rare)
 			self::notify_chapter_title_change( $post_id, $post_before->post_title, $post_after->post_title, $post_after->post_parent, $post_after->post_author );
 		}
 	}
@@ -1115,6 +1030,323 @@ class Fanfic_Notifications {
 					)
 				);
 			}
+		}
+	}
+
+	/**
+	 * Queue a debounced notification for story updates
+	 *
+	 * Instead of sending notifications immediately, this queues the notification
+	 * and waits 20 minutes. If more changes happen, the timer resets. Only the
+	 * final net changes are notified.
+	 *
+	 * @since 1.0.16
+	 * @param int    $story_id Story ID.
+	 * @param string $change_type Type of change: 'title', 'taxonomy', 'chapter_title'.
+	 * @param array  $change_data Data about the change.
+	 * @return void
+	 */
+	private static function queue_debounced_notification( $story_id, $change_type, $change_data ) {
+		$story_id = absint( $story_id );
+		$transient_key = 'fanfic_debounced_notify_' . $story_id;
+
+		// Get existing pending notification data
+		$pending = get_transient( $transient_key );
+
+		if ( false === $pending ) {
+			// First change - capture original state
+			$pending = array(
+				'story_id'       => $story_id,
+				'original_state' => self::capture_story_state( $story_id ),
+				'changes'        => array(),
+				'first_change'   => current_time( 'timestamp' ),
+			);
+		}
+
+		// Add this change to the pending changes
+		$pending['changes'][ $change_type ] = $change_data;
+		$pending['last_change'] = current_time( 'timestamp' );
+
+		// Store updated pending notification (expires in 30 minutes as safety)
+		set_transient( $transient_key, $pending, 30 * MINUTE_IN_SECONDS );
+
+		// Cancel any existing scheduled notification
+		$hook = 'fanfic_process_debounced_notification';
+		$scheduled_time = wp_next_scheduled( $hook, array( $story_id ) );
+		if ( $scheduled_time ) {
+			wp_unschedule_event( $scheduled_time, $hook, array( $story_id ) );
+		}
+
+		// Schedule new notification for 20 minutes from now
+		wp_schedule_single_event( time() + ( 20 * MINUTE_IN_SECONDS ), $hook, array( $story_id ) );
+	}
+
+	/**
+	 * Process debounced notification
+	 *
+	 * This is called 20 minutes after the last change. It compares the current
+	 * state with the original state and sends notifications only for net changes.
+	 *
+	 * @since 1.0.16
+	 * @param int $story_id Story ID.
+	 * @return void
+	 */
+	public static function process_debounced_notification( $story_id ) {
+		$story_id = absint( $story_id );
+		$transient_key = 'fanfic_debounced_notify_' . $story_id;
+
+		// Get pending notification data
+		$pending = get_transient( $transient_key );
+
+		if ( false === $pending ) {
+			// No pending notification (maybe already processed or expired)
+			return;
+		}
+
+		// Get current state
+		$current_state = self::capture_story_state( $story_id );
+		$original_state = $pending['original_state'];
+
+		// Get story post
+		$story = get_post( $story_id );
+		if ( ! $story || 'publish' !== $story->post_status ) {
+			// Story no longer exists or not published
+			delete_transient( $transient_key );
+			return;
+		}
+
+		// Get story followers
+		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
+
+		if ( empty( $followers ) ) {
+			// No followers, clean up and exit
+			delete_transient( $transient_key );
+			return;
+		}
+
+		// Compare states and build list of net changes
+		$net_changes = array();
+
+		// Check title change
+		if ( $original_state['title'] !== $current_state['title'] ) {
+			$net_changes['title'] = array(
+				'old' => $original_state['title'],
+				'new' => $current_state['title'],
+			);
+		}
+
+		// Check taxonomy changes
+		foreach ( array( 'fanfiction_genre', 'fanfiction_status' ) as $taxonomy ) {
+			$orig_terms = isset( $original_state['taxonomies'][ $taxonomy ] ) ? $original_state['taxonomies'][ $taxonomy ] : array();
+			$curr_terms = isset( $current_state['taxonomies'][ $taxonomy ] ) ? $current_state['taxonomies'][ $taxonomy ] : array();
+
+			// Sort for comparison
+			sort( $orig_terms );
+			sort( $curr_terms );
+
+			if ( $orig_terms !== $curr_terms ) {
+				$net_changes['taxonomy_' . $taxonomy] = array(
+					'taxonomy' => $taxonomy,
+					'old'      => $orig_terms,
+					'new'      => $curr_terms,
+				);
+			}
+		}
+
+		// Check custom taxonomies
+		if ( isset( $original_state['custom_taxonomies'] ) ) {
+			foreach ( $original_state['custom_taxonomies'] as $custom_tax ) {
+				$orig_terms = isset( $original_state['taxonomies'][ $custom_tax ] ) ? $original_state['taxonomies'][ $custom_tax ] : array();
+				$curr_terms = isset( $current_state['taxonomies'][ $custom_tax ] ) ? $current_state['taxonomies'][ $custom_tax ] : array();
+
+				sort( $orig_terms );
+				sort( $curr_terms );
+
+				if ( $orig_terms !== $curr_terms ) {
+					$net_changes['taxonomy_' . $custom_tax] = array(
+						'taxonomy' => $custom_tax,
+						'old'      => $orig_terms,
+						'new'      => $curr_terms,
+					);
+				}
+			}
+		}
+
+		// If no net changes, don't send notification
+		if ( empty( $net_changes ) ) {
+			delete_transient( $transient_key );
+			return;
+		}
+
+		// Build consolidated notification message
+		$message = self::build_consolidated_message( $story_id, $net_changes );
+		$story_url = get_permalink( $story_id );
+
+		// Notify all followers
+		foreach ( $followers as $follower ) {
+			$follower_id = absint( $follower['user_id'] );
+
+			// Don't notify the story author
+			if ( $follower_id === absint( $story->post_author ) ) {
+				continue;
+			}
+
+			// Create notification
+			self::create_notification(
+				$follower_id,
+				self::TYPE_STORY_UPDATE,
+				$message,
+				array(
+					'story_id'    => $story_id,
+					'story_title' => $current_state['title'],
+					'story_url'   => $story_url,
+					'changes'     => $net_changes,
+				)
+			);
+
+			// Queue email if user has email notifications enabled
+			if ( ! empty( $follower['email_enabled'] ) ) {
+				Fanfic_Email_Queue::queue_email(
+					$follower_id,
+					'story_updates',
+					$message,
+					array(
+						'story_id'    => $story_id,
+						'story_title' => $current_state['title'],
+						'story_url'   => $story_url,
+						'changes'     => $net_changes,
+					)
+				);
+			}
+		}
+
+		// Clean up transient
+		delete_transient( $transient_key );
+	}
+
+	/**
+	 * Capture current state of a story
+	 *
+	 * @since 1.0.16
+	 * @param int $story_id Story ID.
+	 * @return array Story state data.
+	 */
+	private static function capture_story_state( $story_id ) {
+		$story = get_post( $story_id );
+
+		if ( ! $story ) {
+			return array();
+		}
+
+		$state = array(
+			'title'      => $story->post_title,
+			'taxonomies' => array(),
+		);
+
+		// Capture standard taxonomies
+		$taxonomies = array( 'fanfiction_genre', 'fanfiction_status' );
+
+		foreach ( $taxonomies as $taxonomy ) {
+			$terms = wp_get_object_terms( $story_id, $taxonomy, array( 'fields' => 'names' ) );
+			if ( ! is_wp_error( $terms ) ) {
+				$state['taxonomies'][ $taxonomy ] = $terms;
+			}
+		}
+
+		// Capture custom taxonomies
+		$custom_taxonomies = get_object_taxonomies( 'fanfiction_story', 'names' );
+		$state['custom_taxonomies'] = array();
+
+		foreach ( $custom_taxonomies as $custom_tax ) {
+			if ( ! in_array( $custom_tax, $taxonomies, true ) ) {
+				$state['custom_taxonomies'][] = $custom_tax;
+				$terms = wp_get_object_terms( $story_id, $custom_tax, array( 'fields' => 'names' ) );
+				if ( ! is_wp_error( $terms ) ) {
+					$state['taxonomies'][ $custom_tax ] = $terms;
+				}
+			}
+		}
+
+		return $state;
+	}
+
+	/**
+	 * Build consolidated notification message
+	 *
+	 * Creates a human-readable message describing multiple changes.
+	 *
+	 * @since 1.0.16
+	 * @param int   $story_id    Story ID.
+	 * @param array $net_changes Array of net changes.
+	 * @return string Notification message.
+	 */
+	private static function build_consolidated_message( $story_id, $net_changes ) {
+		$story_title = get_the_title( $story_id );
+		$change_descriptions = array();
+
+		foreach ( $net_changes as $change_type => $change_data ) {
+			if ( 'title' === $change_type ) {
+				// Title change
+				$change_descriptions[] = sprintf(
+					/* translators: 1: Old title, 2: New title */
+					__( 'title changed from "%1$s" to "%2$s"', 'fanfiction-manager' ),
+					$change_data['old'],
+					$change_data['new']
+				);
+			} elseif ( strpos( $change_type, 'taxonomy_' ) === 0 ) {
+				// Taxonomy change
+				$taxonomy = $change_data['taxonomy'];
+				$tax_obj = get_taxonomy( $taxonomy );
+				$tax_label = $tax_obj ? $tax_obj->labels->singular_name : ucfirst( str_replace( array( 'fanfiction_', '_' ), array( '', ' ' ), $taxonomy ) );
+
+				$old_terms = $change_data['old'];
+				$new_terms = $change_data['new'];
+
+				if ( empty( $old_terms ) && ! empty( $new_terms ) ) {
+					// Terms added
+					$change_descriptions[] = sprintf(
+						/* translators: 1: Taxonomy label, 2: New terms */
+						__( '%1$s set to %2$s', 'fanfiction-manager' ),
+						$tax_label,
+						implode( ', ', $new_terms )
+					);
+				} elseif ( ! empty( $old_terms ) && empty( $new_terms ) ) {
+					// Terms removed
+					$change_descriptions[] = sprintf(
+						/* translators: %s: Taxonomy label */
+						__( '%s removed', 'fanfiction-manager' ),
+						$tax_label
+					);
+				} else {
+					// Terms changed
+					$change_descriptions[] = sprintf(
+						/* translators: 1: Taxonomy label, 2: Old terms, 3: New terms */
+						__( '%1$s changed from %2$s to %3$s', 'fanfiction-manager' ),
+						$tax_label,
+						implode( ', ', $old_terms ),
+						implode( ', ', $new_terms )
+					);
+				}
+			}
+		}
+
+		// Build final message
+		if ( count( $change_descriptions ) === 1 ) {
+			// Single change
+			return sprintf(
+				/* translators: 1: Story title, 2: Change description */
+				__( 'Story "%1$s" updated: %2$s', 'fanfiction-manager' ),
+				$story_title,
+				$change_descriptions[0]
+			);
+		} else {
+			// Multiple changes
+			return sprintf(
+				/* translators: 1: Story title, 2: List of changes */
+				__( 'Story "%1$s" updated: %2$s', 'fanfiction-manager' ),
+				$story_title,
+				implode( ', ', $change_descriptions )
+			);
 		}
 	}
 }
