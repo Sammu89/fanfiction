@@ -861,6 +861,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-page-template.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache.php';
 		require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-cache-admin.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-database-setup.php';
 
 		// Initialize and verify page template system
 		self::verify_page_template_system();
