@@ -113,17 +113,34 @@ class Fanfic_Rating_System {
 			return new WP_Error( 'login_required', __( 'You must be logged in to rate', 'fanfiction-manager' ) );
 		}
 
-		// Cookie-based check for anonymous users
-		if ( ! $user_id ) {
-			$cookie_name = 'fanfic_rate_' . $chapter_id;
-			if ( isset( $_COOKIE[ $cookie_name ] ) ) {
-				return new WP_Error( 'already_rated', __( 'You have already rated this chapter', 'fanfiction-manager' ) );
-			}
-		}
-
 		$table_name = $wpdb->prefix . 'fanfic_ratings';
 		$old_rating = null;
 		$is_new_vote = true;
+		$anonymous_vote_id = null;
+
+		// Cookie-based tracking for anonymous users (allows vote changes)
+		if ( ! $user_id ) {
+			$cookie_name = 'fanfic_rate_' . $chapter_id;
+			if ( isset( $_COOKIE[ $cookie_name ] ) ) {
+				// Cookie format: "rating|record_id" (e.g., "5|123")
+				$cookie_parts = explode( '|', $_COOKIE[ $cookie_name ] );
+				if ( count( $cookie_parts ) === 2 ) {
+					$old_rating = intval( $cookie_parts[0] );
+					$anonymous_vote_id = intval( $cookie_parts[1] );
+
+					// Check if rating is the same
+					if ( $old_rating === $rating ) {
+						return array(
+							'success' => true,
+							'action'  => 'unchanged',
+							'rating'  => $rating,
+						);
+					}
+
+					$is_new_vote = false;
+				}
+			}
+		}
 
 		if ( $user_id ) {
 			// Check for existing vote (logged-in users)
@@ -176,24 +193,45 @@ class Fanfic_Rating_System {
 				$action = 'created';
 			}
 		} else {
-			// Anonymous user - insert only
-			$wpdb->insert(
-				$table_name,
-				array(
-					'chapter_id' => $chapter_id,
-					'user_id'    => null,
-					'rating'     => $rating,
-					'created_at' => current_time( 'mysql' ),
-				),
-				array( '%d', '%d', '%d', '%s' )
-			);
+			// Anonymous user - update existing or insert new
+			if ( $anonymous_vote_id ) {
+				// Update existing vote by ID
+				$wpdb->update(
+					$table_name,
+					array(
+						'rating'     => $rating,
+						'created_at' => current_time( 'mysql' ),
+					),
+					array( 'id' => $anonymous_vote_id ),
+					array( '%d', '%s' ),
+					array( '%d' )
+				);
 
-			// Set cookie
+				$action = 'updated';
+			} else {
+				// Insert new vote
+				$wpdb->insert(
+					$table_name,
+					array(
+						'chapter_id' => $chapter_id,
+						'user_id'    => null,
+						'rating'     => $rating,
+						'created_at' => current_time( 'mysql' ),
+					),
+					array( '%d', '%d', '%d', '%s' )
+				);
+
+				// Get the inserted ID
+				$anonymous_vote_id = $wpdb->insert_id;
+
+				$action = 'created';
+			}
+
+			// Set/update cookie with format "rating|record_id"
 			$cookie_name = 'fanfic_rate_' . $chapter_id;
 			$expire = time() + self::COOKIE_DURATION;
-			setcookie( $cookie_name, $rating, $expire, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
-
-			$action = 'created';
+			$cookie_value = $rating . '|' . $anonymous_vote_id;
+			setcookie( $cookie_name, $cookie_value, $expire, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
 		}
 
 		// Update chapter cache incrementally
@@ -516,10 +554,12 @@ class Fanfic_Rating_System {
 	 */
 	public static function user_has_rated( $chapter_id, $user_id = null ) {
 		if ( ! $user_id ) {
-			// Check cookie for anonymous
+			// Check cookie for anonymous (format: "rating|record_id")
 			$cookie_name = 'fanfic_rate_' . $chapter_id;
 			if ( isset( $_COOKIE[ $cookie_name ] ) ) {
-				return intval( $_COOKIE[ $cookie_name ] );
+				$cookie_parts = explode( '|', $_COOKIE[ $cookie_name ] );
+				// Return just the rating value
+				return intval( $cookie_parts[0] );
 			}
 			return false;
 		}
