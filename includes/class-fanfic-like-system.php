@@ -60,26 +60,25 @@ class Fanfic_Like_System {
 	/**
 	 * Enqueue like scripts
 	 *
+	 * NOTE: This method is now deprecated. The unified fanfiction-interactions.js
+	 * handles all like functionality with balloon notifications and proper count updates.
+	 * The old fanfiction-likes.js is no longer enqueued to prevent conflicts.
+	 *
 	 * @since 2.0.0
 	 * @return void
 	 */
 	public static function enqueue_scripts() {
-		wp_enqueue_script(
-			'fanfic-likes',
-			FANFIC_PLUGIN_URL . 'assets/js/fanfiction-likes.js',
-			array( 'jquery' ),
-			FANFIC_VERSION,
-			true
-		);
-
-		wp_localize_script(
-			'fanfic-likes',
-			'fanficAjax',
-			array(
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'fanfic_ajax_nonce' ),
-			)
-		);
+		// DEPRECATED: fanfiction-likes.js is no longer used.
+		// Like functionality is now handled by fanfiction-interactions.js
+		// which provides:
+		// - Balloon notification popups
+		// - Automatic count updates
+		// - Unified interaction handling
+		// - Better error handling
+		//
+		// This method is kept for backward compatibility but does nothing.
+		// The backend like system (database operations) is still used by
+		// the AJAX handler in class-fanfic-ajax-handlers.php
 	}
 
 	/**
@@ -142,10 +141,14 @@ class Fanfic_Like_System {
 				self::update_story_like_cache_incrementally( $story_id, -1 );
 			}
 
+			// Get updated count for frontend display
+			$chapter_like_count = self::get_chapter_likes( $chapter_id );
+
 			return array(
-				'success'  => true,
-				'action'   => 'unliked',
-				'is_liked' => false,
+				'success'    => true,
+				'action'     => 'unliked',
+				'is_liked'   => false,
+				'like_count' => $chapter_like_count,
 			);
 
 		} else {
@@ -185,10 +188,14 @@ class Fanfic_Like_System {
 				self::update_story_like_cache_incrementally( $story_id, +1 );
 			}
 
+			// Get updated count for frontend display
+			$chapter_like_count = self::get_chapter_likes( $chapter_id );
+
 			return array(
-				'success'  => true,
-				'action'   => 'liked',
-				'is_liked' => true,
+				'success'    => true,
+				'action'     => 'liked',
+				'is_liked'   => true,
+				'like_count' => $chapter_like_count,
 			);
 		}
 	}
