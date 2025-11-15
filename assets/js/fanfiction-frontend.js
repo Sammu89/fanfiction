@@ -174,6 +174,99 @@
 	};
 
 	/**
+	 * Balloon Notification Handler
+	 * Shows cute cartoon-style balloon notifications above buttons
+	 * without displacing other elements on the page
+	 */
+	const BalloonNotification = {
+		/**
+		 * Show a balloon notification above a button or element
+		 *
+		 * @param {jQuery|HTMLElement|string} element - The element to show the balloon above (jQuery object, DOM element, or selector)
+		 * @param {string} message - The message to display in the balloon
+		 * @param {string} type - The type of notification ('success', 'error', 'warning', 'info') - default is 'info'
+		 * @param {number} duration - How long to show the balloon in milliseconds - default is 3000ms (3 seconds)
+		 */
+		show: function(element, message, type, duration) {
+			// Set defaults
+			type = type || 'info';
+			duration = duration || 3000;
+
+			// Convert element to jQuery if needed
+			let $element;
+			if (typeof element === 'string') {
+				$element = $(element);
+			} else if (element instanceof jQuery) {
+				$element = element;
+			} else {
+				$element = $(element);
+			}
+
+			// Check if element exists
+			if (!$element.length) {
+				console.warn('BalloonNotification: Element not found', element);
+				return;
+			}
+
+			// Remove any existing balloon on this element
+			$element.find('.fanfic-balloon-notification').remove();
+
+			// Create balloon element
+			const $balloon = $('<div>')
+				.addClass('fanfic-balloon-notification')
+				.addClass(type)
+				.text(message)
+				.attr('role', type === 'error' ? 'alert' : 'status')
+				.attr('aria-live', 'polite');
+
+			// Append to element
+			$element.append($balloon);
+
+			// Set animation duration
+			$balloon.css('animation-duration', (duration / 1000) + 's');
+
+			// Remove balloon after animation completes
+			setTimeout(function() {
+				$balloon.remove();
+			}, duration);
+
+			// Return the balloon element in case caller needs it
+			return $balloon;
+		},
+
+		/**
+		 * Show success balloon
+		 */
+		success: function(element, message, duration) {
+			return this.show(element, message, 'success', duration);
+		},
+
+		/**
+		 * Show error balloon
+		 */
+		error: function(element, message, duration) {
+			return this.show(element, message, 'error', duration);
+		},
+
+		/**
+		 * Show warning balloon
+		 */
+		warning: function(element, message, duration) {
+			return this.show(element, message, 'warning', duration);
+		},
+
+		/**
+		 * Show info balloon
+		 */
+		info: function(element, message, duration) {
+			return this.show(element, message, 'info', duration);
+		}
+	};
+
+	// Expose BalloonNotification to global scope so other scripts can use it
+	window.BalloonNotification = BalloonNotification;
+
+	/**
 	 * Character Counter
 	 */
 	const CharCounter = {

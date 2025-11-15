@@ -129,6 +129,9 @@ class Fanfic_Core {
 		// Load URL Schema (shared by admin and frontend)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-schema.php';
 
+		// Load URL Builder (shared by admin and frontend)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-builder.php';
+
 		// Load admin classes
 		if ( is_admin() ) {
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-cache-admin.php';
@@ -790,7 +793,7 @@ class Fanfic_Core {
 			wp_enqueue_script(
 				'fanfiction-interactions',
 				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-interactions.js',
-				array( 'jquery' ),
+				array( 'jquery', 'fanfiction-frontend' ),
 				FANFIC_VERSION,
 				true
 			);

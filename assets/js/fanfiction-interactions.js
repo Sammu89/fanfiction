@@ -932,7 +932,12 @@
 		/**
 		 * Show notification (success or error)
 		 */
-		showNotification: function($element, message, type) {
+	showNotification: function($element, message, type) {
+		// Use BalloonNotification if available (from fanfiction-frontend.js)
+		if (typeof BalloonNotification !== 'undefined') {
+			BalloonNotification.show($element, message, type, 3000);
+		} else {
+			// Fallback: Create inline notification (old behavior)
 			// Remove existing notifications
 			$element.find('.fanfic-notification').remove();
 
@@ -951,7 +956,8 @@
 					$(this).remove();
 				});
 			}, 3000);
-		},
+		}
+	},
 
 		/**
 		 * Validate email address

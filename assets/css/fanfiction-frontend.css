@@ -13,47 +13,52 @@
    Users can override these by redefining CSS variables in their theme
    ============================================ */
 :root {
-    /* Core Colors - Text & Background */
-    --color-text: #2c3e50;              /* Soft dark blue-gray */
-    --color-text-light: #546e7a;        /* Muted blue-gray */
-    --color-text-lighter: #78909c;      /* Light blue-gray */
-    --color-background: #fdfefe;        /* Soft white */
-    --color-border: #e0e7ea;            /* Soft gray-blue border */
+  /* Core Colors – Text & Background */
+  --color-text: #4a3d37;           /* Dark warm chocolate-beige */
+  --color-text-light: #7e6f67;     /* Muted taupey beige */
+  --color-text-lighter: #a89f96;   /* Soft light greige */
 
-    /* Primary Brand Colors - Soft Pastel Blue */
-    --color-primary: #7ba7bc;           /* Soft pastel blue */
-    --color-primary-dark: #5a8a9e;      /* Deeper pastel blue */
-    --color-primary-light: #a8c5d1;     /* Light pastel blue */
-    --color-primary-hover: #5a8a9e;
+  --color-background: #f9f6f1;     /* Creamy off-white / linen */
+  --color-border: #dfd5cc;         /* Light sand-tone border */
 
-    /* Status Colors - Soft Pastels (WCAG AA Compliant) */
-    --color-success: #6a9f7c;           /* Soft pastel green */
-    --color-success-bg: #e8f5e9;        /* Very light green */
-    --color-success-text: #2e7d32;      /* Darker green for text */
-    --color-warning: #d4a574;           /* Soft pastel orange */
-    --color-warning-bg: #fff3e0;        /* Very light orange */
-    --color-warning-text: #bf360c;      /* Darker orange for text */
-    --color-error: #d9858e;             /* Soft pastel red */
-    --color-error-bg: #ffebee;          /* Very light red */
-    --color-error-text: #c62828;        /* Darker red for text */
-    --color-info: #8eabc4;              /* Soft pastel blue */
-    --color-info-bg: #e3f2fd;           /* Very light blue */
-    --color-info-text: #1565c0;         /* Darker blue for text */
+  /* Primary Brand Colors – Warm Pastel Beige */
+  --color-primary: #d8c7b5;        /* Warm beige / biscuit */
+  --color-primary-dark: #bfa793;   /* Deeper tan-beige */
+  --color-primary-light: #ece2d7;  /* Very soft cream-beige */
+  --color-primary-hover: #bfa693;
 
-    /* Links */
-    --color-link: #7ba7bc;              /* Soft pastel blue */
-    --color-link-hover: #5a8a9e;        /* Deeper pastel blue */
-    --color-link-visited: #9b87ba;      /* Soft pastel purple */
+  /* Status Colors – More “Appealing” Pastel Variants */
+  --color-success: #abb89c;        /* Soft sage-beige green */
+  --color-success-bg: #eef3ea;     /* Very light sage-ish cream */
+  --color-success-text: #57664d;   /* Muted olive for contrast */
 
-    /* Focus & Interactive */
-    --color-focus: #7ba7bc;
-    --focus-ring-width: 2px;
-    --focus-ring-offset: 2px;
+  --color-warning: #e4c79e;        /* Warm sand / caramel-beige */
+  --color-warning-bg: #fcf1e8;     /* Light peachy cream */
+  --color-warning-text: #9a6b3f;   /* Deep caramel brown-ish */
 
-    /* Gradients & Overlays */
-    --color-overlay: rgba(0, 0, 0, 0.5);
-    --color-overlay-light: rgba(0, 0, 0, 0.1);
+  --color-error: #e5b7b0;          /* Dusty rose-beige */
+  --color-error-bg: #fcecec;       /* Faint rosy cream */
+  --color-error-text: #954f4a;     /* Rich muted burgundy-beige */
+
+  --color-info: #d6c9b6;           /* Soft parchment beige */
+  --color-info-bg: #f6f2ec;        /* Light parchment / paper tone */
+  --color-info-text: #7b6a59;      /* Dark warm taupe */
+
+  /* Links */
+  --color-link: #c4ab97;           /* Muted beige-peach */
+  --color-link-hover: #aa927c;     /* Slightly richer, warm taupe */
+  --color-link-visited: #b8a49c;   /* Dusty mauve-beige */
+
+  /* Focus / Interactive */
+  --color-focus: #c4ab97;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Overlays */
+  --color-overlay: rgba(0, 0, 0, 0.28);
+  --color-overlay-light: rgba(0, 0, 0, 0.06);
 }
+
 
 /* ============================================
    ACCESSIBILITY STYLES
@@ -745,7 +750,11 @@ input[type="button"]:focus {
 .fanfic-action-buttons button,
 .fanfic-form-actions button {
 	flex: 1;
-	min-width: 120px;
+	min-width: 150px;
+	min-height: 35px;
+	padding: 8px 16px;
+	font-size: 14px;
+	height: auto;
 }
 
 /* Tables */
@@ -5188,6 +5197,130 @@ h2.fanfic-chapter-title {
 @keyframes fanfic-pulse {
     0%, 100% { opacity: 0.3; }
     50% { opacity: 1; }
+}
+
+/* ================================================
+   BALLOON NOTIFICATION SYSTEM
+   Cute cartoon-style balloon notifications that appear
+   above buttons without displacing other elements
+   ================================================ */
+
+.fanfic-balloon-notification {
+    position: absolute;
+    bottom: calc(100% + 15px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    color: #333;
+    padding: 10px 15px;
+    border-radius: 12px;
+    border: 2px solid #2271b1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 10000;
+    pointer-events: none;
+    opacity: 0;
+    animation: fanfic-balloon-show 3s ease-in-out forwards;
+}
+
+/* Speech balloon tail/pointer */
+.fanfic-balloon-notification::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid #2271b1;
+}
+
+/* Inner white triangle to create border effect */
+.fanfic-balloon-notification::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid #fff;
+    z-index: 1;
+    margin-top: -2px;
+}
+
+/* Success variant */
+.fanfic-balloon-notification.success {
+    border-color: #46b450;
+}
+
+.fanfic-balloon-notification.success::after {
+    border-top-color: #46b450;
+}
+
+/* Error variant */
+.fanfic-balloon-notification.error {
+    border-color: #dc3232;
+    color: #dc3232;
+}
+
+.fanfic-balloon-notification.error::after {
+    border-top-color: #dc3232;
+}
+
+/* Warning variant */
+.fanfic-balloon-notification.warning {
+    border-color: #ffb900;
+    color: #856404;
+}
+
+.fanfic-balloon-notification.warning::after {
+    border-top-color: #ffb900;
+}
+
+/* Info variant */
+.fanfic-balloon-notification.info {
+    border-color: #00a0d2;
+}
+
+.fanfic-balloon-notification.info::after {
+    border-top-color: #00a0d2;
+}
+
+/* Animation */
+@keyframes fanfic-balloon-show {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(10px);
+    }
+    10% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+    90% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-10px);
+    }
+}
+
+/* Ensure parent button has position relative for absolute positioning */
+.fanfic-action-buttons {
+    position: relative;
+}
+
+.fanfic-action-buttons a,
+.fanfic-action-buttons button {
+    position: relative;
 }
 
 /* Mobile Responsive */

@@ -71,6 +71,51 @@ class Fanfic_Admin {
 			array( __CLASS__, 'render_stories_page' )
 		);
 
+		// Add My Dashboard submenu (links to frontend dashboard)
+		$url_builder   = Fanfic_URL_Builder::get_instance();
+		$dashboard_url = $url_builder->get_page_url( 'dashboard' );
+		if ( $dashboard_url ) {
+			add_submenu_page(
+				'fanfiction-manager',
+				__( 'My Dashboard', 'fanfiction-manager' ),
+				__( 'My Dashboard', 'fanfiction-manager' ),
+				'read',
+				$dashboard_url,
+				''
+			);
+		}
+
+		// Add Add Story submenu (links to frontend create story page)
+		// Create story is accessed via main page with ?action=create-story
+		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+		if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
+			$create_story_url = add_query_arg( 'action', 'create-story', get_permalink( $page_ids['main'] ) );
+			add_submenu_page(
+				'fanfiction-manager',
+				__( 'Add Story', 'fanfiction-manager' ),
+				__( 'Add Story', 'fanfiction-manager' ),
+				'read',
+				$create_story_url,
+				''
+			);
+		}
+
+		// Add My Profile submenu (links to frontend profile page)
+		$current_user = wp_get_current_user();
+		if ( $current_user && $current_user->ID ) {
+			$profile_url = $url_builder->get_user_profile_url( $current_user->ID );
+			if ( $profile_url ) {
+				add_submenu_page(
+					'fanfiction-manager',
+					__( 'My Profile', 'fanfiction-manager' ),
+					__( 'My Profile', 'fanfiction-manager' ),
+					'read',
+					$profile_url,
+					''
+				);
+			}
+		}
+
 		// Add Settings submenu
 		add_submenu_page(
 			'fanfiction-manager',

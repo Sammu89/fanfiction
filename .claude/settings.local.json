@@ -19,7 +19,9 @@
       "Bash(node -c:*)",
       "Bash(for file in includes/class-fanfic-bookmarks.php includes/class-fanfic-ajax-handlers.php templates/template-dashboard.php)",
       "Bash(do echo \"=== Checking $file ===\")",
-      "Bash(php:*)"
+      "Bash(php:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(python update_func.py:*)"
     ],
     "deny": [],
     "ask": []

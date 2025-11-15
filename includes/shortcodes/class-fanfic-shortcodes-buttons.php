@@ -242,6 +242,7 @@ class Fanfic_Shortcodes_Buttons {
 
 		// Build button classes
 		$classes = array(
+			'fanfic-button',
 			'fanfic-action-button',
 			'fanfic-' . $action . '-button',
 		);
@@ -662,7 +663,7 @@ class Fanfic_Shortcodes_Buttons {
 
 		// Render as link (not button) since it navigates to a different page
 		// Uses same structure and classes as other action buttons for visual consistency
-		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-action-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '" role="button">';
+		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-action-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '" role="button">';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
 		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
 		$output .= '</a>';
