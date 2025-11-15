@@ -934,9 +934,11 @@
 		 */
 	showNotification: function($element, message, type) {
 		// Use BalloonNotification if available (from fanfiction-frontend.js)
-		if (typeof BalloonNotification !== 'undefined') {
-			BalloonNotification.show($element, message, type, 3000);
+		if (typeof window.BalloonNotification !== 'undefined') {
+			this.log('Using BalloonNotification for:', message);
+			window.BalloonNotification.show($element, message, type, 3000);
 		} else {
+			this.log('BalloonNotification not available, using fallback for:', message);
 			// Fallback: Create inline notification (old behavior)
 			// Remove existing notifications
 			$element.find('.fanfic-notification').remove();
