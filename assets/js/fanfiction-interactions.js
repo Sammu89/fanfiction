@@ -66,9 +66,6 @@
 			// Rating widgets
 			this.initRatingWidgets();
 
-			// Like buttons
-			this.initLikeButtons();
-
 			// Bookmark buttons
 			this.initBookmarkButtons();
 
@@ -117,34 +114,6 @@
 
 				// Submit rating
 				self.submitRating(chapterId, rating, $widget);
-			});
-		},
-
-		/**
-		 * Initialize like buttons
-		 */
-		initLikeButtons: function() {
-			const self = this;
-
-			$(document).on('click', '.fanfic-like-button', function(e) {
-				e.preventDefault();
-
-				const $button = $(this);
-				const chapterId = $button.data('chapter-id');
-
-				// Prevent double-click
-				if ($button.hasClass('loading')) {
-					return;
-				}
-
-				self.log('Like button clicked:', { chapterId });
-
-				// Optimistic UI update - check for 'is-liked' class added by PHP
-				const wasLiked = $button.hasClass('is-liked') || $button.hasClass('liked');
-				self.updateLikeDisplay($button, !wasLiked);
-
-				// Toggle like
-				self.toggleLike(chapterId, $button, wasLiked);
 			});
 		},
 
@@ -492,54 +461,6 @@
 		},
 
 		/**
-		 * Toggle like on server
-		 */
-		toggleLike: function(chapterId, $button, wasLiked) {
-			const self = this;
-
-			$button.addClass('loading');
-
-			$.ajax({
-				url: this.config.ajaxUrl,
-				type: 'POST',
-				data: {
-					action: 'fanfic_toggle_like',
-					nonce: this.config.nonce,
-					chapter_id: chapterId
-				},
-				success: function(response) {
-					self.log('Like response:', response);
-
-					if (response.success) {
-						// Update from server (in case optimistic update was wrong)
-						const isLiked = response.data.data.is_liked;
-						self.updateLikeDisplay($button, isLiked);
-
-						// Update count if available
-						if (response.data.data.like_count !== undefined) {
-							self.updateLikeCount($button, response.data.data.like_count);
-						}
-
-						self.showSuccess($button, response.data.message || (isLiked ? self.strings.liked : self.strings.unliked));
-					} else {
-						// Revert optimistic update
-						self.updateLikeDisplay($button, wasLiked);
-						self.showError($button, response.data.message || self.strings.error);
-					}
-				},
-				error: function(xhr) {
-					self.log('Like error:', xhr);
-					// Revert optimistic update
-					self.updateLikeDisplay($button, wasLiked);
-					self.handleAjaxError(xhr, $button);
-				},
-				complete: function() {
-					$button.removeClass('loading');
-				}
-			});
-		},
-
-		/**
 		 * Toggle bookmark on server
 		 */
 		toggleBookmark: function(postId, bookmarkType, $button, wasBookmarked) {
@@ -809,29 +730,6 @@
 			});
 
 			$widget.attr('data-user-rating', rating);
-		},
-
-		/**
-		 * Update like display (optimistic)
-		 */
-		updateLikeDisplay: function($button, isLiked) {
-			if (isLiked) {
-				$button.addClass('liked').removeClass('unliked');
-				$button.find('.like-text').text($button.data('liked-text') || 'Liked');
-			} else {
-				$button.addClass('unliked').removeClass('liked');
-				$button.find('.like-text').text($button.data('like-text') || 'Like');
-			}
-		},
-
-		/**
-		 * Update like count
-		 */
-		updateLikeCount: function($button, count) {
-			const $count = $button.find('.like-count');
-			if ($count.length) {
-				$count.text('(' + count + ')');
-			}
 		},
 
 		/**
