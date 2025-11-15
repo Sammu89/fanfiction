@@ -168,10 +168,6 @@ if ( isset( $_POST['fanfic_create_chapter_submit'] ) ) {
 					$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
 				}
 
-				if ( empty( $title ) ) {
-					$errors[] = __( 'Chapter title is required.', 'fanfiction-manager' );
-				}
-
 				if ( empty( $content ) ) {
 					$errors[] = __( 'Chapter content is required.', 'fanfiction-manager' );
 				}
@@ -315,10 +311,6 @@ if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 				// Validate
 				if ( 'chapter' === $chapter_type && ! $chapter_number ) {
 					$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
-				}
-
-				if ( empty( $title ) ) {
-					$errors[] = __( 'Chapter title is required.', 'fanfiction-manager' );
 				}
 
 				if ( empty( $content ) ) {
