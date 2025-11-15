@@ -1420,6 +1420,7 @@ private function render_choice_screen() {
 			) );
 
 			if ( ! is_wp_error( $chapter1_id ) && $chapter1_id > 0 ) {
+				update_post_meta( $chapter1_id, '_fanfic_chapter_type', 'chapter' );
 				update_post_meta( $chapter1_id, '_fanfic_chapter_number', 1 );
 			}
 
@@ -1434,6 +1435,7 @@ private function render_choice_screen() {
 			) );
 
 			if ( ! is_wp_error( $chapter2_id ) && $chapter2_id > 0 ) {
+				update_post_meta( $chapter2_id, '_fanfic_chapter_type', 'chapter' );
 				update_post_meta( $chapter2_id, '_fanfic_chapter_number', 2 );
 			}
 		}
@@ -1468,7 +1470,8 @@ private function render_choice_screen() {
 			) );
 
 			if ( ! is_wp_error( $prologue_id ) && $prologue_id > 0 ) {
-				update_post_meta( $prologue_id, '_fanfic_chapter_number', 'prologue' );
+				update_post_meta( $prologue_id, '_fanfic_chapter_type', 'prologue' );
+				update_post_meta( $prologue_id, '_fanfic_chapter_number', 0 );
 			}
 
 			// Chapter 1 (Published)
@@ -1482,6 +1485,7 @@ private function render_choice_screen() {
 			) );
 
 			if ( ! is_wp_error( $chapter1_s2_id ) && $chapter1_s2_id > 0 ) {
+				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_type', 'chapter' );
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_number', 1 );
 			}
 		}
