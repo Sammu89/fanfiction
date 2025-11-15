@@ -483,7 +483,7 @@ class Fanfic_Shortcodes_Forms {
 			<label><?php esc_html_e( 'Rate this chapter:', 'fanfiction-manager' ); ?></label>
 			<div class="fanfic-rating-stars">
 				<?php for ( $i = 1; $i <= 5; $i++ ) : ?>
-					<span class="fanfic-star" data-value="<?php echo esc_attr( $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( '%d stars', 'fanfiction-manager' ), $i ) ); ?>">&#9734;</span>
+					<span class="fanfic-star star" data-rating="<?php echo esc_attr( $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( '%d stars', 'fanfiction-manager' ), $i ) ); ?>">&#9734;</span>
 				<?php endfor; ?>
 			</div>
 			<div class="fanfic-rating-info">
