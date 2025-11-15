@@ -87,6 +87,8 @@
 		this.initSubscribeButtons();
 		// Report buttons
 		this.initReportButtons();
+		// Login-required buttons
+		this.initLoginRequiredButtons();
 
 			this.log('Fanfic Interactions initialized');
 		},
@@ -484,6 +486,37 @@
 				// Fallback: just show the modal
 				$('#' + modalId).fadeIn(200);
 			}
+		});
+	},
+
+	/**
+	 * Initialize login-required buttons (show balloon on hover)
+	 */
+	initLoginRequiredButtons: function() {
+		const self = this;
+
+		// Show balloon on mouseenter for disabled buttons with login message
+		$(document).on('mouseenter', '.fanfic-button.requires-login', function() {
+			const $button = $(this);
+			const message = $button.data('login-message');
+
+			if (message && typeof BalloonNotification !== 'undefined') {
+				BalloonNotification.show(message, 'info');
+			}
+		});
+
+		// Hide balloon on mouseleave
+		$(document).on('mouseleave', '.fanfic-button.requires-login', function() {
+			if (typeof BalloonNotification !== 'undefined') {
+				BalloonNotification.hide();
+			}
+		});
+
+		// Prevent click on disabled buttons
+		$(document).on('click', '.fanfic-button.requires-login', function(e) {
+			e.preventDefault();
+			e.stopPropagation();
+			return false;
 		});
 	},
 

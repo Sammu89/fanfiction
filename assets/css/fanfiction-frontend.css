@@ -716,6 +716,22 @@ input[type="button"]:focus {
 	cursor: not-allowed;
 }
 
+/* Login-required buttons for anonymous users */
+.fanfic-button.requires-login,
+.fanfic-button.is-disabled {
+	opacity: 0.5;
+	background-color: var(--color-gray-400);
+	color: var(--color-text-lighter);
+	cursor: help; /* Shows question mark cursor on hover */
+	pointer-events: auto; /* Allow hover events for balloon */
+}
+
+.fanfic-button.requires-login:hover,
+.fanfic-button.is-disabled:hover {
+	background-color: var(--color-gray-400); /* Don't change color on hover */
+	transform: none; /* No transform effect */
+}
+
 /* ============================================
    DASHBOARD STYLES
    ============================================ */

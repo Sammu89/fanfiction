@@ -237,6 +237,10 @@ class Fanfic_Shortcodes_Buttons {
 			return self::render_subscribe_button( $context, $context_ids, $nonce );
 		}
 
+		// Check if action requires login and user is not logged in
+		$requires_login = self::action_requires_login( $action );
+		$is_disabled = $requires_login && ! $user_id;
+
 		// Get current state for toggle buttons
 		$current_state = self::get_button_state( $action, $context_ids, $user_id );
 
@@ -250,6 +254,12 @@ class Fanfic_Shortcodes_Buttons {
 		if ( $current_state ) {
 			$classes[] = 'is-active';
 			$classes[] = 'is-' . str_replace( '-', '', $action ) . 'd'; // is-bookmarked, is-liked, etc.
+		}
+
+		// Add disabled class for login-required buttons when not logged in
+		if ( $is_disabled ) {
+			$classes[] = 'is-disabled';
+			$classes[] = 'requires-login';
 		}
 
 		// Build data attributes
@@ -308,6 +318,12 @@ class Fanfic_Shortcodes_Buttons {
 			$data_attr_names = self::get_data_attr_names_for_action( $action );
 			$output .= ' data-' . esc_attr( $data_attr_names['inactive'] ) . '="' . esc_attr( $inactive_label ) . '"';
 			$output .= ' data-' . esc_attr( $data_attr_names['active'] ) . '="' . esc_attr( $active_label ) . '"';
+		}
+
+		// Add disabled attribute and login message for login-required buttons
+		if ( $is_disabled ) {
+			$output .= ' disabled';
+			$output .= ' data-login-message="' . esc_attr__( 'You must be logged in to use this feature', 'fanfiction-manager' ) . '"';
 		}
 
 		$output .= ' aria-label="' . esc_attr( $aria_label ) . '"';
@@ -396,6 +412,24 @@ class Fanfic_Shortcodes_Buttons {
 			default:
 				return false;
 		}
+	}
+
+	/**
+	 * Check if action requires login
+	 *
+	 * @since 2.0.0
+	 * @param string $action Action type.
+	 * @return bool True if login is required.
+	 */
+	private static function action_requires_login( $action ) {
+		// Actions that require login
+		$login_required = array(
+			'bookmark',
+			'follow',
+			'mark-read',
+		);
+
+		return in_array( $action, $login_required, true );
 	}
 
 	/**
