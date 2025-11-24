@@ -40,8 +40,26 @@ function fanfic_get_default_chapter_view_template() {
 
 	<!-- Meta information (dates) -->
 	<div class="fanfic-chapter-meta">
-		<?php esc_html_e( 'Published:', 'fanfiction-manager' ); ?> [fanfic-chapter-published]
-		<?php esc_html_e( 'Updated:', 'fanfiction-manager' ); ?> [fanfic-chapter-updated]
+		<span class="fanfic-published">
+			<?php esc_html_e( 'Published:', 'fanfiction-manager' ); ?> [fanfic-chapter-published]
+		</span>
+		<?php
+		// Only show "Updated:" label if there's been an actual update
+		$chapter_id = get_the_ID();
+		if ( $chapter_id ) {
+			$published_timestamp = get_post_time( 'U', false, $chapter_id );
+			$modified_timestamp  = get_post_modified_time( 'U', false, $chapter_id );
+
+			// Only show if modified date is different from published date (more than 1 day difference)
+			if ( abs( $modified_timestamp - $published_timestamp ) >= DAY_IN_SECONDS ) {
+				?>
+				<span class="fanfic-updated">
+					<?php esc_html_e( 'Updated:', 'fanfiction-manager' ); ?> [fanfic-chapter-updated]
+				</span>
+				<?php
+			}
+		}
+		?>
 	</div>
 </header>
 

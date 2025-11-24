@@ -609,6 +609,22 @@ input[type="button"]:focus {
 	cursor: not-allowed;
 }
 
+/* Login-required buttons for anonymous users */
+.fanfic-button.requires-login,
+.fanfic-button.is-disabled {
+	opacity: 0.5;
+	background-color: var(--color-gray-400);
+	color: var(--color-text-lighter);
+	cursor: help; /* Shows question mark cursor on hover */
+	pointer-events: auto; /* Allow hover events for balloon */
+}
+
+.fanfic-button.requires-login:hover,
+.fanfic-button.is-disabled:hover {
+	background-color: var(--color-gray-400); /* Don't change color on hover */
+	transform: none; /* No transform effect */
+}
+
 /* ============================================
    DASHBOARD STYLES
    ============================================ */
@@ -1479,11 +1495,38 @@ input[type="button"]:focus {
 }
 
 .fanfic-star {
-	cursor: default;
+	cursor: pointer;
 	color: var(--color-border);
-	transition: color 0.2s ease, transform 0.1s ease;
+	transition: color 0.15s ease, transform 0.1s ease;
 }
 
+/* Star states */
+.fanfic-star.empty {
+	color: var(--color-border);
+}
+
+.fanfic-star.filled {
+	color: var(--color-warning-alt);
+}
+
+/* Hover effects */
+.fanfic-star:hover {
+	transform: scale(1.2);
+	color: var(--color-warning);
+}
+
+.fanfic-star.hover-preview {
+	color: var(--color-warning);
+}
+
+/* Loading state - disable interaction */
+.fanfic-rating-widget.loading .fanfic-star {
+	cursor: wait;
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+/* Legacy classes for backward compatibility */
 .fanfic-star-empty {
 	color: var(--color-border);
 }
@@ -1496,7 +1539,7 @@ input[type="button"]:focus {
 	color: #ffc107;
 }
 
-/* Interactive ratings */
+/* Interactive ratings (legacy) */
 .fanfic-rating-interactive {
 	cursor: pointer;
 }

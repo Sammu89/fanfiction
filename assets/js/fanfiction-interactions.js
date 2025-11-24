@@ -84,16 +84,19 @@
 		this.initSubscribeButtons();
 		// Report buttons
 		this.initReportButtons();
+		// Login-required buttons
+		this.initLoginRequiredButtons();
 
 			this.log('Fanfic Interactions initialized');
 		},
 
 		/**
-		 * Initialize rating widgets (star clicks)
+		 * Initialize rating widgets (star clicks and hover preview)
 		 */
 		initRatingWidgets: function() {
 			const self = this;
 
+			// Click handler
 			$(document).on('click', '.fanfic-rating-widget .star', function(e) {
 				e.preventDefault();
 
@@ -114,6 +117,42 @@
 
 				// Submit rating
 				self.submitRating(chapterId, rating, $widget);
+			});
+
+			// Hover preview - show what rating would look like
+			$(document).on('mouseenter', '.fanfic-rating-widget .star', function() {
+				const $star = $(this);
+				const $widget = $star.closest('.fanfic-rating-widget');
+
+				// Don't show preview if already loading
+				if ($widget.hasClass('loading')) {
+					return;
+				}
+
+				const rating = $star.data('rating');
+
+				// Temporarily show what this rating would look like
+				$widget.find('.star').each(function() {
+					const $s = $(this);
+					const starRating = $s.data('rating');
+
+					if (starRating <= rating) {
+						$s.text('★'); // Filled star
+						$s.addClass('hover-preview');
+					} else {
+						$s.text('☆'); // Empty star
+						$s.removeClass('hover-preview');
+					}
+				});
+			});
+
+			// Remove hover preview when mouse leaves the widget
+			$(document).on('mouseleave', '.fanfic-rating-widget', function() {
+				const $widget = $(this);
+				const currentRating = $widget.data('user-rating') || 0;
+
+				// Restore actual rating display
+				self.updateRatingDisplay($widget, currentRating);
 			});
 		},
 
@@ -416,6 +455,37 @@
 				// Fallback: just show the modal
 				$('#' + modalId).fadeIn(200);
 			}
+		});
+	},
+
+	/**
+	 * Initialize login-required buttons (show balloon on hover)
+	 */
+	initLoginRequiredButtons: function() {
+		const self = this;
+
+		// Show balloon on mouseenter for disabled buttons with login message
+		$(document).on('mouseenter', '.fanfic-button.requires-login', function() {
+			const $button = $(this);
+			const message = $button.data('login-message');
+
+			if (message && typeof BalloonNotification !== 'undefined') {
+				BalloonNotification.show(message, 'info');
+			}
+		});
+
+		// Hide balloon on mouseleave
+		$(document).on('mouseleave', '.fanfic-button.requires-login', function() {
+			if (typeof BalloonNotification !== 'undefined') {
+				BalloonNotification.hide();
+			}
+		});
+
+		// Prevent click on disabled buttons
+		$(document).on('click', '.fanfic-button.requires-login', function(e) {
+			e.preventDefault();
+			e.stopPropagation();
+			return false;
 		});
 	},
 
@@ -722,9 +792,15 @@
 				const $star = $(this);
 				const starRating = $star.data('rating');
 
+				// Remove hover preview class
+				$star.removeClass('hover-preview');
+
+				// Update star character based on rating
 				if (starRating <= rating) {
+					$star.text('★'); // Filled star (U+2605)
 					$star.addClass('filled').removeClass('empty');
 				} else {
+					$star.text('☆'); // Empty star (U+2606)
 					$star.addClass('empty').removeClass('filled');
 				}
 			});
@@ -788,11 +864,23 @@
 		 * Update stats display from server data
 		 */
 		updateStatsDisplay: function($widget, data) {
-			if (data.rating_count !== undefined) {
-				$widget.find('.rating-count').text(data.rating_count);
-			}
+			// Update average rating
 			if (data.rating_average !== undefined) {
-				$widget.find('.rating-average').text(data.rating_average.toFixed(1));
+				$widget.find('.fanfic-rating-average').text(data.rating_average.toFixed(1));
+			}
+
+			// Update count display
+			if (data.rating_count !== undefined) {
+				const count = parseInt(data.rating_count);
+				const $countEl = $widget.find('.fanfic-rating-count');
+
+				if (count === 0) {
+					$countEl.text('(No ratings yet)');
+				} else if (count === 1) {
+					$countEl.text('(1 rating)');
+				} else {
+					$countEl.text('(' + count + ' ratings)');
+				}
 			}
 		},
 

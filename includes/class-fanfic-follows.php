@@ -725,6 +725,17 @@ class Fanfic_Follows {
 			return;
 		}
 
+		// Check if we recently created this same notification (within 20 minutes)
+		// This prevents duplicate notifications when users rapidly toggle follow/unfollow
+		$cooldown_key = 'fanfic_follow_notify_' . $user_id . '_' . $target_id . '_' . $follow_type;
+		if ( get_transient( $cooldown_key ) ) {
+			// Recent notification exists, skip creating duplicate
+			return;
+		}
+
+		// Set cooldown transient for 20 minutes
+		set_transient( $cooldown_key, true, 20 * MINUTE_IN_SECONDS );
+
 		$follower_name = $follower->display_name;
 		$follower_url = get_author_posts_url( $user_id );
 
