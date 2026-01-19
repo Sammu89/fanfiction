@@ -30,7 +30,6 @@ class Fanfic_Shortcodes_Story {
 	 * @return void
 	 */
 	public static function register() {
-		add_shortcode( 'story-title', array( __CLASS__, 'story_title' ) );
 		add_shortcode( 'story-author-link', array( __CLASS__, 'story_author_link' ) );
 		add_shortcode( 'story-intro', array( __CLASS__, 'story_intro' ) );
 		add_shortcode( 'story-featured-image', array( __CLASS__, 'story_featured_image' ) );
@@ -42,6 +41,57 @@ class Fanfic_Shortcodes_Story {
 		add_shortcode( 'story-chapters', array( __CLASS__, 'story_chapters' ) );
 		add_shortcode( 'story-views', array( __CLASS__, 'story_views' ) );
 		add_shortcode( 'story-is-featured', array( __CLASS__, 'story_is_featured' ) );
+		add_shortcode( 'fanfic-story-image', array( __CLASS__, 'fanfic_story_image' ) );
+	}
+
+	/**
+	 * Custom Story Image shortcode
+	 *
+	 * [fanfic-story-image class="my-class" alt="My alt text"]
+	 *
+	 * @since 2.1.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Image HTML tag.
+	 */
+	public static function fanfic_story_image( $atts ) {
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		$atts = shortcode_atts(
+			array(
+				'class' => 'fanfic-story-image',
+				'alt'   => get_the_title( $story_id ),
+				'size'  => 'full', // Allow size attribute for thumbnail
+			),
+			$atts,
+			'fanfic-story-image'
+		);
+
+		// Sanitize attributes
+		$class = esc_attr( $atts['class'] );
+		$alt = esc_attr( $atts['alt'] );
+		$size = sanitize_key( $atts['size'] );
+
+		// 1. Prioritize the custom URL meta field
+		$image_url = get_post_meta( $story_id, '_fanfic_featured_image', true );
+
+		// 2. Fallback to the standard post thumbnail
+		if ( empty( $image_url ) && has_post_thumbnail( $story_id ) ) {
+			$image_url = get_the_post_thumbnail_url( $story_id, $size );
+		}
+
+		if ( empty( $image_url ) ) {
+			return ''; // No image found
+		}
+
+		return sprintf(
+			'<img src="%s" class="%s" alt="%s" loading="lazy" />',
+			esc_url( $image_url ),
+			esc_attr( $class ),
+			esc_attr( $alt )
+		);
 	}
 
 	/**
@@ -81,7 +131,7 @@ class Fanfic_Shortcodes_Story {
 
 		$author_id = get_post_field( 'post_author', $story_id );
 		$author_name = get_the_author_meta( 'display_name', $author_id );
-		$author_url = get_author_posts_url( $author_id );
+		$author_url = fanfic_get_user_profile_url( $author_id );
 
 		return sprintf(
 			'<a href="%s" class="story-author-link">%s</a>',

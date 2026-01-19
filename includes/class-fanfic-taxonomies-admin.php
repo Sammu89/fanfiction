@@ -736,7 +736,7 @@ class Fanfic_Taxonomies_Admin {
 
 			if ( isset( $messages[ $error_code ] ) ) {
 				?>
-				<div class="notice notice-error is-dismissible">
+				<div class="notice error-message is-dismissible">
 					<p><?php echo esc_html( $messages[ $error_code ] ); ?></p>
 				</div>
 				<?php

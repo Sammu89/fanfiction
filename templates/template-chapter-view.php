@@ -33,10 +33,13 @@ function fanfic_get_default_chapter_view_template() {
 <!-- Chapter header with hierarchical titles -->
 <header class="fanfic-chapter-header">
 	<!-- Story title as primary heading (parent context) -->
-	<h1 class="fanfic-story-title">[fanfic-story-title]</h1>
+	[fanfic-story-title]
 
 	<!-- Chapter title as secondary heading -->
 	<h2 class="fanfic-chapter-title">[fanfic-chapter-title]</h2>
+
+	<!-- Chapter Cover Image -->
+	[fanfic-chapter-image class="fanfic-chapter-cover-image"]
 
 	<!-- Meta information (dates) -->
 	<div class="fanfic-chapter-meta">
@@ -79,7 +82,7 @@ function fanfic_get_default_chapter_view_template() {
 
 <!-- Action buttons (like, bookmark, mark-read, subscribe, share, report, edit) -->
 <div class="fanfic-chapter-actions">
-	[fanfiction-action-buttons context="chapter"]
+	[fanfiction-action-buttons context="chapter" actions="follow,like,bookmark,mark-read,subscribe,share,report"]
 </div>
 
 <!-- Chapter navigation (previous/next) -->
@@ -150,6 +153,51 @@ $template = get_option( 'fanfic_shortcode_chapter_view', '' );
 
 if ( empty( $template ) ) {
 	$template = fanfic_get_default_chapter_view_template();
+}
+
+// Show a discreet warning if this chapter or its parent story is not published
+if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
+	$warning_parts = array();
+
+	if ( 'publish' !== $chapter_post->post_status ) {
+		$chapter_status_obj = get_post_status_object( $chapter_post->post_status );
+		$chapter_status_label = $chapter_status_obj && ! empty( $chapter_status_obj->label ) ? $chapter_status_obj->label : $chapter_post->post_status;
+		$warning_parts[] = sprintf(
+			esc_html__( 'this chapter is %s', 'fanfiction-manager' ),
+			esc_html( $chapter_status_label )
+		);
+	}
+
+	if ( ! empty( $story ) && 'publish' !== $story->post_status ) {
+		$story_status_obj = get_post_status_object( $story->post_status );
+		$story_status_label = $story_status_obj && ! empty( $story_status_obj->label ) ? $story_status_obj->label : $story->post_status;
+		$warning_parts[] = sprintf(
+			esc_html__( 'the parent story is %s', 'fanfiction-manager' ),
+			esc_html( $story_status_label )
+		);
+	}
+
+	if ( ! empty( $warning_parts ) ) {
+		?>
+		<div class="fanfic-info-box fanfic-warning fanfic-draft-warning" role="status" aria-live="polite">
+			<p>
+				<?php
+$text = sprintf(
+	esc_html__( 'This chapter is not visible to the public because %s.', 'fanfiction-manager' ),
+	esc_html( implode( esc_html__( ' and ', 'fanfiction-manager' ), $warning_parts ) )
+);
+
+// Normalize case
+$text = mb_strtolower( $text, 'UTF-8' );
+$text = mb_strtoupper( mb_substr( $text, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $text, 1, null, 'UTF-8' );
+
+echo $text;
+?>
+
+			</p>
+		</div>
+		<?php
+	}
 }
 
 // Process shortcodes in the template

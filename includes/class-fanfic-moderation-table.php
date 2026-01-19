@@ -328,7 +328,7 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	protected function column_view_report( $item ) {
 		$report_id = absint( $item['id'] );
 		return sprintf(
-			'<button type="button" class="button button-small fanfic-view-report-btn" data-report-id="%d">%s</button>',
+			'<button type="button" class="button button-small fanfic-view-report-button" data-report-id="%d">%s</button>',
 			$report_id,
 			esc_html__( 'View Details', 'fanfiction-manager' )
 		);

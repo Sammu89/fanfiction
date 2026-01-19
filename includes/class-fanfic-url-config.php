@@ -325,7 +325,7 @@ class Fanfic_URL_Config {
                             </tbody>
                         </table>
 
-                        <div class="fanfic-info-box">
+                        <div class="fanfic-info-box box-warning">
                             <span class="dashicons dashicons-info"></span>
                             <p><?php echo esc_html__( 'All chapter type slugs must be unique. Numbers will be automatically appended to chapter URLs (e.g., chapter-1, chapter-2).', 'fanfiction-manager' ); ?></p>
                         </div>
@@ -503,7 +503,7 @@ class Fanfic_URL_Config {
                                                 <td><?php echo esc_html( $redirect['expires'] ); ?></td>
                                                 <td>
                                                     <a href="<?php echo esc_url( $delete_url ); ?>"
-                                                       class="button button-small delete-redirect-btn"
+                                                       class="button button-small delete-redirect-button"
                                                        onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to delete this redirect? Old URLs will no longer redirect to new ones.', 'fanfiction-manager' ) ); ?>');">
                                                         <?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
                                                     </a>
@@ -758,7 +758,7 @@ class Fanfic_URL_Config {
             }
 
             /* Info Box */
-            .fanfic-info-box {
+            .fanfic-info-box box-warning {
                 display: flex;
                 gap: 12px;
                 background: #f0f6fc;
@@ -768,13 +768,13 @@ class Fanfic_URL_Config {
                 align-items: flex-start;
             }
 
-            .fanfic-info-box .dashicons {
+            .fanfic-info-box box-warning .dashicons {
                 color: #2271b1;
                 flex-shrink: 0;
                 margin-top: 2px;
             }
 
-            .fanfic-info-box p {
+            .fanfic-info-box box-warning p {
                 margin: 0;
                 font-size: 13px;
                 color: #1d2327;
@@ -846,12 +846,12 @@ class Fanfic_URL_Config {
                 border-radius: 3px;
             }
 
-            .delete-redirect-btn {
+            .delete-redirect-button {
                 color: #b32d2e;
                 border-color: #b32d2e;
             }
 
-            .delete-redirect-btn:hover {
+            .delete-redirect-button:hover {
                 color: #fff;
                 background: #b32d2e;
                 border-color: #b32d2e;
@@ -1426,7 +1426,7 @@ class Fanfic_URL_Config {
         $error = get_transient( 'fanfic_url_config_error' );
         if ( $error ) {
             ?>
-            <div class="notice notice-error is-dismissible">
+            <div class="notice error-message is-dismissible">
                 <p><?php echo wp_kses_post( $error ); ?></p>
             </div>
             <?php

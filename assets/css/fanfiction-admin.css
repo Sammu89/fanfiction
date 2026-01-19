@@ -96,7 +96,7 @@
 }
 
 .fanfic-admin-modal-form textarea:focus {
-	border-color: var(--color-primary);
+	border-color: var(--base-color);
 	outline: 2px solid var(--color-focus);
 	outline-offset: 2px;
 	box-shadow: 0 0 0 3px rgba(0, 115, 170, 0.1);
@@ -221,18 +221,18 @@ body.fanfic-admin-modal-open {
 }
 
 /* Button Styles */
-.fanfic-btn-danger {
+.fanfic-button-danger {
 	background-color: #dc3232 !important;
 	border-color: #dc3232 !important;
 	color: #fff !important;
 }
 
-.fanfic-btn-danger:hover {
+.fanfic-button-danger:hover {
 	background-color: #c62d2d !important;
 	border-color: #c62d2d !important;
 }
 
-.fanfic-btn-danger:disabled {
+.fanfic-button-danger:disabled {
 	background-color: #999 !important;
 	border-color: #999 !important;
 	opacity: 0.6;

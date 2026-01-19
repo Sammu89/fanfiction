@@ -186,7 +186,7 @@ function fanfic_custom_comment_template( $comment, $args, $depth ) {
 					?>
 					<button
 						type="button"
-						class="fanfic-report-btn comment-report-link"
+						class="fanfic-report-button comment-report-link"
 						data-item-id="<?php echo esc_attr( $comment->comment_ID ); ?>"
 						data-item-type="comment"
 						aria-label="<?php esc_attr_e( 'Report this comment', 'fanfiction-manager' ); ?>"

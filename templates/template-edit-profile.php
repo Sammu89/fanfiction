@@ -16,7 +16,7 @@ if ( ! is_user_logged_in() ) {
 	?>
 	<div class="fanfic-error-notice" role="alert">
 		<p>Please log in to edit your profile.</p>
-		<p><a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>" class="fanfic-button fanfic-button-primary">Login</a></p>
+		<p><a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">Login</a></p>
 	</div>
 	<?php
 	return;
@@ -29,12 +29,14 @@ $user_email = $current_user->user_email;
 $user_url = $current_user->user_url;
 $bio = $current_user->description;
 $avatar_url = get_user_meta( $current_user->ID, '_fanfic_avatar_url', true );
+$image_upload_settings = function_exists( 'fanfic_get_image_upload_settings' ) ? fanfic_get_image_upload_settings() : array( 'enabled' => false, 'max_value' => 1, 'max_unit' => 'mb' );
+$image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 
 // Success/error messages
 $message = '';
 if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {
 	?>
-	<div class="fanfic-message fanfic-success" role="alert">
+	<div class="fanfic-info-box fanfic-success" role="alert">
 		<?php esc_html_e( 'Profile updated successfully.', 'fanfiction-manager' ); ?>
 	</div>
 	<?php
@@ -44,7 +46,7 @@ $errors = get_transient( 'fanfic_profile_errors_' . $current_user->ID );
 if ( $errors ) {
 	delete_transient( 'fanfic_profile_errors_' . $current_user->ID );
 	?>
-	<div class="fanfic-message fanfic-error" role="alert">
+	<div class="fanfic-info-box fanfic-error" role="alert">
 		<ul>
 			<?php foreach ( $errors as $error ) : ?>
 				<li><?php echo esc_html( $error ); ?></li>
@@ -63,7 +65,7 @@ if ( $errors ) {
 			<h2><?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?></h2>
 		</div>
 
-		<form method="post" class="fanfic-profile-form" id="fanfic-profile-form">
+		<form method="post" class="fanfic-profile-form" id="fanfic-profile-form"<?php echo $image_upload_enabled ? ' enctype="multipart/form-data"' : ''; ?>>
 			<div class="fanfic-form-content">
 				<?php wp_nonce_field( 'fanfic_edit_profile_action', 'fanfic_edit_profile_nonce' ); ?>
 
@@ -131,6 +133,32 @@ if ( $errors ) {
 						class="fanfic-input"
 						value="<?php echo isset( $_POST['fanfic_avatar_url'] ) ? esc_attr( $_POST['fanfic_avatar_url'] ) : esc_attr( $avatar_url ); ?>"
 					/>
+					<?php if ( $image_upload_enabled ) : ?>
+						<label for="fanfic_avatar_file" style="margin-top: 10px; display: block;">
+							<?php esc_html_e( 'Or upload an avatar', 'fanfiction-manager' ); ?>
+						</label>
+						<input
+							type="file"
+							id="fanfic_avatar_file"
+							name="fanfic_avatar_file"
+							class="fanfic-input"
+							accept="image/*"
+							data-url-target="#fanfic_avatar_url"
+						/>
+						<button
+							type="button"
+							class="button fanfic-ajax-upload-button"
+							data-file-input="#fanfic_avatar_file"
+							data-nonce="<?php echo wp_create_nonce( 'fanfic_ajax_image_upload' ); ?>"
+							data-context="<?php esc_attr_e( 'Avatar', 'fanfiction-manager' ); ?>"
+						>
+							<?php esc_html_e( 'Upload', 'fanfiction-manager' ); ?>
+						</button>
+						<span class="fanfic-upload-status"></span>
+						<p class="description">
+							<?php esc_html_e( 'Larger images will be resized to 1024px and converted to WEBP format.', 'fanfiction-manager' ); ?>
+						</p>
+					<?php endif; ?>
 					<?php if ( ! empty( $avatar_url ) ) : ?>
 						<div class="fanfic-avatar-preview">
 							<img src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php esc_attr_e( 'Avatar preview', 'fanfiction-manager' ); ?>" />
@@ -144,10 +172,10 @@ if ( $errors ) {
 
 			<!-- Form Actions -->
 			<div class="fanfic-form-actions">
-				<button type="submit" class="fanfic-btn fanfic-btn-primary">
+				<button type="submit" class="fanfic-button fanfic-button-primary">
 					<?php esc_html_e( 'Update Profile', 'fanfiction-manager' ); ?>
 				</button>
-				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-btn fanfic-btn-secondary">
+				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-secondary">
 					<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 				</a>
 			</div>

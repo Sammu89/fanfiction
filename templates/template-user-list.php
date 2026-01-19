@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 	<!-- Page Header -->
 	<header class="fanfic-page-header" id="fanfic-main-content">
-		<h1 class="fanfic-page-title"><?php esc_html_e( 'Authors Directory', 'fanfiction-manager' ); ?></h1>
+		<h1 class="fanfic-title  fanfic-page-title"><?php esc_html_e( 'Authors Directory', 'fanfiction-manager' ); ?></h1>
 		<p class="fanfic-page-description"><?php esc_html_e( 'Browse all authors and discover their stories', 'fanfiction-manager' ); ?></p>
 	</header>
 

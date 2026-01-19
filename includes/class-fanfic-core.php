@@ -98,6 +98,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-rating-system.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-like-system.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-media-cleanup.php';
 
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-bookmarks.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-follows.php';
@@ -216,6 +217,7 @@ class Fanfic_Core {
 		Fanfic_Rating_System::init();
 		Fanfic_Like_System::init();
 		Fanfic_Cron_Cleanup::init();
+		Fanfic_Media_Cleanup::init();
 
 		// Initialize bookmarks system
 		Fanfic_Bookmarks::init();
@@ -826,6 +828,36 @@ class Fanfic_Core {
 				)
 			);
 		}
+
+		// Conditionally load the image uploader script for forms
+		global $fanfic_content_template;
+
+		$upload_form_templates = array(
+			'template-story-form.php',
+			'template-edit-profile.php',
+			'template-chapter-form.php',
+		);
+
+		// Get the current template name being used by the plugin
+		$current_template = ! empty( $fanfic_content_template ) ? basename( $fanfic_content_template ) : '';
+
+		if ( in_array( $current_template, $upload_form_templates, true ) ) {
+			wp_enqueue_script(
+				'fanfiction-image-upload',
+				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-image-upload.js',
+				array( 'jquery' ),
+				FANFIC_VERSION,
+				true
+			);
+
+			wp_localize_script(
+				'fanfiction-image-upload',
+				'fanficUploader',
+				array(
+					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				)
+			);
+		}
 	}
 
 	/**
@@ -911,6 +943,8 @@ class Fanfic_Core {
 		// Schedule rating/like anonymization cron (v2.0)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';
 		Fanfic_Cron_Cleanup::schedule_cron();
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-media-cleanup.php';
+		Fanfic_Media_Cleanup::schedule_cron();
 
 		// For multisite, store blog-specific activation
 		if ( is_multisite() ) {
@@ -928,6 +962,8 @@ class Fanfic_Core {
 		// Unschedule cron jobs
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';
 		Fanfic_Cron_Cleanup::unschedule_cron();
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-media-cleanup.php';
+		Fanfic_Media_Cleanup::unschedule_cron();
 
 		// Unschedule old cron jobs from previous versions (pre-v2.0)
 		wp_clear_scheduled_hook( 'fanfic_daily_sync_anonymous_likes' );
@@ -1044,7 +1080,7 @@ class Fanfic_Core {
 		if ( get_transient( 'fanfic_template_dir_missing' ) ) {
 			delete_transient( 'fanfic_template_dir_missing' );
 			?>
-			<div class="notice notice-error">
+			<div class="notice error-message">
 				<p>
 					<strong>Fanfiction Manager:</strong> The template directory is missing or not readable.
 					Please ensure the <code>templates/</code> directory exists in the plugin folder.
@@ -1077,7 +1113,7 @@ class Fanfic_Core {
 		if ( get_transient( 'fanfic_template_class_missing' ) ) {
 			delete_transient( 'fanfic_template_class_missing' );
 			?>
-			<div class="notice notice-error">
+			<div class="notice error-message">
 				<p>
 					<strong>Fanfiction Manager:</strong> The page template system class is missing.
 					Please reinstall the plugin or contact support.

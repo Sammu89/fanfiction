@@ -99,8 +99,8 @@ Fanfic_AJAX_Security::send_error_response(
     </div>
     
     <div class="fanfic-bookmarks-pagination">
-        <button class="fanfic-bookmark-page-btn active" data-page="1">1</button>
-        <button class="fanfic-bookmark-page-btn" data-page="2">2</button>
+        <button class="fanfic-bookmark-page-button active" data-page="1">1</button>
+        <button class="fanfic-bookmark-page-button" data-page="2">2</button>
         <!-- More buttons -->
     </div>
     
@@ -113,7 +113,7 @@ Fanfic_AJAX_Security::send_error_response(
 ### Event Handler
 ```javascript
 // Bind click handler
-$(document).on('click', '.fanfic-bookmark-page-btn', handleBookmarkPagination);
+$(document).on('click', '.fanfic-bookmark-page-button', handleBookmarkPagination);
 
 // Handler function
 function handleBookmarkPagination(e) {
@@ -126,7 +126,7 @@ function handleBookmarkPagination(e) {
     // Show loading
     $('.fanfic-bookmarks-list').hide();
     $('.fanfic-bookmarks-loading').show();
-    $('.fanfic-bookmark-page-btn').prop('disabled', true);
+    $('.fanfic-bookmark-page-button').prop('disabled', true);
     
     $.ajax({
         url: fanficData.ajaxUrl,
@@ -145,7 +145,7 @@ function handleBookmarkPagination(e) {
         complete: function() {
             $('.fanfic-bookmarks-loading').hide();
             $('.fanfic-bookmarks-list').show();
-            $('.fanfic-bookmark-page-btn').prop('disabled', false);
+            $('.fanfic-bookmark-page-button').prop('disabled', false);
         }
     });
 }
@@ -163,8 +163,8 @@ function renderBookmarks(bookmarks) {
 
 // Update active button
 function updateActiveButton(page) {
-    $('.fanfic-bookmark-page-btn').removeClass('active');
-    $('.fanfic-bookmark-page-btn[data-page="' + page + '"]').addClass('active');
+    $('.fanfic-bookmark-page-button').removeClass('active');
+    $('.fanfic-bookmark-page-button[data-page="' + page + '"]').addClass('active');
 }
 ```
 

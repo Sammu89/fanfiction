@@ -12,7 +12,7 @@ Each shortcode is implemented as a class method in organized shortcode handler c
 ## Core Shortcode Categories
 
 **Story Information Shortcodes** display static story metadata:
-- `[story-title]` - The story's title.
+- `[fanfic-story-title]` - The story's title (includes edit buttons on story/chapter views).
 - `[story-author-link]` - Author name linked to their profile.
 - `[story-intro]` - Story introduction/description (excerpt field, plain text only).
 - `[story-featured-image]` - Featured image URL (or placeholder if none provided).

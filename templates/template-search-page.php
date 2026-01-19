@@ -220,7 +220,7 @@ function fanfic_search_format_result( $result, $search_term ) {
 	// Get author info
 	$author_id = $story->post_author;
 	$author_name = get_the_author_meta( 'display_name', $author_id );
-	$author_url = get_author_posts_url( $author_id );
+	$author_url = fanfic_get_user_profile_url( $author_id );
 
 	// Get story URL
 	$story_url = get_permalink( $story_id );
@@ -377,7 +377,7 @@ if ( ! empty( $search_term ) ) {
 
 <div class="fanfic-search-page">
 	<!-- Search Form -->
-	<form class="fanfic-search-form" method="get" action="<?php echo esc_url( get_permalink() ); ?>" role="search" aria-label="<?php esc_attr_e( 'Search stories', 'fanfiction-manager' ); ?>">
+	<form class="fanfic-search-form" method="get" action="<?php echo esc_url( fanfic_get_current_url() ); ?>" role="search" aria-label="<?php esc_attr_e( 'Search stories', 'fanfiction-manager' ); ?>">
 		<div class="search-field-wrapper">
 			<label for="fanfic-search-input" class="screen-reader-text">
 				<?php esc_html_e( 'Search stories', 'fanfiction-manager' ); ?>

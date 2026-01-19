@@ -32,7 +32,7 @@ class Fanfic_Form_Helpers {
 	 */
 	public static function get_error_message( $message ) {
 		return sprintf(
-			'<div class="fanfic-message fanfic-error" role="alert">%s</div>',
+			'<div class="fanfic-info-box fanfic-error" role="alert">%s</div>',
 			wp_kses_post( $message )
 		);
 	}
@@ -46,7 +46,7 @@ class Fanfic_Form_Helpers {
 	 */
 	public static function get_success_message( $message ) {
 		return sprintf(
-			'<div class="fanfic-message fanfic-success" role="alert">%s</div>',
+			'<div class="fanfic-info-box fanfic-success" role="alert">%s</div>',
 			wp_kses_post( $message )
 		);
 	}
@@ -63,7 +63,7 @@ class Fanfic_Form_Helpers {
 			return;
 		}
 		?>
-		<div class="fanfic-message fanfic-error" role="alert">
+		<div class="fanfic-info-box fanfic-error" role="alert">
 			<ul>
 				<?php foreach ( $errors as $error ) : ?>
 					<li><?php echo esc_html( $error ); ?></li>

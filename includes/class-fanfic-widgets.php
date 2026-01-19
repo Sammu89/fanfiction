@@ -150,7 +150,7 @@ class Fanfic_Widgets {
 			return '';
 		}
 
-		$author_url = get_author_posts_url( $author_id );
+		$author_url = fanfic_get_user_profile_url( $author_id );
 		$author_name = esc_html( $author->display_name );
 
 		return sprintf(

@@ -55,6 +55,7 @@ class Fanfic_Settings {
 	 */
 	public static function init() {
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
+		add_action( 'admin_init', array( __CLASS__, 'handle_reset_page_template' ) );
 		add_action( 'admin_post_fanfic_save_general_settings', array( __CLASS__, 'save_general_settings' ) );
 		add_action( 'admin_post_fanfic_save_layout_settings', array( __CLASS__, 'save_layout_settings' ) );
 		add_action( 'admin_post_fanfic_save_email_templates', array( __CLASS__, 'save_email_templates' ) );
@@ -72,6 +73,35 @@ class Fanfic_Settings {
 		add_action( 'wp_ajax_fanfic_clear_all_cache', array( __CLASS__, 'ajax_clear_all_cache' ) );
 		add_action( 'wp_ajax_fanfic_cleanup_expired_cache', array( __CLASS__, 'ajax_cleanup_expired_cache' ) );
 		add_action( 'wp_ajax_fanfic_get_cache_stats', array( __CLASS__, 'ajax_get_cache_stats' ) );
+	}
+
+	/**
+	 * Handle request to reset page template to default
+	 *
+	 * @since 1.0.0
+	 */
+	public static function handle_reset_page_template() {
+		if ( isset( $_GET['reset_template'] ) && isset( $_GET['_wpnonce'] ) ) {
+			if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'fanfic_reset_page_template' ) ) {
+				wp_die( 'Security check failed.' );
+			}
+
+			$template_to_reset = sanitize_key( $_GET['reset_template'] );
+			switch ( $template_to_reset ) {
+				case 'story':
+					delete_option( 'fanfic_shortcode_story_view' );
+					break;
+				case 'chapter':
+					delete_option( 'fanfic_shortcode_chapter_view' );
+					break;
+				case 'profile':
+					delete_option( 'fanfic_shortcode_profile_view' );
+					break;
+			}
+
+			wp_safe_redirect( admin_url( 'admin.php?page=fanfiction-settings&tab=page-templates&template_reset=true' ) );
+			exit;
+		}
 	}
 
 	/**
@@ -158,6 +188,9 @@ class Fanfic_Settings {
 			'enable_report'                  => true,
 			'allow_anonymous_likes'          => false,
 			'allow_anonymous_reports'        => false,
+			'enable_image_uploads'           => false,
+			'image_upload_max_value'         => 1,
+			'image_upload_max_unit'          => 'mb',
 		);
 	}
 
@@ -244,6 +277,19 @@ class Fanfic_Settings {
 
 		// reCAPTCHA require logged in users
 		$sanitized['recaptcha_require_logged_in'] = isset( $settings['recaptcha_require_logged_in'] ) && $settings['recaptcha_require_logged_in'];
+
+		// Image uploads
+		$sanitized['enable_image_uploads'] = isset( $settings['enable_image_uploads'] ) && $settings['enable_image_uploads'];
+		$max_value = isset( $settings['image_upload_max_value'] ) ? absint( $settings['image_upload_max_value'] ) : 1;
+		if ( $max_value < 1 ) {
+			$max_value = 1;
+		}
+		$max_unit = isset( $settings['image_upload_max_unit'] ) ? sanitize_key( $settings['image_upload_max_unit'] ) : 'mb';
+		if ( ! in_array( $max_unit, array( 'kb', 'mb' ), true ) ) {
+			$max_unit = 'mb';
+		}
+		$sanitized['image_upload_max_value'] = $max_value;
+		$sanitized['image_upload_max_unit'] = $max_unit;
 
 		return $sanitized;
 	}
@@ -1116,6 +1162,20 @@ class Fanfic_Settings {
 							</td>
 						</tr>
 
+						<!-- Image Uploads -->
+						<tr>
+							<th scope="row">
+								<label for="enable_image_uploads"><?php esc_html_e( 'Image Uploads', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_image_uploads" name="fanfic_settings[enable_image_uploads]" value="1" <?php checked( isset( $settings['enable_image_uploads'] ) ? $settings['enable_image_uploads'] : false, true ); ?>>
+									<?php esc_html_e( 'Enable users to upload images for story covers and profile avatars', 'fanfiction-manager' ); ?>
+								</label>
+								<p class="description"><?php esc_html_e( 'When disabled, users can only provide image URLs.', 'fanfiction-manager' ); ?></p>
+							</td>
+						</tr>
+
 						<!-- WP-Cron Hour -->
 						<tr>
 							<th scope="row">
@@ -1626,14 +1686,14 @@ class Fanfic_Settings {
 			// Send Test Email
 			$('#fanfic-send-test-email').on('click', function(e) {
 				e.preventDefault();
-				var $btn = $(this);
-				var templateType = $btn.data('template-type');
+				var $button = $(this);
+				var templateType = $button.data('template-type');
 
 				if (!confirm('<?php echo esc_js( sprintf( __( 'Send a test email to %s?', 'fanfiction-manager' ), $current_user->user_email ) ); ?>')) {
 					return;
 				}
 
-				$btn.prop('disabled', true).text('<?php esc_html_e( 'Sending...', 'fanfiction-manager' ); ?>');
+				$button.prop('disabled', true).text('<?php esc_html_e( 'Sending...', 'fanfiction-manager' ); ?>');
 
 				// Get editor content
 				var subject = $('#email_subject').val();
@@ -1666,7 +1726,7 @@ class Fanfic_Settings {
 						alert('<?php esc_html_e( 'Test email request failed.', 'fanfiction-manager' ); ?>');
 					},
 					complete: function() {
-						$btn.prop('disabled', false).text('<?php esc_html_e( 'Send Test Email to Me', 'fanfiction-manager' ); ?>');
+						$button.prop('disabled', false).text('<?php esc_html_e( 'Send Test Email to Me', 'fanfiction-manager' ); ?>');
 					}
 				});
 			});
@@ -1674,14 +1734,14 @@ class Fanfic_Settings {
 			// Reset Template
 			$('#fanfic-reset-template').on('click', function(e) {
 				e.preventDefault();
-				var $btn = $(this);
-				var templateType = $btn.data('template-type');
+				var $button = $(this);
+				var templateType = $button.data('template-type');
 
 				if (!confirm('<?php esc_html_e( 'Are you sure you want to reset this template to default? This cannot be undone.', 'fanfiction-manager' ); ?>')) {
 					return;
 				}
 
-				$btn.prop('disabled', true);
+				$button.prop('disabled', true);
 
 				$.ajax({
 					url: ajaxurl,
@@ -1697,12 +1757,12 @@ class Fanfic_Settings {
 							window.location.reload();
 						} else {
 							alert(response.data.message || '<?php esc_html_e( 'Failed to reset template.', 'fanfiction-manager' ); ?>');
-							$btn.prop('disabled', false);
+							$button.prop('disabled', false);
 						}
 					},
 					error: function() {
 						alert('<?php esc_html_e( 'Reset request failed.', 'fanfiction-manager' ); ?>');
-						$btn.prop('disabled', false);
+						$button.prop('disabled', false);
 					}
 				});
 			});
@@ -1782,18 +1842,34 @@ class Fanfic_Settings {
 								<label for="story_view_template"><?php esc_html_e( 'Story View Shortcode Template', 'fanfiction-manager' ); ?></label>
 							</th>
 							<td>
-								<textarea id="story_view_template" name="fanfic_shortcode_story_view" rows="15" class="large-text code" style="font-family: Consolas, Monaco, monospace;"><?php echo esc_textarea( $story_template ); ?></textarea>
+								<?php
+								wp_editor(
+									$story_template,
+									'story_view_template',
+									array(
+										'textarea_name' => 'fanfic_shortcode_story_view',
+										'textarea_rows' => 15,
+										'media_buttons' => false,
+										'teeny'         => false,
+										'wpautop'       => false,
+										'tinymce'       => array(
+											'toolbar1' => 'formatselect,bold,italic,underline,strikethrough,bullist,numlist,blockquote,link,unlink,forecolor,backcolor,undo,redo,removeformat,code',
+											'toolbar2' => '',
+										),
+									)
+								);
+								?>
 								<p class="description">
 									<?php esc_html_e( 'Customize how individual stories are displayed. Uses shortcodes to build the layout. Available shortcodes:', 'fanfiction-manager' ); ?>
-									<br><code>[story-title]</code> <code>[story-author-link]</code> <code>[story-intro]</code> <code>[story-genres]</code>
+									<br><code>[fanfic-story-title]</code> <code>[story-author-link]</code> <code>[story-intro]</code> <code>[story-genres]</code>
 									<code>[story-status]</code> <code>[story-word-count-estimate]</code> <code>[story-chapters]</code> <code>[story-views]</code>
 									<code>[story-rating-form]</code> <code>[story-actions]</code> <code>[edit-story-button]</code> <code>[chapters-list]</code>
 									<code>[story-chapters-dropdown]</code> <code>[story-featured-image]</code> <code>[story-comments]</code>
 								</p>
 								<p>
-									<button type="button" class="button" onclick="document.getElementById('story_view_template').value = '<?php echo esc_js( self::get_default_story_template() ); ?>'">
+									<a href="<?php echo esc_url( wp_nonce_url( add_query_arg( array('page' => 'fanfiction-settings', 'tab' => 'page-templates', 'reset_template' => 'story'), admin_url( 'admin.php' ) ), 'fanfic_reset_page_template' ) ); ?>" class="button">
 										<?php esc_html_e( 'Reset to Default', 'fanfiction-manager' ); ?>
-									</button>
+									</a>
 								</p>
 							</td>
 						</tr>
@@ -1804,7 +1880,23 @@ class Fanfic_Settings {
 								<label for="chapter_view_template"><?php esc_html_e( 'Chapter View Shortcode Template', 'fanfiction-manager' ); ?></label>
 							</th>
 							<td>
-								<textarea id="chapter_view_template" name="fanfic_shortcode_chapter_view" rows="15" class="large-text code" style="font-family: Consolas, Monaco, monospace;"><?php echo esc_textarea( $chapter_template ); ?></textarea>
+								<?php
+								wp_editor(
+									$chapter_template,
+									'chapter_view_template',
+									array(
+										'textarea_name' => 'fanfic_shortcode_chapter_view',
+										'textarea_rows' => 15,
+										'media_buttons' => false,
+										'teeny'         => false,
+										'wpautop'       => false,
+										'tinymce'       => array(
+											'toolbar1' => 'formatselect,bold,italic,underline,strikethrough,bullist,numlist,blockquote,link,unlink,forecolor,backcolor,undo,redo,removeformat,code',
+											'toolbar2' => '',
+										),
+									)
+								);
+								?>
 								<p class="description">
 									<?php esc_html_e( 'Customize how individual chapters are displayed. Uses shortcodes to build the layout. Available shortcodes:', 'fanfiction-manager' ); ?>
 									<br><code>[chapter-breadcrumb]</code> <code>[chapter-story]</code> <code>[chapters-nav]</code> <code>[chapter-actions]</code>
@@ -1812,9 +1904,9 @@ class Fanfic_Settings {
 									<br><?php esc_html_e( 'Note: Chapter content is automatically displayed. Do not add it manually.', 'fanfiction-manager' ); ?>
 								</p>
 								<p>
-									<button type="button" class="button" onclick="document.getElementById('chapter_view_template').value = '<?php echo esc_js( self::get_default_chapter_template() ); ?>'">
+									<a href="<?php echo esc_url( wp_nonce_url( add_query_arg( array('page' => 'fanfiction-settings', 'tab' => 'page-templates', 'reset_template' => 'chapter'), admin_url( 'admin.php' ) ), 'fanfic_reset_page_template' ) ); ?>" class="button">
 										<?php esc_html_e( 'Reset to Default', 'fanfiction-manager' ); ?>
-									</button>
+									</a>
 								</p>
 							</td>
 						</tr>
@@ -1825,7 +1917,23 @@ class Fanfic_Settings {
 								<label for="profile_view_template"><?php esc_html_e( 'Profile View Shortcode Template', 'fanfiction-manager' ); ?></label>
 							</th>
 							<td>
-								<textarea id="profile_view_template" name="fanfic_shortcode_profile_view" rows="15" class="large-text code" style="font-family: Consolas, Monaco, monospace;"><?php echo esc_textarea( $profile_template ); ?></textarea>
+								<?php
+								wp_editor(
+									$profile_template,
+									'profile_view_template',
+									array(
+										'textarea_name' => 'fanfic_shortcode_profile_view',
+										'textarea_rows' => 15,
+										'media_buttons' => false,
+										'teeny'         => false,
+										'wpautop'       => false,
+										'tinymce'       => array(
+											'toolbar1' => 'formatselect,bold,italic,underline,strikethrough,bullist,numlist,blockquote,link,unlink,forecolor,backcolor,undo,redo,removeformat,code',
+											'toolbar2' => '',
+										),
+									)
+								);
+								?>
 								<p class="description">
 									<?php esc_html_e( 'Customize how user profiles are displayed. Uses shortcodes to build the layout. Use {user_id} placeholder in shortcodes. Available shortcodes:', 'fanfiction-manager' ); ?>
 									<br><code>[author-display-name]</code> <code>[author-bio]</code> <code>[author-story-list]</code>
@@ -1833,9 +1941,9 @@ class Fanfic_Settings {
 									<code>[author-joined-date]</code> <code>[author-story-count]</code>
 								</p>
 								<p>
-									<button type="button" class="button" onclick="document.getElementById('profile_view_template').value = '<?php echo esc_js( self::get_default_profile_template() ); ?>'">
+									<a href="<?php echo esc_url( wp_nonce_url( add_query_arg( array('page' => 'fanfiction-settings', 'tab' => 'page-templates', 'reset_template' => 'profile'), admin_url( 'admin.php' ) ), 'fanfic_reset_page_template' ) ); ?>" class="button">
 										<?php esc_html_e( 'Reset to Default', 'fanfiction-manager' ); ?>
-									</button>
+									</a>
 								</p>
 							</td>
 						</tr>
@@ -2226,6 +2334,15 @@ class Fanfic_Settings {
 			<?php
 		}
 
+		// Success message for template reset
+		if ( isset( $_GET['template_reset'] ) && 'true' === $_GET['template_reset'] ) {
+			?>
+			<div class="notice notice-success is-dismissible">
+				<p><?php esc_html_e( 'Template reset to default.', 'fanfiction-manager' ); ?></p>
+			</div>
+			<?php
+		}
+
 		// Success message for cron run
 		if ( isset( $_GET['cron_run'] ) && 'true' === $_GET['cron_run'] ) {
 			?>
@@ -2258,7 +2375,7 @@ class Fanfic_Settings {
 		// Error message for author demotion
 		if ( isset( $_GET['demotion_run'] ) && 'false' === $_GET['demotion_run'] ) {
 			?>
-			<div class="notice notice-error is-dismissible">
+			<div class="notice error-message is-dismissible">
 				<p><?php esc_html_e( 'Author demotion failed. Class not found.', 'fanfiction-manager' ); ?></p>
 			</div>
 			<?php
@@ -2307,7 +2424,7 @@ class Fanfic_Settings {
 		// Error message for page shortcode fix
 		if ( isset( $_GET['shortcode_fix_error'] ) && '1' === $_GET['shortcode_fix_error'] ) {
 			?>
-			<div class="notice notice-error is-dismissible">
+			<div class="notice error-message is-dismissible">
 				<p><?php esc_html_e( 'Failed to restore page content. Please try again or contact support.', 'fanfiction-manager' ); ?></p>
 			</div>
 			<?php
@@ -2643,10 +2760,10 @@ class Fanfic_Settings {
 					$button.prop('disabled', false).text('<?php esc_js( _e( 'Clear All Transients', 'fanfiction-manager' ) ); ?>');
 
 					if (response.success) {
-						$result.removeClass('notice-error').addClass('notice-success');
+						$result.removeClass('error-message').addClass('notice-success');
 						$result.html('<p>' + response.data.message + '</p>').show();
 					} else {
-						$result.removeClass('notice-success').addClass('notice-error');
+						$result.removeClass('notice-success').addClass('error-message');
 						$result.html('<p>' + response.data.message + '</p>').show();
 					}
 				});
@@ -2667,10 +2784,10 @@ class Fanfic_Settings {
 					$button.prop('disabled', false).text('<?php esc_js( _e( 'Clean Up Expired', 'fanfiction-manager' ) ); ?>');
 
 					if (response.success) {
-						$result.removeClass('notice-error').addClass('notice-success');
+						$result.removeClass('error-message').addClass('notice-success');
 						$result.html('<p>' + response.data.message + '</p>').show();
 					} else {
-						$result.removeClass('notice-success').addClass('notice-error');
+						$result.removeClass('notice-success').addClass('error-message');
 						$result.html('<p>' + response.data.message + '</p>').show();
 					}
 				});
@@ -2698,10 +2815,10 @@ class Fanfic_Settings {
 						html += '<li><?php esc_js( _e( 'Database Size:', 'fanfiction-manager' ) ); ?> ' + stats.db_size + '</li>';
 						html += '</ul>';
 
-						$result.removeClass('notice-error').addClass('notice-info');
+						$result.removeClass('error-message').addClass('notice-info');
 						$result.html(html).show();
 					} else {
-						$result.removeClass('notice-info').addClass('notice-error');
+						$result.removeClass('notice-info').addClass('error-message');
 						$result.html('<p>' + response.data.message + '</p>').show();
 					}
 				});

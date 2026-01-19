@@ -309,7 +309,7 @@ This migration will be executed by specialized sub-agents working in parallel, t
 - Add to `class-fanfic-shortcodes-stats.php`
 
 #### Task 2.3: Create Action Buttons Shortcode (New System)
-- Create new `[fanfic-action-buttons]` shortcode to replace old `[fanfic-content-actions]`
+- Create new `[fanfic-buttons]` shortcode to replace old `[fanfic-content-actions]`
 - Context-aware (detects story/chapter/author)
 - Uses new system classes only
 - Interactive toggle buttons with proper ARIA labels

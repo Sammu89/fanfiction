@@ -11,7 +11,7 @@
                                     │ Renders buttons with:
                                     │ - data-report-id
                                     │ - data-nonce
-                                    │ - class="mark-reviewed-btn"
+                                    │ - class="mark-reviewed-button"
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -300,8 +300,8 @@ Document Ready
             │
             └─ initModerationActions()
                     │
-                    ├─ .mark-reviewed-btn click → openReviewedModal()
-                    ├─ .view-report-btn click → viewReportDetails()
+                    ├─ .mark-reviewed-button click → openReviewedModal()
+                    ├─ .view-report-button click → viewReportDetails()
                     ├─ .fanfic-admin-modal-close click → closeModal()
                     ├─ .fanfic-admin-modal-cancel click → closeModal()
                     ├─ .fanfic-admin-modal-overlay click → closeModal()

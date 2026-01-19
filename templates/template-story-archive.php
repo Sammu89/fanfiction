@@ -95,7 +95,7 @@ if ( $is_taxonomy && $queried_object instanceof WP_Term ) {
 
 <div class="fanfic-archive">
 	<header class="fanfic-archive-header">
-		<h1 class="fanfic-archive-title"><?php echo esc_html( $page_title ); ?></h1>
+		<h1 class="fanfic-title fanfic-archive-title"><?php echo esc_html( $page_title ); ?></h1>
 
 		<?php if ( ! empty( $page_description ) ) : ?>
 			<div class="fanfic-archive-description">
@@ -205,7 +205,7 @@ if ( $is_taxonomy && $queried_object instanceof WP_Term ) {
 										printf(
 											/* translators: %s: author name */
 											esc_html__( 'by %s', 'fanfiction-manager' ),
-											'<a href="' . esc_url( get_author_posts_url( $author_id ) ) . '">' . esc_html( $author_name ) . '</a>'
+											'<a href="' . esc_url( fanfic_get_user_profile_url( $author_id ) ) . '">' . esc_html( $author_name ) . '</a>'
 										);
 										?>
 									</span>

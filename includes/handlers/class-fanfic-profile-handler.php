@@ -86,6 +86,13 @@ class Fanfic_Profile_Handler {
 		$description = isset( $_POST['description'] ) ? sanitize_textarea_field( $_POST['description'] ) : '';
 		$avatar_url = isset( $_POST['fanfic_avatar_url'] ) ? esc_url_raw( trim( $_POST['fanfic_avatar_url'] ) ) : '';
 
+		if ( function_exists( 'fanfic_handle_image_upload' ) ) {
+			$upload = fanfic_handle_image_upload( 'fanfic_avatar_file', __( 'Avatar image', 'fanfiction-manager' ), $errors );
+			if ( $upload && ! empty( $upload['url'] ) ) {
+				$avatar_url = $upload['url'];
+			}
+		}
+
 		// Validate required fields
 		if ( empty( $display_name ) ) {
 			$errors[] = __( 'Display name is required.', 'fanfiction-manager' );

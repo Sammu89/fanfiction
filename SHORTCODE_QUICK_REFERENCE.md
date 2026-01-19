@@ -111,15 +111,15 @@
 
 ### Containers:
 ```css
-.fanfic-action-buttons { /* Main container */ }
-.fanfic-action-buttons-story { /* Story context */ }
-.fanfic-action-buttons-chapter { /* Chapter context */ }
-.fanfic-action-buttons-author { /* Author context */ }
+.fanfic-buttons { /* Main container */ }
+.fanfic-buttons-story { /* Story context */ }
+.fanfic-buttons-chapter { /* Chapter context */ }
+.fanfic-buttons-author { /* Author context */ }
 ```
 
 ### Buttons:
 ```css
-.fanfic-action-button { /* Base button */ }
+.fanfic-button { /* Base button */ }
 .fanfic-bookmark-button { /* Bookmark button */ }
 .fanfic-like-button { /* Like button */ }
 .fanfic-follow-button { /* Follow button */ }

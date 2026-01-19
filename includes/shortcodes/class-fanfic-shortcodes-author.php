@@ -783,7 +783,7 @@ class Fanfic_Shortcodes_Author {
 			}
 
 			$author_name = esc_html( $author->display_name );
-			$author_url = esc_url( get_author_posts_url( $author_id ) );
+			$author_url = esc_url( fanfic_get_user_profile_url( $author_id ) );
 			$avatar = get_avatar( $author_id, 48, '', $author_name, array( 'class' => 'followed-author-avatar', 'loading' => 'lazy' ) );
 
 			$output .= '<li class="followed-author-item">';

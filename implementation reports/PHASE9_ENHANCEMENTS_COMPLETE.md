@@ -53,7 +53,7 @@ A comprehensive JavaScript handler with the following methods:
 - Click on `.fanfic-mark-all-read` button → Mark all as read
 - Click on `.fanfic-notification-bell` → Toggle dropdown
 - Click outside notification bell → Close dropdown
-- Click on `.fanfic-notification-save-btn` → Save preferences
+- Click on `.fanfic-notification-save-button` → Save preferences
 
 ### AJAX Endpoints Connected
 

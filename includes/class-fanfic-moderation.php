@@ -128,7 +128,7 @@ class Fanfic_Moderation {
 			</div>
 
 			<!-- Information Box -->
-			<div class="fanfic-info-box" style="background: #e7f3ff; border: 1px solid #2196F3; border-radius: 4px; padding: 20px; margin-top: 30px;">
+			<div class="fanfic-info-box box-warning" style="background: #e7f3ff; border: 1px solid #2196F3; border-radius: 4px; padding: 20px; margin-top: 30px;">
 				<h3><?php esc_html_e( 'Moderation Guidelines', 'fanfiction-manager' ); ?></h3>
 				<ul style="margin-left: 20px; list-style-type: disc;">
 					<li><?php esc_html_e( 'Review each report carefully before taking action.', 'fanfiction-manager' ); ?></li>
@@ -147,16 +147,16 @@ class Fanfic_Moderation {
 				margin: 0;
 			}
 
-			.fanfic-info-box h3 {
+			.fanfic-info-box box-warning h3 {
 				margin-top: 0;
 				color: #1976D2;
 			}
 
-			.fanfic-info-box ul {
+			.fanfic-info-box box-warning ul {
 				margin: 15px 0;
 			}
 
-			.fanfic-info-box li {
+			.fanfic-info-box box-warning li {
 				margin-bottom: 8px;
 			}
 
@@ -298,7 +298,7 @@ class Fanfic_Moderation {
 
 			if ( isset( $messages[ $error_code ] ) ) {
 				?>
-				<div class="notice notice-error is-dismissible">
+				<div class="notice error-message is-dismissible">
 					<p><?php echo esc_html( $messages[ $error_code ] ); ?></p>
 				</div>
 				<?php

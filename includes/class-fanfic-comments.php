@@ -137,12 +137,12 @@ class Fanfic_Comments {
 			$actions = '<div class="fanfic-comment-actions" data-comment-id="' . esc_attr( $comment->comment_ID ) . '">';
 
 			// Edit button
-			$actions .= '<button class="fanfic-comment-edit-btn" data-comment-id="' . esc_attr( $comment->comment_ID ) . '" aria-label="' . esc_attr__( 'Edit comment', 'fanfiction-manager' ) . '">';
+			$actions .= '<button class="fanfic-comment-edit-button" data-comment-id="' . esc_attr( $comment->comment_ID ) . '" aria-label="' . esc_attr__( 'Edit comment', 'fanfiction-manager' ) . '">';
 			$actions .= esc_html__( 'Edit', 'fanfiction-manager' );
 			$actions .= '</button>';
 
 			// Delete button
-			$actions .= '<button class="fanfic-comment-delete-btn" data-comment-id="' . esc_attr( $comment->comment_ID ) . '" aria-label="' . esc_attr__( 'Delete comment', 'fanfiction-manager' ) . '">';
+			$actions .= '<button class="fanfic-comment-delete-button" data-comment-id="' . esc_attr( $comment->comment_ID ) . '" aria-label="' . esc_attr__( 'Delete comment', 'fanfiction-manager' ) . '">';
 			$actions .= esc_html__( 'Delete', 'fanfiction-manager' );
 			$actions .= '</button>';
 
@@ -344,14 +344,14 @@ class Fanfic_Comments {
 		$defaults['must_log_in']          = '<p class="must-log-in">' . sprintf(
 			/* translators: %s: Login URL */
 			__( 'You must be <a href="%s">logged in</a> to post a comment.', 'fanfiction-manager' ),
-			esc_url( wp_login_url( get_permalink() ) )
+			esc_url( wp_login_url( fanfic_get_current_url() ) )
 		) . '</p>';
 		$defaults['logged_in_as']         = '<p class="logged-in-as">' . sprintf(
 			/* translators: 1: User profile URL, 2: User name, 3: Logout URL */
 			__( 'Logged in as <a href="%1$s">%2$s</a>. <a href="%3$s">Log out?</a>', 'fanfiction-manager' ),
 			esc_url( get_edit_user_link() ),
 			esc_html( wp_get_current_user()->display_name ),
-			esc_url( wp_logout_url( get_permalink() ) )
+			esc_url( wp_logout_url( fanfic_get_current_url() ) )
 		) . '</p>';
 		$defaults['comment_notes_before'] = '';
 		$defaults['comment_notes_after']  = '<p class="comment-notes">' . __( 'Your comment will be visible immediately after posting.', 'fanfiction-manager' ) . '</p>';

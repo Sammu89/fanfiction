@@ -67,7 +67,7 @@ class Fanfic_Shortcodes_Comments {
 		}
 
 		if ( ! $post_id ) {
-			return '<p class="fanfic-message fanfic-error">' .
+			return '<p class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'No post specified for comments.', 'fanfiction-manager' ) .
 				'</p>';
 		}
@@ -152,7 +152,7 @@ class Fanfic_Shortcodes_Comments {
 		}
 
 		if ( ! $post_id ) {
-			return '<p class="fanfic-message fanfic-error">' .
+			return '<p class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'No post specified for comments.', 'fanfiction-manager' ) .
 				'</p>';
 		}
@@ -269,7 +269,7 @@ class Fanfic_Shortcodes_Comments {
 		}
 
 		if ( ! $post_id ) {
-			return '<p class="fanfic-message fanfic-error">' .
+			return '<p class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'No post specified for comments.', 'fanfiction-manager' ) .
 				'</p>';
 		}
@@ -328,14 +328,14 @@ class Fanfic_Shortcodes_Comments {
 		}
 
 		if ( ! $story_id ) {
-			return '<p class="fanfic-message fanfic-error">' .
+			return '<p class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'No story specified for comments.', 'fanfiction-manager' ) .
 				'</p>';
 		}
 
 		// Verify it's a story post type
 		if ( 'fanfiction_story' !== get_post_type( $story_id ) ) {
-			return '<p class="fanfic-message fanfic-error">' .
+			return '<p class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'Invalid story ID.', 'fanfiction-manager' ) .
 				'</p>';
 		}
@@ -455,14 +455,14 @@ class Fanfic_Shortcodes_Comments {
 		}
 
 		if ( ! $chapter_id ) {
-			return '<p class="fanfic-message fanfic-error">' .
+			return '<p class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'No chapter specified for comments.', 'fanfiction-manager' ) .
 				'</p>';
 		}
 
 		// Verify it's a chapter post type
 		if ( 'fanfiction_chapter' !== get_post_type( $chapter_id ) ) {
-			return '<p class="fanfic-message fanfic-error">' .
+			return '<p class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'Invalid chapter ID.', 'fanfiction-manager' ) .
 				'</p>';
 		}

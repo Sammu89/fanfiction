@@ -230,6 +230,219 @@ function fanfic_get_page_url( $page_key, $args = array() ) {
 }
 
 /**
+ * Get current URL safely (works for virtual pages too)
+ *
+ * @return string Current URL.
+ */
+function fanfic_get_current_url() {
+	$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+	if ( empty( $request_uri ) ) {
+		return home_url( '/' );
+	}
+	return home_url( $request_uri );
+}
+
+/**
+ * Get image upload settings
+ *
+ * @return array Settings with enabled, max_bytes, max_value, max_unit.
+ */
+function fanfic_get_image_upload_settings() {
+	$settings = get_option( 'fanfic_settings', array() );
+	$enabled = ! empty( $settings['enable_image_uploads'] );
+	$max_value = isset( $settings['image_upload_max_value'] ) ? absint( $settings['image_upload_max_value'] ) : 1;
+	$max_unit = isset( $settings['image_upload_max_unit'] ) ? sanitize_key( $settings['image_upload_max_unit'] ) : 'mb';
+
+	if ( $max_value < 1 ) {
+		$max_value = 1;
+	}
+
+	if ( ! in_array( $max_unit, array( 'kb', 'mb' ), true ) ) {
+		$max_unit = 'mb';
+	}
+
+	$max_bytes = ( 'mb' === $max_unit ) ? $max_value * MB_IN_BYTES : $max_value * KB_IN_BYTES;
+	$max_bytes = 0; // Disable size limits; WordPress handles resizing.
+
+	return array(
+		'enabled'   => $enabled,
+		'max_bytes' => $max_bytes,
+		'max_value' => $max_value,
+		'max_unit'  => $max_unit,
+	);
+}
+
+/**
+ * Handle an image upload from a form field
+ *
+ * @param string $file_key Upload field name.
+ * @param string $context_label Context label for error messages.
+ * @param array  $errors Errors array to append to.
+ * @return array|null Upload result with url and attachment_id, or null if no file.
+ */
+function fanfic_handle_image_upload( $file_key, $context_label, &$errors ) {
+	$settings = fanfic_get_image_upload_settings();
+	if ( empty( $settings['enabled'] ) ) {
+		return null;
+	}
+
+	if ( empty( $_FILES[ $file_key ] ) || ! is_array( $_FILES[ $file_key ] ) ) {
+		return null;
+	}
+
+	$file = $_FILES[ $file_key ];
+	if ( isset( $file['error'] ) && UPLOAD_ERR_NO_FILE === $file['error'] ) {
+		return null;
+	}
+
+	if ( ! empty( $file['error'] ) ) {
+		$errors[] = sprintf(
+			/* translators: %s: context label */
+			__( 'File upload failed for %s.', 'fanfiction-manager' ),
+			$context_label
+		);
+		return null;
+	}
+
+	if ( ! empty( $settings['max_bytes'] ) && $settings['max_bytes'] > 0 && ! empty( $file['size'] ) && $file['size'] > $settings['max_bytes'] ) {
+		$errors[] = sprintf(
+			/* translators: 1: context label, 2: max size */
+			__( '%1$s exceeds the maximum size of %2$s.', 'fanfiction-manager' ),
+			$context_label,
+			( 'mb' === $settings['max_unit'] ? $settings['max_value'] . ' MB' : $settings['max_value'] . ' KB' )
+		);
+		return null;
+	}
+
+	$allowed_mimes = array(
+		'jpg|jpeg|jpe' => 'image/jpeg',
+		'png'          => 'image/png',
+		'gif'          => 'image/gif',
+		'webp'         => 'image/webp',
+	);
+
+	$filetype = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'], $allowed_mimes );
+	if ( empty( $filetype['type'] ) ) {
+		$errors[] = sprintf(
+			/* translators: %s: context label */
+			__( 'Invalid image type for %s. Allowed types: JPG, PNG, GIF, WEBP.', 'fanfiction-manager' ),
+			$context_label
+		);
+		return null;
+	}
+
+	if ( ! function_exists( 'wp_handle_upload' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+	}
+
+	$upload = wp_handle_upload(
+		$file,
+		array(
+			'test_form' => false,
+			'mimes'     => $allowed_mimes,
+		)
+	);
+
+	if ( isset( $upload['error'] ) ) {
+		$errors[] = $upload['error'];
+		return null;
+	}
+
+	// --- Begin Image Optimization ---
+	if ( ! empty( $upload['file'] ) ) {
+		$image_editor = wp_get_image_editor( $upload['file'] );
+
+		if ( ! is_wp_error( $image_editor ) ) {
+			// 1. Resize if necessary
+			$max_dimension = 1024;
+			$size = $image_editor->get_size();
+			if ( $size['width'] > $max_dimension || $size['height'] > $max_dimension ) {
+				$image_editor->resize( $max_dimension, $max_dimension, false );
+			}
+
+			// 2. Convert to WebP
+			$path_info = pathinfo( $upload['file'] );
+			$new_filename = $path_info['filename'] . '.webp';
+			$new_filepath = trailingslashit( $path_info['dirname'] ) . $new_filename;
+
+			// Save the processed image as WebP
+			$saved_image = $image_editor->save( $new_filepath, 'image/webp' );
+
+			if ( ! is_wp_error( $saved_image ) && file_exists( $saved_image['path'] ) ) {
+				// 3. Update upload info to point to the new WebP file
+				// First, delete the original file
+				unlink( $upload['file'] );
+
+				// Then, update the upload array
+				$upload['file'] = $saved_image['path'];
+				$upload['url'] = str_replace( $path_info['basename'], $new_filename, $upload['url'] );
+				$upload['type'] = 'image/webp';
+
+				// Update the file name in the original $_FILES array for consistency
+				$_FILES[ $file_key ]['name'] = $new_filename;
+			}
+		}
+	}
+	// --- End Image Optimization ---
+
+	$attachment_id = 0;
+	if ( ! empty( $upload['file'] ) && ! empty( $upload['type'] ) ) {
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		$attachment_id = wp_insert_attachment(
+			array(
+				'post_mime_type' => $upload['type'],
+				'post_title'     => sanitize_file_name( $file['name'] ),
+				'post_content'   => '',
+				'post_status'    => 'inherit',
+			),
+			$upload['file']
+		);
+
+		if ( $attachment_id ) {
+			$attachment_data = wp_generate_attachment_metadata( $attachment_id, $upload['file'] );
+			wp_update_attachment_metadata( $attachment_id, $attachment_data );
+		}
+	}
+
+	return array(
+		'url'           => isset( $upload['url'] ) ? $upload['url'] : '',
+		'attachment_id' => $attachment_id,
+	);
+}
+
+/**
+ * Override avatar URL with the user-uploaded avatar if present
+ *
+ * @param string $url Current avatar URL.
+ * @param mixed  $id_or_email User ID, email, or object.
+ * @param array  $args Avatar args.
+ * @return string Avatar URL.
+ */
+function fanfic_get_local_avatar_url( $url, $id_or_email, $args ) {
+	$user = null;
+
+	if ( is_numeric( $id_or_email ) ) {
+		$user = get_user_by( 'id', absint( $id_or_email ) );
+	} elseif ( $id_or_email instanceof WP_User ) {
+		$user = $id_or_email;
+	} elseif ( $id_or_email instanceof WP_Comment ) {
+		$user = $id_or_email->user_id ? get_user_by( 'id', absint( $id_or_email->user_id ) ) : null;
+	} elseif ( is_string( $id_or_email ) && is_email( $id_or_email ) ) {
+		$user = get_user_by( 'email', $id_or_email );
+	}
+
+	if ( $user ) {
+		$avatar_url = get_user_meta( $user->ID, '_fanfic_avatar_url', true );
+		if ( ! empty( $avatar_url ) ) {
+			return esc_url_raw( $avatar_url );
+		}
+	}
+
+	return $url;
+}
+add_filter( 'get_avatar_url', 'fanfic_get_local_avatar_url', 10, 3 );
+
+/**
  * Get URL for the story archive (all stories)
  *
  * @return string The story archive URL.
@@ -1056,7 +1269,7 @@ function fanfic_custom_comment_template( $comment, $args, $depth ) {
 					?>
 					<button
 						type="button"
-						class="fanfic-report-btn comment-report-link"
+						class="fanfic-report-button comment-report-link"
 						data-item-id="<?php echo esc_attr( $comment->comment_ID ); ?>"
 						data-item-type="comment"
 						aria-label="<?php esc_attr_e( 'Report this comment', 'fanfiction-manager' ); ?>"

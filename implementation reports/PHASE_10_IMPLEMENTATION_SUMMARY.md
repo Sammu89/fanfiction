@@ -75,7 +75,7 @@ Successfully implemented a modal dialog system for marking reports as reviewed w
 - Lines 329-391: `column_actions()` creates buttons with proper data attributes
   - `data-report-id="{id}"` - Report ID for AJAX
   - `data-nonce="{nonce}"` - Security nonce
-  - Classes: `.mark-reviewed-btn` and `.view-report-btn`
+  - Classes: `.mark-reviewed-button` and `.view-report-button`
 
 - Lines 798-816: `mark_as_reviewed()` static method
   - Updates report status to 'reviewed'

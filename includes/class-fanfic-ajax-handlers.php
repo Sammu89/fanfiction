@@ -257,6 +257,83 @@ class Fanfic_AJAX_Handlers {
 				'capability'  => 'read',
 			)
 		);
+
+		// AJAX Image Upload (authenticated only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_ajax_image_upload',
+			array( __CLASS__, 'ajax_image_upload' ),
+			true, // Require login
+			array(
+				'rate_limit' => true,
+				'capability' => 'upload_files', // Users must have upload capability
+			)
+		);
+	}
+
+	/**
+	 * AJAX: Handle asynchronous image uploads.
+	 *
+	 * Processes an image upload, resizes and converts it, and returns the URL.
+	 *
+	 * @since 2.1.0
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_image_upload() {
+		// Get and validate parameters
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array( 'upload_file_key', 'context' ),
+			array()
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				$params->get_error_code(),
+				$params->get_error_message(),
+				400
+			);
+		}
+
+		$file_key = sanitize_key( $params['upload_file_key'] );
+		$context = sanitize_text_field( $params['context'] );
+
+		// Double-check that a file was actually sent
+		if ( empty( $_FILES[ $file_key ] ) || UPLOAD_ERR_NO_FILE === $_FILES[ $file_key ]['error'] ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'no_file_uploaded',
+				__( 'No file was uploaded. Please select a file and try again.', 'fanfiction-manager' ),
+				400
+			);
+		}
+
+		// Use the existing image upload handler function
+		$errors = array();
+		$upload_result = fanfic_handle_image_upload( $file_key, $context, $errors );
+
+		// Check for errors from the handler
+		if ( ! empty( $errors ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'upload_error',
+				implode( ' ', $errors ),
+				400
+			);
+		}
+
+		// Check for a valid result
+		if ( is_null( $upload_result ) || empty( $upload_result['url'] ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'upload_failed',
+				__( 'An unknown error occurred during upload.', 'fanfiction-manager' ),
+				500
+			);
+		}
+
+		// Success! Send back the URL.
+		Fanfic_AJAX_Security::send_success_response(
+			array(
+				'url' => $upload_result['url'],
+			),
+			__( 'Image uploaded successfully.', 'fanfiction-manager' )
+		);
 	}
 
 	/**

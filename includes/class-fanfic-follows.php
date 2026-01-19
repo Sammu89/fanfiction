@@ -737,7 +737,7 @@ class Fanfic_Follows {
 		set_transient( $cooldown_key, true, 20 * MINUTE_IN_SECONDS );
 
 		$follower_name = $follower->display_name;
-		$follower_url = get_author_posts_url( $user_id );
+		$follower_url = fanfic_get_user_profile_url( $user_id );
 
 		if ( 'author' === $follow_type ) {
 			// Author follow notification

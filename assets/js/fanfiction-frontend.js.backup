@@ -236,10 +236,10 @@
 		init: function() {
 			$(document).on('click', '[data-delete-confirm]', (e) => {
 				e.preventDefault();
-				const $btn = $(e.currentTarget);
-				const itemName = $btn.data('delete-confirm');
-				const itemId = $btn.data('delete-id');
-				const itemType = $btn.data('delete-type') || 'item';
+				const $button = $(e.currentTarget);
+				const itemName = $button.data('delete-confirm');
+				const itemId = $button.data('delete-id');
+				const itemType = $button.data('delete-type') || 'item';
 
 				if (confirm('Are you sure you want to delete "' + itemName + '"? This action cannot be undone.')) {
 					const url = new URL(window.location.href);
@@ -268,7 +268,7 @@
 
 			// Notice close
 			$(document).on('click', '.fanfic-notice-close', function() {
-				$(this).closest('.fanfic-success-notice, .fanfic-error-notice').fadeOut(200, function() {
+				$(this).closest('.fanfic-info-box box-success, .fanfic-error-notice').fadeOut(200, function() {
 					$(this).remove();
 				});
 			});
@@ -355,7 +355,7 @@
 		 * Bind edit button clicks
 		 */
 		bindEditButtons: function() {
-			$(document).on('click', '.fanfic-comment-edit-btn', function(e) {
+			$(document).on('click', '.fanfic-comment-edit-button', function(e) {
 				e.preventDefault();
 				const commentId = $(this).data('comment-id');
 				CommentHandler.showEditForm(commentId);
@@ -366,7 +366,7 @@
 		 * Bind delete button clicks
 		 */
 		bindDeleteButtons: function() {
-			$(document).on('click', '.fanfic-comment-delete-btn', function(e) {
+			$(document).on('click', '.fanfic-comment-delete-button', function(e) {
 				e.preventDefault();
 				const commentId = $(this).data('comment-id');
 				CommentHandler.deleteComment(commentId);
@@ -387,8 +387,8 @@
 					<label for="edit-comment-${commentId}">${fanficComments.editLabel}</label>
 					<textarea id="edit-comment-${commentId}" class="fanfic-edit-textarea">${currentText}</textarea>
 					<div class="fanfic-edit-buttons">
-						<button class="fanfic-save-btn" data-comment-id="${commentId}">${fanficComments.saveLabel}</button>
-						<button class="fanfic-cancel-btn">${fanficComments.cancelLabel}</button>
+						<button class="fanfic-save-button" data-comment-id="${commentId}">${fanficComments.saveLabel}</button>
+						<button class="fanfic-cancel-button">${fanficComments.cancelLabel}</button>
 					</div>
 				</div>
 			`;
@@ -401,12 +401,12 @@
 			$comment.find('.fanfic-comment-actions').hide();
 
 			// Bind save and cancel
-			$comment.find('.fanfic-save-btn').on('click', function() {
+			$comment.find('.fanfic-save-button').on('click', function() {
 				const newContent = $('#edit-comment-' + commentId).val();
 				CommentHandler.saveComment(commentId, newContent);
 			});
 
-			$comment.find('.fanfic-cancel-btn').on('click', function() {
+			$comment.find('.fanfic-cancel-button').on('click', function() {
 				CommentHandler.cancelEdit(commentId);
 			});
 		},
@@ -431,7 +431,7 @@
 			}
 
 			const $comment = $('#comment-' + commentId);
-			const $saveBtn = $comment.find('.fanfic-save-btn');
+			const $saveBtn = $comment.find('.fanfic-save-button');
 
 			// Disable button and show loading
 			$saveBtn.prop('disabled', true).text('Saving...');
@@ -568,30 +568,30 @@
 			// Mark single notification as read
 			$(document).on('click', '.fanfic-mark-read', function(e) {
 				e.preventDefault();
-				const $btn = $(this);
-				const notificationId = $btn.data('notification-id');
-				const nonce = $btn.data('nonce');
-				self.markAsRead(notificationId, nonce, $btn);
+				const $button = $(this);
+				const notificationId = $button.data('notification-id');
+				const nonce = $button.data('nonce');
+				self.markAsRead(notificationId, nonce, $button);
 			});
 
 			// Delete single notification
 			$(document).on('click', '.fanfic-delete-notification', function(e) {
 				e.preventDefault();
-				const $btn = $(this);
-				const notificationId = $btn.data('notification-id');
-				const nonce = $btn.data('nonce');
+				const $button = $(this);
+				const notificationId = $button.data('notification-id');
+				const nonce = $button.data('nonce');
 
 				if (confirm('Are you sure you want to delete this notification?')) {
-					self.deleteNotification(notificationId, nonce, $btn);
+					self.deleteNotification(notificationId, nonce, $button);
 				}
 			});
 
 			// Mark all notifications as read
 			$(document).on('click', '.fanfic-mark-all-read', function(e) {
 				e.preventDefault();
-				const $btn = $(this);
-				const nonce = $btn.data('nonce');
-				self.markAllAsRead(nonce, $btn);
+				const $button = $(this);
+				const nonce = $button.data('nonce');
+				self.markAllAsRead(nonce, $button);
 			});
 
 			// Notification bell click (toggle dropdown)
@@ -608,7 +608,7 @@
 			});
 
 			// Save notification settings
-			$(document).on('click', '.fanfic-notification-save-btn', function(e) {
+			$(document).on('click', '.fanfic-notification-save-button', function(e) {
 				e.preventDefault();
 				const $form = $(this).closest('form');
 				self.saveSettings($form);
@@ -618,9 +618,9 @@
 		/**
 		 * Mark notification as read
 		 */
-		markAsRead: function(notificationId, nonce, $btn) {
+		markAsRead: function(notificationId, nonce, $button) {
 			const self = this;
-			const $item = $btn.closest('.fanfic-notification-item');
+			const $item = $button.closest('.fanfic-notification-item');
 
 			$.ajax({
 				url: fanficData.ajaxUrl,
@@ -631,14 +631,14 @@
 					nonce: nonce
 				},
 				beforeSend: function() {
-					$btn.prop('disabled', true);
+					$button.prop('disabled', true);
 				},
 				success: function(response) {
 					if (response.success) {
 						// Update UI
 						$item.removeClass('fanfic-notification-unread');
 						$item.find('.fanfic-notification-dot').fadeOut();
-						$btn.fadeOut();
+						$button.fadeOut();
 
 						// Update badge count
 						self.updateBadgeCount();
@@ -647,12 +647,12 @@
 						self.showMessage('Marked as read', 'success');
 					} else {
 						self.showMessage(response.data.message || 'Failed to mark as read', 'error');
-						$btn.prop('disabled', false);
+						$button.prop('disabled', false);
 					}
 				},
 				error: function() {
 					self.showMessage('Network error. Please try again.', 'error');
-					$btn.prop('disabled', false);
+					$button.prop('disabled', false);
 				}
 			});
 		},
@@ -660,9 +660,9 @@
 		/**
 		 * Delete notification
 		 */
-		deleteNotification: function(notificationId, nonce, $btn) {
+		deleteNotification: function(notificationId, nonce, $button) {
 			const self = this;
-			const $item = $btn.closest('.fanfic-notification-item');
+			const $item = $button.closest('.fanfic-notification-item');
 
 			$.ajax({
 				url: fanficData.ajaxUrl,
@@ -673,7 +673,7 @@
 					nonce: nonce
 				},
 				beforeSend: function() {
-					$btn.prop('disabled', true);
+					$button.prop('disabled', true);
 				},
 				success: function(response) {
 					if (response.success) {
@@ -697,12 +697,12 @@
 						self.showMessage('Notification deleted', 'success');
 					} else {
 						self.showMessage(response.data.message || 'Failed to delete notification', 'error');
-						$btn.prop('disabled', false);
+						$button.prop('disabled', false);
 					}
 				},
 				error: function() {
 					self.showMessage('Network error. Please try again.', 'error');
-					$btn.prop('disabled', false);
+					$button.prop('disabled', false);
 				}
 			});
 		},
@@ -710,7 +710,7 @@
 		/**
 		 * Mark all notifications as read
 		 */
-		markAllAsRead: function(nonce, $btn) {
+		markAllAsRead: function(nonce, $button) {
 			const self = this;
 
 			$.ajax({
@@ -721,7 +721,7 @@
 					nonce: nonce
 				},
 				beforeSend: function() {
-					$btn.prop('disabled', true).text('Processing...');
+					$button.prop('disabled', true).text('Processing...');
 				},
 				success: function(response) {
 					if (response.success) {
@@ -729,7 +729,7 @@
 						$('.fanfic-notification-item').removeClass('fanfic-notification-unread');
 						$('.fanfic-notification-dot').fadeOut();
 						$('.fanfic-mark-read').fadeOut();
-						$btn.fadeOut();
+						$button.fadeOut();
 
 						// Update badge count
 						self.updateBadgeCount();
@@ -738,12 +738,12 @@
 						self.showMessage('All notifications marked as read', 'success');
 					} else {
 						self.showMessage(response.data.message || 'Failed to mark all as read', 'error');
-						$btn.prop('disabled', false).text('Mark All as Read');
+						$button.prop('disabled', false).text('Mark All as Read');
 					}
 				},
 				error: function() {
 					self.showMessage('Network error. Please try again.', 'error');
-					$btn.prop('disabled', false).text('Mark All as Read');
+					$button.prop('disabled', false).text('Mark All as Read');
 				}
 			});
 		},
@@ -793,7 +793,7 @@
 		 */
 		saveSettings: function($form) {
 			const self = this;
-			const $btn = $form.find('.fanfic-notification-save-btn');
+			const $button = $form.find('.fanfic-notification-save-button');
 			const formData = $form.serialize();
 
 			$.ajax({
@@ -801,20 +801,20 @@
 				type: 'POST',
 				data: formData + '&action=fanfic_save_notification_settings',
 				beforeSend: function() {
-					$btn.prop('disabled', true).text('Saving...');
+					$button.prop('disabled', true).text('Saving...');
 				},
 				success: function(response) {
 					if (response.success) {
 						self.showMessage('Settings saved successfully', 'success');
-						$btn.prop('disabled', false).text('Save Settings');
+						$button.prop('disabled', false).text('Save Settings');
 					} else {
 						self.showMessage(response.data.message || 'Failed to save settings', 'error');
-						$btn.prop('disabled', false).text('Save Settings');
+						$button.prop('disabled', false).text('Save Settings');
 					}
 				},
 				error: function() {
 					self.showMessage('Network error. Please try again.', 'error');
-					$btn.prop('disabled', false).text('Save Settings');
+					$button.prop('disabled', false).text('Save Settings');
 				}
 			});
 		},
@@ -824,7 +824,7 @@
 		 */
 		showMessage: function(message, type) {
 			// Create message element
-			const $message = $('<div class="fanfic-message fanfic-' + type + '">' + message + '</div>');
+			const $message = $('<div class="fanfic-info-box fanfic-' + type + '">' + message + '</div>');
 
 			// Prepend to notification container or body
 			const $container = $('.fanfic-user-notifications, .fanfic-notification-settings').first();
@@ -1076,7 +1076,7 @@
 			});
 
 			// Update aria-pressed on toggle buttons (bookmark, follow, etc.)
-			$(document).on('click', '[data-toggle-button], .fanfic-bookmark-btn, .fanfic-follow-btn', function() {
+			$(document).on('click', '[data-toggle-button], .fanfic-bookmark-button, .fanfic-follow-button', function() {
 				const $button = $(this);
 				const isPressed = $button.attr('aria-pressed') === 'true';
 				$button.attr('aria-pressed', !isPressed);
@@ -1091,7 +1091,7 @@
 			});
 
 			// Set aria-busy on AJAX buttons
-			$(document).on('click', '[data-ajax-action], .fanfic-ajax-btn', function() {
+			$(document).on('click', '[data-ajax-action], .fanfic-ajax-button', function() {
 				const $button = $(this);
 				$button.attr('aria-busy', 'true');
 			});

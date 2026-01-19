@@ -92,6 +92,8 @@ class Fanfic_URL_Manager {
 		add_action( 'template_redirect', array( $this, 'setup_virtual_pages' ), 1 );
 		add_filter( 'the_posts', array( $this, 'create_virtual_page_post' ), 10, 2 );
 		add_filter( 'the_content', array( $this, 'inject_virtual_page_content' ) );
+		add_filter( 'body_class', array( $this, 'add_body_classes' ) );
+		add_filter( 'pre_get_shortlink', array( $this, 'shortlink_for_virtual_pages' ), 10, 4 );
 
 		// Setup virtual page postdata using 'wp' hook (most stable for persisting globals).
 		// Priority 999 ensures it runs AFTER other plugins/code that might modify globals.
@@ -554,6 +556,12 @@ class Fanfic_URL_Manager {
 	public function setup_virtual_pages() {
 		$fanfic_page = get_query_var( 'fanfic_page' );
 
+		// Differentiate between members archive and single profile
+		if ( 'members' === $fanfic_page && get_query_var( 'member_name' ) ) {
+			set_query_var( 'fanfic_page', 'member_profile' );
+			$fanfic_page = 'member_profile'; // Update for current function scope
+		}
+
 		if ( empty( $fanfic_page ) ) {
 			return;
 		}
@@ -626,6 +634,11 @@ class Fanfic_URL_Manager {
 		}
 
 		$fanfic_page = get_query_var( 'fanfic_page' );
+		if ( 'members' === $fanfic_page && get_query_var( 'member_name' ) ) {
+			// Convert member list to profile view before building the virtual page post.
+			set_query_var( 'fanfic_page', 'member_profile' );
+			$fanfic_page = 'member_profile';
+		}
 
 		if ( empty( $fanfic_page ) ) {
 			return $posts;
@@ -636,6 +649,17 @@ class Fanfic_URL_Manager {
 
 		if ( ! $page_config ) {
 			return $posts;
+		}
+
+		// Dynamically set title for member_profile
+		if ( 'member_profile' === $fanfic_page ) {
+			$member_name = get_query_var( 'member_name' );
+			$user = get_user_by( 'login', $member_name );
+			if ( $user ) {
+				$page_config['title'] = $user->display_name;
+			} else {
+				$page_config['title'] = __( 'User not found', 'fanfiction-manager' );
+			}
 		}
 
 		// Create fake post object.
@@ -727,6 +751,34 @@ class Fanfic_URL_Manager {
 			return $content;
 		}
 
+		// Handle edit profile view on member profile URLs.
+		$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+		if ( 'member_profile' === $post->fanfic_page_key && 'edit' === $action ) {
+			$member_name = get_query_var( 'member_name' );
+			$user = $member_name ? get_user_by( 'login', $member_name ) : false;
+
+			if ( ! $user ) {
+				return '<div class="fanfic-error-notice" role="alert"><p>' .
+					esc_html__( 'User not found.', 'fanfiction-manager' ) .
+				'</p></div>';
+			}
+
+			if ( ! function_exists( 'fanfic_current_user_can_edit' ) || ! fanfic_current_user_can_edit( 'profile', $user->ID ) ) {
+				return '<div class="fanfic-error-notice" role="alert"><p>' .
+					esc_html__( 'You do not have permission to edit this profile.', 'fanfiction-manager' ) .
+				'</p></div>';
+			}
+
+			$template_path = FANFIC_PLUGIN_DIR . 'templates/template-edit-profile.php';
+			if ( file_exists( $template_path ) ) {
+				ob_start();
+				global $fanfic_load_template;
+				$fanfic_load_template = true;
+				include $template_path;
+				return ob_get_clean();
+			}
+		}
+
 		// Check if we should load a template directly
 		if ( ! empty( $page_config['template'] ) ) {
 			// Load template file
@@ -735,6 +787,8 @@ class Fanfic_URL_Manager {
 
 			if ( file_exists( $template_path ) ) {
 				ob_start();
+				global $fanfic_load_template;
+				$fanfic_load_template = true;
 				include $template_path;
 				return ob_get_clean();
 			}
@@ -746,6 +800,65 @@ class Fanfic_URL_Manager {
 		}
 
 		return $content;
+	}
+
+	/**
+	 * Add body classes for dynamic pages
+	 *
+	 * @since 2.0.0
+	 * @param array $classes Existing body classes.
+	 * @return array Modified body classes.
+	 */
+	public function add_body_classes( $classes ) {
+		$fanfic_page = get_query_var( 'fanfic_page' );
+		if ( ! empty( $fanfic_page ) ) {
+			$classes[] = 'fanfic-page';
+			$classes[] = 'fanfic-page-' . sanitize_html_class( $fanfic_page );
+		}
+		if ( 'member_profile' === $fanfic_page ) {
+			$classes[] = 'fanfic-member-profile';
+		}
+		if ( is_singular( 'fanfiction_story' ) ) {
+			$classes[] = 'fanfic-story';
+			$classes[] = 'fanfic-story-view';
+		}
+		if ( is_singular( 'fanfiction_chapter' ) ) {
+			$classes[] = 'fanfic-chapter';
+			$classes[] = 'fanfic-chapter-view';
+		}
+		if ( is_post_type_archive( 'fanfiction_story' ) ) {
+			$classes[] = 'fanfic-story-archive';
+		}
+		if ( is_tax( array( 'fanfiction_genre', 'fanfiction_status', 'fanfiction_rating', 'fanfiction_character', 'fanfiction_relationship' ) ) ) {
+			$tax = get_queried_object();
+			if ( $tax && ! empty( $tax->taxonomy ) ) {
+				$classes[] = 'fanfic-tax';
+				$classes[] = 'fanfic-tax-' . sanitize_html_class( $tax->taxonomy );
+			}
+		}
+		return $classes;
+	}
+
+	/**
+	 * Provide shortlinks for virtual pages to avoid core null post warnings
+	 *
+	 * @since 2.0.0
+	 * @param false|string $shortlink   Short-circuit return value.
+	 * @param int          $id          Post ID or 0 for current post.
+	 * @param string       $context     The context for the link.
+	 * @param bool         $allow_slugs Whether to allow post slugs in the shortlink.
+	 * @return false|string Shortlink or false to allow default handling.
+	 */
+	public function shortlink_for_virtual_pages( $shortlink, $id, $context, $allow_slugs ) {
+		if ( get_query_var( 'fanfic_page' ) ) {
+			if ( function_exists( 'fanfic_get_current_url' ) ) {
+				return fanfic_get_current_url();
+			}
+			$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+			return $request_uri ? home_url( $request_uri ) : home_url( '/' );
+		}
+
+		return $shortlink;
 	}
 
 	/**
@@ -768,6 +881,10 @@ class Fanfic_URL_Manager {
 			'members' => array(
 				'title'    => __( 'Members', 'fanfiction-manager' ),
 				'template' => 'user-list',
+			),
+			'member_profile' => array(
+				'title'    => '', // Will be dynamically set
+				'template' => 'profile-view',
 			),
 		);
 

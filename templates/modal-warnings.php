@@ -229,12 +229,12 @@ var FanficMessages = {
 
 	// Unpublish Confirmations
 	unpublishChapter: '<?php echo esc_js( __( 'Are you sure you want to unpublish', 'fanfiction-manager' ) ); ?>',
-	unpublishChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last published chapter/prologue. Unpublishing it will automatically hide your story from readers (Draft status).', 'fanfiction-manager' ) ); ?>',
-	unpublishChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter unpublished. Your story has been set to DRAFT because it no longer has any published chapters or prologues.', 'fanfiction-manager' ) ); ?>',
+	unpublishChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last published chapter/prologue. Unpublishing it will automatically draft your story.', 'fanfiction-manager' ) ); ?>',
+	unpublishChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter unpublished. Your story has been set to draft because it no longer has any published chapters or prologues.', 'fanfiction-manager' ) ); ?>',
 
 	// Delete Success Alerts
 	deleteChapterSuccess: '<?php echo esc_js( __( 'Chapter deleted successfully.', 'fanfiction-manager' ) ); ?>',
-	deleteChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter deleted. Your story has been set to DRAFT because it no longer has any chapters or prologues.', 'fanfiction-manager' ) ); ?>',
+	deleteChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter deleted. Your story has been set to draft because it no longer has any chapters or prologues.', 'fanfiction-manager' ) ); ?>',
 
 	// Error Messages
 	errorCheckingLastChapter: '<?php echo esc_js( __( 'Error checking if this is the last chapter. Please try again.', 'fanfiction-manager' ) ); ?>',

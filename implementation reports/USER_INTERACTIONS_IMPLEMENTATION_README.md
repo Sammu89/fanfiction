@@ -545,25 +545,25 @@ update_option('fanfic_anonymous_data_retention', 90); // days
 </div>
 
 <!-- Like Button -->
-<button class="fanfic-like-btn" data-chapter-id="123" data-liked="false">
+<button class="fanfic-like-button" data-chapter-id="123" data-liked="false">
     <span class="icon">♥</span>
     <span class="count">15</span> Likes
 </button>
 
 <!-- Bookmark Button -->
-<button class="fanfic-bookmark-btn" data-story-id="456" data-bookmarked="false">
+<button class="fanfic-bookmark-button" data-story-id="456" data-bookmarked="false">
     <span class="icon">🔖</span>
     Bookmark
 </button>
 
 <!-- Follow Story Button -->
-<button class="fanfic-follow-story-btn" data-story-id="456" data-following="false">
+<button class="fanfic-follow-story-button" data-story-id="456" data-following="false">
     <span class="icon">👁️</span>
     Follow Story
 </button>
 
 <!-- Follow Author Button -->
-<button class="fanfic-follow-author-btn" data-author-id="789" data-following="false">
+<button class="fanfic-follow-author-button" data-author-id="789" data-following="false">
     <span class="icon">👤</span>
     Follow Author
 </button>
@@ -598,7 +598,7 @@ jQuery(document).ready(function($) {
     });
 
     // Like chapter
-    $('.fanfic-like-btn').on('click', function() {
+    $('.fanfic-like-button').on('click', function() {
         var chapterId = $(this).data('chapter-id');
         var isLiked = $(this).data('liked');
 
@@ -609,14 +609,14 @@ jQuery(document).ready(function($) {
         }, function(response) {
             if (response.success) {
                 // Toggle liked state
-                $('.fanfic-like-btn').data('liked', !isLiked);
-                $('.fanfic-like-btn .count').text(response.data.like_count);
+                $('.fanfic-like-button').data('liked', !isLiked);
+                $('.fanfic-like-button .count').text(response.data.like_count);
 
                 // Update icon
                 if (response.data.liked) {
-                    $('.fanfic-like-btn').addClass('liked');
+                    $('.fanfic-like-button').addClass('liked');
                 } else {
-                    $('.fanfic-like-btn').removeClass('liked');
+                    $('.fanfic-like-button').removeClass('liked');
                 }
             }
         });
@@ -654,7 +654,7 @@ $rating_data = Fanfic_Rating_System::get_chapter_rating($chapter_id);
     $like_data = Fanfic_Like_System::get_chapter_likes($chapter_id);
     $user_liked = Fanfic_Like_System::has_user_liked($chapter_id);
     ?>
-    <button class="fanfic-like-btn <?php echo $user_liked ? 'liked' : ''; ?>"
+    <button class="fanfic-like-button <?php echo $user_liked ? 'liked' : ''; ?>"
             data-chapter-id="<?php echo esc_attr($chapter_id); ?>"
             data-liked="<?php echo $user_liked ? 'true' : 'false'; ?>">
         <span class="icon">♥</span>
@@ -667,7 +667,7 @@ $rating_data = Fanfic_Rating_System::get_chapter_rating($chapter_id);
         $story_id = wp_get_post_parent_id($chapter_id);
         $is_bookmarked = Fanfic_Bookmarks::is_bookmarked($story_id);
         ?>
-        <button class="fanfic-bookmark-btn <?php echo $is_bookmarked ? 'bookmarked' : ''; ?>"
+        <button class="fanfic-bookmark-button <?php echo $is_bookmarked ? 'bookmarked' : ''; ?>"
                 data-story-id="<?php echo esc_attr($story_id); ?>"
                 data-bookmarked="<?php echo $is_bookmarked ? 'true' : 'false'; ?>">
             <span class="icon">🔖</span>

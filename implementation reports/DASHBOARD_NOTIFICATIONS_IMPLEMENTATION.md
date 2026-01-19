@@ -123,7 +123,7 @@ Fanfic_Notifications::get_relative_time( $notification->created_at )
 - `.fanfic-notification-icon` - Icon container (type-specific colors)
 - `.fanfic-notification-content` - Message and timestamp
 - `.fanfic-notification-dismiss` - Dismiss button
-- `.fanfic-notification-page-btn` - Pagination buttons
+- `.fanfic-notification-page-button` - Pagination buttons
 - `.fanfic-notifications-loading` - Loading spinner state
 - `.fanfic-notifications-empty` - Empty state message
 

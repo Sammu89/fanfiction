@@ -105,7 +105,7 @@ class Fanfic_Widget_Top_Authors extends WP_Widget {
 		// Author name and link
 		printf(
 			'<a href="%s" class="fanfic-widget-link fanfic-widget-author-link">%s</a>',
-			esc_url( get_author_posts_url( $author->ID ) ),
+			esc_url( fanfic_get_user_profile_url( $author->ID ) ),
 			esc_html( $author->display_name )
 		);
 

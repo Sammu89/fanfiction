@@ -81,7 +81,7 @@ public static function get_bookmarks_count( $user_id, $bookmark_type = null )
 
 **Event Binding:**
 ```javascript
-$(document).on('click', '.fanfic-notification-page-btn', handleNotificationPagination);
+$(document).on('click', '.fanfic-notification-page-button', handleNotificationPagination);
 ```
 
 **Workflow:**
@@ -211,7 +211,7 @@ function handleBookmarkPagination(e) {
     if (button.hasClass('active')) return;
     
     showBookmarksLoading();
-    $('.fanfic-bookmark-page-btn').prop('disabled', true);
+    $('.fanfic-bookmark-page-button').prop('disabled', true);
     
     $.ajax({
         url: fanficData.ajaxUrl,
@@ -232,7 +232,7 @@ function handleBookmarkPagination(e) {
         },
         complete: function() {
             hideBookmarksLoading();
-            $('.fanfic-bookmark-page-btn').prop('disabled', false);
+            $('.fanfic-bookmark-page-button').prop('disabled', false);
         }
     });
 }

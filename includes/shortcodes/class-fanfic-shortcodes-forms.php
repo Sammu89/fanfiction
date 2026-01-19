@@ -56,7 +56,7 @@ class Fanfic_Shortcodes_Forms {
 	public static function login_form( $atts ) {
 		// If user is already logged in, show message
 		if ( is_user_logged_in() ) {
-			return '<div class="fanfic-message fanfic-info">' .
+			return '<div class="fanfic-info-box fanfic-info">' .
 				esc_html__( 'You are already logged in.', 'fanfiction-manager' ) .
 				'</div>';
 		}
@@ -76,11 +76,11 @@ class Fanfic_Shortcodes_Forms {
 		$message = '';
 		if ( isset( $_GET['login'] ) ) {
 			if ( 'failed' === $_GET['login'] ) {
-				$message = '<div class="fanfic-message fanfic-error" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
 					esc_html__( 'Login failed. Please check your username and password.', 'fanfiction-manager' ) .
 					'</div>';
 			} elseif ( 'empty' === $_GET['login'] ) {
-				$message = '<div class="fanfic-message fanfic-error" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
 					esc_html__( 'Please enter your username and password.', 'fanfiction-manager' ) .
 					'</div>';
 			}
@@ -164,14 +164,14 @@ class Fanfic_Shortcodes_Forms {
 	public static function register_form( $atts ) {
 		// If user is already logged in, show message
 		if ( is_user_logged_in() ) {
-			return '<div class="fanfic-message fanfic-info">' .
+			return '<div class="fanfic-info-box fanfic-info">' .
 				esc_html__( 'You are already registered and logged in.', 'fanfiction-manager' ) .
 				'</div>';
 		}
 
 		// Check if registration is enabled
 		if ( ! get_option( 'users_can_register' ) ) {
-			return '<div class="fanfic-message fanfic-error">' .
+			return '<div class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'User registration is currently disabled.', 'fanfiction-manager' ) .
 				'</div>';
 		}
@@ -180,7 +180,7 @@ class Fanfic_Shortcodes_Forms {
 		$message = '';
 		if ( isset( $_GET['register'] ) ) {
 			if ( 'success' === $_GET['register'] ) {
-				$message = '<div class="fanfic-message fanfic-success" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-success" role="alert">' .
 					esc_html__( 'Registration successful! You can now log in.', 'fanfiction-manager' ) .
 					'</div>';
 			}
@@ -200,7 +200,7 @@ class Fanfic_Shortcodes_Forms {
 			<?php echo $message; ?>
 
 			<?php if ( ! empty( $errors ) ) : ?>
-				<div class="fanfic-message fanfic-error" role="alert">
+				<div class="fanfic-info-box fanfic-error" role="alert">
 					<ul>
 						<?php foreach ( $errors as $error ) : ?>
 							<li><?php echo esc_html( $error ); ?></li>
@@ -333,7 +333,7 @@ class Fanfic_Shortcodes_Forms {
 	public static function password_reset_form( $atts ) {
 		// If user is already logged in, show message
 		if ( is_user_logged_in() ) {
-			return '<div class="fanfic-message fanfic-info">' .
+			return '<div class="fanfic-info-box fanfic-info">' .
 				esc_html__( 'You are already logged in. If you need to change your password, please use your profile settings.', 'fanfiction-manager' ) .
 				'</div>';
 		}
@@ -342,15 +342,15 @@ class Fanfic_Shortcodes_Forms {
 		$message = '';
 		if ( isset( $_GET['password-reset'] ) ) {
 			if ( 'sent' === $_GET['password-reset'] ) {
-				$message = '<div class="fanfic-message fanfic-success" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-success" role="alert">' .
 					esc_html__( 'Password reset instructions have been sent to your email address.', 'fanfiction-manager' ) .
 					'</div>';
 			} elseif ( 'invalid' === $_GET['password-reset'] ) {
-				$message = '<div class="fanfic-message fanfic-error" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
 					esc_html__( 'Invalid email address.', 'fanfiction-manager' ) .
 					'</div>';
 			} elseif ( 'empty' === $_GET['password-reset'] ) {
-				$message = '<div class="fanfic-message fanfic-error" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
 					esc_html__( 'Please enter your email address.', 'fanfiction-manager' ) .
 					'</div>';
 			}
@@ -480,7 +480,6 @@ class Fanfic_Shortcodes_Forms {
 		ob_start();
 		?>
 		<div class="fanfic-rating-widget" data-chapter-id="<?php echo esc_attr( $chapter_id ); ?>">
-			<label><?php esc_html_e( 'Rate this chapter:', 'fanfiction-manager' ); ?></label>
 			<div class="fanfic-rating-stars">
 				<?php for ( $i = 1; $i <= 5; $i++ ) : ?>
 					<span class="fanfic-star star" data-rating="<?php echo esc_attr( $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( '%d stars', 'fanfiction-manager' ), $i ) ); ?>">&#9734;</span>
@@ -739,7 +738,7 @@ class Fanfic_Shortcodes_Forms {
 		}
 
 		if ( ! $content_id ) {
-			return '<div class="fanfic-message fanfic-error">' .
+			return '<div class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'No content specified for reporting.', 'fanfiction-manager' ) .
 				'</div>';
 		}
@@ -756,7 +755,7 @@ class Fanfic_Shortcodes_Forms {
 
 		// Validate content type
 		if ( ! in_array( $content_type, array( 'story', 'chapter', 'comment' ), true ) ) {
-			return '<div class="fanfic-message fanfic-error">' .
+			return '<div class="fanfic-info-box fanfic-error">' .
 				esc_html__( 'Invalid content type. Must be story, chapter, or comment.', 'fanfiction-manager' ) .
 				'</div>';
 		}
@@ -768,7 +767,7 @@ class Fanfic_Shortcodes_Forms {
 		if ( 'comment' === $content_type ) {
 			$comment = get_comment( $content_id );
 			if ( ! $comment ) {
-				return '<div class="fanfic-message fanfic-error">' .
+				return '<div class="fanfic-info-box fanfic-error">' .
 					esc_html__( 'Comment not found.', 'fanfiction-manager' ) .
 					'</div>';
 			}
@@ -782,7 +781,7 @@ class Fanfic_Shortcodes_Forms {
 		} else {
 			$content = get_post( $content_id );
 			if ( ! $content ) {
-				return '<div class="fanfic-message fanfic-error">' .
+				return '<div class="fanfic-info-box fanfic-error">' .
 					esc_html__( 'Content not found.', 'fanfiction-manager' ) .
 					'</div>';
 			}
@@ -790,7 +789,7 @@ class Fanfic_Shortcodes_Forms {
 			// Validate post type matches content type
 			$expected_type = ( 'story' === $content_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
 			if ( $content->post_type !== $expected_type ) {
-				return '<div class="fanfic-message fanfic-error">' .
+				return '<div class="fanfic-info-box fanfic-error">' .
 					esc_html__( 'Content type mismatch.', 'fanfiction-manager' ) .
 					'</div>';
 			}
@@ -803,19 +802,19 @@ class Fanfic_Shortcodes_Forms {
 		$message = '';
 		if ( isset( $_GET['report'] ) ) {
 			if ( 'success' === $_GET['report'] ) {
-				$message = '<div class="fanfic-message fanfic-success" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-success" role="alert">' .
 					esc_html__( 'Thank you for your report. Our moderation team will review it shortly.', 'fanfiction-manager' ) .
 					'</div>';
 			} elseif ( 'duplicate' === $_GET['report'] ) {
-				$message = '<div class="fanfic-message fanfic-error" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
 					esc_html__( 'You have already reported this content.', 'fanfiction-manager' ) .
 					'</div>';
 			} elseif ( 'recaptcha_failed' === $_GET['report'] ) {
-				$message = '<div class="fanfic-message fanfic-error" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
 					esc_html__( 'reCAPTCHA verification failed. Please try again.', 'fanfiction-manager' ) .
 					'</div>';
 			} elseif ( 'error' === $_GET['report'] ) {
-				$message = '<div class="fanfic-message fanfic-error" role="alert">' .
+				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
 					esc_html__( 'Failed to submit report. Please try again.', 'fanfiction-manager' ) .
 					'</div>';
 			}
@@ -857,7 +856,7 @@ class Fanfic_Shortcodes_Forms {
 			<?php echo $message; ?>
 
 			<?php if ( ! empty( $errors ) ) : ?>
-				<div class="fanfic-message fanfic-error" role="alert">
+				<div class="fanfic-info-box fanfic-error" role="alert">
 					<ul>
 						<?php foreach ( $errors as $error ) : ?>
 							<li><?php echo esc_html( $error ); ?></li>
@@ -867,7 +866,7 @@ class Fanfic_Shortcodes_Forms {
 			<?php endif; ?>
 
 			<?php if ( empty( $recaptcha_site_key ) || empty( $recaptcha_secret_key ) ) : ?>
-				<div class="fanfic-message fanfic-info" role="alert">
+				<div class="fanfic-info-box fanfic-info" role="alert">
 					<?php
 					if ( current_user_can( 'manage_options' ) ) {
 						printf(

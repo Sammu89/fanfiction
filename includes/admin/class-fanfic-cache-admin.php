@@ -100,13 +100,13 @@ class Fanfic_Cache_Admin {
 			// Clear All Cache button
 			$('#fanfic-clear-all-cache').on('click', function(e) {
 				e.preventDefault();
-				var \$btn = $(this);
+				var \$button = $(this);
 
 				if (!confirm('" . esc_js( __( 'Are you sure you want to clear all caches? This will temporarily slow down the site until caches are rebuilt.', 'fanfiction-manager' ) ) . "')) {
 					return;
 				}
 
-				\$btn.prop('disabled', true).text('" . esc_js( __( 'Clearing...', 'fanfiction-manager' ) ) . "');
+				\$button.prop('disabled', true).text('" . esc_js( __( 'Clearing...', 'fanfiction-manager' ) ) . "');
 				$('#fanfic-cache-message').remove();
 
 				$.ajax({
@@ -123,16 +123,16 @@ class Fanfic_Cache_Admin {
 							// Refresh stats
 							fanficRefreshCacheStats();
 						} else {
-							var message = '<div id=\"fanfic-cache-message\" class=\"notice notice-error is-dismissible\"><p>' + (response.data.message || '" . esc_js( __( 'Failed to clear cache.', 'fanfiction-manager' ) ) . "') + '</p></div>';
+							var message = '<div id=\"fanfic-cache-message\" class=\"notice error-message is-dismissible\"><p>' + (response.data.message || '" . esc_js( __( 'Failed to clear cache.', 'fanfiction-manager' ) ) . "') + '</p></div>';
 							$('#fanfic-cache-management').before(message);
 						}
 					},
 					error: function() {
-						var message = '<div id=\"fanfic-cache-message\" class=\"notice notice-error is-dismissible\"><p>" . esc_js( __( 'Request failed.', 'fanfiction-manager' ) ) . "</p></div>';
+						var message = '<div id=\"fanfic-cache-message\" class=\"notice error-message is-dismissible\"><p>" . esc_js( __( 'Request failed.', 'fanfiction-manager' ) ) . "</p></div>';
 						$('#fanfic-cache-management').before(message);
 					},
 					complete: function() {
-						\$btn.prop('disabled', false).text('" . esc_js( __( 'Clear All Caches', 'fanfiction-manager' ) ) . "');
+						\$button.prop('disabled', false).text('" . esc_js( __( 'Clear All Caches', 'fanfiction-manager' ) ) . "');
 					}
 				});
 			});
@@ -140,9 +140,9 @@ class Fanfic_Cache_Admin {
 			// Cleanup Expired button
 			$('#fanfic-cleanup-expired').on('click', function(e) {
 				e.preventDefault();
-				var \$btn = $(this);
+				var \$button = $(this);
 
-				\$btn.prop('disabled', true).text('" . esc_js( __( 'Cleaning...', 'fanfiction-manager' ) ) . "');
+				\$button.prop('disabled', true).text('" . esc_js( __( 'Cleaning...', 'fanfiction-manager' ) ) . "');
 				$('#fanfic-cache-message').remove();
 
 				$.ajax({
@@ -159,16 +159,16 @@ class Fanfic_Cache_Admin {
 							// Refresh stats
 							fanficRefreshCacheStats();
 						} else {
-							var message = '<div id=\"fanfic-cache-message\" class=\"notice notice-error is-dismissible\"><p>' + (response.data.message || '" . esc_js( __( 'Failed to cleanup.', 'fanfiction-manager' ) ) . "') + '</p></div>';
+							var message = '<div id=\"fanfic-cache-message\" class=\"notice error-message is-dismissible\"><p>' + (response.data.message || '" . esc_js( __( 'Failed to cleanup.', 'fanfiction-manager' ) ) . "') + '</p></div>';
 							$('#fanfic-cache-management').before(message);
 						}
 					},
 					error: function() {
-						var message = '<div id=\"fanfic-cache-message\" class=\"notice notice-error is-dismissible\"><p>" . esc_js( __( 'Request failed.', 'fanfiction-manager' ) ) . "</p></div>';
+						var message = '<div id=\"fanfic-cache-message\" class=\"notice error-message is-dismissible\"><p>" . esc_js( __( 'Request failed.', 'fanfiction-manager' ) ) . "</p></div>';
 						$('#fanfic-cache-management').before(message);
 					},
 					complete: function() {
-						\$btn.prop('disabled', false).text('" . esc_js( __( 'Clean Up Expired', 'fanfiction-manager' ) ) . "');
+						\$button.prop('disabled', false).text('" . esc_js( __( 'Clean Up Expired', 'fanfiction-manager' ) ) . "');
 					}
 				});
 			});

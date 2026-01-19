@@ -219,7 +219,7 @@ class Fanfic_SEO {
         // Author information
         $author_id = $post->post_author;
         $author_name = get_the_author_meta('display_name', $author_id);
-        $author_url = get_author_posts_url($author_id);
+        $author_url = fanfic_get_user_profile_url($author_id);
 
         $schema['author'] = array(
             '@type' => 'Person',
@@ -374,7 +374,7 @@ class Fanfic_SEO {
         echo '<meta property="article:modified_time" content="' . esc_attr(get_the_modified_date('c', $post)) . '" />' . "\n";
 
         // article:author
-        $author_url = get_author_posts_url($post->post_author);
+        $author_url = fanfic_get_user_profile_url($post->post_author);
         echo '<meta property="article:author" content="' . esc_url($author_url) . '" />' . "\n";
 
         // article:section (primary genre)

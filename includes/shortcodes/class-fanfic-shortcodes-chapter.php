@@ -35,6 +35,49 @@ class Fanfic_Shortcodes_Chapter {
 		add_shortcode( 'fanfic-chapter-published', array( __CLASS__, 'chapter_published' ) );
 		add_shortcode( 'fanfic-chapter-updated', array( __CLASS__, 'chapter_updated' ) );
 		add_shortcode( 'fanfic-chapter-content', array( __CLASS__, 'chapter_content' ) );
+		add_shortcode( 'fanfic-chapter-image', array( __CLASS__, 'fanfic_chapter_image' ) );
+	}
+
+	/**
+	 * Custom Chapter Image shortcode
+	 *
+	 * [fanfic-chapter-image class="my-class" alt="My alt text"]
+	 *
+	 * @since 2.1.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Image HTML tag.
+	 */
+	public static function fanfic_chapter_image( $atts ) {
+		$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
+		if ( ! $chapter_id ) {
+			return '';
+		}
+
+		$atts = shortcode_atts(
+			array(
+				'class' => 'fanfic-chapter-image',
+				'alt'   => get_the_title( $chapter_id ),
+			),
+			$atts,
+			'fanfic-chapter-image'
+		);
+
+		// Sanitize attributes
+		$class = esc_attr( $atts['class'] );
+		$alt = esc_attr( $atts['alt'] );
+
+		$image_url = get_post_meta( $chapter_id, '_fanfic_chapter_image_url', true );
+
+		if ( empty( $image_url ) ) {
+			return ''; // No image found
+		}
+
+		return sprintf(
+			'<img src="%s" class="%s" alt="%s" loading="lazy" />',
+			esc_url( $image_url ),
+			esc_attr( $class ),
+			esc_attr( $alt )
+		);
 	}
 
 	/**
@@ -49,19 +92,38 @@ class Fanfic_Shortcodes_Chapter {
 	 * @return string Story title.
 	 */
 	public static function story_title( $atts ) {
-		$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
-
-		if ( ! $chapter_id ) {
-			return '';
-		}
-
-		$story_id = get_post_field( 'post_parent', $chapter_id );
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
 
 		if ( ! $story_id ) {
 			return '';
 		}
 
 		$story_title = get_the_title( $story_id );
+		if ( empty( $story_title ) ) {
+			return '';
+		}
+
+		$is_story_view = is_singular( 'fanfiction_story' );
+		$is_chapter_view = is_singular( 'fanfiction_chapter' );
+
+		if ( $is_story_view || $is_chapter_view ) {
+			$actions = '';
+			$edit_story = do_shortcode( '[edit-story-button story_id="' . absint( $story_id ) . '"]' );
+			$actions .= $edit_story;
+
+			if ( $is_chapter_view ) {
+				$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
+				if ( $chapter_id ) {
+					$actions .= do_shortcode( '[edit-chapter-button chapter_id="' . absint( $chapter_id ) . '"]' );
+				}
+			}
+
+			return '<div class="fanfic-story-title-row">' .
+				'<h1 class="fanfic-title fanfic-story-title">' . esc_html( $story_title ) . '</h1>' .
+				( '' !== $actions ? '<div class="fanfic-story-title-actions">' . $actions . '</div>' : '' ) .
+			'</div>';
+		}
+
 		return esc_html( $story_title );
 	}
 

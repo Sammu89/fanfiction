@@ -131,7 +131,7 @@ The plugin provides a **Page Templates** settings tab (`Settings > Fanfiction > 
 ### **Available Shortcodes**
 
 **Story Template:**
-- `[story-title]` `[story-author-link]` `[story-intro]` `[story-genres]` `[story-status]`
+- `[fanfic-story-title]` `[story-author-link]` `[story-intro]` `[story-genres]` `[story-status]`
 - `[story-word-count-estimate]` `[story-chapters]` `[story-views]` `[story-rating-form]`
 - `[story-actions]` `[edit-story-button]` `[chapters-list]` `[story-chapters-dropdown]`
 - `[story-featured-image]` `[story-comments]`

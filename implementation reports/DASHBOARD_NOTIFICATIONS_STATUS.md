@@ -125,7 +125,7 @@ initNotifications()  // Auto-run on dashboard load (line 1381)
 - **Error Handling:** Shows user-friendly messages
 
 #### Pagination Handler (lines 1464-1520)
-- **Trigger:** Click `.fanfic-notification-page-btn` button
+- **Trigger:** Click `.fanfic-notification-page-button` button
 - **Action:** Load AJAX page data
 - **Response:** Replace notifications list + update active button
 - **Loading State:** Shows spinner, disables buttons
@@ -158,7 +158,7 @@ initNotifications()  // Auto-run on dashboard load (line 1381)
 | `.fanfic-notification-message` | Message text | 13px, dark gray |
 | `.fanfic-notification-timestamp` | "2 hours ago" text | 11px, light gray, italic |
 | `.fanfic-notification-dismiss` | Dismiss button | 24px, transparent, hover effect |
-| `.fanfic-notification-page-btn` | Pagination buttons | Numbered 1-5, active state |
+| `.fanfic-notification-page-button` | Pagination buttons | Numbered 1-5, active state |
 | `.fanfic-notifications-empty` | Empty state | Centered text, light gray |
 | `.fanfic-notifications-loading` | Loading indicator | Spinner animation |
 

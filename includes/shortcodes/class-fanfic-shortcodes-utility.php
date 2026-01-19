@@ -31,6 +31,7 @@ class Fanfic_Shortcodes_Utility {
 	 */
 	public static function register() {
 		add_shortcode( 'edit-story-button', array( __CLASS__, 'edit_story_button' ) );
+		add_shortcode( 'edit-chapter-button', array( __CLASS__, 'edit_chapter_button' ) );
 		add_shortcode( 'fanfic-story-status', array( __CLASS__, 'story_status' ) );
 		add_shortcode( 'fanfic-chapter-status', array( __CLASS__, 'chapter_status' ) );
 		add_shortcode( 'edit-author-button', array( __CLASS__, 'edit_author_button' ) );
@@ -59,46 +60,79 @@ class Fanfic_Shortcodes_Utility {
 
 		// Get story ID from attribute or current post
 		$story_id = absint( $atts['story_id'] );
-		error_log( '=== EDIT STORY BUTTON DEBUG ===' );
-		error_log( 'story_id from attributes: ' . $story_id );
 
 		if ( empty( $story_id ) ) {
-			global $post;
-			error_log( 'No story_id in attributes, checking global $post' );
-			if ( $post && 'fanfiction_story' === $post->post_type ) {
-				$story_id = $post->ID;
-				error_log( 'Using global post ID: ' . $story_id );
-			} else {
-				error_log( 'Global post is not a fanfiction_story or is null' );
-			}
+			$story_id = Fanfic_Shortcodes::get_current_story_id();
 		}
 
 		// If no story ID, return empty
 		if ( empty( $story_id ) ) {
-			error_log( 'No story_id found - button will not be shown' );
 			return '';
 		}
 
 		// Check if user can edit this story
-		error_log( 'Checking current_user_can(edit_fanfiction_story, ' . $story_id . ')' );
-		if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
-			error_log( 'User cannot edit - button will not be shown' );
+		if ( ! fanfic_current_user_can_edit( 'story', $story_id ) ) {
 			return '';
 		}
-		error_log( 'User CAN edit - generating button' );
 
 		// Get edit story URL
 		$edit_url = fanfic_get_edit_story_url( $story_id );
-		error_log( 'Edit URL generated: ' . ( $edit_url ? $edit_url : 'EMPTY' ) );
 		if ( empty( $edit_url ) ) {
 			return '';
 		}
 
 		// Return button HTML
 		return sprintf(
-			'<a href="%s" class="button fanfic-edit-button">%s</a>',
+			'<a href="%s" class="fanfic-button fanfic-edit-button">%s</a>',
 			esc_url( $edit_url ),
 			esc_html__( 'Edit Story', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * Edit chapter button shortcode
+	 *
+	 * [edit-chapter-button chapter_id="123"]
+	 *
+	 * Displays an edit button for a chapter if the current user has permission to edit it.
+	 * Only shows if user can edit the chapter. Returns empty string otherwise.
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Edit button HTML or empty string.
+	 */
+	public static function edit_chapter_button( $atts ) {
+		$atts = Fanfic_Shortcodes::sanitize_atts(
+			$atts,
+			array(
+				'chapter_id' => 0,
+			),
+			'edit-chapter-button'
+		);
+
+		$chapter_id = absint( $atts['chapter_id'] );
+		if ( empty( $chapter_id ) ) {
+			$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
+		}
+
+		if ( empty( $chapter_id ) ) {
+			return '';
+		}
+
+		if ( ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
+			return '';
+		}
+
+		$story_id = wp_get_post_parent_id( $chapter_id );
+		$edit_url = fanfic_get_edit_chapter_url( $chapter_id, $story_id );
+		if ( empty( $edit_url ) ) {
+			return '';
+		}
+
+		return sprintf(
+			'<a href="%s" class="fanfic-button fanfic-edit-button">%s</a>',
+			esc_url( $edit_url ),
+			esc_html__( 'Edit Chapter', 'fanfiction-manager' )
 		);
 	}
 
@@ -152,7 +186,7 @@ class Fanfic_Shortcodes_Utility {
 
 		// Return button HTML
 		return sprintf(
-			'<a href="%s" class="button fanfic-edit-button">%s</a>',
+			'<a href="%s" class="fanfic-button fanfic-edit-button">%s</a>',
 			esc_url( $edit_url ),
 			esc_html__( 'Edit Profile', 'fanfiction-manager' )
 		);

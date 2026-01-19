@@ -125,10 +125,10 @@ class Fanfic_Validation {
 
 		$chapter = get_post( $chapter_id );
 
-		// Check title
-		if ( ! $chapter || empty( trim( $chapter->post_title ) ) ) {
-			$missing_fields['title'] = __( 'Your chapter must have a title.', 'fanfiction-manager' );
-		}
+		// Check title - NO LONGER REQUIRED FOR CHAPTERS
+		// if ( ! $chapter || empty( trim( $chapter->post_title ) ) ) {
+		//	$missing_fields['title'] = __( 'Your chapter must have a title.', 'fanfiction-manager' );
+		// }
 
 		// Check content
 		if ( ! $chapter || empty( trim( strip_tags( $chapter->post_content ) ) ) ) {

@@ -25,7 +25,7 @@ if ( ! is_user_logged_in() ) {
 	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
 		<p><?php esc_html_e( 'You must be logged in to view this page.', 'fanfiction-manager' ); ?></p>
 		<p>
-			<a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>" class="button">
+			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
 		</p>
@@ -52,14 +52,14 @@ $current_user = wp_get_current_user();
 
 <!-- Success/Error Messages -->
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'story_created' ) : ?>
-	<div class="fanfic-success-notice" role="status" aria-live="polite">
+	<div class="fanfic-info-box box-success" role="status" aria-live="polite">
 		<p><?php esc_html_e( 'Story created successfully!', 'fanfiction-manager' ); ?></p>
 		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
 <?php endif; ?>
 
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'profile_updated' ) : ?>
-	<div class="fanfic-success-notice" role="status" aria-live="polite">
+	<div class="fanfic-info-box box-success" role="status" aria-live="polite">
 		<p><?php esc_html_e( 'Profile updated successfully!', 'fanfiction-manager' ); ?></p>
 		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
@@ -148,17 +148,17 @@ $current_user = wp_get_current_user();
 	<h2 id="actions-heading"><?php esc_html_e( 'Quick Actions', 'fanfiction-manager' ); ?></h2>
 
 	<div class="fanfic-actions-grid">
-		<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-action-button fanfic-action-primary">
+		<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button fanfic-action-primary">
 			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'Create New Story', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="<?php echo esc_url( fanfic_get_dashboard_url() . '#my-stories' ); ?>" class="fanfic-action-button fanfic-action-secondary">
+		<a href="<?php echo esc_url( fanfic_get_dashboard_url() . '#my-stories' ); ?>" class="fanfic-button fanfic-action-secondary">
 			<span class="dashicons dashicons-portfolio" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'View My Stories', 'fanfiction-manager' ); ?></span>
 		</a>
 
-		<a href="<?php echo esc_url( fanfic_get_edit_profile_url() ); ?>" class="fanfic-action-button fanfic-action-secondary">
+		<a href="<?php echo esc_url( fanfic_get_edit_profile_url() ); ?>" class="fanfic-button fanfic-action-secondary">
 			<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>
 			<span><?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?></span>
 		</a>
@@ -217,7 +217,7 @@ $current_user = wp_get_current_user();
 			// Check for success/error messages
 			if ( isset( $_GET['story_deleted'] ) && 'success' === $_GET['story_deleted'] ) {
 				?>
-				<div class="fanfic-message fanfic-success" role="alert">
+				<div class="fanfic-info-box fanfic-success" role="alert">
 					<?php esc_html_e( 'Story deleted successfully.', 'fanfiction-manager' ); ?>
 				</div>
 				<?php
@@ -263,17 +263,17 @@ $current_user = wp_get_current_user();
 											</time>
 										</td>
 										<td class="fanfic-story-actions">
-											<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-small">
+											<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button fanfic-button-small">
 												<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
 											</a>
-											<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-btn fanfic-btn-small">
+											<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button fanfic-button-small">
 												<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 											</a>
 											<form method="post" style="display: inline;" onsubmit="return confirm('<?php esc_attr_e( 'Are you sure you want to delete this story and all its chapters? This action cannot be undone.', 'fanfiction-manager' ); ?>');">
 												<?php wp_nonce_field( 'fanfic_delete_story_' . $story_id, 'fanfic_delete_story_nonce' ); ?>
 												<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
 												<input type="hidden" name="fanfic_delete_story_submit" value="1" />
-												<button type="submit" class="fanfic-btn fanfic-btn-small fanfic-btn-danger">
+												<button type="submit" class="fanfic-button fanfic-button-small fanfic-button-danger">
 													<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 												</button>
 											</form>
@@ -300,9 +300,9 @@ $current_user = wp_get_current_user();
 					?>
 
 				<?php else : ?>
-					<div class="fanfic-message fanfic-info">
+					<div class="fanfic-info-box fanfic-info">
 						<p><?php esc_html_e( 'You have not created any stories yet.', 'fanfiction-manager' ); ?></p>
-						<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-btn fanfic-btn-primary">
+						<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button fanfic-button-primary">
 							<?php esc_html_e( 'Create Your First Story', 'fanfiction-manager' ); ?>
 						</a>
 					</div>
@@ -393,7 +393,7 @@ $current_user = wp_get_current_user();
 						<div class="fanfic-notifications-pagination">
 							<?php for ( $page = 1; $page <= $total_pages; $page++ ) : ?>
 								<button type="button"
-									class="fanfic-notification-page-btn<?php echo ( 1 === $page ) ? ' active' : ''; ?>"
+									class="fanfic-notification-page-button<?php echo ( 1 === $page ) ? ' active' : ''; ?>"
 									data-page="<?php echo esc_attr( $page ); ?>"
 									aria-label="<?php echo esc_attr( sprintf( __( 'Page %d', 'fanfiction-manager' ), $page ) ); ?>">
 									<?php echo esc_html( $page ); ?>
@@ -462,7 +462,7 @@ $current_user = wp_get_current_user();
 		var closeButtons = document.querySelectorAll('.fanfic-notice-close');
 		closeButtons.forEach(function(button) {
 			button.addEventListener('click', function() {
-				var notice = this.closest('.fanfic-success-notice, .fanfic-error-notice');
+				var notice = this.closest('.fanfic-info-box box-success, .fanfic-error-notice');
 				if (notice) {
 					notice.style.display = 'none';
 				}

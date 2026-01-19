@@ -10,9 +10,9 @@
 function openReviewedModal(e) {
     e.preventDefault();
 
-    var $btn = $(this);
-    var reportId = $btn.data('report-id');
-    var nonce = $btn.data('nonce');
+    var $button = $(this);
+    var reportId = $button.data('report-id');
+    var nonce = $button.data('nonce');
 
     // Create modal HTML
     var modalHtml = '<div class="fanfic-admin-modal">...</div>';
@@ -232,7 +232,7 @@ public static function mark_as_reviewed( $report_id, $notes = '' ) {
 // Mark as Reviewed action (if not already reviewed)
 if ( 'reviewed' !== $item->status ) {
     $actions[] = sprintf(
-        '<a href="#" class="button button-small mark-reviewed-btn" data-report-id="%d" data-nonce="%s">%s</a>',
+        '<a href="#" class="button button-small mark-reviewed-button" data-report-id="%d" data-nonce="%s">%s</a>',
         $report_id,
         esc_attr( $nonce ),
         __( 'Mark as Reviewed', 'fanfiction-manager' )
@@ -247,7 +247,7 @@ if ( 'reviewed' !== $item->status ) {
 
 // View Report action
 $actions[] = sprintf(
-    '<a href="#" class="button button-small view-report-btn" data-report-id="%d" data-nonce="%s">%s</a>',
+    '<a href="#" class="button button-small view-report-button" data-report-id="%d" data-nonce="%s">%s</a>',
     $report_id,
     esc_attr( $nonce ),
     __( 'View Report', 'fanfiction-manager' )
@@ -335,10 +335,10 @@ var postLink = report.post_link ?
 
 function initModerationActions() {
     // Mark as Reviewed button (opens modal)
-    $(document).on('click', '.mark-reviewed-btn', openReviewedModal);
+    $(document).on('click', '.mark-reviewed-button', openReviewedModal);
 
     // View Report button
-    $(document).on('click', '.view-report-btn', viewReportDetails);
+    $(document).on('click', '.view-report-button', viewReportDetails);
 
     // Modal close handlers
     $(document).on('click', '.fanfic-admin-modal-close, .fanfic-admin-modal-cancel', closeModal);
@@ -454,7 +454,7 @@ function closeModal(e) {
 ### Test Modal Opening in Browser Console
 ```javascript
 // Simulate button click
-jQuery('.mark-reviewed-btn').first().trigger('click');
+jQuery('.mark-reviewed-button').first().trigger('click');
 ```
 
 ### Test AJAX Call Directly
@@ -531,7 +531,7 @@ if ( wp_verify_nonce( $nonce, 'fanfic_moderation_action' ) ) {
 **Solution:** Check if JavaScript is loaded and button has correct class
 ```javascript
 // Browser console
-jQuery('.mark-reviewed-btn').length  // Should be > 0
+jQuery('.mark-reviewed-button').length  // Should be > 0
 ```
 
 ### Issue: AJAX returns 400/403 error

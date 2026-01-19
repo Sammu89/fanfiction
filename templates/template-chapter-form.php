@@ -194,6 +194,11 @@ if ( isset( $_POST['fanfic_create_chapter_submit'] ) ) {
 					update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 					update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
+					// Save chapter image URL if provided
+					if ( isset( $_POST['fanfic_chapter_image_url'] ) ) {
+						update_post_meta( $chapter_id, '_fanfic_chapter_image_url', esc_url_raw( $_POST['fanfic_chapter_image_url'] ) );
+					}
+
 					// Check if this is the first published chapter and story is a draft
 					$is_first_published_chapter = false;
 					if ( 'publish' === $chapter_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
@@ -336,6 +341,13 @@ if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 					// Update chapter metadata
 					update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 					update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
+
+					// Update chapter image URL
+					if ( ! empty( $_POST['fanfic_chapter_image_url'] ) ) {
+						update_post_meta( $chapter_id, '_fanfic_chapter_image_url', esc_url_raw( $_POST['fanfic_chapter_image_url'] ) );
+					} else {
+						delete_post_meta( $chapter_id, '_fanfic_chapter_image_url' );
+					}
 
 					// Check if this is the first published chapter and story is a draft
 					$is_first_published_chapter = false;
@@ -518,7 +530,7 @@ if ( ! is_user_logged_in() ) {
 	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
 		<p><?php esc_html_e( 'You must be logged in to manage chapters.', 'fanfiction-manager' ); ?></p>
 		<p>
-			<a href="<?php echo esc_url( wp_login_url( get_permalink() ) ); ?>" class="fanfic-button fanfic-button-primary">
+			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
 		</p>
@@ -594,6 +606,7 @@ if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 // Get chapter data for edit mode
 $chapter_number = '';
 $chapter_type = 'chapter';
+$chapter_image_url = '';
 
 if ( $is_edit_mode ) {
 	$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
@@ -678,14 +691,14 @@ fanfic_render_breadcrumb( 'edit-chapter', array(
 
 <!-- Success/Error Messages -->
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'true' ) : ?>
-	<div class="fanfic-success-notice" role="status" aria-live="polite">
+	<div class="fanfic-info-box box-success" role="status" aria-live="polite">
 		<p><?php echo $is_edit_mode ? esc_html__( 'Chapter updated successfully!', 'fanfiction-manager' ) : esc_html__( 'Chapter created successfully!', 'fanfiction-manager' ); ?></p>
 		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
 <?php endif; ?>
 
 <?php if ( isset( $_GET['updated'] ) && $_GET['updated'] === 'success' ) : ?>
-	<div class="fanfic-success-notice" role="status" aria-live="polite">
+	<div class="fanfic-info-box box-success" role="status" aria-live="polite">
 		<p><?php esc_html_e( 'Chapter updated successfully!', 'fanfiction-manager' ); ?></p>
 		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
@@ -729,14 +742,6 @@ if ( $validation_errors ) {
 ?>
 
 <p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
-
-<!-- Info Box -->
-<div class="fanfic-info-box" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
-	<span class="dashicons dashicons-info" aria-hidden="true"></span>
-	<p>
-		<?php esc_html_e( 'Chapter content supports plain text, bold, italic, and line breaks. No links or HTML allowed.', 'fanfiction-manager' ); ?>
-	</p>
-</div>
 
 <!-- Chapter Form Section -->
 <section class="fanfic-content-section fanfic-form-section" aria-labelledby="form-heading">
@@ -826,12 +831,52 @@ if ( $validation_errors ) {
 							name="fanfic_chapter_title"
 							class="fanfic-input"
 							value="<?php echo isset( $_POST['fanfic_chapter_title'] ) ? esc_attr( $_POST['fanfic_chapter_title'] ) : ( $is_edit_mode ? esc_attr( $chapter->post_title ) : '' ); ?>"
-							placeholder="<?php esc_attr_e( 'Leave blank to use chapter number only', 'fanfiction-manager' ); ?>"
+							placeholder="<?php esc_attr_e( 'Leave blank for default', 'fanfiction-manager' ); ?>"
 						/>
 						<?php if ( isset( $field_errors['chapter_title'] ) ) : ?>
 							<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_title'] ); ?></p>
 						<?php endif; ?>
 					</div>
+				</div>
+
+				<!-- Chapter Image -->
+				<div class="fanfic-form-field">
+					<label for="fanfic_chapter_image_url"><?php esc_html_e( 'Chapter Cover Image URL', 'fanfiction-manager' ); ?> <span class="description"><?php esc_html_e( '(Optional)', 'fanfiction-manager' ); ?></span></label>
+					<input
+						type="url"
+						id="fanfic_chapter_image_url"
+						name="fanfic_chapter_image_url"
+						class="fanfic-input"
+						value="<?php echo esc_attr( $chapter_image_url ); ?>"
+						placeholder="<?php esc_attr_e( 'Enter image URL or upload a file', 'fanfiction-manager' ); ?>"
+					/>
+					<label for="fanfic_chapter_image_file" style="margin-top: 10px; display: block;"><?php esc_html_e( 'Or upload an image', 'fanfiction-manager' ); ?></label>
+					<input
+						type="file"
+						id="fanfic_chapter_image_file"
+						name="fanfic_chapter_image_file"
+						class="fanfic-input"
+						accept="image/*"
+						data-url-target="#fanfic_chapter_image_url"
+					/>
+					<button
+						type="button"
+						class="button fanfic-ajax-upload-btn"
+						data-file-input="#fanfic_chapter_image_file"
+						data-nonce="<?php echo wp_create_nonce( 'fanfic_ajax_image_upload' ); ?>"
+						data-context="<?php esc_attr_e( 'Chapter Image', 'fanfiction-manager' ); ?>"
+					>
+						<?php esc_html_e( 'Upload', 'fanfiction-manager' ); ?>
+					</button>
+					<span class="fanfic-upload-status"></span>
+					<p class="description">
+						<?php esc_html_e( 'Larger images will be resized to 1024px and converted to WEBP format.', 'fanfiction-manager' ); ?>
+					</p>
+					<?php if ( $chapter_image_url ) : ?>
+						<div class="fanfic-image-preview" style="margin-top: 10px;">
+							<img src="<?php echo esc_url( $chapter_image_url ); ?>" alt="<?php esc_attr_e( 'Chapter image preview', 'fanfiction-manager' ); ?>" style="max-width: 200px; height: auto; border: 1px solid #ddd;" />
+						</div>
+					<?php endif; ?>
 				</div>
 
 				<!-- Chapter Content -->
@@ -842,12 +887,12 @@ if ( $validation_errors ) {
 					$editor_settings = array(
 						'textarea_name' => 'fanfic_chapter_content',
 						'media_buttons' => false,
-						'teeny' => false,
-						'quicktags' => false,
-						'tinymce' => array(
-							'toolbar1' => 'bold italic underline bullist numlist blockquote undo redo',
-							'toolbar2' => '',
-							'menubar' => false,
+						'teeny'         => false,
+						'quicktags'     => false,
+						'tinymce'       => array(
+							'toolbar1'  => 'bold italic underline bullist numlist blockquote undo redo',
+							'toolbar2'  => '',
+							'menubar'   => false,
 							'statusbar' => false,
 						),
 					);
@@ -856,6 +901,14 @@ if ( $validation_errors ) {
 					<?php if ( isset( $field_errors['chapter_content'] ) ) : ?>
 						<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_content'] ); ?></p>
 					<?php endif; ?>
+				</div>
+
+				<!-- Info Box -->
+				<div class="fanfic-info-box box-info" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
+					<span class="dashicons dashicons-info" aria-hidden="true"></span>
+					<p>
+						<?php esc_html_e( 'Chapter content supports plain text, bold, italic, and line breaks. No links or HTML allowed.', 'fanfiction-manager' ); ?>
+					</p>
 				</div>
 			</div>
 
@@ -872,13 +925,13 @@ if ( $validation_errors ) {
 			<div class="fanfic-form-actions">
 				<?php if ( ! $is_edit_mode ) : ?>
 					<!-- CREATE MODE -->
-					<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+					<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button fanfic-button-primary">
 						<?php esc_html_e( 'Publish Chapter', 'fanfiction-manager' ); ?>
 					</button>
-					<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-btn fanfic-btn-secondary">
+					<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button fanfic-button-secondary">
 						<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
 					</button>
-					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
 						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 					</a>
 				<?php else : ?>
@@ -889,30 +942,30 @@ if ( $validation_errors ) {
 					?>
 					<?php if ( $is_chapter_published ) : ?>
 						<!-- EDIT MODE - CHAPTER IS PUBLISHED -->
-						<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-btn fanfic-btn-primary" id="update-chapter-btn" disabled>
+						<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-button fanfic-button-primary" id="update-chapter-button" disabled>
 							<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
 						</button>
-						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-btn fanfic-btn-secondary" id="unpublish-chapter-btn" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
+						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button fanfic-button-secondary" id="unpublish-chapter-button" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
 							<?php esc_html_e( 'Unpublish and save as draft', 'fanfiction-manager' ); ?>
 						</button>
 					<?php else : ?>
 						<!-- EDIT MODE - CHAPTER IS DRAFT -->
-						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-btn fanfic-btn-primary">
+						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button fanfic-button-primary">
 							<?php esc_html_e( 'Publish Chapter', 'fanfiction-manager' ); ?>
 						</button>
-						<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-btn fanfic-btn-secondary" id="update-draft-chapter-btn" disabled>
+						<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-button fanfic-button-secondary" id="update-draft-chapter-button" disabled>
 							<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
 						</button>
 					<?php endif; ?>
 					<?php if ( $is_chapter_published ) : ?>
-						<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-btn fanfic-btn-secondary" target="_blank" rel="noopener noreferrer">
+						<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button fanfic-button-secondary" target="_blank" rel="noopener noreferrer">
 							<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 						</a>
 					<?php endif; ?>
-					<button type="button" id="delete-chapter-button" class="fanfic-btn fanfic-btn-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
+					<button type="button" id="delete-chapter-button" class="fanfic-button fanfic-button-danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
 						<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 					</button>
-					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-btn fanfic-btn-secondary">
+					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
 						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 					</a>
 				<?php endif; ?>
@@ -924,18 +977,18 @@ if ( $validation_errors ) {
 <!-- Quick Actions -->
 <section class="fanfic-content-section fanfic-quick-actions" aria-labelledby="actions-heading">
 	<h2 id="actions-heading"><?php esc_html_e( 'Quick Actions', 'fanfiction-manager' ); ?></h2>
-	<div class="fanfic-action-buttons">
-		<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button-secondary">
+	<div class="fanfic-buttons">
+		<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
 			<span class="dashicons dashicons-arrow-left" aria-hidden="true"></span>
 			<?php esc_html_e( 'Back to Story', 'fanfiction-manager' ); ?>
 		</a>
 		<?php if ( $is_edit_mode ) : ?>
-			<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button-secondary">
+			<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
 				<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
 				<?php esc_html_e( 'View Chapter', 'fanfiction-manager' ); ?>
 			</a>
 		<?php endif; ?>
-		<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button-secondary">
+		<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-secondary">
 			<span class="dashicons dashicons-dashboard" aria-hidden="true"></span>
 			<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
 		</a>
@@ -954,7 +1007,7 @@ if ( $validation_errors ) {
 			var closeButtons = document.querySelectorAll('.fanfic-notice-close');
 			closeButtons.forEach(function(button) {
 				button.addEventListener('click', function() {
-					var notice = this.closest('.fanfic-success-notice, .fanfic-error-notice');
+					var notice = this.closest('.fanfic-info-box box-success, .fanfic-error-notice');
 					if (notice) {
 						notice.style.display = 'none';
 					}
@@ -1068,7 +1121,7 @@ if ( $validation_errors ) {
 			}
 
 			// Unpublish chapter confirmation
-			var unpublishButton = document.getElementById('unpublish-chapter-btn');
+			var unpublishButton = document.getElementById('unpublish-chapter-button');
 			var chapterForm = document.querySelector('form');
 			var unpublishConfirmed = false;
 
@@ -1191,8 +1244,8 @@ if ( $validation_errors ) {
 		});
 
 		// Change detection and AJAX for Update buttons (edit mode only)
-		var updateBtn = document.getElementById('update-chapter-btn');
-		var updateDraftBtn = document.getElementById('update-draft-chapter-btn');
+		var updateBtn = document.getElementById('update-chapter-button');
+		var updateDraftBtn = document.getElementById('update-draft-chapter-button');
 
 		// Handle Update button click via AJAX
 		function handleUpdateClick(e, button) {
@@ -1244,7 +1297,7 @@ if ( $validation_errors ) {
 				if (data.success) {
 					// Update succeeded - show success message and update original values
 					var successNotice = document.createElement('div');
-					successNotice.className = 'fanfic-success-notice';
+					successNotice.className = '.fanfic-info-box box-success';
 					successNotice.setAttribute('role', 'status');
 					successNotice.setAttribute('aria-live', 'polite');
 					successNotice.innerHTML = '<p>' + data.data.message + '</p><button class="fanfic-notice-close" aria-label="Close notice">&times;</button>';
@@ -1465,7 +1518,7 @@ if ( $validation_errors ) {
 		var closeButtons = document.querySelectorAll('.fanfic-notice-close');
 		closeButtons.forEach(function(button) {
 			button.addEventListener('click', function() {
-				var notice = this.closest('.fanfic-success-notice, .fanfic-error-notice');
+				var notice = this.closest('.fanfic-info-box box-success, .fanfic-error-notice');
 				if (notice) {
 					notice.style.display = 'none';
 				}

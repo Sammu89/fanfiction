@@ -173,8 +173,8 @@ Each button includes:
 
 **Sample Output - Story Context:**
 ```html
-<div class="fanfic-action-buttons fanfic-action-buttons-story" data-context="story">
-  <button class="fanfic-action-button fanfic-bookmark-button"
+<div class="fanfic-buttons fanfic-buttons-story" data-context="story">
+  <button class="fanfic-button fanfic-bookmark-button"
           data-action="bookmark"
           data-nonce="abc123xyz"
           data-story-id="123"
@@ -185,7 +185,7 @@ Each button includes:
     <span class="fanfic-button-text">Bookmark</span>
   </button>
 
-  <button class="fanfic-action-button fanfic-subscribe-button"
+  <button class="fanfic-button fanfic-subscribe-button"
           data-action="subscribe"
           data-nonce="abc123xyz"
           data-story-id="123"
@@ -196,7 +196,7 @@ Each button includes:
     <span class="fanfic-button-text">Subscribe</span>
   </button>
 
-  <button class="fanfic-action-button fanfic-share-button"
+  <button class="fanfic-button fanfic-share-button"
           data-action="share"
           data-nonce="abc123xyz"
           data-story-id="123"
@@ -207,7 +207,7 @@ Each button includes:
     <span class="fanfic-button-text">Share</span>
   </button>
 
-  <button class="fanfic-action-button fanfic-report-button"
+  <button class="fanfic-button fanfic-report-button"
           data-action="report"
           data-nonce="abc123xyz"
           data-story-id="123"
@@ -222,8 +222,8 @@ Each button includes:
 
 **Sample Output - Chapter Context (with active states):**
 ```html
-<div class="fanfic-action-buttons fanfic-action-buttons-chapter" data-context="chapter">
-  <button class="fanfic-action-button fanfic-like-button is-active is-liked"
+<div class="fanfic-buttons fanfic-buttons-chapter" data-context="chapter">
+  <button class="fanfic-button fanfic-like-button is-active is-liked"
           data-action="like"
           data-nonce="abc123xyz"
           data-chapter-id="456"
@@ -235,7 +235,7 @@ Each button includes:
     <span class="fanfic-button-text">Liked</span>
   </button>
 
-  <button class="fanfic-action-button fanfic-bookmark-button is-active is-bookmarked"
+  <button class="fanfic-button fanfic-bookmark-button is-active is-bookmarked"
           data-action="bookmark"
           data-nonce="abc123xyz"
           data-chapter-id="456"
@@ -247,7 +247,7 @@ Each button includes:
     <span class="fanfic-button-text">Bookmarked</span>
   </button>
 
-  <button class="fanfic-action-button fanfic-mark-read-button"
+  <button class="fanfic-button fanfic-mark-read-button"
           data-action="mark-read"
           data-nonce="abc123xyz"
           data-chapter-id="456"
@@ -263,8 +263,8 @@ Each button includes:
 
 **Sample Output - Author Context:**
 ```html
-<div class="fanfic-action-buttons fanfic-action-buttons-author" data-context="author">
-  <button class="fanfic-action-button fanfic-follow-button is-active is-followd"
+<div class="fanfic-buttons fanfic-buttons-author" data-context="author">
+  <button class="fanfic-button fanfic-follow-button is-active is-followd"
           data-action="follow"
           data-nonce="abc123xyz"
           data-author-id="5"
@@ -274,7 +274,7 @@ Each button includes:
     <span class="fanfic-button-text">Following</span>
   </button>
 
-  <button class="fanfic-action-button fanfic-share-button"
+  <button class="fanfic-button fanfic-share-button"
           data-action="share"
           data-nonce="abc123xyz"
           data-author-id="5"
@@ -327,13 +327,13 @@ All shortcodes can automatically detect the current post type and extract approp
 ## CSS Classes Reference
 
 ### Action Buttons Container
-- `.fanfic-action-buttons` - Container
-- `.fanfic-action-buttons-story` - Story context
-- `.fanfic-action-buttons-chapter` - Chapter context
-- `.fanfic-action-buttons-author` - Author context
+- `.fanfic-buttons` - Container
+- `.fanfic-buttons-story` - Story context
+- `.fanfic-buttons-chapter` - Chapter context
+- `.fanfic-buttons-author` - Author context
 
 ### Individual Buttons
-- `.fanfic-action-button` - Base button class
+- `.fanfic-button` - Base button class
 - `.fanfic-bookmark-button` - Bookmark button
 - `.fanfic-subscribe-button` - Subscribe button
 - `.fanfic-follow-button` - Follow button
@@ -374,7 +374,7 @@ These shortcodes are designed to work with the unified interaction JavaScript (`
 - `data-chapter-id` - Chapter ID (when applicable)
 - `data-author-id` - Author ID (when applicable)
 
-The JavaScript should listen for clicks on `.fanfic-action-button` and use these data attributes to perform AJAX actions.
+The JavaScript should listen for clicks on `.fanfic-button` and use these data attributes to perform AJAX actions.
 
 ---
 

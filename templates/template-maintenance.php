@@ -33,40 +33,40 @@ $admin_email = get_option( 'admin_email' );
 
 	<article class="fanfic-page-content">
 		<header class="fanfic-page-header">
-			<h1 class="fanfic-page-title"><?php esc_html_e( 'Maintenance Mode', 'fanfiction-manager' ); ?></h1>
+			<h1 class=""fanfic-title fanfic-page-title"><?php esc_html_e( 'Maintenance Mode', 'fanfiction-manager' ); ?></h1>
 		</header>
 
 		<section class="fanfic-content-section" id="fanfic-main-content" role="alert" aria-live="polite">
 			<?php if ( $maintenance_mode || $is_admin ) : ?>
-				<div class="fanfic-maintenance-message fanfic-message">
-					<div class="fanfic-message-icon" aria-hidden="true">&#128736;</div>
-					<div class="fanfic-message-content">
-						<h3 class="fanfic-message-title"><?php esc_html_e( 'Site Maintenance', 'fanfiction-manager' ); ?></h3>
-						<p class="fanfic-message-text"><?php esc_html_e( 'We are currently performing scheduled maintenance to improve your experience.', 'fanfiction-manager' ); ?></p>
+				<div class="fanfic-maintenance-message fanfic-info-box">
+					<div class="fanfic-info-box-icon" aria-hidden="true">&#128736;</div>
+					<div class="fanfic-info-box-content">
+						<h3 class="fanfic-info-box-title"><?php esc_html_e( 'Site Maintenance', 'fanfiction-manager' ); ?></h3>
+						<p class="fanfic-info-box-text"><?php esc_html_e( 'We are currently performing scheduled maintenance to improve your experience.', 'fanfiction-manager' ); ?></p>
 
 						<?php if ( ! empty( $maintenance_reason ) ) : ?>
-							<p class="fanfic-message-reason">
+							<p class="fanfic-info-box-reason">
 								<strong><?php esc_html_e( 'Reason:', 'fanfiction-manager' ); ?></strong>
 								<?php echo esc_html( $maintenance_reason ); ?>
 							</p>
 						<?php endif; ?>
 
 						<?php if ( ! empty( $estimated_time ) ) : ?>
-							<p class="fanfic-message-estimate">
+							<p class="fanfic-info-box-estimate">
 								<strong><?php esc_html_e( 'Estimated completion:', 'fanfiction-manager' ); ?></strong>
 								<?php echo esc_html( $estimated_time ); ?>
 							</p>
 						<?php endif; ?>
 
 						<?php if ( ! empty( $admin_email ) ) : ?>
-							<p class="fanfic-message-contact">
+							<p class="fanfic-info-box-contact">
 								<?php esc_html_e( 'If you have urgent questions, please contact:', 'fanfiction-manager' ); ?>
 								<a href="mailto:<?php echo esc_attr( $admin_email ); ?>"><?php echo esc_html( $admin_email ); ?></a>
 							</p>
 						<?php endif; ?>
 
 						<?php if ( $is_admin && $maintenance_mode ) : ?>
-							<p class="fanfic-message-admin-notice" style="margin-top: 15px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; font-size: 0.9em;">
+							<p class="fanfic-info-box-admin-notice" style="margin-top: 15px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; font-size: 0.9em;">
 								<strong><?php esc_html_e( 'Admin Notice:', 'fanfiction-manager' ); ?></strong>
 								<?php esc_html_e( 'Maintenance mode is currently active. Regular users cannot access the site. Turn off maintenance mode in Settings > General.', 'fanfiction-manager' ); ?>
 							</p>

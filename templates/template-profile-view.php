@@ -98,13 +98,13 @@ if ( empty( $template ) ) {
 // Replace shortcodes with user_id parameter versions for proper rendering
 // This allows shortcodes to work without needing explicit user_id attributes
 $user_id = $user->ID;
-$template = str_replace( '[author-avatar]', '[author-avatar user_id="' . $user_id . '"]', $template );
-$template = str_replace( '[author-display-name]', '[author-display-name user_id="' . $user_id . '"]', $template );
-$template = str_replace( '[author-registration-date]', '[author-registration-date user_id="' . $user_id . '"]', $template );
-$template = str_replace( '[author-story-count]', '[author-story-count user_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-avatar]', '[author-avatar author_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-display-name]', '[author-display-name author_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-registration-date]', '[author-registration-date author_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-story-count]', '[author-story-count author_id="' . $user_id . '"]', $template );
 // [content-actions] auto-detects context, no user_id parameter needed
-$template = str_replace( '[author-bio]', '[author-bio user_id="' . $user_id . '"]', $template );
-$template = str_replace( '[author-story-list]', '[author-story-list user_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-bio]', '[author-bio author_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-story-list]', '[author-story-list author_id="' . $user_id . '"]', $template );
 
 // Process shortcodes in the template
 echo do_shortcode( $template );

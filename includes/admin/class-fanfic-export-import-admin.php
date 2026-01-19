@@ -579,7 +579,7 @@ class Fanfic_Export_Import_Admin {
 		// Import error notice
 		if ( isset( $_GET['import'] ) && 'error' === $_GET['import'] && isset( $_GET['message'] ) ) {
 			?>
-			<div class="notice notice-error is-dismissible">
+			<div class="notice error-message is-dismissible">
 				<p><?php echo esc_html( urldecode( sanitize_text_field( wp_unslash( $_GET['message'] ) ) ) ); ?></p>
 			</div>
 			<?php

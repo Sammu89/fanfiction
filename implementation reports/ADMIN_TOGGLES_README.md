@@ -253,7 +253,7 @@ if ( $enable_rating ) {
 // Before rendering bookmark button
 if ( $enable_bookmarks ) {
     $output .= sprintf(
-        '<button class="fanfic-bookmark-btn">%s</button>',
+        '<button class="fanfic-bookmark-button">%s</button>',
         esc_html__( 'Bookmark', 'fanfiction-manager' )
     );
 }

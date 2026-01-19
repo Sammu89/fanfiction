@@ -250,13 +250,13 @@ class Fanfic_Shortcodes_Stats {
 			$is_bookmarked = Fanfic_Bookmarks::is_bookmarked( $story_id, $user_id );
 		}
 
-		$bookmark_class = $is_bookmarked ? 'bookmarked' : 'not-bookmarked';
+		$bookmark_class = $is_bookmarked ? 'fanfic-button-bookmarked' : 'not-bookmarked';
 		$bookmark_text = $is_bookmarked
 			? esc_html__( 'Bookmarked', 'fanfiction-manager' )
 			: esc_html__( 'Bookmark', 'fanfiction-manager' );
 
 		return sprintf(
-			'<button class="fanfic-bookmark-btn %s" data-story-id="%d" data-action="%s">
+			'<button class="fanfic-button fanfic-button-bookmark %s" data-story-id="%d" data-action="%s">
 				<span class="fanfic-icon">%s</span>
 				<span class="fanfic-text">%s</span>
 			</button>',
@@ -455,7 +455,7 @@ class Fanfic_Shortcodes_Stats {
 			: esc_html__( 'Follow', 'fanfiction-manager' );
 
 		return sprintf(
-			'<button class="fanfic-follow-btn %s" data-author-id="%d" data-action="%s">
+			'<button class="fanfic-follow-button %s" data-author-id="%d" data-action="%s">
 				<span class="fanfic-icon">%s</span>
 				<span class="fanfic-text">%s</span>
 			</button>',
@@ -947,7 +947,7 @@ class Fanfic_Shortcodes_Stats {
 		$story_url = get_permalink( $story->ID );
 		$author_id = $story->post_author;
 		$author_name = get_the_author_meta( 'display_name', $author_id );
-		$author_url = get_author_posts_url( $author_id );
+		$author_url = fanfic_get_user_profile_url( $author_id );
 
 		$output = '<div class="fanfic-story-card">';
 		$output .= '<h4><a href="' . esc_url( $story_url ) . '">' . esc_html( $story->post_title ) . '</a></h4>';
@@ -988,7 +988,7 @@ class Fanfic_Shortcodes_Stats {
 	 * @return string Author card HTML.
 	 */
 	private static function render_author_card( $author, $follower_count ) {
-		$author_url = get_author_posts_url( $author->ID );
+		$author_url = fanfic_get_user_profile_url( $author->ID );
 		$story_count = count_user_posts( $author->ID, 'fanfiction_story' );
 
 		$output = '<div class="fanfic-author-card">';
@@ -1023,7 +1023,7 @@ class Fanfic_Shortcodes_Stats {
 		$story_url = get_permalink( $story->ID );
 		$author_id = $story->post_author;
 		$author_name = get_the_author_meta( 'display_name', $author_id );
-		$author_url = get_author_posts_url( $author_id );
+		$author_url = fanfic_get_user_profile_url( $author_id );
 
 		$output = '<div class="fanfic-story-card">';
 
@@ -1073,7 +1073,7 @@ class Fanfic_Shortcodes_Stats {
 	 * @return string Author card HTML.
 	 */
 	private static function render_author_card_with_story_count( $author, $follower_count, $story_count ) {
-		$author_url = get_author_posts_url( $author->ID );
+		$author_url = fanfic_get_user_profile_url( $author->ID );
 
 		$output = '<div class="fanfic-author-card">';
 		// Add lazy loading to avatar for performance optimization

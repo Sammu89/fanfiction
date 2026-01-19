@@ -1,5 +1,5 @@
 <!-- wp:heading {"level":1} -->
-<h1 class="wp-block-heading"><?php esc_html_e( 'Welcome to the Fanfiction Archive', 'fanfiction-manager' ); ?></h1>
+<h1 class="fanfic-title  wp-block-heading"><?php esc_html_e( 'Welcome to the Fanfiction Archive', 'fanfiction-manager' ); ?></h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->

@@ -95,7 +95,7 @@ class Fanfic_Shortcodes_Buttons {
 		$nonce = wp_create_nonce( 'fanfic_ajax_nonce' );
 
 		// Build output
-		$output = '<div class="fanfic-action-buttons fanfic-action-buttons-' . esc_attr( $context ) . '" data-context="' . esc_attr( $context ) . '">';
+		$output = '<div class="fanfic-buttons fanfic-buttons-' . esc_attr( $context ) . '" data-context="' . esc_attr( $context ) . '">';
 
 		foreach ( $available_actions as $action ) {
 			$output .= self::render_button( $action, $context, $context_ids, $nonce );
@@ -247,13 +247,11 @@ class Fanfic_Shortcodes_Buttons {
 		// Build button classes
 		$classes = array(
 			'fanfic-button',
-			'fanfic-action-button',
-			'fanfic-' . $action . '-button',
+			'fanfic-button-' . $action,
 		);
 
 		if ( $current_state ) {
-			$classes[] = 'is-active';
-			$classes[] = 'is-' . str_replace( '-', '', $action ) . 'd'; // is-bookmarked, is-liked, etc.
+			$classes[] = 'fanfic-button-' . $action . 'ed';
 		}
 
 		// Add disabled class for login-required buttons when not logged in
@@ -697,7 +695,7 @@ class Fanfic_Shortcodes_Buttons {
 
 		// Render as link (not button) since it navigates to a different page
 		// Uses same structure and classes as other action buttons for visual consistency
-		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-action-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '" role="button">';
+		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '" role="button">';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
 		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
 		$output .= '</a>';
@@ -737,7 +735,7 @@ class Fanfic_Shortcodes_Buttons {
 		$label = __( 'Report', 'fanfiction-manager' );
 		$icon = '&#9888;'; // Warning icon
 
-		$output = '<button type="button" class="fanfic-action-button fanfic-report-button" ';
+		$output = '<button type="button" class="fanfic-button fanfic-report-button" ';
 		$output .= 'data-content-id="' . absint( $content_id ) . '" ';
 		$output .= 'data-report-type="' . esc_attr( $report_type ) . '" ';
 		$output .= 'data-nonce="' . esc_attr( $nonce ) . '" ';
@@ -782,7 +780,7 @@ class Fanfic_Shortcodes_Buttons {
 		$label = __( 'Subscribe', 'fanfiction-manager' );
 		$icon = '&#128276;'; // Bell icon
 
-		$output = '<button type="button" class="fanfic-action-button fanfic-subscribe-button" ';
+		$output = '<button type="button" class="fanfic-button fanfic-subscribe-button" ';
 		$output .= 'data-target-id="' . absint( $target_id ) . '" ';
 		$output .= 'data-subscription-type="' . esc_attr( $subscription_type ) . '" ';
 		$output .= 'data-nonce="' . esc_attr( $nonce ) . '" ';
@@ -842,10 +840,10 @@ class Fanfic_Shortcodes_Buttons {
 					</div>
 
 					<div class="form-actions">
-						<button type="submit" class="button button-primary">
+					<button type="submit" class="fanfic-button fanfic-button-primary">
 							<?php esc_html_e( 'Subscribe', 'fanfiction-manager' ); ?>
 						</button>
-						<button type="button" class="button fanfic-modal-close">
+					<button type="button" class="fanfic-button fanfic-button-secondary fanfic-modal-close">
 							<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 						</button>
 					</div>

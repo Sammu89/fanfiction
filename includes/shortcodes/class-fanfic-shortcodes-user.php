@@ -131,7 +131,7 @@ class Fanfic_Shortcodes_User {
 
 			$author_id = $story->post_author;
 			$author_name = get_the_author_meta( 'display_name', $author_id );
-			$author_url = get_author_posts_url( $author_id );
+			$author_url = fanfic_get_user_profile_url( $author_id );
 			$story_url = get_permalink( $story->ID );
 			$bookmarked_date = mysql2date( get_option( 'date_format' ), $bookmark->created_at );
 
@@ -271,7 +271,7 @@ class Fanfic_Shortcodes_User {
 		foreach ( $follows as $follow ) {
 			$author_id = $follow->author_id;
 			$author_name = get_the_author_meta( 'display_name', $author_id );
-			$author_url = get_author_posts_url( $author_id );
+			$author_url = fanfic_get_user_profile_url( $author_id );
 			$followed_date = mysql2date( get_option( 'date_format' ), $follow->created_at );
 
 			// Get author's latest story
@@ -657,7 +657,7 @@ class Fanfic_Shortcodes_User {
 			$output .= '</p>';
 			$output .= '</div>';
 			$output .= '<div class="fanfic-story-actions">';
-			$output .= '<a href="' . esc_url( $edit_url ) . '" class="fanfic-edit-button">' . esc_html__( 'Edit', 'fanfiction-manager' ) . '</a>';
+			$output .= '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-edit-button">' . esc_html__( 'Edit', 'fanfiction-manager' ) . '</a>';
 			$output .= '</div>';
 			$output .= '</li>';
 		}
@@ -905,7 +905,7 @@ class Fanfic_Shortcodes_User {
 	 * @return string Login prompt HTML.
 	 */
 	private static function login_prompt( $message ) {
-		$login_url = wp_login_url( get_permalink() );
+		$login_url = wp_login_url( fanfic_get_current_url() );
 		$register_url = wp_registration_url();
 
 		$output = '<div class="fanfic-login-prompt">';
@@ -1375,7 +1375,7 @@ class Fanfic_Shortcodes_User {
 			<?php wp_nonce_field( 'fanfic_ban_user_' . $target_user_id, 'fanfic_ban_nonce' ); ?>
 			<input type="hidden" name="fanfic_action" value="ban_user" />
 			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
-			<button type="submit" class="button button-secondary fanfic-ban-user-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to ban this user? Their content will be preserved.', 'fanfiction-manager' ) ); ?>')">
+			<button type="submit" class="fanfic-button fanfic-button-secondary fanfic-ban-user-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to ban this user? Their content will be preserved.', 'fanfiction-manager' ) ); ?>')">
 				<?php echo esc_html( $atts['button_text'] ); ?>
 			</button>
 		</form>
@@ -1464,7 +1464,7 @@ class Fanfic_Shortcodes_User {
 			<?php wp_nonce_field( 'fanfic_promote_moderator_' . $target_user_id, 'fanfic_moderator_nonce' ); ?>
 			<input type="hidden" name="fanfic_action" value="promote_moderator" />
 			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
-			<button type="submit" class="button button-primary fanfic-promote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to promote this user to moderator?', 'fanfiction-manager' ) ); ?>')">
+			<button type="submit" class="fanfic-button fanfic-button-primary fanfic-promote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to promote this user to moderator?', 'fanfiction-manager' ) ); ?>')">
 				<?php echo esc_html( $atts['button_text'] ); ?>
 			</button>
 		</form>
@@ -1558,7 +1558,7 @@ class Fanfic_Shortcodes_User {
 			<?php wp_nonce_field( 'fanfic_demote_moderator_' . $target_user_id, 'fanfic_demoderator_nonce' ); ?>
 			<input type="hidden" name="fanfic_action" value="demote_moderator" />
 			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
-			<button type="submit" class="button button-secondary fanfic-demote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to demote this moderator to author?', 'fanfiction-manager' ) ); ?>')">
+			<button type="submit" class="fanfic-button fanfic-button-secondary fanfic-demote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to demote this moderator to author?', 'fanfiction-manager' ) ); ?>')">
 				<?php echo esc_html( $atts['button_text'] ); ?>
 			</button>
 		</form>

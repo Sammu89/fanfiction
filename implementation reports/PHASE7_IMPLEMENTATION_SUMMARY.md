@@ -179,8 +179,8 @@ class Fanfic_Shortcodes_Comments {
 
                 <!-- Grace period actions (if within 30 min) -->
                 <div class="fanfic-comment-actions">
-                    <button class="fanfic-comment-edit-btn">Edit</button>
-                    <button class="fanfic-comment-delete-btn">Delete</button>
+                    <button class="fanfic-comment-edit-button">Edit</button>
+                    <button class="fanfic-comment-delete-button">Delete</button>
                     <span class="fanfic-comment-timer">(25 min left)</span>
                 </div>
             </article>
@@ -274,8 +274,8 @@ const CommentHandler = {
 }
 
 /* Grace period actions */
-.fanfic-comment-edit-btn,
-.fanfic-comment-delete-btn {
+.fanfic-comment-edit-button,
+.fanfic-comment-delete-button {
     background: #0073aa;
     color: #fff;
     border: none;
@@ -364,10 +364,10 @@ if (!current_user_can('manage_options') && !current_user_can('moderate_fanfictio
 <article role="article" aria-label="Comment by John Doe">
 
 <!-- Edit button -->
-<button aria-label="Edit comment" class="fanfic-comment-edit-btn">Edit</button>
+<button aria-label="Edit comment" class="fanfic-comment-edit-button">Edit</button>
 
 <!-- Delete button -->
-<button aria-label="Delete comment" class="fanfic-comment-delete-btn">Delete</button>
+<button aria-label="Delete comment" class="fanfic-comment-delete-button">Delete</button>
 
 <!-- Comment navigation -->
 <nav role="navigation" aria-label="Comment navigation">

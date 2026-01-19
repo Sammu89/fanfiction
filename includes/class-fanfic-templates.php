@@ -163,6 +163,36 @@ class Fanfic_Templates {
 			}
 		}
 
+		$fanfic_page = get_query_var( 'fanfic_page' );
+
+		if ( $fanfic_page ) {
+			// Set global variable for wrapper template to use
+			global $fanfic_content_template;
+			global $fanfic_load_template;
+			$fanfic_load_template = true;
+
+			switch ( $fanfic_page ) {
+				case 'user':
+					$fanfic_content_template = 'template-profile-view.php';
+					break;
+				case 'dashboard':
+					$fanfic_content_template = 'template-dashboard.php';
+					break;
+				case 'search':
+					$fanfic_content_template = 'template-search-page.php';
+					break;
+				// Add other cases as needed
+			}
+
+			if ( ! empty( $fanfic_content_template ) ) {
+				// Always use the wrapper template
+				$custom_template = self::locate_template( 'fanfiction-page-template.php' );
+				if ( $custom_template ) {
+					return $custom_template;
+				}
+			}
+		}
+
 		return $template;
 	}
 
@@ -352,7 +382,7 @@ class Fanfic_Templates {
 		$rebuild_url = wp_nonce_url( $rebuild_url, 'fanfic_rebuild_pages' );
 
 		?>
-		<div class="notice notice-error is-dismissible">
+		<div class="notice error-message is-dismissible">
 			<p>
 				<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
 				<?php

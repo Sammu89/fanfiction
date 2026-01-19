@@ -29,7 +29,7 @@ function fanfic_get_default_story_view_template() {
 	?>
 <div class="fanfic-story-single">
 	<header class="fanfic-story-header">
-		<h1>[story-title]</h1>
+		[fanfic-story-title]
 		<div class="fanfic-story-meta">
 			<span class="fanfic-story-author"><?php esc_html_e( 'by', 'fanfiction-manager' ); ?> [story-author-link]</span>
 			<span class="fanfic-story-status">[story-status]</span>
@@ -37,7 +37,7 @@ function fanfic_get_default_story_view_template() {
 	</header>
 
 	<figure class="fanfic-story-featured-image">
-		[story-featured-image]
+		[fanfic-story-image]
 	</figure>
 
 	<section class="fanfic-story-content">
@@ -62,7 +62,7 @@ function fanfic_get_default_story_view_template() {
 	</section>
 
 	<div class="fanfic-story-actions">
-		[fanfiction-action-buttons context="story"]
+		[fanfiction-action-buttons context="story" actions="follow,bookmark,subscribe,share,report"]
 	</div>
 
 	<nav class="fanfic-story-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">
@@ -103,6 +103,25 @@ $template = get_option( 'fanfic_shortcode_story_view', '' );
 
 if ( empty( $template ) ) {
 	$template = fanfic_get_default_story_view_template();
+}
+
+// Show a discreet warning if this story is not published
+$story_post = get_post();
+if ( $story_post && 'fanfiction_story' === $story_post->post_type && 'publish' !== $story_post->post_status ) {
+	$status_obj = get_post_status_object( $story_post->post_status );
+	$status_label = $status_obj && ! empty( $status_obj->label ) ? $status_obj->label : $story_post->post_status;
+	?>
+	<div class="fanfic-info-box fanfic-warning fanfic-draft-warning" role="status" aria-live="polite">
+		<p>
+			<?php
+			printf(
+				esc_html__( 'This story is not visible to the public because its status is %s.', 'fanfiction-manager' ),
+				esc_html( $status_label )
+			);
+			?>
+		</p>
+	</div>
+	<?php
 }
 
 // Process shortcodes in the template

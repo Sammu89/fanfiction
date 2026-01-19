@@ -292,7 +292,7 @@ wp_localize_script(
 
 **In JavaScript**, handlers already check if buttons exist before attaching:
 ```javascript
-$(document).on('click', '.fanfic-bookmark-btn', function() {
+$(document).on('click', '.fanfic-bookmark-button', function() {
     // This only fires if the button exists
     // So no extra check needed
 });

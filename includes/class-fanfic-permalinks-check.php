@@ -120,7 +120,7 @@ class Fanfic_Permalinks_Check {
             );
 
             ?>
-            <div class="notice notice-error fanfic-permalinks-notice">
+            <div class="notice error-message fanfic-permalinks-notice">
                 <p>
                     <strong><?php echo $just_activated ? '⚠️ ' : ''; ?>Fanfiction Manager requires Pretty Permalinks to be enabled to function correctly.</strong>
                 </p>

@@ -24,6 +24,32 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Story_Handler {
 
 	/**
+	 * Get story image input from URL or upload
+	 *
+	 * @param array $errors Errors array to append to.
+	 * @return array Array with image_url and attachment_id.
+	 */
+	private static function get_story_image_input( &$errors ) {
+		// Get image URL from text input first
+		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( trim( $_POST['fanfic_story_image'] ) ) : '';
+		$attachment_id = 0;
+
+		// Then, check for a file upload, which takes precedence
+		if ( function_exists( 'fanfic_handle_image_upload' ) ) {
+			// Check if a file was actually uploaded for this field
+			if ( ! empty( $_FILES['fanfic_story_image_file']['name'] ) && $_FILES['fanfic_story_image_file']['error'] === UPLOAD_ERR_OK ) {
+				$upload = fanfic_handle_image_upload( 'fanfic_story_image_file', __( 'Story image', 'fanfiction-manager' ), $errors );
+				if ( $upload && ! empty( $upload['url'] ) ) {
+					$image_url = $upload['url'];
+					$attachment_id = ! empty( $upload['attachment_id'] ) ? absint( $upload['attachment_id'] ) : 0;
+				}
+			}
+		}
+
+		return array( $image_url, $attachment_id );
+	}
+
+	/**
 	 * Register story handlers
 	 *
 	 * @since 1.0.0
@@ -79,7 +105,7 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
-		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'save_draft';
 
 		// Validate
@@ -136,6 +162,9 @@ class Fanfic_Story_Handler {
 			// Set featured image
 			if ( ! empty( $image_url ) ) {
 				update_post_meta( $new_story_id, '_fanfic_featured_image', $image_url );
+			}
+			if ( ! empty( $image_attachment_id ) ) {
+				set_post_thumbnail( $new_story_id, $image_attachment_id );
 			}
 
 			// Initialize view count
@@ -252,6 +281,9 @@ class Fanfic_Story_Handler {
 			} else {
 				delete_post_meta( $story_id, '_fanfic_featured_image' );
 			}
+			if ( ! empty( $image_attachment_id ) ) {
+				set_post_thumbnail( $story_id, $image_attachment_id );
+			}
 
 			// Redirect based on action
 			if ( 'add_chapter' === $form_action ) {
@@ -349,7 +381,7 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
-		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 
 		// Validate
 		if ( empty( $title ) ) {
@@ -403,6 +435,9 @@ class Fanfic_Story_Handler {
 		// Set featured image if provided
 		if ( ! empty( $image_url ) ) {
 			update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
+		}
+		if ( ! empty( $image_attachment_id ) ) {
+			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 
 		// Initialize view count
@@ -466,7 +501,7 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
-		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 
 		// Validate
 		if ( empty( $title ) ) {
@@ -514,6 +549,9 @@ class Fanfic_Story_Handler {
 			update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
 		} else {
 			delete_post_meta( $story_id, '_fanfic_featured_image' );
+		}
+		if ( ! empty( $image_attachment_id ) ) {
+			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 
 		// Determine redirect based on whether story had chapters before
@@ -623,7 +661,7 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
-		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 
 		// Validate
 		if ( empty( $title ) ) {
@@ -676,6 +714,9 @@ class Fanfic_Story_Handler {
 		// Set featured image if provided
 		if ( ! empty( $image_url ) ) {
 			update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
+		}
+		if ( ! empty( $image_attachment_id ) ) {
+			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 
 		// Initialize view count
@@ -734,7 +775,7 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
-		$image_url = isset( $_POST['fanfic_story_image'] ) ? esc_url_raw( $_POST['fanfic_story_image'] ) : '';
+		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 
 		// Validate
 		if ( empty( $title ) ) {
@@ -780,6 +821,9 @@ class Fanfic_Story_Handler {
 		// Set featured image if provided
 		if ( ! empty( $image_url ) ) {
 			update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
+		}
+		if ( ! empty( $image_attachment_id ) ) {
+			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 
 		// Build redirect URL

@@ -23,10 +23,10 @@
 	 */
 	function initModerationActions() {
 		// Mark as Reviewed button (opens modal)
-		$(document).on('click', '.mark-reviewed-btn', openReviewedModal);
+		$(document).on('click', '.mark-reviewed-button', openReviewedModal);
 
 		// View Report button
-		$(document).on('click', '.view-report-btn', viewReportDetails);
+		$(document).on('click', '.view-report-button', viewReportDetails);
 
 		// Modal close handlers
 		$(document).on('click', '.fanfic-admin-modal-close, .fanfic-admin-modal-cancel', closeModal);
@@ -53,9 +53,9 @@
 	function openReviewedModal(e) {
 		e.preventDefault();
 
-		var $btn = $(this);
-		var reportId = $btn.data('report-id');
-		var nonce = $btn.data('nonce');
+		var $button = $(this);
+		var reportId = $button.data('report-id');
+		var nonce = $button.data('nonce');
 
 		// Create modal HTML
 		var modalHtml =
@@ -94,9 +94,9 @@
 	function viewReportDetails(e) {
 		e.preventDefault();
 
-		var $btn = $(this);
-		var reportId = $btn.data('report-id');
-		var nonce = $btn.data('nonce');
+		var $button = $(this);
+		var reportId = $button.data('report-id');
+		var nonce = $button.data('nonce');
 
 		// Show loading modal
 		var loadingModal =

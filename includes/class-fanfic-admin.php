@@ -72,8 +72,7 @@ class Fanfic_Admin {
 		);
 
 		// Add My Dashboard submenu (links to frontend dashboard)
-		$url_builder   = Fanfic_URL_Builder::get_instance();
-		$dashboard_url = $url_builder->get_page_url( 'dashboard' );
+		$dashboard_url = fanfic_get_dashboard_url();
 		if ( $dashboard_url ) {
 			add_submenu_page(
 				'fanfiction-manager',
@@ -103,7 +102,7 @@ class Fanfic_Admin {
 		// Add My Profile submenu (links to frontend profile page)
 		$current_user = wp_get_current_user();
 		if ( $current_user && $current_user->ID ) {
-			$profile_url = $url_builder->get_user_profile_url( $current_user->ID );
+			$profile_url = fanfic_get_user_profile_url( $current_user->ID );
 			if ( $profile_url ) {
 				add_submenu_page(
 					'fanfiction-manager',
