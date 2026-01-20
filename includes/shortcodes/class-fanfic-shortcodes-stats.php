@@ -449,13 +449,13 @@ class Fanfic_Shortcodes_Stats {
 			$is_following = Fanfic_Follows::is_following( $author_id, $user_id );
 		}
 
-		$follow_class = $is_following ? 'following' : 'not-following';
+		$follow_class = $is_following ? 'fanfic-button-following' : '';
 		$follow_text = $is_following
 			? esc_html__( 'Following', 'fanfiction-manager' )
 			: esc_html__( 'Follow', 'fanfiction-manager' );
 
 		return sprintf(
-			'<button class="fanfic-follow-button %s" data-author-id="%d" data-action="%s">
+			'<button class="fanfic-button fanfic-button-follow %s" data-author-id="%d" data-action="%s">
 				<span class="fanfic-icon">%s</span>
 				<span class="fanfic-text">%s</span>
 			</button>',

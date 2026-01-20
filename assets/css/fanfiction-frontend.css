@@ -20,14 +20,16 @@
 
   /* Neutrals (derived from Primary HSL) */
   --base-background: hsl(var(--color-hue), var(--color-sat), 96%);      /* Lightest */
+  --base-background-soft: hsl(var(--color-hue), var(--color-sat), 98%); /* Even softer */
   --base-lighter:    hsl(var(--color-hue), var(--color-sat), 88%);      /* Borders */
   --base-light:    hsl(var(--color-hue), var(--color-sat), 78%);
   --base-color: hsl(var(--color-hue), var(--color-sat), 70%);      /* The user's specified base */
   --base-dark:    hsl(var(--color-hue), var(--color-sat), 50%);
   --base-darker:    hsl(var(--color-hue), 20%, 30%);                     /* Desaturated for text */
   --color-text: hsl(var(--color-hue), 15%, 15%);                     /* Darkest for text */
+  --color-text-muted: hsl(var(--color-hue), 10%, 45%);              /* Muted text */
   --color-disabled-bg: hsl(var(--color-hue), 4%, 92%);
-  --color-disabled-text: --color-disabled-text: hsl( var(--color-hue), 6%, 45%);
+  --color-disabled-text: hsl(var(--color-hue), 6%, 45%);
 
   /* Accents (derived via Analogous shift from Primary HSL) */
   --accent-color:     hsl(calc(var(--color-hue) - 30), 30%, 40%);
@@ -40,6 +42,7 @@
   --color-border:        var(--base-light);
   --color-link:          var(--accent-dark);
   --color-link-hover:    var(--accent-light);
+  --color-link-visited:  hsl(280, 30%, 42%);                         /* Purple for visited */
   --color-button-text:    var(--base-color); /* Accessible text for light primary buttons */
 
 
@@ -49,9 +52,24 @@
   --color-success: #28a745;
   --color-error: #dc3545;
   --color-warning: #ffc107;
+  --color-warning-alt: #ff9800;
   --color-info: #17a2b8;
+  --color-teal: #20c997;
 
-  /* --- 5. Core Layout & Transition Variables (Unaffected) --- */
+  /* --- 5. Button System Aliases (Map to existing colors) --- */
+  --color-primary: var(--base-color);
+  --color-primary-hover: var(--base-dark);
+  --color-primary-active: var(--base-darker);
+  --color-primary-dark: var(--base-dark);
+  --color-on-primary: var(--color-white);
+  --color-secondary: hsl(var(--color-hue), 8%, 55%);
+  --color-secondary-hover: hsl(var(--color-hue), 8%, 45%);
+  --color-on-secondary: var(--color-white);
+  --color-focus: var(--accent-color);
+  --shadow-light: hsla(var(--color-hue), var(--color-sat), 20%, 0.1);
+  --shadow-medium: hsla(var(--color-hue), var(--color-sat), 20%, 0.2);
+
+  /* --- 6. Core Layout & Transition Variables (Unaffected) --- */
   --radius-sm: 3px;
   --radius-md: 4px;
   --radius-lg: 6px;
@@ -461,8 +479,7 @@ input:disabled,
 
 /* Base Button Component: Single source of truth for all buttons. */
 .fanfic-button,
-.fanfic-action-button, /* Alias for consistency */
-.touch-target {
+.fanfic-action-button { /* Alias for consistency */
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -471,8 +488,8 @@ input:disabled,
 	padding: 12px 20px;
 	border: none;
 	border-radius: 4px;
-	background-color: var(--base-color);
-	color: var(--color-button-text);
+	background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+	color: var(--color-on-primary);
 	font-weight: 600;
 	font-size: 14px;
 	line-height: 1;
@@ -480,7 +497,7 @@ input:disabled,
 	white-space: nowrap;
 	box-sizing: border-box;
 	cursor: pointer;
-	transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
+	transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
 	gap: 8px;
 }
 
@@ -492,71 +509,56 @@ a.fanfic-button {
 /* General Hover & Focus */
 .fanfic-button:hover {
 	text-decoration: none;
-	background-color: var(--base-color-hover);
+	background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary) 100%);
+	transform: translateY(-1px);
 }
 
 .fanfic-button:focus {
-	outline: 2px solid var(--accent-color);
+	outline: 2px solid var(--color-focus);
 	outline-offset: 2px;
 	box-shadow: 0 0 0 4px var(--shadow-light);
 }
 
 .fanfic-button:active {
-	background-color: var(--base-color-active);
+	background: linear-gradient(135deg, var(--color-primary-active) 0%, var(--color-primary-hover) 100%);
+	transform: translateY(0);
 }
 
-/* --- Button Variants --- */
-
-/* Primary (Default) */
-.fanfic-button-primary,
-.fanfic-button { /* .fanfic-button is primary by default */
-	background-color: var(--base-color);
-	color: var(--color-button-text);
-}
-.fanfic-button-primary:hover,
-.fanfic-button:hover {
-	background-color: var(--base-color-hover);
-}
-.fanfic-button-primary:active,
-.fanfic-button:active {
-	background-color: var(--base-color-active);
-}
+/* --- Button Variants (Use modifier pattern) --- */
 
 /* Secondary */
-.fanfic-button-secondary {
-	background-color: var(--color-secondary);
+.fanfic-button.fanfic-button-secondary {
+	background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-hover) 100%);
 	color: var(--color-on-secondary);
 }
-.fanfic-button-secondary:hover {
-	background-color: var(--color-secondary-hover);
+.fanfic-button.fanfic-button-secondary:hover {
+	background: linear-gradient(135deg, var(--color-secondary-hover) 0%, var(--color-secondary) 100%);
 }
-.fanfic-button-secondary:active {
-	background-color: var(--color-secondary-hover);
+.fanfic-button.fanfic-button-secondary:active {
+	background: var(--color-secondary-hover);
 	opacity: 0.9;
 }
 
 /* Danger */
-.fanfic-button-danger {
-	background-color: var(--color-error);
+.fanfic-button.fanfic-button-danger {
+	background: linear-gradient(135deg, var(--color-error) 0%, hsl(355 75% 30%) 100%);
 	color: var(--color-on-secondary);
 }
-.fanfic-button-danger:hover {
-	background-color: var(--color-error);
-	opacity: 0.9;
+.fanfic-button.fanfic-button-danger:hover {
+	background: linear-gradient(135deg, hsl(355 75% 30%) 0%, var(--color-error) 100%);
 }
-.fanfic-button-danger:active {
-	background-color: var(--color-error);
-	opacity: 0.8;
+.fanfic-button.fanfic-button-danger:active {
+	background: hsl(355 75% 30%);
+	opacity: 0.9;
 }
 
 /* Success */
-.fanfic-button-success {
-	background-color: var(--color-success);
+.fanfic-button.fanfic-button-success {
+	background: linear-gradient(135deg, var(--color-success) 0%, hsl(140 85% 25%) 100%);
 	color: var(--color-on-secondary);
 }
-.fanfic-button-success:hover {
-	background-color: var(--color-success);
-	opacity: 0.9;
+.fanfic-button.fanfic-button-success:hover {
+	background: linear-gradient(135deg, hsl(140 85% 25%) 0%, var(--color-success) 100%);
 }
 
 /* --- Action Buttons --- */
@@ -713,8 +715,8 @@ a.fanfic-button {
 	opacity: 0.9;
 }
 
-/* --- Button Sizes --- */
-.fanfic-button-small {
+/* --- Button Sizes (Only override size properties) --- */
+.fanfic-button.fanfic-button-small {
 	min-height: auto; /* Override for small buttons */
 	min-width: auto;
 	padding: 6px 12px;

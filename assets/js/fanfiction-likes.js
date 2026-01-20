@@ -69,7 +69,7 @@
 		// Check like status
 		checkLikeStatus(chapterId, function(data) {
 			if (data.is_liked) {
-				$button.addClass('liked');
+				$button.addClass('fanfic-button-liked');
 			}
 			updateLikeCount($button, data.count);
 		});
@@ -135,9 +135,9 @@
 				if (response.success) {
 					// Update button state
 					if (response.data.is_liked) {
-						$button.addClass('liked');
+						$button.addClass('fanfic-button-liked');
 					} else {
-						$button.removeClass('liked');
+						$button.removeClass('fanfic-button-liked');
 					}
 
 					// Update counts

@@ -177,7 +177,7 @@
 				self.log('Bookmark button clicked:', { postId, bookmarkType });
 
 				// Optimistic UI update - check for 'is-bookmarked' class added by PHP
-				const wasBookmarked = $button.hasClass('is-bookmarked') || $button.hasClass('bookmarked');
+				const wasBookmarked = $button.hasClass('fanfic-button-bookmarked');
 				self.updateBookmarkDisplay($button, !wasBookmarked);
 
 				// Toggle bookmark
@@ -207,7 +207,7 @@
 				self.log('Follow button clicked:', { targetId, followType });
 
 				// Optimistic UI update - check for 'is-followd' class added by PHP
-				const wasFollowing = $button.hasClass('is-followd') || $button.hasClass('following');
+				const wasFollowing = $button.hasClass('fanfic-button-following');
 				self.updateFollowDisplay($button, !wasFollowing);
 
 				// Toggle follow
@@ -813,10 +813,10 @@
 		 */
 		updateBookmarkDisplay: function($button, isBookmarked) {
 			if (isBookmarked) {
-				$button.addClass('bookmarked').removeClass('unbookmarked');
+				$button.addClass('fanfic-button-bookmarked');
 				$button.find('.bookmark-text').text($button.data('bookmarked-text') || 'Bookmarked');
 			} else {
-				$button.addClass('unbookmarked').removeClass('bookmarked');
+				$button.removeClass('fanfic-button-bookmarked');
 				$button.find('.bookmark-text').text($button.data('bookmark-text') || 'Bookmark');
 			}
 		},
@@ -826,10 +826,10 @@
 		 */
 		updateFollowDisplay: function($button, isFollowing) {
 			if (isFollowing) {
-				$button.addClass('following').removeClass('unfollowing');
+				$button.addClass('fanfic-button-following');
 				$button.find('.follow-text').text($button.data('following-text') || 'Following');
 			} else {
-				$button.addClass('unfollowing').removeClass('following');
+				$button.removeClass('fanfic-button-following');
 				$button.find('.follow-text').text($button.data('follow-text') || 'Follow');
 			}
 		},
@@ -852,10 +852,10 @@
 		 */
 		updateReadDisplay: function($button, isRead) {
 			if (isRead) {
-				$button.addClass('read').removeClass('unread');
+				$button.addClass('fanfic-button-marked-read');
 				$button.find('.read-text').text($button.data('read-text') || 'Read');
 			} else {
-				$button.addClass('unread').removeClass('read');
+				$button.removeClass('fanfic-button-marked-read');
 				$button.find('.read-text').text($button.data('unread-text') || 'Mark as Read');
 			}
 		},
