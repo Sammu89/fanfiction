@@ -34,6 +34,7 @@ class Fanfic_Shortcodes_Story {
 		add_shortcode( 'story-intro', array( __CLASS__, 'story_intro' ) );
 		add_shortcode( 'story-featured-image', array( __CLASS__, 'story_featured_image' ) );
 		add_shortcode( 'story-genres', array( __CLASS__, 'story_genres' ) );
+		add_shortcode( 'story-fandoms', array( __CLASS__, 'story_fandoms' ) );
 		add_shortcode( 'story-status', array( __CLASS__, 'story_status' ) );
 		add_shortcode( 'story-publication-date', array( __CLASS__, 'story_publication_date' ) );
 		add_shortcode( 'story-last-updated', array( __CLASS__, 'story_last_updated' ) );
@@ -234,6 +235,43 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		return '<span class="story-genres" aria-label="' . esc_attr__( 'Story genres', 'fanfiction-manager' ) . '">' . implode( ', ', $genre_links ) . '</span>';
+	}
+
+	/**
+	 * Story fandoms shortcode
+	 *
+	 * [story-fandoms]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Fandom list HTML.
+	 */
+	public static function story_fandoms( $atts ) {
+		if ( ! class_exists( 'Fanfic_Fandoms' ) || ! Fanfic_Fandoms::is_enabled() ) {
+			return '';
+		}
+
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		$is_original = get_post_meta( $story_id, Fanfic_Fandoms::META_ORIGINAL, true );
+		if ( $is_original ) {
+			return '<div class="fanfic-story-fandoms"><strong>' . esc_html__( 'Fandoms:', 'fanfiction-manager' ) . '</strong> <span class="story-fandoms story-fandoms-original">' . esc_html__( 'Original Work', 'fanfiction-manager' ) . '</span></div>';
+		}
+
+		$fandoms = Fanfic_Fandoms::get_story_fandom_labels( $story_id );
+		if ( empty( $fandoms ) ) {
+			return '';
+		}
+
+		$labels = array();
+		foreach ( $fandoms as $fandom ) {
+			$labels[] = esc_html( $fandom['label'] );
+		}
+
+		return '<div class="fanfic-story-fandoms"><strong>' . esc_html__( 'Fandoms:', 'fanfiction-manager' ) . '</strong> <span class="story-fandoms" aria-label="' . esc_attr__( 'Story fandoms', 'fanfiction-manager' ) . '">' . implode( ', ', $labels ) . '</span></div>';
 	}
 
 	/**

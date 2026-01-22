@@ -55,6 +55,7 @@ class Fanfic_Taxonomies_Admin {
 		// Handle form submissions
 		add_action( 'admin_post_fanfic_add_custom_taxonomy', array( __CLASS__, 'add_custom_taxonomy' ) );
 		add_action( 'admin_post_fanfic_delete_custom_taxonomy', array( __CLASS__, 'delete_custom_taxonomy' ) );
+		add_action( 'admin_post_fanfic_save_fandom_settings', array( __CLASS__, 'save_fandom_settings' ) );
 
 		// Hook into fanfic_register_custom_taxonomies action used by Fanfic_Taxonomies class
 		add_action( 'fanfic_register_custom_taxonomies', array( __CLASS__, 'register_custom_taxonomies' ) );
@@ -489,10 +490,47 @@ class Fanfic_Taxonomies_Admin {
 		$custom_count = count( $custom_taxonomies );
 		$can_add_more = $custom_count < self::MAX_CUSTOM_TAXONOMIES;
 
+		$enable_fandoms = Fanfic_Settings::get_setting( 'enable_fandom_classification', false );
+
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 			<p><?php esc_html_e( 'Manage all content taxonomies for organizing fanfiction stories. Built-in taxonomies (Genre, Status) and custom taxonomies are listed below.', 'fanfiction-manager' ); ?></p>
+
+			<!-- Fandom Classification Toggle -->
+			<div class="fanfic-taxonomies-settings">
+				<h2><?php esc_html_e( 'Fandom Classification', 'fanfiction-manager' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'Enable the fandom classification system for optional fandom tagging with fast search and custom tables.', 'fanfiction-manager' ); ?></p>
+
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<input type="hidden" name="action" value="fanfic_save_fandom_settings">
+					<?php wp_nonce_field( 'fanfic_save_fandom_settings', 'fanfic_save_fandom_settings_nonce' ); ?>
+
+					<label>
+						<input type="checkbox" name="enable_fandom_classification" value="1" <?php checked( $enable_fandoms, true ); ?>>
+						<?php esc_html_e( 'Enable fandom classification', 'fanfiction-manager' ); ?>
+					</label>
+
+					<p class="submit">
+						<?php submit_button( __( 'Save', 'fanfiction-manager' ), 'secondary', 'submit', false ); ?>
+						<?php if ( $enable_fandoms ) : ?>
+							<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=fanfiction-fandoms' ) ); ?>">
+								<?php esc_html_e( 'Manage Fandoms', 'fanfiction-manager' ); ?>
+							</a>
+						<?php endif; ?>
+					</p>
+				</form>
+			</div>
+
+			<!-- Taxonomy Filter -->
+			<div class="fanfic-taxonomies-search">
+				<h2><?php esc_html_e( 'Filter Taxonomies', 'fanfiction-manager' ); ?></h2>
+				<label for="fanfic-taxonomy-search" class="screen-reader-text"><?php esc_html_e( 'Search taxonomies', 'fanfiction-manager' ); ?></label>
+				<input type="text" id="fanfic-taxonomy-search" class="regular-text" placeholder="<?php esc_attr_e( 'Search taxonomies...', 'fanfiction-manager' ); ?>">
+				<div class="fanfic-taxonomy-results" role="listbox" aria-label="<?php esc_attr_e( 'Taxonomy results', 'fanfiction-manager' ); ?>"></div>
+				<div class="fanfic-taxonomy-selected" aria-live="polite"></div>
+				<p class="description"><?php esc_html_e( 'Select one or more taxonomies to filter the list below.', 'fanfiction-manager' ); ?></p>
+			</div>
 
 			<!-- Content Taxonomies Table -->
 			<div class="fanfic-taxonomies-table">
@@ -510,7 +548,7 @@ class Fanfic_Taxonomies_Admin {
 					</thead>
 					<tbody>
 						<!-- Built-in: Genre -->
-						<tr>
+						<tr data-taxonomy-name="<?php echo esc_attr( __( 'Genres', 'fanfiction-manager' ) ); ?>" data-taxonomy-slug="fanfiction_genre">
 							<td><strong><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></strong></td>
 							<td><code>fanfiction_genre</code></td>
 							<td>
@@ -531,7 +569,7 @@ class Fanfic_Taxonomies_Admin {
 						</tr>
 
 						<!-- Built-in: Status -->
-						<tr>
+						<tr data-taxonomy-name="<?php echo esc_attr( __( 'Story Status', 'fanfiction-manager' ) ); ?>" data-taxonomy-slug="fanfiction_status">
 							<td><strong><?php esc_html_e( 'Story Status', 'fanfiction-manager' ); ?></strong></td>
 							<td><code>fanfiction_status</code></td>
 							<td>
@@ -578,7 +616,7 @@ class Fanfic_Taxonomies_Admin {
 									'fanfic_delete_custom_taxonomy_' . $slug
 								);
 								?>
-								<tr>
+								<tr data-taxonomy-name="<?php echo esc_attr( $name ); ?>" data-taxonomy-slug="<?php echo esc_attr( $slug ); ?>">
 									<td><strong><?php echo esc_html( $name ); ?></strong></td>
 									<td><code><?php echo esc_html( $slug ); ?></code></td>
 									<td><?php echo esc_html( $term_count ); ?></td>
@@ -703,6 +741,7 @@ class Fanfic_Taxonomies_Admin {
 			$messages = array(
 				'taxonomy_added'   => __( 'Custom taxonomy added successfully. Shortcodes have been generated automatically.', 'fanfiction-manager' ),
 				'taxonomy_deleted' => __( 'Custom taxonomy deleted successfully. All terms have been removed from stories.', 'fanfiction-manager' ),
+				'fandom_settings_saved' => __( 'Fandom classification settings saved.', 'fanfiction-manager' ),
 			);
 
 			if ( isset( $messages[ $success_code ] ) ) {
@@ -742,5 +781,36 @@ class Fanfic_Taxonomies_Admin {
 				<?php
 			}
 		}
+	}
+
+	/**
+	 * Save fandom classification settings
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function save_fandom_settings() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
+		}
+
+		if ( ! isset( $_POST['fanfic_save_fandom_settings_nonce'] ) ||
+		     ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_save_fandom_settings_nonce'] ) ), 'fanfic_save_fandom_settings' ) ) {
+			wp_die( __( 'Security check failed.', 'fanfiction-manager' ) );
+		}
+
+		$enabled = isset( $_POST['enable_fandom_classification'] ) && '1' === $_POST['enable_fandom_classification'];
+		Fanfic_Settings::update_setting( 'enable_fandom_classification', $enabled );
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'fanfiction-taxonomies',
+					'success' => 'fandom_settings_saved',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 }

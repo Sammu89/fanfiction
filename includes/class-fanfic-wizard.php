@@ -740,6 +740,8 @@ private function render_choice_screen() {
 		$available_statuses = array(
 			'Finished', 'Ongoing', 'On Hiatus', 'Abandoned'
 		);
+		$settings = get_option( Fanfic_Settings::OPTION_NAME, array() );
+		$enable_fandoms = isset( $settings['enable_fandom_classification'] ) ? (bool) $settings['enable_fandom_classification'] : true;
 		?>
 		<form id="fanfic-wizard-form-step-4" class="fanfic-wizard-form">
 			<?php wp_nonce_field( 'fanfic_wizard_step_4', 'fanfic_wizard_nonce_step_4' ); ?>
@@ -789,6 +791,18 @@ private function render_choice_screen() {
 							<?php endforeach; ?>
 							<p class="description"><?php esc_html_e( 'Stories can only have one status at a time.', 'fanfiction-manager' ); ?></p>
 						</fieldset>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="fanfic_wizard_enable_fandoms"><?php esc_html_e( 'Fandom Classification', 'fanfiction-manager' ); ?></label>
+					</th>
+					<td>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_enable_fandoms" name="fanfic_enable_fandom_classification" value="1" <?php checked( $enable_fandoms, true ); ?>>
+							<?php esc_html_e( 'Enable fandom classification (recommended)', 'fanfiction-manager' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Adds optional fandom tagging with fast search and custom tables.', 'fanfiction-manager' ); ?></p>
 					</td>
 				</tr>
 			</table>
@@ -1190,6 +1204,9 @@ private function render_choice_screen() {
 			$status_terms = array_map( 'sanitize_text_field', wp_unslash( $_POST['fanfic_status_terms'] ) );
 		}
 		update_option( 'fanfic_wizard_status_terms', $status_terms );
+
+		$enable_fandoms = isset( $_POST['fanfic_enable_fandom_classification'] ) && '1' === $_POST['fanfic_enable_fandom_classification'];
+		Fanfic_Settings::update_setting( 'enable_fandom_classification', $enable_fandoms );
 	}
 
 	/**

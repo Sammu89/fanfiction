@@ -50,6 +50,7 @@ function fanfic_get_default_story_view_template() {
 			<div class="fanfic-story-genres">
 				<strong><?php esc_html_e( 'Genres:', 'fanfiction-manager' ); ?></strong> [story-genres]
 			</div>
+			[story-fandoms]
 		</div>
 
 		<div class="fanfic-story-stats" role="contentinfo" aria-label="<?php esc_attr_e( 'Story statistics', 'fanfiction-manager' ); ?>">

@@ -36,7 +36,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.0.0';
+	const DB_VERSION = '1.1.0';
 
 	/**
 	 * Option name for database version tracking
@@ -225,6 +225,42 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create notifications table';
 		}
 
+		// 8. Fandoms Table
+		$table_fandoms = $prefix . 'fanfic_fandoms';
+		$sql_fandoms   = "CREATE TABLE IF NOT EXISTS {$table_fandoms} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			slug varchar(191) NOT NULL,
+			name varchar(255) NOT NULL,
+			category varchar(191) NOT NULL,
+			is_active tinyint(1) NOT NULL DEFAULT 1,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_slug (slug),
+			KEY idx_active (is_active),
+			KEY idx_category (category),
+			KEY idx_name (name),
+			FULLTEXT KEY idx_name_fulltext (name)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_fandoms );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_fandoms ) ) {
+			$errors[] = 'Failed to create fandoms table';
+		}
+
+		// 9. Story-Fandom Relations Table
+		$table_story_fandoms = $prefix . 'fanfic_story_fandoms';
+		$sql_story_fandoms   = "CREATE TABLE IF NOT EXISTS {$table_story_fandoms} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			fandom_id bigint(20) UNSIGNED NOT NULL,
+			UNIQUE KEY unique_story_fandom (story_id, fandom_id),
+			KEY idx_story (story_id),
+			KEY idx_fandom_story (fandom_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_fandoms );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_fandoms ) ) {
+			$errors[] = 'Failed to create story_fandoms table';
+		}
+
 		// Return errors if any
 		if ( ! empty( $errors ) ) {
 			return new WP_Error(
@@ -285,6 +321,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_reading_progress',
 			$prefix . 'fanfic_likes',
 			$prefix . 'fanfic_ratings',
+			$prefix . 'fanfic_story_fandoms',
+			$prefix . 'fanfic_fandoms',
 		);
 
 		// Drop tables in reverse order to avoid foreign key issues
@@ -317,6 +355,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_fandoms',
+			$prefix . 'fanfic_story_fandoms',
 		);
 
 		foreach ( $tables as $table ) {
@@ -424,6 +464,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_fandoms',
+			$prefix . 'fanfic_story_fandoms',
 		);
 
 		$table_info = array();
@@ -493,6 +535,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_fandoms',
+			$prefix . 'fanfic_story_fandoms',
 		);
 
 		foreach ( $tables as $table ) {
@@ -524,6 +568,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_fandoms',
+			$prefix . 'fanfic_story_fandoms',
 		);
 
 		foreach ( $tables as $table ) {
@@ -563,6 +609,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_reading_progress',
 			$prefix . 'fanfic_likes',
 			$prefix . 'fanfic_ratings',
+			$prefix . 'fanfic_story_fandoms',
+			$prefix . 'fanfic_fandoms',
 		);
 
 		// Truncate in reverse order to avoid foreign key issues

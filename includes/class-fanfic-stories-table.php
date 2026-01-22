@@ -29,6 +29,12 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 class Fanfic_Stories_Table extends WP_List_Table {
 
 	/**
+	 * A cached list of potential authors.
+	 * @var array|null
+	 */
+	protected $potential_authors = null;
+	
+	/**
 	 * Constructor
 	 *
 	 * @since 1.0.0
@@ -67,7 +73,6 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			'genre'            => __( 'Genre', 'fanfiction-manager' ),
 			'average_rating'   => __( 'Average Rating', 'fanfiction-manager' ),
 			'last_updated'     => __( 'Last Updated', 'fanfiction-manager' ),
-			'actions'          => __( 'Actions', 'fanfiction-manager' ),
 		);
 	}
 
@@ -100,8 +105,11 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			'delete'         => __( 'Delete', 'fanfiction-manager' ),
 			'publish'        => __( 'Publish', 'fanfiction-manager' ),
 			'set_draft'      => __( 'Set to Draft', 'fanfiction-manager' ),
-			'apply_genre'    => __( 'Apply Genre', 'fanfiction-manager' ),
+			'block'          => __( 'Block', 'fanfiction-manager' ),
+			'unblock'        => __( 'Unblock', 'fanfiction-manager' ),
+			'apply_genre'    => __( 'Change Genre', 'fanfiction-manager' ),
 			'change_status'  => __( 'Change Status', 'fanfiction-manager' ),
+			'change_author'  => __( 'Change Author', 'fanfiction-manager' ),
 		);
 	}
 
@@ -246,6 +254,11 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 */
 	public function column_publication( $item ) {
 		$post_status = $item->post_status;
+		$is_blocked = (bool) get_post_meta( $item->ID, '_fanfic_story_blocked', true );
+
+		if ( $is_blocked ) {
+			return '<span class="status-badge status-blocked"><span class="dashicons dashicons-lock"></span> ' . __( 'Blocked', 'fanfiction-manager' ) . '</span>';
+		}
 
 		if ( 'publish' === $post_status ) {
 			return '<span class="status-badge status-published"><span class="dashicons dashicons-yes-alt"></span> ' . __( 'Published', 'fanfiction-manager' ) . '</span>';
@@ -336,53 +349,6 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	}
 
 	/**
-	 * Render Actions column
-	 *
-	 * @since 1.0.0
-	 * @param object $item Story item
-	 * @return string Actions dropdown HTML
-	 */
-	public function column_actions( $item ) {
-		$story_id = absint( $item->ID );
-		$edit_url = fanfic_get_edit_story_url( $story_id );
-		$view_url = get_permalink( $story_id );
-		$delete_url = wp_nonce_url(
-			add_query_arg(
-				array(
-					'page'     => 'fanfiction-manager',
-					'action'   => 'delete',
-					'story_id' => $story_id,
-				),
-				admin_url( 'admin.php' )
-			),
-			'fanfic_story_action'
-		);
-
-		$actions = array();
-
-		$actions[] = sprintf(
-			'<a href="%s" class="button button-small" target="_blank">%s</a>',
-			esc_url( $edit_url ),
-			__( 'Edit', 'fanfiction-manager' )
-		);
-
-		$actions[] = sprintf(
-			'<a href="%s" class="button button-small" target="_blank">%s</a>',
-			esc_url( $view_url ),
-			__( 'View', 'fanfiction-manager' )
-		);
-
-		$actions[] = sprintf(
-			'<a href="%s" class="button button-small button-link-delete" onclick="return confirm(\'%s\');">%s</a>',
-			esc_url( $delete_url ),
-			esc_js( __( 'Are you sure you want to delete this story and all its chapters?', 'fanfiction-manager' ) ),
-			__( 'Delete', 'fanfiction-manager' )
-		);
-
-		return implode( ' ', $actions );
-	}
-
-	/**
 	 * Default column renderer
 	 *
 	 * @since 1.0.0
@@ -402,6 +368,21 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 */
 	public function prepare_items() {
 		global $wpdb;
+
+		// Pre-fetch potential authors to avoid repeated queries
+		if ( null === $this->potential_authors ) {
+			$this->potential_authors = get_users( array(
+				'role__in' => array(
+					'administrator',
+					'fanfiction_admin',
+					'fanfiction_moderator',
+					'fanfiction_author',
+					'fanfiction_reader',
+				),
+				'orderby' => 'display_name',
+				'order'   => 'ASC',
+			) );
+		}
 
 		// Set column headers
 		$this->_column_headers = array(
@@ -445,10 +426,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		}
 
 		// Filter by publication status
-		if ( isset( $_REQUEST['publication_filter'] ) && 'include_drafts' === $_REQUEST['publication_filter'] ) {
-			$args['post_status'] = array( 'publish', 'draft' );
-		} else {
+		if ( isset( $_REQUEST['publication_filter'] ) && 'published_only' === $_REQUEST['publication_filter'] ) {
 			$args['post_status'] = 'publish';
+		} else {
+			$args['post_status'] = array( 'publish', 'draft' );
 		}
 
 		// Handle sorting
@@ -583,20 +564,30 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 * @return void
 	 */
 	protected function extra_tablenav( $which ) {
-		if ( 'top' !== $which ) {
-			return;
-		}
 		?>
 		<div class="alignleft actions">
-			<?php $this->author_filter_dropdown(); ?>
-			<?php $this->status_filter_dropdown(); ?>
-			<?php $this->publication_filter_dropdown(); ?>
-			<?php submit_button( __( 'Filter', 'fanfiction-manager' ), 'button', 'filter_action', false ); ?>
+			<button type="button" id="bulk-publish-<?php echo esc_attr($which); ?>" class="button bulk-publish"><?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-set-draft-<?php echo esc_attr($which); ?>" class="button bulk-set-draft"><?php esc_html_e( 'Set to Draft', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-block-<?php echo esc_attr($which); ?>" class="button bulk-block"><?php esc_html_e( 'Block', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-unblock-<?php echo esc_attr($which); ?>" class="button bulk-unblock"><?php esc_html_e( 'Unblock', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-change-author-<?php echo esc_attr($which); ?>" class="button bulk-change-author"><?php esc_html_e( 'Change Author', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-apply-genre-<?php echo esc_attr($which); ?>" class="button bulk-apply-genre"><?php esc_html_e( 'Change Genre', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-change-status-<?php echo esc_attr($which); ?>" class="button bulk-change-status"><?php esc_html_e( 'Change Status', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-delete-<?php echo esc_attr($which); ?>" class="button button-link-delete bulk-delete"><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
+		</div>
+		<div class="alignleft actions" style="display:none;">
+			<?php $this->bulk_actions( $which ); ?>
 		</div>
 		<?php
-		// Display dropdowns for bulk actions that need additional input
-		$this->genre_bulk_dropdown();
-		$this->status_bulk_dropdown();
+		if ( 'top' === $which ) {
+			// Display dropdowns for legacy bulk actions that need additional input
+			$this->genre_bulk_dropdown();
+			$this->status_bulk_dropdown();
+			// Render the modals
+			$this->render_change_author_modal();
+			$this->render_apply_genre_modal();
+			$this->render_change_status_modal();
+		}
 	}
 
 	/**
@@ -669,12 +660,12 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 * @return void
 	 */
 	private function publication_filter_dropdown() {
-		$current_filter = isset( $_REQUEST['publication_filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['publication_filter'] ) ) : 'published_only';
+		$current_filter = isset( $_REQUEST['publication_filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['publication_filter'] ) ) : 'include_drafts';
 
 		?>
 		<select name="publication_filter" id="publication-filter">
 			<option value="published_only" <?php selected( $current_filter, 'published_only' ); ?>><?php esc_html_e( 'Published Only', 'fanfiction-manager' ); ?></option>
-			<option value="include_drafts" <?php selected( $current_filter, 'include_drafts' ); ?>><?php esc_html_e( 'Include Drafts', 'fanfiction-manager' ); ?></option>
+			<option value="include_drafts" <?php selected( $current_filter, 'include_drafts' ); ?>><?php esc_html_e( 'All (Published & Drafts)', 'fanfiction-manager' ); ?></option>
 		</select>
 		<?php
 	}
@@ -712,6 +703,120 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	}
 
 	/**
+	 * Render the modal for the bulk change author action.
+	 *
+	 * @since 1.2.0
+	 */
+	public function render_change_author_modal() {
+		?>
+		<div id="fanfic-change-author-modal" style="display:none;" class="fanfic-admin-modal">
+			<div class="fanfic-admin-modal-overlay"></div>
+			<div class="fanfic-admin-modal-content">
+				<h2><?php esc_html_e( 'Change Story Author', 'fanfiction-manager' ); ?></h2>
+				<p class="fanfic-modal-warning"><?php esc_html_e( 'Warning: Changing the author will remove the original author\'s access to edit this story.', 'fanfiction-manager' ); ?></p>
+				
+				<div class="fanfic-admin-modal-form">
+					<label for="fanfic-author-search-input"><?php esc_html_e( 'Search for an author:', 'fanfiction-manager' ); ?></label>
+					<input type="text" id="fanfic-author-search-input" placeholder="<?php esc_attr_e( 'Type to search...', 'fanfiction-manager' ); ?>" style="width: 100%; margin-bottom: 10px;">
+					<div class="fanfic-author-suggestions" style="display:none;"></div>
+
+					<label for="fanfic-new-author-select"><?php esc_html_e( 'Or select a new author from the list:', 'fanfiction-manager' ); ?></label>
+					<select id="fanfic-new-author-select" style="width: 100%;">
+						<option value=""><?php esc_html_e( '-- Select Author --', 'fanfiction-manager' ); ?></option>
+						<?php if ( ! empty( $this->potential_authors ) ) : ?>
+							<?php foreach ( $this->potential_authors as $author ) : ?>
+								<option value="<?php echo esc_attr( $author->ID ); ?>" data-name="<?php echo esc_attr( strtolower( $author->display_name ) ); ?>">
+									<?php echo esc_html( $author->display_name ); ?>
+								</option>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</select>
+					<div class="fanfic-admin-modal-message" style="margin-top:10px;"></div>
+				</div>
+
+				<div class="fanfic-admin-modal-actions">
+					<button type="button" class="button fanfic-admin-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
+					<button type="button" class="button button-primary" id="fanfic-confirm-author-change"><?php esc_html_e( 'OK', 'fanfiction-manager' ); ?></button>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the modal for the bulk apply genre action.
+	 *
+	 * @since 1.2.0
+	 */
+	public function render_apply_genre_modal() {
+		$genres = get_terms( array( 'taxonomy' => 'fanfiction_genre', 'hide_empty' => false ) );
+		?>
+		<div id="fanfic-apply-genre-modal" style="display:none;" class="fanfic-admin-modal">
+			<div class="fanfic-admin-modal-overlay"></div>
+			<div class="fanfic-admin-modal-content">
+				<h2><?php esc_html_e( 'Change Genre for Stories', 'fanfiction-manager' ); ?></h2>
+				
+				<div class="fanfic-admin-modal-form">
+					<label for="fanfic-genre-select"><?php esc_html_e( 'Select one or more genres:', 'fanfiction-manager' ); ?></label>
+					<select id="fanfic-genre-select" style="width: 100%;" multiple size="6">
+						<?php if ( ! is_wp_error( $genres ) && ! empty( $genres ) ) : ?>
+							<?php foreach ( $genres as $genre ) : ?>
+								<option value="<?php echo esc_attr( $genre->term_id ); ?>">
+									<?php echo esc_html( $genre->name ); ?>
+								</option>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</select>
+					<div class="fanfic-admin-modal-message" style="margin-top:10px;"></div>
+				</div>
+
+				<div class="fanfic-admin-modal-actions">
+					<button type="button" class="button fanfic-admin-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
+					<button type="button" class="button button-primary" id="fanfic-confirm-apply-genre"><?php esc_html_e( 'Change Genre', 'fanfiction-manager' ); ?></button>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the modal for the bulk change status action.
+	 *
+	 * @since 1.2.0
+	 */
+	public function render_change_status_modal() {
+		$statuses = get_terms( array( 'taxonomy' => 'fanfiction_status', 'hide_empty' => false ) );
+		?>
+		<div id="fanfic-change-status-modal" style="display:none;" class="fanfic-admin-modal">
+			<div class="fanfic-admin-modal-overlay"></div>
+			<div class="fanfic-admin-modal-content">
+				<h2><?php esc_html_e( 'Change Story Status', 'fanfiction-manager' ); ?></h2>
+				
+				<div class="fanfic-admin-modal-form">
+					<label for="fanfic-status-select"><?php esc_html_e( 'Select a new status:', 'fanfiction-manager' ); ?></label>
+					<select id="fanfic-status-select" style="width: 100%;">
+						<option value=""><?php esc_html_e( '-- Select Status --', 'fanfiction-manager' ); ?></option>
+						<?php if ( ! is_wp_error( $statuses ) && ! empty( $statuses ) ) : ?>
+							<?php foreach ( $statuses as $status ) : ?>
+								<option value="<?php echo esc_attr( $status->term_id ); ?>">
+									<?php echo esc_html( $status->name ); ?>
+								</option>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</select>
+					<div class="fanfic-admin-modal-message" style="margin-top:10px;"></div>
+				</div>
+
+				<div class="fanfic-admin-modal-actions">
+					<button type="button" class="button fanfic-admin-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
+					<button type="button" class="button button-primary" id="fanfic-confirm-change-status"><?php esc_html_e( 'Change Status', 'fanfiction-manager' ); ?></button>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Display status bulk action dropdown (hidden, shown via JS)
 	 *
 	 * @since 1.0.0
@@ -729,36 +834,296 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		}
 
 		?>
-		<div id="status-bulk-dropdown" style="display: none; margin-top: 10px;">
-			<label for="bulk-status-select"><?php esc_html_e( 'Select Status:', 'fanfiction-manager' ); ?></label>
-			<select name="bulk_status" id="bulk-status-select">
-				<option value=""><?php esc_html_e( '-- Select Status --', 'fanfiction-manager' ); ?></option>
-				<?php foreach ( $statuses as $status ) : ?>
-					<option value="<?php echo esc_attr( $status->term_id ); ?>">
-						<?php echo esc_html( $status->name ); ?>
-					</option>
-				<?php endforeach; ?>
-			</select>
-		</div>
-		<script type="text/javascript">
-			jQuery(document).ready(function($) {
-				// Show/hide genre dropdown based on bulk action selection
-				$('#bulk-action-selector-top, #bulk-action-selector-bottom').on('change', function() {
-					var action = $(this).val();
-					if (action === 'apply_genre') {
-						$('#genre-bulk-dropdown').show();
-					} else {
-						$('#genre-bulk-dropdown').hide();
-					}
-					if (action === 'change_status') {
-						$('#status-bulk-dropdown').show();
-					} else {
-						$('#status-bulk-dropdown').hide();
-					}
-				});
-			});
-		</script>
-		<?php
+		        <div id="status-bulk-dropdown" style="display: none; margin-top: 10px;">
+		            <label for="bulk-status-select"><?php esc_html_e( 'Select Status:', 'fanfiction-manager' ); ?></label>
+		            <select name="bulk_status" id="bulk-status-select">
+		                <option value=""><?php esc_html_e( '-- Select Status --', 'fanfiction-manager' ); ?></option>
+		                <?php foreach ( $statuses as $status ) : ?>
+		                    <option value="<?php echo esc_attr( $status->term_id ); ?>">
+		                        <?php echo esc_html( $status->name ); ?>
+		                    </option>
+		                <?php endforeach; ?>
+		            </select>
+		        </div>
+		        <script type="text/javascript">
+		            jQuery(document).ready(function($) {
+		
+		                function run_bulk_action(action, $button) {
+		                    var checked_ids = $('input[name="story[]"]:checked').map(function() {
+		                        return $(this).val();
+		                    }).get();
+
+		                    if (checked_ids.length === 0) {
+		                        alert('<?php esc_html_e( 'Please select at least one story.', 'fanfiction-manager' ); ?>');
+		                        return;
+		                    }
+
+		                    if (action === 'delete') {
+		                        if (!confirm('<?php esc_html_e( 'Are you sure you want to delete the selected stories? This action cannot be undone.', 'fanfiction-manager' ); ?>')) {
+		                            return;
+		                        }
+		                    }
+
+		                    if (action === 'block') {
+		                        if (!confirm('<?php esc_html_e( 'Block selected stories? Authors will lose access and stories will be hidden from the public.', 'fanfiction-manager' ); ?>')) {
+		                            return;
+		                        }
+		                    }
+
+		                    if (action === 'unblock') {
+		                        if (!confirm('<?php esc_html_e( 'Unblock selected stories? Authors will regain access.', 'fanfiction-manager' ); ?>')) {
+		                            return;
+		                        }
+		                    }
+		
+		                    var $form = $button ? $button.closest('form') : $(document).closest('form');
+		                    $form.find('#bulk-action-selector-top, #bulk-action-selector-bottom').val(action);
+		                    $form.find('#doaction, #doaction2').first().trigger('click');
+		                }
+
+		                $('.bulk-publish').on('click', function(e) { e.preventDefault(); run_bulk_action('publish', $(this)); });
+		                $('.bulk-set-draft').on('click', function(e) { e.preventDefault(); run_bulk_action('set_draft', $(this)); });
+		                $('.bulk-block').on('click', function(e) { e.preventDefault(); run_bulk_action('block', $(this)); });
+		                $('.bulk-unblock').on('click', function(e) { e.preventDefault(); run_bulk_action('unblock', $(this)); });
+		                $('.bulk-delete').on('click', function(e) { e.preventDefault(); run_bulk_action('delete', $(this)); });
+		
+		                // Handle "Change Author" bulk action
+		                $('.bulk-change-author').on('click', function(e) {
+		                    e.preventDefault();
+		                    var checked_ids = $('input[name="story[]"]:checked').map(function() {
+		                        return $(this).val();
+		                    }).get();
+		
+		                    if (checked_ids.length === 0) {
+		                        alert('<?php esc_html_e( 'Please select at least one story to change the author.', 'fanfiction-manager' ); ?>');
+		                        return;
+		                    }
+		                    
+		                    $('#fanfic-change-author-modal').fadeIn(200);
+		                    $('body').addClass('fanfic-admin-modal-open');
+		                });
+		                
+		                // Handle "Change Genre" bulk action
+		                $('.bulk-apply-genre').on('click', function(e) {
+		                    e.preventDefault();
+		                    var checked_ids = $('input[name="story[]"]:checked').map(function() {
+		                        return $(this).val();
+		                    }).get();
+		
+		                    if (checked_ids.length === 0) {
+		                        alert('<?php esc_html_e( 'Please select at least one story to apply a genre to.', 'fanfiction-manager' ); ?>');
+		                        return;
+		                    }
+		                    
+		                    $('#fanfic-apply-genre-modal').fadeIn(200);
+		                    $('body').addClass('fanfic-admin-modal-open');
+		                });
+		
+		                // Handle "Change Status" bulk action
+		                $('.bulk-change-status').on('click', function(e) {
+		                    e.preventDefault();
+		                    var checked_ids = $('input[name="story[]"]:checked').map(function() {
+		                        return $(this).val();
+		                    }).get();
+		
+		                    if (checked_ids.length === 0) {
+		                        alert('<?php esc_html_e( 'Please select at least one story to change the status of.', 'fanfiction-manager' ); ?>');
+		                        return;
+		                    }
+		                    
+		                    $('#fanfic-change-status-modal').fadeIn(200);
+		                    $('body').addClass('fanfic-admin-modal-open');
+		                });
+		
+		                // Close modals
+		                $(document).on('click', '.fanfic-admin-modal-cancel, .fanfic-admin-modal-overlay', function(e) {
+		                    if (e.target !== this) return;
+		                    e.preventDefault();
+		                    $(this).closest('.fanfic-admin-modal').fadeOut(200);
+		                    $('body').removeClass('fanfic-admin-modal-open');
+		                });
+		
+		                // Search/filter authors in modal (suggestions)
+		                var $authorInput = $('#fanfic-author-search-input');
+		                var $authorSuggestions = $('.fanfic-author-suggestions');
+		                var $authorSelect = $('#fanfic-new-author-select');
+
+		                function renderAuthorSuggestions(query) {
+		                    var q = query.toLowerCase();
+		                    $authorSuggestions.empty();
+
+		                    if (q.length < 2) {
+		                        $authorSuggestions.hide();
+		                        return;
+		                    }
+
+		                    var matches = $authorSelect.find('option[value!=""]').filter(function() {
+		                        var name = $(this).data('name') || '';
+		                        return name.indexOf(q) !== -1;
+		                    });
+
+		                    if (!matches.length) {
+		                        $authorSuggestions.hide();
+		                        return;
+		                    }
+
+		                    matches.each(function() {
+		                        var $option = $(this);
+		                        var $btn = $('<button type="button" class="fanfic-author-suggestion"></button>');
+		                        $btn.text($option.text());
+		                        $btn.attr('data-id', $option.val());
+		                        $authorSuggestions.append($btn);
+		                    });
+
+		                    $authorSuggestions.show();
+		                }
+
+		                $authorInput.on('input', function() {
+		                    renderAuthorSuggestions($(this).val().trim());
+		                });
+
+		                $authorSuggestions.on('click', '.fanfic-author-suggestion', function() {
+		                    var id = $(this).attr('data-id');
+		                    $authorSelect.val(id);
+		                    $authorSuggestions.hide().empty();
+		                });
+
+		                $authorInput.on('blur', function() {
+		                    setTimeout(function() {
+		                        $authorSuggestions.hide().empty();
+		                    }, 150);
+		                });
+		
+		                // Handle the confirmation click in the author modal
+		                $('#fanfic-confirm-author-change').on('click', function(e) {
+		                    e.preventDefault();
+		                    var $button = $(this);
+		                    var $message = $('#fanfic-change-author-modal .fanfic-admin-modal-message');
+		                    var newAuthorId = $('#fanfic-new-author-select').val();
+		                    var storyIds = $('input[name="story[]"]:checked').map(function() {
+		                        return $(this).val();
+		                    }).get();
+		
+		                    if (!newAuthorId) {
+		                        $message.html('<p class="error"><?php esc_html_e( 'Please select a new author.', 'fanfiction-manager' ); ?></p>');
+		                        return;
+		                    }
+		
+		                    $button.prop('disabled', true);
+		                    $message.html('<p class="info"><?php esc_html_e( 'Saving...', 'fanfiction-manager' ); ?></p>');
+		
+		                    $.ajax({
+		                        url: ajaxurl,
+		                        type: 'POST',
+		                        data: {
+		                            action: 'fanfic_bulk_change_author',
+		                            story_ids: storyIds,
+		                            new_author_id: newAuthorId,
+		                            nonce: '<?php echo wp_create_nonce( 'fanfic_bulk_change_author' ); ?>'
+		                        },
+		                        success: function(response) {
+		                            if (response.success) {
+		                                $message.html('<p class="success">' + response.data.message + '</p>');
+		                                setTimeout(function() { location.reload(); }, 1000);
+		                            } else {
+		                                $message.html('<p class="error">' + response.data.message + '</p>');
+		                                $button.prop('disabled', false);
+		                            }
+		                        },
+		                        error: function() {
+		                            $message.html('<p class="error"><?php esc_html_e( 'An unexpected error occurred. Please try again.', 'fanfiction-manager' ); ?></p>');
+		                            $button.prop('disabled', false);
+		                        }
+		                    });
+		                });
+		
+		                // Handle the confirmation click in the genre modal
+		                $('#fanfic-confirm-apply-genre').on('click', function(e) {
+		                    e.preventDefault();
+		                    var $button = $(this);
+		                    var $message = $('#fanfic-apply-genre-modal .fanfic-admin-modal-message');
+		                    var genreIds = $('#fanfic-genre-select').val() || [];
+		                    var storyIds = $('input[name="story[]"]:checked').map(function() {
+		                        return $(this).val();
+		                    }).get();
+		
+		                    if (!genreIds.length) {
+		                        $message.html('<p class="error"><?php esc_html_e( 'Please select at least one genre.', 'fanfiction-manager' ); ?></p>');
+		                        return;
+		                    }
+		
+		                    $button.prop('disabled', true);
+		                    $message.html('<p class="info"><?php esc_html_e( 'Changing genre...', 'fanfiction-manager' ); ?></p>');
+		
+		                    $.ajax({
+		                        url: ajaxurl,
+		                        type: 'POST',
+		                        data: {
+		                            action: 'fanfic_bulk_apply_genre',
+		                            story_ids: storyIds,
+		                            genre_ids: genreIds,
+		                            nonce: '<?php echo wp_create_nonce( 'fanfic_bulk_apply_genre' ); ?>'
+		                        },
+		                        success: function(response) {
+		                            if (response.success) {
+		                                $message.html('<p class="success">' + response.data.message + '</p>');
+		                                setTimeout(function() { location.reload(); }, 1000);
+		                            } else {
+		                                $message.html('<p class="error">' + response.data.message + '</p>');
+		                                $button.prop('disabled', false);
+		                            }
+		                        },
+		                        error: function() {
+		                            $message.html('<p class="error"><?php esc_html_e( 'An unexpected error occurred. Please try again.', 'fanfiction-manager' ); ?></p>');
+		                            $button.prop('disabled', false);
+		                        }
+		                    });
+		                });
+		
+		                // Handle the confirmation click in the status modal
+		                $('#fanfic-confirm-change-status').on('click', function(e) {
+		                    e.preventDefault();
+		                    var $button = $(this);
+		                    var $message = $('#fanfic-change-status-modal .fanfic-admin-modal-message');
+		                    var statusId = $('#fanfic-status-select').val();
+		                    var storyIds = $('input[name="story[]"]:checked').map(function() {
+		                        return $(this).val();
+		                    }).get();
+		
+		                    if (!statusId) {
+		                        $message.html('<p class="error"><?php esc_html_e( 'Please select a status.', 'fanfiction-manager' ); ?></p>');
+		                        return;
+		                    }
+		
+		                    $button.prop('disabled', true);
+		                    $message.html('<p class="info"><?php esc_html_e( 'Changing status...', 'fanfiction-manager' ); ?></p>');
+		
+		                    $.ajax({
+		                        url: ajaxurl,
+		                        type: 'POST',
+		                        data: {
+		                            action: 'fanfic_bulk_change_status',
+		                            story_ids: storyIds,
+		                            status_id: statusId,
+		                            nonce: '<?php echo wp_create_nonce( 'fanfic_bulk_change_status' ); ?>'
+		                        },
+		                        success: function(response) {
+		                            if (response.success) {
+		                                $message.html('<p class="success">' + response.data.message + '</p>');
+		                                setTimeout(function() { location.reload(); }, 1000);
+		                            } else {
+		                                $message.html('<p class="error">' + response.data.message + '</p>');
+		                                $button.prop('disabled', false);
+		                            }
+		                        },
+		                        error: function() {
+		                            $message.html('<p class="error"><?php esc_html_e( 'An unexpected error occurred. Please try again.', 'fanfiction-manager' ); ?></p>');
+		                            $button.prop('disabled', false);
+		                        }
+		                    });
+		                });
+		            });
+		        </script>		<?php
 	}
 
 	/**
@@ -844,21 +1209,137 @@ class Fanfic_Stories_Table extends WP_List_Table {
 				);
 				break;
 
-			case 'publish':
+			case 'block':
 				foreach ( $story_ids as $story_id ) {
+					$story_status = get_post_status( $story_id );
+					if ( $story_status && ! get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true ) ) {
+						update_post_meta( $story_id, '_fanfic_story_blocked_prev_status', $story_status );
+					}
+					update_post_meta( $story_id, '_fanfic_story_blocked', 1 );
+					update_post_meta( $story_id, '_fanfic_story_blocked_reason', 'manual' );
 					wp_update_post( array(
 						'ID'          => $story_id,
-						'post_status' => 'publish',
+						'post_status' => 'draft',
 					) );
+					$chapters = get_posts( array(
+						'post_type'      => 'fanfiction_chapter',
+						'post_parent'    => $story_id,
+						'post_status'    => 'any',
+						'posts_per_page' => -1,
+						'fields'         => 'ids',
+					) );
+					foreach ( $chapters as $chapter_id ) {
+						$chapter_status = get_post_status( $chapter_id );
+						if ( $chapter_status && ! get_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status', true ) ) {
+							update_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status', $chapter_status );
+						}
+						update_post_meta( $chapter_id, '_fanfic_story_blocked', 1 );
+						update_post_meta( $chapter_id, '_fanfic_story_blocked_reason', 'manual' );
+						wp_update_post( array(
+							'ID'          => $chapter_id,
+							'post_status' => 'draft',
+						) );
+					}
 				}
 				$this->add_notice(
 					sprintf(
 						/* translators: %d: Number of stories */
-						_n( '%d story published.', '%d stories published.', count( $story_ids ), 'fanfiction-manager' ),
+						_n( '%d story blocked.', '%d stories blocked.', count( $story_ids ), 'fanfiction-manager' ),
 						count( $story_ids )
 					),
 					'success'
 				);
+				break;
+
+			case 'unblock':
+				foreach ( $story_ids as $story_id ) {
+					$story_prev_status = get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true );
+					$story_restore_status = $story_prev_status ? $story_prev_status : 'draft';
+					if ( $story_restore_status ) {
+						wp_update_post( array(
+							'ID'          => $story_id,
+							'post_status' => $story_restore_status,
+						) );
+					}
+					delete_post_meta( $story_id, '_fanfic_story_blocked_prev_status' );
+					delete_post_meta( $story_id, '_fanfic_story_blocked' );
+					delete_post_meta( $story_id, '_fanfic_story_blocked_reason' );
+					$chapters = get_posts( array(
+						'post_type'      => 'fanfiction_chapter',
+						'post_parent'    => $story_id,
+						'post_status'    => 'any',
+						'posts_per_page' => -1,
+						'fields'         => 'ids',
+					) );
+					foreach ( $chapters as $chapter_id ) {
+						$chapter_prev_status = get_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status', true );
+						$chapter_restore_status = $chapter_prev_status ? $chapter_prev_status : 'draft';
+						if ( $chapter_restore_status ) {
+							wp_update_post( array(
+								'ID'          => $chapter_id,
+								'post_status' => $chapter_restore_status,
+							) );
+						}
+						delete_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status' );
+						delete_post_meta( $chapter_id, '_fanfic_story_blocked' );
+						delete_post_meta( $chapter_id, '_fanfic_story_blocked_reason' );
+					}
+				}
+				$this->add_notice(
+					sprintf(
+						/* translators: %d: Number of stories */
+						_n( '%d story unblocked.', '%d stories unblocked.', count( $story_ids ), 'fanfiction-manager' ),
+						count( $story_ids )
+					),
+					'success'
+				);
+				break;
+
+			case 'publish':
+				$published_count = 0;
+				$failed_stories_details = array();
+
+				foreach ( $story_ids as $story_id ) {
+					$story = get_post( $story_id );
+					if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+						$failed_stories_details[] = sprintf( '%s (ID: %d) - %s', __( 'Story not found or invalid type', 'fanfiction-manager' ), $story_id, __( 'Skipped', 'fanfiction-manager' ) );
+						continue;
+					}
+
+					// Use the existing validation function
+					$validation_result = Fanfic_Validation::can_publish_story( $story_id );
+
+					if ( $validation_result['can_publish'] ) {
+						wp_update_post( array(
+							'ID'          => $story_id,
+							'post_status' => 'publish',
+						) );
+						$published_count++;
+					} else {
+						$missing_reasons = implode( ', ', $validation_result['missing_fields'] );
+						$failed_stories_details[] = sprintf( '%s (%s)', esc_html( $story->post_title ), $missing_reasons );
+					}
+				}
+
+				if ( $published_count > 0 ) {
+					$this->add_notice(
+						sprintf(
+							/* translators: %d: Number of stories */
+							_n( '%d story published successfully.', '%d stories published successfully.', $published_count, 'fanfiction-manager' ),
+							$published_count
+						),
+						'success'
+					);
+				}
+
+				if ( ! empty( $failed_stories_details ) ) {
+					$error_message = sprintf(
+						/* translators: %s: Comma-separated list of failed story titles and reasons */
+						__( 'The following stories could not be published because they do not meet the requirements: %s', 'fanfiction-manager' ),
+						implode( '; ', $failed_stories_details )
+					);
+					$this->add_notice( $error_message, 'error' );
+				}
 				break;
 
 			case 'set_draft':
@@ -917,11 +1398,8 @@ class Fanfic_Stories_Table extends WP_List_Table {
 				break;
 		}
 
-		// Redirect to clean URL
-		wp_safe_redirect( admin_url( 'admin.php?page=fanfiction-manager' ) );
-		exit;
+		// No redirect is needed as the page will reload and show the notices.
 	}
-
 	/**
 	 * Delete a story and all its chapters
 	 *

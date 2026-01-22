@@ -74,6 +74,21 @@ if ( $is_edit_mode ) {
 		return;
 	}
 
+	$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
+	if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+		?>
+		<div class="fanfic-error-notice" role="alert" aria-live="assertive">
+			<p><?php echo esc_html( fanfic_get_blocked_story_message() ); ?></p>
+			<p>
+				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
+					<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+				</a>
+			</p>
+		</div>
+		<?php
+		return;
+	}
+
 	$story_title = $story->post_title;
 } else {
 	// Create mode - check if user has capability to create stories
@@ -168,6 +183,9 @@ if ( $validation_errors ) {
 
 $current_genres = array();
 $current_status = '';
+$current_fandoms = array();
+$current_fandom_labels = array();
+$is_original_work = false;
 $featured_image = '';
 $story_introduction = '';
 
@@ -176,6 +194,11 @@ if ( $is_edit_mode ) {
 	$current_genres = wp_get_object_terms( $story->ID, 'fanfiction_genre', array( 'fields' => 'ids' ) );
 	$current_status_obj = wp_get_object_terms( $story->ID, 'fanfiction_status', array( 'fields' => 'ids' ) );
 	$current_status = ! empty( $current_status_obj ) ? $current_status_obj[0] : '';
+	if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+		$current_fandoms = Fanfic_Fandoms::get_story_fandom_ids( $story->ID );
+		$current_fandom_labels = Fanfic_Fandoms::get_story_fandom_labels( $story->ID, true );
+		$is_original_work = (bool) get_post_meta( $story->ID, Fanfic_Fandoms::META_ORIGINAL, true );
+	}
 	$featured_image = get_post_meta( $story->ID, '_fanfic_featured_image', true );
 	$story_introduction = $story->post_excerpt;
 }
@@ -188,11 +211,13 @@ $image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 $data_attrs = '';
 if ( $is_edit_mode ) {
 	$data_attrs = sprintf(
-		'data-original-title="%s" data-original-content="%s" data-original-genres="%s" data-original-status="%s" data-original-image="%s"',
+		'data-original-title="%s" data-original-content="%s" data-original-genres="%s" data-original-status="%s" data-original-fandoms="%s" data-original-original="%s" data-original-image="%s"',
 		esc_attr( $story->post_title ),
 		esc_attr( $story->post_excerpt ),
 		esc_attr( implode( ',', $current_genres ) ),
 		esc_attr( $current_status ),
+		esc_attr( implode( ',', $current_fandoms ) ),
+		$is_original_work ? '1' : '0',
 		esc_attr( $featured_image )
 	);
 }
@@ -316,6 +341,47 @@ if ( $is_edit_mode ) {
 								?>
 							</select>
 						</div>
+
+						<?php if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) : ?>
+							<!-- Original Work -->
+							<div class="fanfic-form-field">
+								<label><?php esc_html_e( 'Original Work', 'fanfiction-manager' ); ?></label>
+								<label class="fanfic-checkbox-label">
+									<input
+										type="checkbox"
+										name="fanfic_is_original_work"
+										value="1"
+										class="fanfic-checkbox"
+										<?php checked( $is_original_work ); ?>
+									/>
+									<?php esc_html_e( 'This story is an original work', 'fanfiction-manager' ); ?>
+								</label>
+								<p class="description"><?php esc_html_e( 'Original works do not use fandom tags.', 'fanfiction-manager' ); ?></p>
+							</div>
+
+							<!-- Fandoms -->
+							<div class="fanfic-form-field fanfic-fandoms-field" data-max-fandoms="<?php echo esc_attr( Fanfic_Fandoms::MAX_FANDOMS ); ?>">
+								<label for="fanfic_fandom_search"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
+								<input
+									type="text"
+									id="fanfic_fandom_search"
+									class="fanfic-input"
+									autocomplete="off"
+									placeholder="<?php esc_attr_e( 'Search fandoms...', 'fanfiction-manager' ); ?>"
+								/>
+								<div class="fanfic-fandom-results" role="listbox" aria-label="<?php esc_attr_e( 'Fandom search results', 'fanfiction-manager' ); ?>"></div>
+								<div class="fanfic-selected-fandoms" aria-live="polite">
+									<?php foreach ( $current_fandom_labels as $fandom ) : ?>
+										<span class="fanfic-selected-fandom" data-id="<?php echo esc_attr( $fandom['id'] ); ?>">
+											<?php echo esc_html( $fandom['label'] ); ?>
+											<button type="button" class="fanfic-remove-fandom" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
+											<input type="hidden" name="fanfic_story_fandoms[]" value="<?php echo esc_attr( $fandom['id'] ); ?>">
+										</span>
+									<?php endforeach; ?>
+								</div>
+								<p class="description"><?php esc_html_e( 'Select up to 5 fandoms. Search requires at least 2 characters.', 'fanfiction-manager' ); ?></p>
+							</div>
+						<?php endif; ?>
 
 						<!-- Featured Image -->
 						<div class="fanfic-form-field">
@@ -740,6 +806,8 @@ fanfic_render_breadcrumb( 'edit-story', array(
 			var originalContent = form.getAttribute('data-original-content') || '';
 			var originalGenres = form.getAttribute('data-original-genres') || '';
 			var originalStatus = form.getAttribute('data-original-status') || '';
+			var originalFandoms = form.getAttribute('data-original-fandoms') || '';
+			var originalOriginal = form.getAttribute('data-original-original') || '0';
 			var originalImage = form.getAttribute('data-original-image') || '';
 
 			function checkForChanges() {
@@ -748,18 +816,24 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				var statusField = document.getElementById('fanfic_story_status');
 				var imageField = document.getElementById('fanfic_story_image');
 				var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]:checked');
+				var fandomInputs = document.querySelectorAll('input[name="fanfic_story_fandoms[]"]');
+				var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
 
 				var currentTitle = titleField ? titleField.value : '';
 				var currentContent = contentField ? contentField.value : '';
 				var currentStatus = statusField ? statusField.value : '';
 				var currentImage = imageField ? imageField.value : '';
 				var currentGenres = Array.from(genreCheckboxes).map(function(cb) { return cb.value; }).sort().join(',');
+				var currentFandoms = Array.from(fandomInputs).map(function(input) { return input.value; }).sort().join(',');
+				var currentOriginal = originalCheckbox && originalCheckbox.checked ? '1' : '0';
 
 				var hasChanges = (currentTitle !== originalTitle) ||
 								(currentContent !== originalContent) ||
 								(currentStatus !== originalStatus) ||
 								(currentImage !== originalImage) ||
-								(currentGenres !== originalGenres);
+								(currentGenres !== originalGenres) ||
+								(currentFandoms !== originalFandoms) ||
+								(currentOriginal !== originalOriginal);
 
 				if (updateBtn) {
 					updateBtn.disabled = !hasChanges;
@@ -775,14 +849,17 @@ fanfic_render_breadcrumb( 'edit-story', array(
 			var statusField = document.getElementById('fanfic_story_status');
 			var imageField = document.getElementById('fanfic_story_image');
 			var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]');
+			var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
 
 			if (titleField) titleField.addEventListener('input', checkForChanges);
 			if (contentField) contentField.addEventListener('input', checkForChanges);
 			if (statusField) statusField.addEventListener('change', checkForChanges);
 			if (imageField) imageField.addEventListener('input', checkForChanges);
+			if (originalCheckbox) originalCheckbox.addEventListener('change', checkForChanges);
 			genreCheckboxes.forEach(function(checkbox) {
 				checkbox.addEventListener('change', checkForChanges);
 			});
+			document.addEventListener('fanfic-fandoms-changed', checkForChanges);
 
 			// Initial check on page load
 			checkForChanges();

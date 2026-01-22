@@ -603,6 +603,21 @@ if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 	return;
 }
 
+$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
+if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+	?>
+	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
+		<p><?php echo esc_html( fanfic_get_blocked_story_message() ); ?></p>
+		<p>
+			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
+				<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+			</a>
+		</p>
+	</div>
+	<?php
+	return;
+}
+
 // Get chapter data for edit mode
 $chapter_number = '';
 $chapter_type = 'chapter';

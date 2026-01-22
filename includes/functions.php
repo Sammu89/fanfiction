@@ -23,6 +23,16 @@ function fanfic_get_version() {
 }
 
 /**
+ * Get the blocked story message
+ *
+ * @since 1.0.0
+ * @return string
+ */
+function fanfic_get_blocked_story_message() {
+	return __( 'This story has been blocked. If you believe this is a mistake, please contact the site administrator.', 'fanfiction-manager' );
+}
+
+/**
  * Check if user is a fanfiction author
  *
  * @param int $user_id User ID (optional, defaults to current user)

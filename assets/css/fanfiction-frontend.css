@@ -5313,6 +5313,11 @@ body.fanfiction-page .entry-content::after {
     margin-top: 4px;
 }
 
+.fanfic-badge-blocked {
+    background: #e74c3c;
+    color: #fff;
+}
+
 .fanfic-badge.read {
     background: var(--color-success);
     color: var(--color-success);
@@ -5515,4 +5520,50 @@ body.fanfiction-page .entry-content::after {
 /* Profile view: hide block post title on member profile pages */
 body.fanfic-member-profile .wp-block-post-title {
 	display: none;
+}
+
+.fanfic-fandom-results {
+	border: 1px solid #ddd;
+	background: #fff;
+	margin-top: 6px;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+.fanfic-fandom-result {
+	display: block;
+	width: 100%;
+	padding: 8px 10px;
+	text-align: left;
+	background: #fff;
+	border: 0;
+	border-bottom: 1px solid #f0f0f0;
+	cursor: pointer;
+}
+
+.fanfic-fandom-result:hover {
+	background: #f7f7f7;
+}
+
+.fanfic-selected-fandoms {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.fanfic-selected-fandom {
+	background: #f1f1f1;
+	border-radius: 16px;
+	padding: 4px 10px;
+	font-size: 13px;
+}
+
+.fanfic-remove-fandom {
+	background: none;
+	border: 0;
+	margin-left: 6px;
+	cursor: pointer;
+	font-size: 16px;
+	line-height: 1;
 }

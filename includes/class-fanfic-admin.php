@@ -155,6 +155,18 @@ class Fanfic_Admin {
 			array( __CLASS__, 'render_taxonomies_page' )
 		);
 
+		// Add Fandoms submenu (only when enabled)
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			add_submenu_page(
+				'fanfiction-manager',
+				__( 'Fandoms', 'fanfiction-manager' ),
+				__( 'Fandoms', 'fanfiction-manager' ),
+				'manage_options',
+				'fanfiction-fandoms',
+				array( __CLASS__, 'render_fandoms_page' )
+			);
+		}
+
 		// Add URL Name Rules submenu
 		add_submenu_page(
 			'fanfiction-manager',
@@ -206,10 +218,11 @@ class Fanfic_Admin {
 		);
 
 		// Enqueue admin JavaScript
+		$script_deps = array( 'jquery' );
 		wp_enqueue_script(
 			'fanfiction-admin',
 			FANFIC_PLUGIN_URL . 'assets/js/fanfiction-admin.js',
-			array( 'jquery' ),
+			$script_deps,
 			FANFIC_VERSION,
 			true
 		);
@@ -247,16 +260,17 @@ class Fanfic_Admin {
 			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
 		}
 
-		// Display notices
-		Fanfic_Stories_Table::display_notices();
-
 		// Create instance of list table
 		$stories_table = new Fanfic_Stories_Table();
 		$stories_table->prepare_items();
+		Fanfic_Stories_Table::display_notices();
 
 		?>
 		<div class="wrap">
-			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+			<h1 class="wp-heading-inline"><?php echo esc_html( get_admin_page_title() ); ?></h1>
+			<a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=fanfiction_story' ) ); ?>" class="page-title-action"><?php esc_html_e( 'Add Story', 'fanfiction-manager' ); ?></a>
+
+			<hr class="wp-header-end">
 
 			<form method="get">
 				<input type="hidden" name="page" value="fanfiction-manager" />
@@ -500,6 +514,18 @@ class Fanfic_Admin {
 	public static function render_taxonomies_page() {
 		// Delegate to the Taxonomies admin class
 		Fanfic_Taxonomies_Admin::render();
+	}
+
+	/**
+	 * Render Fandoms page
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function render_fandoms_page() {
+		if ( class_exists( 'Fanfic_Fandoms_Admin' ) ) {
+			Fanfic_Fandoms_Admin::render();
+		}
 	}
 
 	/**

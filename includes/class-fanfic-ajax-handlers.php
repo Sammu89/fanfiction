@@ -268,6 +268,250 @@ class Fanfic_AJAX_Handlers {
 				'capability' => 'upload_files', // Users must have upload capability
 			)
 		);
+
+		// Admin: Bulk change story author
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_bulk_change_author',
+			array( __CLASS__, 'ajax_bulk_change_author' ),
+			true, // Require login
+			array(
+				'rate_limit' => true,
+				'capability' => 'edit_others_posts',
+			)
+		);
+
+		// Admin: Bulk apply genre
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_bulk_apply_genre',
+			array( __CLASS__, 'ajax_bulk_apply_genre' ),
+			true, // Require login
+			array(
+				'rate_limit' => true,
+				'capability' => 'edit_others_posts',
+			)
+		);
+
+		// Admin: Bulk change story status
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_bulk_change_status',
+			array( __CLASS__, 'ajax_bulk_change_status' ),
+			true, // Require login
+			array(
+				'rate_limit' => true,
+				'capability' => 'edit_others_posts',
+			)
+		);
+	}
+
+	/**
+	 * AJAX: Bulk change the author for multiple stories.
+	 *
+	 * @since 1.2.0
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_bulk_change_author() {
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array( 'nonce', 'story_ids', 'new_author_id' ),
+			array()
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response( $params->get_error_code(), $params->get_error_message(), 400 );
+		}
+
+		// Verify nonce
+		$nonce = sanitize_text_field( $params['nonce'] );
+		if ( ! wp_verify_nonce( $nonce, 'fanfic_bulk_change_author_nonce' ) && ! wp_verify_nonce( $nonce, 'fanfic_bulk_change_author' ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'invalid_nonce', __( 'Security check failed.', 'fanfiction-manager' ), 403 );
+		}
+
+		$story_ids = is_array( $params['story_ids'] ) ? array_map( 'absint', $params['story_ids'] ) : array();
+		$new_author_id = absint( $params['new_author_id'] );
+		$moderator_id = get_current_user_id();
+
+		if ( empty( $story_ids ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'no_stories', __( 'No stories were selected.', 'fanfiction-manager' ), 400 );
+		}
+
+		// Verify the new author is a valid user
+		$new_author = get_user_by( 'id', $new_author_id );
+		if ( ! $new_author ) {
+			Fanfic_AJAX_Security::send_error_response( 'invalid_user', __( 'The selected new author is not a valid user.', 'fanfiction-manager' ), 404 );
+		}
+
+		$updated_count = 0;
+		$errors = array();
+
+		foreach ( $story_ids as $story_id ) {
+			$story = get_post( $story_id );
+			if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+				$errors[] = sprintf( 'Story ID %d not found.', $story_id );
+				continue;
+			}
+
+			$original_author_id = absint( $story->post_author );
+
+			// Don't do anything if the author is already correct
+			if ( $original_author_id === $new_author_id ) {
+				$updated_count++;
+				continue;
+			}
+
+			$result = wp_update_post( array(
+				'ID' => $story_id,
+				'post_author' => $new_author_id,
+			), true );
+
+			if ( is_wp_error( $result ) ) {
+				$errors[] = sprintf( 'Failed to update story %d: %s', $story_id, $result->get_error_message() );
+			} else {
+				// Add to audit log
+				$log_entry = array(
+					'timestamp'      => current_time( 'timestamp', true ),
+					'moderator_id'   => $moderator_id,
+					'original_author_id' => $original_author_id,
+					'new_author_id'  => $new_author_id,
+				);
+				add_post_meta( $story_id, '_fanfic_author_change_log', $log_entry );
+				$updated_count++;
+			}
+		}
+
+		if ( $updated_count > 0 && empty( $errors ) ) {
+			Fanfic_AJAX_Security::send_success_response(
+				array( 'updated_count' => $updated_count ),
+				sprintf(
+					/* translators: %d: number of stories updated. */
+					_n( '%d story has been successfully updated.', '%d stories have been successfully updated.', $updated_count, 'fanfiction-manager' ),
+					$updated_count
+				)
+			);
+		} else {
+			$error_message = sprintf( 'Processed %d stories with %d errors. ', $updated_count, count( $errors ) );
+			$error_message .= implode( ' ', $errors );
+			Fanfic_AJAX_Security::send_error_response( 'bulk_update_errors', $error_message, 500 );
+		}
+	}
+
+	/**
+	 * AJAX: Bulk apply a genre to multiple stories.
+	 *
+	 * @since 1.2.0
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_bulk_apply_genre() {
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array( 'nonce', 'story_ids' ),
+			array( 'genre_id', 'genre_ids' )
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response( $params->get_error_code(), $params->get_error_message(), 400 );
+		}
+
+		// Verify nonce
+		$nonce = sanitize_text_field( $params['nonce'] );
+		if ( ! wp_verify_nonce( $nonce, 'fanfic_bulk_apply_genre_nonce' ) && ! wp_verify_nonce( $nonce, 'fanfic_bulk_apply_genre' ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'invalid_nonce', __( 'Security check failed.', 'fanfiction-manager' ), 403 );
+		}
+
+		$story_ids = is_array( $params['story_ids'] ) ? array_map( 'absint', $params['story_ids'] ) : array();
+		$genre_ids = array();
+		if ( ! empty( $params['genre_ids'] ) && is_array( $params['genre_ids'] ) ) {
+			$genre_ids = array_filter( array_map( 'absint', $params['genre_ids'] ) );
+		} elseif ( ! empty( $params['genre_id'] ) ) {
+			$genre_ids = array( absint( $params['genre_id'] ) );
+		}
+
+		if ( empty( $story_ids ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'no_stories', __( 'No stories were selected.', 'fanfiction-manager' ), 400 );
+		}
+
+		if ( empty( $genre_ids ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'invalid_genre', __( 'Please select at least one genre.', 'fanfiction-manager' ), 400 );
+		}
+
+		$genres = get_terms( array(
+			'taxonomy'   => 'fanfiction_genre',
+			'hide_empty' => false,
+			'include'    => $genre_ids,
+		) );
+
+		if ( empty( $genres ) || is_wp_error( $genres ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'invalid_genre', __( 'The selected genre is not valid.', 'fanfiction-manager' ), 404 );
+		}
+
+		$updated_count = 0;
+		foreach ( $story_ids as $story_id ) {
+			// true for append
+			wp_set_post_terms( $story_id, $genre_ids, 'fanfiction_genre', true );
+			$updated_count++;
+		}
+
+		$genre_names = implode( ', ', wp_list_pluck( $genres, 'name' ) );
+
+		Fanfic_AJAX_Security::send_success_response(
+			array( 'updated_count' => $updated_count ),
+			sprintf(
+				/* translators: %1$s: genre names, %2$d: number of stories. */
+				_n( 'Genre "%1$s" has been applied to %2$d story.', 'Genres "%1$s" have been applied to %2$d stories.', $updated_count, 'fanfiction-manager' ),
+				$genre_names,
+				$updated_count
+			)
+		);
+	}
+
+	/**
+	 * AJAX: Bulk change the status for multiple stories.
+	 *
+	 * @since 1.2.0
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_bulk_change_status() {
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array( 'nonce', 'story_ids', 'status_id' ),
+			array()
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response( $params->get_error_code(), $params->get_error_message(), 400 );
+		}
+
+		// Verify nonce
+		$nonce = sanitize_text_field( $params['nonce'] );
+		if ( ! wp_verify_nonce( $nonce, 'fanfic_bulk_change_status_nonce' ) && ! wp_verify_nonce( $nonce, 'fanfic_bulk_change_status' ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'invalid_nonce', __( 'Security check failed.', 'fanfiction-manager' ), 403 );
+		}
+
+		$story_ids = is_array( $params['story_ids'] ) ? array_map( 'absint', $params['story_ids'] ) : array();
+		$status_id = absint( $params['status_id'] );
+
+		if ( empty( $story_ids ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'no_stories', __( 'No stories were selected.', 'fanfiction-manager' ), 400 );
+		}
+
+		// Verify the status exists
+		$status = get_term( $status_id, 'fanfiction_status' );
+		if ( ! $status || is_wp_error( $status ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'invalid_status', __( 'The selected status is not valid.', 'fanfiction-manager' ), 404 );
+		}
+
+		$updated_count = 0;
+		foreach ( $story_ids as $story_id ) {
+			// false for append, to overwrite existing status
+			wp_set_post_terms( $story_id, $status_id, 'fanfiction_status', false );
+			$updated_count++;
+		}
+
+		Fanfic_AJAX_Security::send_success_response(
+			array( 'updated_count' => $updated_count ),
+			sprintf(
+				/* translators: %1$s: status name, %2$d: number of stories. */
+				_n( 'Status "%1$s" has been set for %2$d story.', 'Status "%1$s" has been set for %2$d stories.', $updated_count, 'fanfiction-manager' ),
+				$status->name,
+				$updated_count
+			)
+		);
 	}
 
 	/**

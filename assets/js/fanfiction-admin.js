@@ -14,8 +14,304 @@
 	function init() {
 		// Handle moderation actions
 		initModerationActions();
+		initTaxonomyFilter();
+		initFandomsManager();
 
 		console.log('Fanfiction Manager Admin loaded');
+	}
+
+	/**
+	 * Initialize fandoms manager UI
+	 */
+	function initFandomsManager() {
+		var $manager = $('.fanfic-fandoms-manager');
+		if (!$manager.length) {
+			return;
+		}
+
+		var selected = {};
+		var selectedCategories = {};
+
+		function updateBulkButtons() {
+			var hasTags = Object.keys(selected).length > 0;
+			var hasCategories = Object.keys(selectedCategories).length > 0;
+			var state = getSelectionState();
+			$('.fanfic-action-move').prop('disabled', !hasTags || hasCategories);
+			$('.fanfic-action-activate').prop('disabled', (!hasTags && !hasCategories) || !state.hasInactive);
+			$('.fanfic-action-deactivate').prop('disabled', (!hasTags && !hasCategories) || !state.hasActive);
+			$('.fanfic-action-delete').prop('disabled', (!hasTags && !hasCategories));
+			var singleTagRename = hasTags && !hasCategories && Object.keys(selected).length === 1;
+			var singleCategoryRename = hasCategories && !hasTags && Object.keys(selectedCategories).length === 1;
+			$('.fanfic-action-rename').prop('disabled', !(singleTagRename || singleCategoryRename));
+		}
+
+		function getSelectionState() {
+			if (Object.keys(selected).length) {
+				return getTagSelectionState();
+			}
+			if (Object.keys(selectedCategories).length) {
+				return getCategorySelectionState();
+			}
+			return { hasActive: false, hasInactive: false };
+		}
+
+		function getTagSelectionState() {
+			var ids = Object.keys(selected);
+			var hasActive = false;
+			var hasInactive = false;
+			ids.forEach(function(id) {
+				var $tag = $('.fanfic-fandom-tag[data-id="' + id + '"]').first();
+				if (!$tag.length) {
+					return;
+				}
+				if (String($tag.data('active')) === '1') {
+					hasActive = true;
+				} else {
+					hasInactive = true;
+				}
+			});
+			return { hasActive: hasActive, hasInactive: hasInactive };
+		}
+
+		function getCategorySelectionState() {
+			var slugs = Object.keys(selectedCategories);
+			var hasActive = false;
+			var hasInactive = false;
+			slugs.forEach(function(slug) {
+				var $tags = $('.fanfic-category-card[data-category="' + slug + '"]').find('.fanfic-fandom-tag');
+				$tags.each(function() {
+					if (String($(this).data('active')) === '1') {
+						hasActive = true;
+					} else {
+						hasInactive = true;
+					}
+				});
+			});
+			return { hasActive: hasActive, hasInactive: hasInactive };
+		}
+
+		function toggleSelection($tag) {
+			if (Object.keys(selectedCategories).length) {
+				clearCategorySelection();
+			}
+			var id = String($tag.data('id') || '');
+			if (!id) {
+				return;
+			}
+			if ($tag.hasClass('is-selected')) {
+				$tag.removeClass('is-selected');
+				delete selected[id];
+			} else {
+				$tag.addClass('is-selected');
+				selected[id] = true;
+			}
+			updateBulkButtons();
+		}
+
+		function toggleCategorySelection($button) {
+			if (Object.keys(selected).length) {
+				clearTagSelection();
+			}
+			var slug = String($button.data('category') || '');
+			if (!slug) {
+				return;
+			}
+			if ($button.prop('checked')) {
+				selectedCategories[slug] = true;
+			} else {
+				delete selectedCategories[slug];
+			}
+			updateBulkButtons();
+		}
+
+		function clearTagSelection() {
+			selected = {};
+			$('.fanfic-fandom-tag.is-selected').removeClass('is-selected');
+		}
+
+		function clearCategorySelection() {
+			selectedCategories = {};
+			$('.fanfic-category-select').prop('checked', false);
+		}
+
+		function openModal($modal) {
+			if (!$modal.length) {
+				return;
+			}
+			$modal.attr('aria-hidden', 'false').css('display', 'flex').hide().fadeIn(150);
+			$('body').addClass('fanfic-admin-modal-open');
+		}
+
+		function closeModal($modal) {
+			if (!$modal.length) {
+				return;
+			}
+			$modal.fadeOut(150, function() {
+				$modal.attr('aria-hidden', 'true');
+			});
+			$('body').removeClass('fanfic-admin-modal-open');
+		}
+
+		function openFandomEditModal($tag) {
+			var $modal = $('#fanfic-fandom-edit-modal');
+			var id = $tag.data('id');
+			var name = $tag.data('name');
+			var slug = $tag.data('slug');
+			var category = $tag.data('category');
+			var isActive = String($tag.data('active')) === '1';
+			var updateNonce = $tag.data('update-nonce');
+			var deleteNonce = $tag.data('delete-nonce');
+
+			$modal.find('.fanfic-fandom-edit-title').text('Edit ' + name);
+			$modal.find('input[name="fandom_id"]').val(id);
+			$modal.find('input[name="fanfic_update_fandom_nonce"]').val(updateNonce);
+			$modal.find('input[name="fandom_name"]').val(name);
+			$modal.find('input[name="fandom_slug"]').val(slug);
+			$modal.find('select[name="fandom_category"]').val(category);
+			$modal.find('input[name="fandom_is_active"]').prop('checked', isActive);
+
+			$modal.find('#fanfic-fandom-delete-form input[name="fandom_id"]').val(id);
+			$modal.find('#fanfic-fandom-delete-form input[name="fanfic_delete_fandom_nonce"]').val(deleteNonce);
+
+			openModal($modal);
+		}
+
+		function openCategoryModal($button) {
+			var $modal = $('#fanfic-category-modal');
+			$modal.find('input[name="category_slug"]').val($button.data('category'));
+			$modal.find('input[name="category_name"]').val($button.data('label'));
+			openModal($modal);
+		}
+
+		$(document).on('click', '.fanfic-fandom-tag', function(e) {
+			if ($(e.target).closest('.fanfic-fandom-grip').length) {
+				return;
+			}
+			toggleSelection($(this));
+		});
+
+		$(document).on('change', '.fanfic-category-select', function(e) {
+			e.stopPropagation();
+			toggleCategorySelection($(this));
+		});
+
+		function toggleCategoryCard($card) {
+			var $toggle = $card.find('.fanfic-category-toggle');
+			var isCollapsed = $card.hasClass('is-collapsed');
+			if (isCollapsed) {
+				$card.removeClass('is-collapsed');
+				$toggle.attr('aria-expanded', 'true');
+			} else {
+				$card.addClass('is-collapsed');
+				$toggle.attr('aria-expanded', 'false');
+			}
+		}
+
+		$(document).on('click', '.fanfic-category-toggle', function(e) {
+			e.stopPropagation();
+			toggleCategoryCard($(this).closest('.fanfic-category-card'));
+		});
+
+		$(document).on('click', '.fanfic-category-header', function(e) {
+			if ($(e.target).closest('.fanfic-category-select, .fanfic-category-toggle, input, button, a').length) {
+				return;
+			}
+			toggleCategoryCard($(this).closest('.fanfic-category-card'));
+		});
+
+		$(document).on('click', '.fanfic-action-add-category', function() {
+			openModal($('#fanfic-add-category-modal'));
+		});
+
+		$(document).on('click', '.fanfic-action-add-fandom', function() {
+			openModal($('#fanfic-add-fandom-modal'));
+		});
+
+		$(document).on('click', '.fanfic-action-move', function() {
+			var ids = Object.keys(selected);
+			if (!ids.length) {
+				return;
+			}
+			var $modal = $('#fanfic-bulk-move-modal');
+			$modal.find('input[name="fandom_ids"]').val(ids.join(','));
+			openModal($modal);
+		});
+
+		$(document).on('click', '.fanfic-action-rename', function() {
+			var ids = Object.keys(selected);
+			var categories = Object.keys(selectedCategories);
+			if (ids.length === 1 && !categories.length) {
+				var $tag = $('.fanfic-fandom-tag[data-id="' + ids[0] + '"]').first();
+				if ($tag.length) {
+					openFandomEditModal($tag);
+				}
+				return;
+			}
+			if (categories.length === 1 && !ids.length) {
+				var $modal = $('#fanfic-category-rename-modal');
+				var slug = categories[0];
+				var label = $('.fanfic-category-card[data-category="' + slug + '"]').find('.fanfic-category-header h2').first().text().trim();
+				$modal.find('input[name="category_slugs"]').val(slug);
+				$modal.find('input[name="category_name"]').val(label);
+				openModal($modal);
+			}
+		});
+
+		$(document).on('submit', '#fanfic-category-rename-form', function() {
+			var name = $(this).find('input[name="category_name"]').val().trim();
+			if (!name) {
+				return false;
+			}
+			return true;
+		});
+
+		$(document).on('click', '.fanfic-category-settings', function() {
+			openCategoryModal($(this));
+		});
+
+		$(document).on('click', '.fanfic-fandoms-modal-cancel', function() {
+			closeModal($(this).closest('.fanfic-admin-modal'));
+		});
+
+		$(document).on('click', '.fanfic-fandoms-modal-overlay', function(e) {
+			if (e.target !== this) {
+				return;
+			}
+			closeModal($(this).closest('.fanfic-admin-modal'));
+		});
+
+		$(document).on('submit', '#fanfic-fandom-delete-form', function() {
+			return window.confirm('Delete this fandom?');
+		});
+
+		$(document).on('click', '.fanfic-action-activate, .fanfic-action-deactivate, .fanfic-action-delete', function() {
+			var action = $(this).hasClass('fanfic-action-activate') ? 'activate' :
+				$(this).hasClass('fanfic-action-deactivate') ? 'deactivate' : 'delete';
+			var ids = Object.keys(selected);
+			var categories = Object.keys(selectedCategories);
+
+			if (!ids.length && !categories.length) {
+				return;
+			}
+
+			if (action === 'delete' && !window.confirm('Delete selected items?')) {
+				return;
+			}
+
+			if (categories.length) {
+				var $categoryForm = $('#fanfic-category-bulk-form');
+				$categoryForm.find('input[name="category_action"]').val(action);
+				$categoryForm.find('input[name="category_slugs"]').val(categories.join(','));
+				$categoryForm.trigger('submit');
+				return;
+			}
+
+			var $form = $('#fanfic-fandom-bulk-form');
+			$form.find('input[name="bulk_action"]').val(action);
+			$form.find('input[name="fandom_ids"]').val(ids.join(','));
+			$form.trigger('submit');
+		});
+
 	}
 
 	/**
@@ -44,6 +340,112 @@
 			if (e.key === 'Escape' && $('.fanfic-admin-modal:visible').length) {
 				closeModal();
 			}
+		});
+	}
+
+	/**
+	 * Initialize taxonomy filter UI
+	 */
+	function initTaxonomyFilter() {
+		var $container = $('.fanfic-taxonomies-search');
+		if (!$container.length) {
+			return;
+		}
+
+		var $input = $('#fanfic-taxonomy-search');
+		var $results = $container.find('.fanfic-taxonomy-results');
+		var $selected = $container.find('.fanfic-taxonomy-selected');
+		var $rows = $('.fanfic-taxonomies-table tbody tr[data-taxonomy-slug]');
+
+		var items = $rows.map(function() {
+			var $row = $(this);
+			return {
+				name: String($row.data('taxonomy-name') || ''),
+				slug: String($row.data('taxonomy-slug') || ''),
+				row: $row
+			};
+		}).get();
+
+		function getSelectedSlugs() {
+			return $selected.find('[data-slug]').map(function() {
+				return $(this).data('slug');
+			}).get();
+		}
+
+		function updateFilter() {
+			var selected = getSelectedSlugs();
+			if (!selected.length) {
+				$rows.show();
+				return;
+			}
+
+			$rows.each(function() {
+				var slug = String($(this).data('taxonomy-slug') || '');
+				$(this).toggle(selected.indexOf(slug) !== -1);
+			});
+		}
+
+		function renderResults(query) {
+			var q = query.toLowerCase();
+			var selected = getSelectedSlugs();
+			var matches = items.filter(function(item) {
+				if (!q) {
+					return false;
+				}
+				if (selected.indexOf(item.slug) !== -1) {
+					return false;
+				}
+				return item.name.toLowerCase().indexOf(q) !== -1 || item.slug.toLowerCase().indexOf(q) !== -1;
+			});
+
+			$results.empty();
+			if (!matches.length) {
+				return;
+			}
+
+			matches.forEach(function(item) {
+				var $btn = $('<button type="button" class="fanfic-taxonomy-result"></button>');
+				$btn.text(item.name + ' (' + item.slug + ')');
+				$btn.attr('data-slug', item.slug);
+				$results.append($btn);
+			});
+		}
+
+		function addSelection(item) {
+			var slug = item.slug;
+			var name = item.name;
+			var $chip = $('<span class="fanfic-taxonomy-chip"></span>');
+			$chip.attr('data-slug', slug);
+			$chip.text(name);
+
+			var $remove = $('<button type="button" class="fanfic-taxonomy-remove" aria-label="Remove"></button>');
+			$remove.text('×');
+			$chip.append($remove);
+			$selected.append($chip);
+			updateFilter();
+		}
+
+		$input.on('input', function() {
+			renderResults($(this).val());
+		});
+
+		$results.on('click', '.fanfic-taxonomy-result', function() {
+			var slug = $(this).attr('data-slug');
+			var item = items.find(function(entry) {
+				return entry.slug === slug;
+			});
+
+			if (item) {
+				addSelection(item);
+			}
+
+			$input.val('');
+			$results.empty();
+		});
+
+		$selected.on('click', '.fanfic-taxonomy-remove', function() {
+			$(this).closest('.fanfic-taxonomy-chip').remove();
+			updateFilter();
 		});
 	}
 
@@ -249,9 +651,15 @@
 
 		var $modal = $('.fanfic-admin-modal:visible');
 
-		$modal.fadeOut(200, function() {
-			$modal.remove();
-		});
+		if ($modal.hasClass('fanfic-fandoms-modal')) {
+			$modal.fadeOut(200, function() {
+				$modal.attr('aria-hidden', 'true');
+			});
+		} else {
+			$modal.fadeOut(200, function() {
+				$modal.remove();
+			});
+		}
 
 		$('body').removeClass('fanfic-admin-modal-open');
 	}

@@ -105,6 +105,8 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$fandom_ids = isset( $_POST['fanfic_story_fandoms'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_fandoms'] ) : array();
+		$is_original_work = isset( $_POST['fanfic_is_original_work'] ) && '1' === $_POST['fanfic_is_original_work'];
 		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'save_draft';
 
@@ -158,6 +160,11 @@ class Fanfic_Story_Handler {
 
 			// Set status
 			wp_set_post_terms( $new_story_id, $status, 'fanfiction_status' );
+
+			// Save fandoms
+			if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+				Fanfic_Fandoms::save_story_fandoms( $new_story_id, $fandom_ids, $is_original_work );
+			}
 
 			// Set featured image
 			if ( ! empty( $image_url ) ) {
@@ -275,6 +282,11 @@ class Fanfic_Story_Handler {
 			// Update status
 			wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
 
+			// Save fandoms
+			if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+				Fanfic_Fandoms::save_story_fandoms( $story_id, $fandom_ids, $is_original_work );
+			}
+
 			// Update featured image
 			if ( ! empty( $image_url ) ) {
 				update_post_meta( $story_id, '_fanfic_featured_image', $image_url );
@@ -381,6 +393,8 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$fandom_ids = isset( $_POST['fanfic_story_fandoms'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_fandoms'] ) : array();
+		$is_original_work = isset( $_POST['fanfic_is_original_work'] ) && '1' === $_POST['fanfic_is_original_work'];
 		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 
 		// Validate
@@ -431,6 +445,11 @@ class Fanfic_Story_Handler {
 
 		// Set status
 		wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
+
+		// Save fandoms
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			Fanfic_Fandoms::save_story_fandoms( $story_id, $fandom_ids, $is_original_work );
+		}
 
 		// Set featured image if provided
 		if ( ! empty( $image_url ) ) {
@@ -501,6 +520,8 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$fandom_ids = isset( $_POST['fanfic_story_fandoms'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_fandoms'] ) : array();
+		$is_original_work = isset( $_POST['fanfic_is_original_work'] ) && '1' === $_POST['fanfic_is_original_work'];
 		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 
 		// Validate
@@ -543,6 +564,11 @@ class Fanfic_Story_Handler {
 
 		// Update status
 		wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
+
+		// Save fandoms
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			Fanfic_Fandoms::save_story_fandoms( $story_id, $fandom_ids, $is_original_work );
+		}
 
 		// Update featured image
 		if ( ! empty( $image_url ) ) {
@@ -610,6 +636,13 @@ class Fanfic_Story_Handler {
 			return;
 		}
 
+		$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
+		if ( $is_blocked && ! current_user_can( 'delete_others_posts' ) ) {
+			$redirect_url = add_query_arg( 'error', fanfic_get_blocked_story_message(), self::get_page_url_with_fallback( 'manage-stories' ) );
+			wp_redirect( $redirect_url );
+			exit;
+		}
+
 		// Delete all chapters first
 		$chapters = get_posts( array(
 			'post_type'      => 'fanfiction_chapter',
@@ -661,6 +694,8 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$fandom_ids = isset( $_POST['fanfic_story_fandoms'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_fandoms'] ) : array();
+		$is_original_work = isset( $_POST['fanfic_is_original_work'] ) && '1' === $_POST['fanfic_is_original_work'];
 		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 
 		// Validate
@@ -710,6 +745,11 @@ class Fanfic_Story_Handler {
 
 		// Set status
 		wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
+
+		// Save fandoms
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			Fanfic_Fandoms::save_story_fandoms( $story_id, $fandom_ids, $is_original_work );
+		}
 
 		// Set featured image if provided
 		if ( ! empty( $image_url ) ) {
@@ -775,6 +815,8 @@ class Fanfic_Story_Handler {
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
 		$genres = isset( $_POST['fanfic_story_genres'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_genres'] ) : array();
 		$status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
+		$fandom_ids = isset( $_POST['fanfic_story_fandoms'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_fandoms'] ) : array();
+		$is_original_work = isset( $_POST['fanfic_is_original_work'] ) && '1' === $_POST['fanfic_is_original_work'];
 		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 
 		// Validate
@@ -817,6 +859,11 @@ class Fanfic_Story_Handler {
 
 		// Set status
 		wp_set_post_terms( $story_id, $status, 'fanfiction_status' );
+
+		// Save fandoms
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			Fanfic_Fandoms::save_story_fandoms( $story_id, $fandom_ids, $is_original_work );
+		}
 
 		// Set featured image if provided
 		if ( ! empty( $image_url ) ) {

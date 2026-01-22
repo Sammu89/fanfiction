@@ -188,6 +188,7 @@ class Fanfic_Settings {
 			'enable_report'                  => true,
 			'allow_anonymous_likes'          => false,
 			'allow_anonymous_reports'        => false,
+			'enable_fandom_classification'   => false,
 			'enable_image_uploads'           => false,
 			'image_upload_max_value'         => 1,
 			'image_upload_max_unit'          => 'mb',
@@ -280,6 +281,7 @@ class Fanfic_Settings {
 
 		// Image uploads
 		$sanitized['enable_image_uploads'] = isset( $settings['enable_image_uploads'] ) && $settings['enable_image_uploads'];
+		$sanitized['enable_fandom_classification'] = isset( $settings['enable_fandom_classification'] ) && $settings['enable_fandom_classification'];
 		$max_value = isset( $settings['image_upload_max_value'] ) ? absint( $settings['image_upload_max_value'] ) : 1;
 		if ( $max_value < 1 ) {
 			$max_value = 1;
@@ -1862,7 +1864,7 @@ class Fanfic_Settings {
 								<p class="description">
 									<?php esc_html_e( 'Customize how individual stories are displayed. Uses shortcodes to build the layout. Available shortcodes:', 'fanfiction-manager' ); ?>
 									<br><code>[fanfic-story-title]</code> <code>[story-author-link]</code> <code>[story-intro]</code> <code>[story-genres]</code>
-									<code>[story-status]</code> <code>[story-word-count-estimate]</code> <code>[story-chapters]</code> <code>[story-views]</code>
+									<code>[story-fandoms]</code> <code>[story-status]</code> <code>[story-word-count-estimate]</code> <code>[story-chapters]</code> <code>[story-views]</code>
 									<code>[story-rating-form]</code> <code>[story-actions]</code> <code>[edit-story-button]</code> <code>[chapters-list]</code>
 									<code>[story-chapters-dropdown]</code> <code>[story-featured-image]</code> <code>[story-comments]</code>
 								</p>
