@@ -1,0 +1,23 @@
+* * Refactor WP Admin Fanfic painel backed. 
+-- 1. Stories, rename to Story list
+-- 2. Settings with tabs.
+--- Tab General
+--- Tab URL Name (moved from a root category to a tab)
+--- Tab Stats and Status (renamed from Dashboard)
+--- T
+-- 3. Layout with tabs
+--- Tab General (created from the current main page content)
+--- Tab Page Templates (moved from Settings)
+--- Tab Email Templates (moved from Settings)
+--- Tab Custom CSS (moved from Settings)
+-- 4. Taxonomy with tabs
+--- Tab General that has options "Enable warnings and age classification; Enable fandom; Enable tags;" and  Add Custom Taxonomy
+--- Tab Genres (manages Genres taxonomy=fanfiction_genre&post_type=fanfiction_story)
+-- Tab Status (same logic for genres)
+-- Tab Warnings
+-- Tab Fandoms
+-- 5. Users (staus the same)
+-- 6. Moderation
+-- Add tab Log, were you create the loging logic
+-- My Dashboard (opens in a new link)
+-- My profile (opens in a new link)

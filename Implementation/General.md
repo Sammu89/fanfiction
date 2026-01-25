@@ -1,0 +1,3 @@
+* Replace the upload image cover for avatar / story and chapter with a Use wp.media (JS) replacing the upload button. This opens the native WP media modal when the user clicks your dropzone. Image should be captured and upload should beguin straight away, only by dragin. Modal opens - Download happends directly. Drop zone with a cloud icon. This should be coded with a helper and called on respective pages instead of duplicating code.
+
+* On the Story Edit page, chapter edit page, User page we need a place header (fanfic-info-box) that always exist, and displays several user system messages. This is the default place to display messages everytime

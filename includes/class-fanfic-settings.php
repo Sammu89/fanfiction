@@ -192,6 +192,8 @@ class Fanfic_Settings {
 			'enable_image_uploads'           => false,
 			'image_upload_max_value'         => 1,
 			'image_upload_max_unit'          => 'mb',
+			'allow_sexual_content'           => true,
+			'allow_pornographic_content'     => false,
 		);
 	}
 
@@ -292,6 +294,20 @@ class Fanfic_Settings {
 		}
 		$sanitized['image_upload_max_value'] = $max_value;
 		$sanitized['image_upload_max_unit'] = $max_unit;
+
+		// Feature toggles (booleans)
+		$sanitized['enable_likes']     = isset( $settings['enable_likes'] ) && $settings['enable_likes'];
+		$sanitized['enable_subscribe'] = isset( $settings['enable_subscribe'] ) && $settings['enable_subscribe'];
+		$sanitized['enable_share']     = isset( $settings['enable_share'] ) && $settings['enable_share'];
+		$sanitized['enable_report']    = isset( $settings['enable_report'] ) && $settings['enable_report'];
+
+		// Anonymous user permissions
+		$sanitized['allow_anonymous_likes']   = isset( $settings['allow_anonymous_likes'] ) && $settings['allow_anonymous_likes'];
+		$sanitized['allow_anonymous_reports'] = isset( $settings['allow_anonymous_reports'] ) && $settings['allow_anonymous_reports'];
+
+		// Content restrictions (NEW in 1.2.0)
+		$sanitized['allow_sexual_content']       = isset( $settings['allow_sexual_content'] ) && $settings['allow_sexual_content'];
+		$sanitized['allow_pornographic_content'] = isset( $settings['allow_pornographic_content'] ) && $settings['allow_pornographic_content'];
 
 		return $sanitized;
 	}

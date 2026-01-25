@@ -25,11 +25,67 @@ function fanfic_get_version() {
 /**
  * Get the blocked story message
  *
+ * Shows specific reason and timestamp if available.
+ *
  * @since 1.0.0
+ * @param int $story_id Story post ID (optional).
  * @return string
  */
-function fanfic_get_blocked_story_message() {
-	return __( 'This story has been blocked. If you believe this is a mistake, please contact the site administrator.', 'fanfiction-manager' );
+function fanfic_get_blocked_story_message( $story_id = 0 ) {
+	if ( ! $story_id ) {
+		return __( 'This story has been blocked. If you believe this is a mistake, please contact the site administrator.', 'fanfiction-manager' );
+	}
+
+	$block_type   = get_post_meta( $story_id, '_fanfic_block_type', true );
+	$block_reason = get_post_meta( $story_id, '_fanfic_block_reason', true );
+	$blocked_at   = get_post_meta( $story_id, '_fanfic_blocked_timestamp', true );
+
+	$message = '';
+
+	// Format timestamp
+	$timestamp_text = '';
+	if ( $blocked_at ) {
+		$timestamp_text = ' ' . sprintf(
+			__( 'on %s', 'fanfiction-manager' ),
+			date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $blocked_at )
+		);
+	}
+
+	// Build message based on block type
+	switch ( $block_type ) {
+		case 'ban':
+			$message = sprintf(
+				__( 'This story was blocked%s because the author\'s account has been suspended.', 'fanfiction-manager' ),
+				$timestamp_text
+			);
+			break;
+
+		case 'rule':
+			$message = sprintf(
+				__( 'This story was automatically set to draft%s because site content rules have changed. %s', 'fanfiction-manager' ),
+				$timestamp_text,
+				$block_reason ? $block_reason : ''
+			);
+			break;
+
+		case 'manual':
+		default:
+			if ( $block_reason ) {
+				$message = sprintf(
+					__( 'Your story was blocked%s because: %s', 'fanfiction-manager' ),
+					$timestamp_text,
+					$block_reason
+				);
+			} else {
+				$message = sprintf(
+					__( 'This story was blocked%s. If you believe this is a mistake, please contact the site administrator.', 'fanfiction-manager' ),
+					$timestamp_text
+				);
+			}
+			break;
+	}
+
+	return $message;
 }
 
 /**
@@ -1351,3 +1407,482 @@ function fanfic_get_content_template( $template ) {
 	return $template;
 }
 add_filter( 'fanfic_content_template', 'fanfic_get_content_template' );
+
+// ============================================================================
+// Story Tags Functions (Phase 2.2 - Core Logic)
+// ============================================================================
+
+/**
+ * Meta key constants for story tags
+ *
+ * @since 1.2.0
+ */
+define( 'FANFIC_META_VISIBLE_TAGS', '_fanfic_visible_tags' );
+define( 'FANFIC_META_INVISIBLE_TAGS', '_fanfic_invisible_tags' );
+
+/**
+ * Maximum number of visible tags per story
+ *
+ * @since 1.2.0
+ */
+define( 'FANFIC_MAX_VISIBLE_TAGS', 5 );
+
+/**
+ * Maximum number of invisible tags per story
+ *
+ * @since 1.2.0
+ */
+define( 'FANFIC_MAX_INVISIBLE_TAGS', 10 );
+
+/**
+ * Sanitize a single tag
+ *
+ * Converts to lowercase, trims whitespace, and removes special characters.
+ *
+ * @since 1.2.0
+ * @param string $tag Tag to sanitize.
+ * @return string Sanitized tag
+ */
+function fanfic_sanitize_tag( $tag ) {
+	if ( ! is_string( $tag ) ) {
+		return '';
+	}
+
+	// Convert to lowercase
+	$tag = strtolower( $tag );
+
+	// Trim whitespace
+	$tag = trim( $tag );
+
+	// Remove special characters, allow only alphanumeric, spaces, and hyphens
+	$tag = preg_replace( '/[^a-z0-9\s\-]/', '', $tag );
+
+	// Replace multiple spaces/hyphens with single space
+	$tag = preg_replace( '/[\s\-]+/', ' ', $tag );
+
+	// Trim again after replacements
+	$tag = trim( $tag );
+
+	return $tag;
+}
+
+/**
+ * Normalize tags array
+ *
+ * Sanitizes, removes duplicates, and enforces limits.
+ *
+ * @since 1.2.0
+ * @param array|string $tags  Tags to normalize (array or comma-separated string).
+ * @param int          $limit Maximum number of tags allowed.
+ * @return array Normalized tags array
+ */
+function fanfic_normalize_tags( $tags, $limit ) {
+	// Handle string input (comma-separated)
+	if ( is_string( $tags ) ) {
+		$tags = explode( ',', $tags );
+	}
+
+	// Ensure array
+	if ( ! is_array( $tags ) ) {
+		return array();
+	}
+
+	// Sanitize each tag
+	$sanitized = array();
+	foreach ( $tags as $tag ) {
+		$clean = fanfic_sanitize_tag( $tag );
+		if ( ! empty( $clean ) ) {
+			$sanitized[] = $clean;
+		}
+	}
+
+	// Remove duplicates
+	$sanitized = array_unique( $sanitized );
+
+	// Reset array keys
+	$sanitized = array_values( $sanitized );
+
+	// Enforce limit
+	if ( count( $sanitized ) > $limit ) {
+		$sanitized = array_slice( $sanitized, 0, $limit );
+	}
+
+	return $sanitized;
+}
+
+/**
+ * Get visible tags for a story
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return array Array of visible tags
+ */
+function fanfic_get_visible_tags( $story_id ) {
+	$tags = get_post_meta( $story_id, FANFIC_META_VISIBLE_TAGS, true );
+
+	if ( ! is_array( $tags ) ) {
+		return array();
+	}
+
+	return $tags;
+}
+
+/**
+ * Get invisible tags for a story
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return array Array of invisible tags
+ */
+function fanfic_get_invisible_tags( $story_id ) {
+	$tags = get_post_meta( $story_id, FANFIC_META_INVISIBLE_TAGS, true );
+
+	if ( ! is_array( $tags ) ) {
+		return array();
+	}
+
+	return $tags;
+}
+
+/**
+ * Get all tags for a story (visible + invisible)
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return array Array with 'visible' and 'invisible' keys
+ */
+function fanfic_get_all_tags( $story_id ) {
+	return array(
+		'visible'   => fanfic_get_visible_tags( $story_id ),
+		'invisible' => fanfic_get_invisible_tags( $story_id ),
+	);
+}
+
+/**
+ * Save visible tags for a story
+ *
+ * @since 1.2.0
+ * @param int          $story_id Story post ID.
+ * @param array|string $tags     Tags to save (array or comma-separated string).
+ * @return bool True on success, false on failure
+ */
+function fanfic_save_visible_tags( $story_id, $tags ) {
+	$normalized = fanfic_normalize_tags( $tags, FANFIC_MAX_VISIBLE_TAGS );
+	return update_post_meta( $story_id, FANFIC_META_VISIBLE_TAGS, $normalized );
+}
+
+/**
+ * Save invisible tags for a story
+ *
+ * @since 1.2.0
+ * @param int          $story_id Story post ID.
+ * @param array|string $tags     Tags to save (array or comma-separated string).
+ * @return bool True on success, false on failure
+ */
+function fanfic_save_invisible_tags( $story_id, $tags ) {
+	$normalized = fanfic_normalize_tags( $tags, FANFIC_MAX_INVISIBLE_TAGS );
+	return update_post_meta( $story_id, FANFIC_META_INVISIBLE_TAGS, $normalized );
+}
+
+/**
+ * Save all tags for a story
+ *
+ * @since 1.2.0
+ * @param int          $story_id       Story post ID.
+ * @param array|string $visible_tags   Visible tags.
+ * @param array|string $invisible_tags Invisible tags.
+ * @return bool True if both saved successfully
+ */
+function fanfic_save_all_tags( $story_id, $visible_tags, $invisible_tags ) {
+	$visible_saved   = fanfic_save_visible_tags( $story_id, $visible_tags );
+	$invisible_saved = fanfic_save_invisible_tags( $story_id, $invisible_tags );
+
+	$success = $visible_saved && $invisible_saved;
+
+	if ( $success ) {
+		// Trigger search index update
+		do_action( 'fanfic_tags_updated', $story_id );
+	}
+
+	return $success;
+}
+
+/**
+ * Delete all tags for a story
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return bool True if both deleted successfully
+ */
+function fanfic_delete_all_tags( $story_id ) {
+	$visible_deleted   = delete_post_meta( $story_id, FANFIC_META_VISIBLE_TAGS );
+	$invisible_deleted = delete_post_meta( $story_id, FANFIC_META_INVISIBLE_TAGS );
+
+	return $visible_deleted && $invisible_deleted;
+}
+
+/**
+ * Render visible tags as HTML
+ *
+ * @since 1.2.0
+ * @param int    $story_id Story post ID.
+ * @param string $wrapper  Wrapper element (default: 'div').
+ * @param string $class    CSS class for wrapper (default: 'fanfic-tags').
+ * @return string HTML output
+ */
+function fanfic_render_visible_tags( $story_id, $wrapper = 'div', $class = 'fanfic-tags' ) {
+	$tags = fanfic_get_visible_tags( $story_id );
+
+	if ( empty( $tags ) ) {
+		return '';
+	}
+
+	$output = '<' . esc_attr( $wrapper ) . ' class="' . esc_attr( $class ) . '">';
+
+	foreach ( $tags as $tag ) {
+		$output .= '<span class="fanfic-tag">' . esc_html( $tag ) . '</span>';
+	}
+
+	$output .= '</' . esc_attr( $wrapper ) . '>';
+
+	return $output;
+}
+
+/**
+ * Get combined tag text for search indexing
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return string Space-separated tags
+ */
+function fanfic_get_tags_for_indexing( $story_id ) {
+	$all_tags = fanfic_get_all_tags( $story_id );
+
+	$combined = array_merge(
+		$all_tags['visible'],
+		$all_tags['invisible']
+	);
+
+	return implode( ' ', $combined );
+}
+
+// ============================================================================
+// Story Block/Ban Functions (Phase 2.4 - Ban/Block Enhancements)
+// ============================================================================
+
+/**
+ * Block a story manually with a reason
+ *
+ * @since 1.2.0
+ * @param int    $story_id Story post ID.
+ * @param string $reason   Block reason.
+ * @param int    $actor_id User ID who performed the block (default: current user).
+ * @return bool True on success
+ */
+function fanfic_block_story( $story_id, $reason = '', $actor_id = 0 ) {
+	if ( ! $actor_id ) {
+		$actor_id = get_current_user_id();
+	}
+
+	$story = get_post( $story_id );
+	if ( ! $story || $story->post_type !== 'fanfiction_story' ) {
+		return false;
+	}
+
+	$timestamp = time();
+
+	// Save previous status if not already saved
+	$story_status = get_post_status( $story_id );
+	if ( $story_status && ! get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true ) ) {
+		update_post_meta( $story_id, '_fanfic_story_blocked_prev_status', $story_status );
+	}
+
+	// Set block metadata
+	update_post_meta( $story_id, '_fanfic_story_blocked', 1 );
+	update_post_meta( $story_id, '_fanfic_block_type', 'manual' );
+	update_post_meta( $story_id, '_fanfic_block_reason', $reason );
+	update_post_meta( $story_id, '_fanfic_blocked_timestamp', $timestamp );
+
+	// Set to draft
+	if ( $story_status && 'draft' !== $story_status ) {
+		wp_update_post(
+			array(
+				'ID'          => $story_id,
+				'post_status' => 'draft',
+			)
+		);
+	}
+
+	// Fire action for moderation log
+	do_action( 'fanfic_story_blocked', $story_id, $actor_id, 'manual', $reason );
+
+	return true;
+}
+
+/**
+ * Unblock a story
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @param int $actor_id User ID who performed the unblock (default: current user).
+ * @return bool True on success
+ */
+function fanfic_unblock_story( $story_id, $actor_id = 0 ) {
+	if ( ! $actor_id ) {
+		$actor_id = get_current_user_id();
+	}
+
+	$story = get_post( $story_id );
+	if ( ! $story || $story->post_type !== 'fanfiction_story' ) {
+		return false;
+	}
+
+	// Restore previous status
+	$prev_status = get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true );
+	if ( $prev_status ) {
+		wp_update_post(
+			array(
+				'ID'          => $story_id,
+				'post_status' => $prev_status,
+			)
+		);
+	}
+
+	// Clean up metadata
+	delete_post_meta( $story_id, '_fanfic_story_blocked' );
+	delete_post_meta( $story_id, '_fanfic_block_type' );
+	delete_post_meta( $story_id, '_fanfic_block_reason' );
+	delete_post_meta( $story_id, '_fanfic_blocked_timestamp' );
+	delete_post_meta( $story_id, '_fanfic_story_blocked_prev_status' );
+
+	// Fire action for moderation log
+	do_action( 'fanfic_story_unblocked', $story_id, $actor_id );
+
+	return true;
+}
+
+/**
+ * Check if a story is blocked
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return bool True if blocked
+ */
+function fanfic_is_story_blocked( $story_id ) {
+	return (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
+}
+
+/**
+ * Get block information for a story
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return array|false Block info or false if not blocked
+ */
+function fanfic_get_block_info( $story_id ) {
+	if ( ! fanfic_is_story_blocked( $story_id ) ) {
+		return false;
+	}
+
+	return array(
+		'type'      => get_post_meta( $story_id, '_fanfic_block_type', true ),
+		'reason'    => get_post_meta( $story_id, '_fanfic_block_reason', true ),
+		'timestamp' => get_post_meta( $story_id, '_fanfic_blocked_timestamp', true ),
+	);
+}
+
+/**
+ * Auto-draft stories due to rule changes
+ *
+ * Used when content restrictions change (e.g., sexual content disabled).
+ * Stories are set to draft but NOT blocked, allowing authors to edit and republish.
+ *
+ * @since 1.2.0
+ * @param array  $story_ids Array of story IDs to auto-draft.
+ * @param string $reason    Explanation for the rule change.
+ * @return int Number of stories auto-drafted
+ */
+function fanfic_autodraft_for_rule_change( $story_ids, $reason ) {
+	if ( empty( $story_ids ) || ! is_array( $story_ids ) ) {
+		return 0;
+	}
+
+	$count = 0;
+	$timestamp = time();
+
+	foreach ( $story_ids as $story_id ) {
+		$story = get_post( $story_id );
+		if ( ! $story || $story->post_type !== 'fanfiction_story' ) {
+			continue;
+		}
+
+		$current_status = get_post_status( $story_id );
+
+		// Only auto-draft published stories
+		if ( $current_status !== 'publish' ) {
+			continue;
+		}
+
+		// Set to draft
+		wp_update_post(
+			array(
+				'ID'          => $story_id,
+				'post_status' => 'draft',
+			)
+		);
+
+		// Set rule-change metadata (NOT blocked, just auto-drafted)
+		update_post_meta( $story_id, '_fanfic_autodraft_rule_change', 1 );
+		update_post_meta( $story_id, '_fanfic_autodraft_reason', $reason );
+		update_post_meta( $story_id, '_fanfic_autodraft_timestamp', $timestamp );
+
+		$count++;
+	}
+
+	return $count;
+}
+
+/**
+ * Check if a story was auto-drafted due to rule change
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return bool True if auto-drafted for rule change
+ */
+function fanfic_is_autodrafted_for_rule( $story_id ) {
+	return (bool) get_post_meta( $story_id, '_fanfic_autodraft_rule_change', true );
+}
+
+/**
+ * Get auto-draft rule change information
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return array|false Auto-draft info or false
+ */
+function fanfic_get_autodraft_info( $story_id ) {
+	if ( ! fanfic_is_autodrafted_for_rule( $story_id ) ) {
+		return false;
+	}
+
+	return array(
+		'reason'    => get_post_meta( $story_id, '_fanfic_autodraft_reason', true ),
+		'timestamp' => get_post_meta( $story_id, '_fanfic_autodraft_timestamp', true ),
+	);
+}
+
+/**
+ * Clear auto-draft rule change flag
+ *
+ * Called when author edits/republishes the story.
+ *
+ * @since 1.2.0
+ * @param int $story_id Story post ID.
+ * @return bool True on success
+ */
+function fanfic_clear_autodraft_flag( $story_id ) {
+	delete_post_meta( $story_id, '_fanfic_autodraft_rule_change' );
+	delete_post_meta( $story_id, '_fanfic_autodraft_reason' );
+	delete_post_meta( $story_id, '_fanfic_autodraft_timestamp' );
+	return true;
+}

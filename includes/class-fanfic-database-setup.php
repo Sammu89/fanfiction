@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Fanfic_Database_Setup
  *
- * Creates and manages 7 custom tables:
+ * Creates and manages 13 custom tables:
  * - wp_fanfic_ratings: Chapter ratings (1-5 stars)
  * - wp_fanfic_likes: Chapter likes
  * - wp_fanfic_reading_progress: Mark chapters as read
@@ -25,6 +25,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_follows: Unified story and author follows
  * - wp_fanfic_email_subscriptions: Email-only subscriptions
  * - wp_fanfic_notifications: In-app notifications
+ * - wp_fanfic_fandoms: Fandom definitions
+ * - wp_fanfic_story_fandoms: Story-fandom relations
+ * - wp_fanfic_warnings: Warning definitions (NEW in 1.2.0)
+ * - wp_fanfic_story_warnings: Story-warning relations (NEW in 1.2.0)
+ * - wp_fanfic_story_search_index: Pre-computed search index (NEW in 1.2.0)
+ * - wp_fanfic_moderation_log: Moderation action log (NEW in 1.2.0)
  *
  * @since 1.0.0
  */
@@ -36,7 +42,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.1.0';
+	const DB_VERSION = '1.2.0';
 
 	/**
 	 * Option name for database version tracking
@@ -71,7 +77,7 @@ class Fanfic_Database_Setup {
 	 * Create all custom tables
 	 *
 	 * Uses dbDelta for safe table creation and updates.
-	 * Creates all 7 tables with proper schema, indexes, and constraints.
+	 * Creates all 13 tables with proper schema, indexes, and constraints.
 	 *
 	 * @since 1.0.0
 	 * @return bool|WP_Error True on success, WP_Error on failure.
@@ -261,6 +267,81 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_fandoms table';
 		}
 
+		// 10. Warnings Table
+		$table_warnings = $prefix . 'fanfic_warnings';
+		$sql_warnings   = "CREATE TABLE IF NOT EXISTS {$table_warnings} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			slug varchar(191) NOT NULL,
+			name varchar(255) NOT NULL,
+			min_age enum('PG','13+','16+','18+') NOT NULL DEFAULT 'PG',
+			description text NOT NULL,
+			is_sexual tinyint(1) NOT NULL DEFAULT 0,
+			is_pornographic tinyint(1) NOT NULL DEFAULT 0,
+			enabled tinyint(1) NOT NULL DEFAULT 1,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_slug (slug),
+			KEY idx_enabled (enabled),
+			KEY idx_min_age (min_age)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_warnings );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_warnings ) ) {
+			$errors[] = 'Failed to create warnings table';
+		}
+
+		// 11. Story-Warning Relations Table
+		$table_story_warnings = $prefix . 'fanfic_story_warnings';
+		$sql_story_warnings   = "CREATE TABLE IF NOT EXISTS {$table_story_warnings} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			warning_id bigint(20) UNSIGNED NOT NULL,
+			UNIQUE KEY unique_story_warning (story_id, warning_id),
+			KEY idx_story (story_id),
+			KEY idx_warning_story (warning_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_warnings );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_warnings ) ) {
+			$errors[] = 'Failed to create story_warnings table';
+		}
+
+		// 12. Story Search Index Table
+		$table_search_index = $prefix . 'fanfic_story_search_index';
+		$sql_search_index   = "CREATE TABLE IF NOT EXISTS {$table_search_index} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			indexed_text longtext NOT NULL,
+			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (story_id),
+			KEY idx_updated (updated_at),
+			FULLTEXT KEY idx_search_fulltext (indexed_text)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_search_index );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_search_index ) ) {
+			$errors[] = 'Failed to create story_search_index table';
+		}
+
+		// 13. Moderation Log Table
+		$table_moderation_log = $prefix . 'fanfic_moderation_log';
+		$sql_moderation_log   = "CREATE TABLE IF NOT EXISTS {$table_moderation_log} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			actor_id bigint(20) UNSIGNED NOT NULL,
+			action varchar(50) NOT NULL,
+			target_type enum('user','story') NOT NULL,
+			target_id bigint(20) UNSIGNED NOT NULL,
+			reason text DEFAULT NULL,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY idx_actor (actor_id),
+			KEY idx_target (target_type, target_id),
+			KEY idx_created (created_at),
+			KEY idx_action (action)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_moderation_log );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_moderation_log ) ) {
+			$errors[] = 'Failed to create moderation_log table';
+		}
+
 		// Return errors if any
 		if ( ! empty( $errors ) ) {
 			return new WP_Error(
@@ -314,6 +395,10 @@ class Fanfic_Database_Setup {
 
 		$prefix = $wpdb->prefix;
 		$tables = array(
+			$prefix . 'fanfic_moderation_log',
+			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_follows',
@@ -341,7 +426,7 @@ class Fanfic_Database_Setup {
 	 * Check if all tables exist
 	 *
 	 * @since 1.0.0
-	 * @return bool True if all 7 tables exist, false if any missing.
+	 * @return bool True if all 13 tables exist, false if any missing.
 	 */
 	public static function tables_exist() {
 		global $wpdb;
@@ -357,6 +442,10 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',
+			$prefix . 'fanfic_warnings',
+			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_moderation_log',
 		);
 
 		foreach ( $tables as $table ) {
@@ -466,6 +555,10 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',
+			$prefix . 'fanfic_warnings',
+			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_moderation_log',
 		);
 
 		$table_info = array();
@@ -537,6 +630,10 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',
+			$prefix . 'fanfic_warnings',
+			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_moderation_log',
 		);
 
 		foreach ( $tables as $table ) {
@@ -570,6 +667,10 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',
+			$prefix . 'fanfic_warnings',
+			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_moderation_log',
 		);
 
 		foreach ( $tables as $table ) {
@@ -602,6 +703,10 @@ class Fanfic_Database_Setup {
 
 		$prefix = $wpdb->prefix;
 		$tables = array(
+			$prefix . 'fanfic_moderation_log',
+			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_follows',

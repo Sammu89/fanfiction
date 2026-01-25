@@ -123,6 +123,9 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-widgets.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-seo.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-fandoms.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-warnings.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
 		require_once FANFIC_INCLUDES_DIR . 'functions.php';
 
 		// Load Settings class (needed by cron jobs in all contexts)
@@ -271,6 +274,9 @@ class Fanfic_Core {
 		// Initialize SEO
 		Fanfic_SEO::init();
 		Fanfic_Fandoms::init();
+		Fanfic_Warnings::init();
+		Fanfic_Search_Index::init();
+		Fanfic_Moderation_Log::init();
 
 		// Register widgets
 		add_action( 'widgets_init', array( 'Fanfic_Widgets', 'register_widgets' ) );
@@ -383,13 +389,17 @@ class Fanfic_Core {
 			'fields'         => 'ids',
 		) );
 
+		$timestamp = time();
+
 		foreach ( $stories as $story_id ) {
 			$story_status = get_post_status( $story_id );
 			if ( $story_status && ! get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true ) ) {
 				update_post_meta( $story_id, '_fanfic_story_blocked_prev_status', $story_status );
 			}
 			update_post_meta( $story_id, '_fanfic_story_blocked', 1 );
-			update_post_meta( $story_id, '_fanfic_story_blocked_reason', 'ban' );
+			update_post_meta( $story_id, '_fanfic_block_type', 'ban' );
+			update_post_meta( $story_id, '_fanfic_block_reason', 'User banned' );
+			update_post_meta( $story_id, '_fanfic_blocked_timestamp', $timestamp );
 			if ( $story_status && 'draft' !== $story_status ) {
 				wp_update_post( array(
 					'ID'          => $story_id,
@@ -409,7 +419,9 @@ class Fanfic_Core {
 					update_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status', $chapter_status );
 				}
 				update_post_meta( $chapter_id, '_fanfic_story_blocked', 1 );
-				update_post_meta( $chapter_id, '_fanfic_story_blocked_reason', 'ban' );
+				update_post_meta( $chapter_id, '_fanfic_block_type', 'ban' );
+				update_post_meta( $chapter_id, '_fanfic_block_reason', 'User banned' );
+				update_post_meta( $chapter_id, '_fanfic_blocked_timestamp', $timestamp );
 				if ( $chapter_status && 'draft' !== $chapter_status ) {
 					wp_update_post( array(
 						'ID'          => $chapter_id,
@@ -442,7 +454,7 @@ class Fanfic_Core {
 			'fields'         => 'ids',
 			'meta_query'     => array(
 				array(
-					'key'   => '_fanfic_story_blocked_reason',
+					'key'   => '_fanfic_block_type',
 					'value' => 'ban',
 				),
 			),
@@ -459,7 +471,9 @@ class Fanfic_Core {
 			}
 			delete_post_meta( $story_id, '_fanfic_story_blocked_prev_status' );
 			delete_post_meta( $story_id, '_fanfic_story_blocked' );
-			delete_post_meta( $story_id, '_fanfic_story_blocked_reason' );
+			delete_post_meta( $story_id, '_fanfic_block_type' );
+			delete_post_meta( $story_id, '_fanfic_block_reason' );
+			delete_post_meta( $story_id, '_fanfic_blocked_timestamp' );
 			$chapters = get_posts( array(
 				'post_type'      => 'fanfiction_chapter',
 				'post_parent'    => $story_id,
@@ -468,7 +482,7 @@ class Fanfic_Core {
 				'fields'         => 'ids',
 				'meta_query'     => array(
 					array(
-						'key'   => '_fanfic_story_blocked_reason',
+						'key'   => '_fanfic_block_type',
 						'value' => 'ban',
 					),
 				),
@@ -484,7 +498,9 @@ class Fanfic_Core {
 				}
 				delete_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status' );
 				delete_post_meta( $chapter_id, '_fanfic_story_blocked' );
-				delete_post_meta( $chapter_id, '_fanfic_story_blocked_reason' );
+				delete_post_meta( $chapter_id, '_fanfic_block_type' );
+				delete_post_meta( $chapter_id, '_fanfic_block_reason' );
+				delete_post_meta( $chapter_id, '_fanfic_blocked_timestamp' );
 			}
 		}
 	}
@@ -1050,18 +1066,24 @@ class Fanfic_Core {
 			return;
 		}
 
+		// Allow admins and moderators full access
 		if ( current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' ) ) {
 			return;
 		}
 
+		// Allow authors to VIEW blocked stories (edit/delete disabled in templates)
 		$is_author = is_user_logged_in() && (int) get_post_field( 'post_author', $story_id ) === get_current_user_id();
 		if ( $is_author ) {
-			wp_die(
-				esc_html( fanfic_get_blocked_story_message() ),
-				esc_html__( 'Story Blocked', 'fanfiction-manager' ),
-				array( 'response' => 403 )
-			);
+			// Author can view, but edit/delete will be disabled in templates
+			return;
 		}
+
+		// Block all other users
+		wp_die(
+			esc_html( fanfic_get_blocked_story_message( $story_id ) ),
+			esc_html__( 'Story Blocked', 'fanfiction-manager' ),
+			array( 'response' => 403 )
+		);
 
 		global $wp_query;
 		$wp_query->set_404();
@@ -1109,6 +1131,9 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-cache-admin.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-database-setup.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-fandoms.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-warnings.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
 
 		// Initialize and verify page template system
 		self::verify_page_template_system();
