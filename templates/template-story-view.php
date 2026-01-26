@@ -33,6 +33,7 @@ function fanfic_get_default_story_view_template() {
 		<div class="fanfic-story-meta">
 			<span class="fanfic-story-author"><?php esc_html_e( 'by', 'fanfiction-manager' ); ?> [story-author-link]</span>
 			<span class="fanfic-story-status">[story-status]</span>
+			<span class="fanfic-story-age">[story-age-badge]</span>
 		</div>
 	</header>
 
@@ -51,6 +52,8 @@ function fanfic_get_default_story_view_template() {
 				<strong><?php esc_html_e( 'Genres:', 'fanfiction-manager' ); ?></strong> [story-genres]
 			</div>
 			[story-fandoms]
+			[story-warnings]
+			[story-visible-tags]
 		</div>
 
 		<div class="fanfic-story-stats" role="contentinfo" aria-label="<?php esc_attr_e( 'Story statistics', 'fanfiction-manager' ); ?>">
@@ -112,15 +115,16 @@ if ( $story_post && 'fanfiction_story' === $story_post->post_type && 'publish' !
 	$status_obj = get_post_status_object( $story_post->post_status );
 	$status_label = $status_obj && ! empty( $status_obj->label ) ? $status_obj->label : $story_post->post_status;
 	?>
-	<div class="fanfic-info-box fanfic-warning fanfic-draft-warning" role="status" aria-live="polite">
-		<p>
+	<div class="fanfic-message fanfic-message-warning fanfic-draft-warning" role="status" aria-live="polite">
+		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+		<span class="fanfic-message-content">
 			<?php
 			printf(
 				esc_html__( 'This story is not visible to the public because its status is %s.', 'fanfiction-manager' ),
 				esc_html( $status_label )
 			);
 			?>
-		</p>
+		</span>
 	</div>
 	<?php
 }

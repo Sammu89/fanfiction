@@ -22,13 +22,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'You must be logged in to view this page.', 'fanfiction-manager' ); ?></p>
-		<p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content">
+			<?php esc_html_e( 'You must be logged in to view this page.', 'fanfiction-manager' ); ?>
 			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
-		</p>
+		</span>
 	</div>
 	<?php
 	return;
@@ -37,8 +38,9 @@ if ( ! is_user_logged_in() ) {
 // Check if user has author capability
 if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'Access Denied: You do not have permission to view the author dashboard.', 'fanfiction-manager' ); ?></p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Access Denied: You do not have permission to view the author dashboard.', 'fanfiction-manager' ); ?></span>
 	</div>
 	<?php
 	return;
@@ -50,27 +52,37 @@ $current_user = wp_get_current_user();
 <!-- Breadcrumb Navigation -->
 <?php fanfic_render_breadcrumb( 'dashboard' ); ?>
 
-<!-- Success/Error Messages -->
+<!-- Unified Messages Container -->
+<div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'story_created' ) : ?>
-	<div class="fanfic-info-box box-success" role="status" aria-live="polite">
-		<p><?php esc_html_e( 'Story created successfully!', 'fanfiction-manager' ); ?></p>
-		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	<div class="fanfic-message fanfic-message-success" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10003;</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Story created successfully!', 'fanfiction-manager' ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
 <?php endif; ?>
-
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'profile_updated' ) : ?>
-	<div class="fanfic-info-box box-success" role="status" aria-live="polite">
-		<p><?php esc_html_e( 'Profile updated successfully!', 'fanfiction-manager' ); ?></p>
-		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	<div class="fanfic-message fanfic-message-success" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10003;</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Profile updated successfully!', 'fanfiction-manager' ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
 <?php endif; ?>
-
+<?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'story_deleted' ) : ?>
+	<div class="fanfic-message fanfic-message-success" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10003;</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Story deleted successfully.', 'fanfiction-manager' ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+<?php endif; ?>
 <?php if ( isset( $_GET['error'] ) ) : ?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ); ?></p>
-		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	<div class="fanfic-message fanfic-message-error" role="alert">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
 <?php endif; ?>
+</div>
 
 <!-- Dashboard Header -->
 <header class="fanfic-dashboard-header">
@@ -214,14 +226,6 @@ $current_user = wp_get_current_user();
 				}
 			}
 
-			// Check for success/error messages
-			if ( isset( $_GET['story_deleted'] ) && 'success' === $_GET['story_deleted'] ) {
-				?>
-				<div class="fanfic-info-box fanfic-success" role="alert">
-					<?php esc_html_e( 'Story deleted successfully.', 'fanfiction-manager' ); ?>
-				</div>
-				<?php
-			}
 			?>
 
 			<div class="fanfic-author-stories-manage">
@@ -318,7 +322,7 @@ $current_user = wp_get_current_user();
 					?>
 
 				<?php else : ?>
-					<div class="fanfic-info-box fanfic-info">
+					<div class="fanfic-empty-state">
 						<p><?php esc_html_e( 'You have not created any stories yet.', 'fanfiction-manager' ); ?></p>
 						<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button fanfic-button-primary">
 							<?php esc_html_e( 'Create Your First Story', 'fanfiction-manager' ); ?>
@@ -472,17 +476,21 @@ $current_user = wp_get_current_user();
 <!-- Breadcrumb Navigation (Bottom) -->
 <?php fanfic_render_breadcrumb( 'dashboard', array( 'position' => 'bottom' ) ); ?>
 
-<!-- Inline Script for Notice Dismissal -->
+<!-- Inline Script for Message Dismissal -->
 <script>
 (function() {
-	// Close button functionality for notices
+	// Close button functionality for messages
 	document.addEventListener('DOMContentLoaded', function() {
-		var closeButtons = document.querySelectorAll('.fanfic-notice-close');
+		var closeButtons = document.querySelectorAll('.fanfic-message-close');
 		closeButtons.forEach(function(button) {
 			button.addEventListener('click', function() {
-				var notice = this.closest('.fanfic-info-box box-success, .fanfic-error-notice');
-				if (notice) {
-					notice.style.display = 'none';
+				var message = this.closest('.fanfic-message');
+				if (message) {
+					message.style.opacity = '0';
+					message.style.transform = 'translateY(-10px)';
+					setTimeout(function() {
+						message.remove();
+					}, 300);
 				}
 			});
 		});

@@ -44,17 +44,17 @@ if ( empty( $main_page_url ) ) {
 	$main_page_url = home_url( '/' );
 }
 ?>
-<section class="fanfic-content-section" role="alert" aria-live="assertive">
-	<div class="fanfic-error-message fanfic-info-box">
-		<div class="fanfic-info-box-icon" aria-hidden="true">&#9888;</div>
-		<div class="fanfic-info-box-content">
-			<h2 class="fanfic-info-box-title"><?php esc_html_e( 'Error', 'fanfiction-manager' ); ?></h2>
-			<p class="fanfic-info-box-text"><?php echo esc_html( $error_message ); ?></p>
-			<p class="fanfic-info-box-action">
+<section class="fanfic-content-section fanfic-fullpage-message" role="alert" aria-live="assertive">
+	<div class="fanfic-message fanfic-message-error fanfic-message-fullpage">
+		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+		<span class="fanfic-message-content">
+			<strong class="fanfic-message-title"><?php esc_html_e( 'Error', 'fanfiction-manager' ); ?></strong>
+			<span class="fanfic-message-text"><?php echo esc_html( $error_message ); ?></span>
+			<span class="fanfic-message-actions">
 				<a href="<?php echo esc_url( $main_page_url ); ?>" class="fanfic-button fanfic-button-primary">
 					<?php esc_html_e( 'Go to Main Page', 'fanfiction-manager' ); ?>
 				</a>
-			</p>
-		</div>
+			</span>
+		</span>
 	</div>
 </section>

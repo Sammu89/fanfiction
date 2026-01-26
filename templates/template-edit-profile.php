@@ -14,9 +14,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! is_user_logged_in() ) {
 	?>
-	<div class="fanfic-error-notice" role="alert">
-		<p>Please log in to edit your profile.</p>
-		<p><a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">Login</a></p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content">
+			<?php esc_html_e( 'Please log in to edit your profile.', 'fanfiction-manager' ); ?>
+			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary"><?php esc_html_e( 'Login', 'fanfiction-manager' ); ?></a>
+		</span>
 	</div>
 	<?php
 	return;
@@ -32,30 +35,48 @@ $avatar_url = get_user_meta( $current_user->ID, '_fanfic_avatar_url', true );
 $image_upload_settings = function_exists( 'fanfic_get_image_upload_settings' ) ? fanfic_get_image_upload_settings() : array( 'enabled' => false, 'max_value' => 1, 'max_unit' => 'mb' );
 $image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 
-// Success/error messages
-$message = '';
-if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {
-	?>
-	<div class="fanfic-info-box fanfic-success" role="alert">
-		<?php esc_html_e( 'Profile updated successfully.', 'fanfiction-manager' ); ?>
-	</div>
-	<?php
-}
+?>
 
+<!-- Unified Messages Container -->
+<div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
+<?php
+// Success message from URL
+if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) : ?>
+	<div class="fanfic-message fanfic-message-success" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">✓</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Profile updated successfully.', 'fanfiction-manager' ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+<?php endif;
+
+// Validation errors from transient
 $errors = get_transient( 'fanfic_profile_errors_' . $current_user->ID );
 if ( $errors ) {
 	delete_transient( 'fanfic_profile_errors_' . $current_user->ID );
 	?>
-	<div class="fanfic-info-box fanfic-error" role="alert">
-		<ul>
-			<?php foreach ( $errors as $error ) : ?>
-				<li><?php echo esc_html( $error ); ?></li>
-			<?php endforeach; ?>
-		</ul>
+	<div class="fanfic-message fanfic-message-error" role="alert">
+		<span class="fanfic-message-icon" aria-hidden="true">✕</span>
+		<span class="fanfic-message-content">
+			<ul>
+				<?php foreach ( $errors as $error ) : ?>
+					<li><?php echo esc_html( $error ); ?></li>
+				<?php endforeach; ?>
+			</ul>
+		</span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
 	<?php
 }
+
+/**
+ * Hook for adding messages to the profile form.
+ *
+ * @since 1.2.0
+ * @param WP_User $current_user The current user object.
+ */
+do_action( 'fanfic_profile_form_messages', $current_user );
 ?>
+</div>
 
 <p><?php esc_html_e( 'Update your author profile information.', 'fanfiction-manager' ); ?></p>
 

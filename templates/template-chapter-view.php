@@ -128,17 +128,20 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 		if ( $story && 'draft' === $story->post_status ) {
 			// Check if user can edit this story (uses your custom role permissions)
 			if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
-				// Show access denied message using your template style
+				// Show access denied message
 				?>
-				<div class="fanfic-content-wrapper">
-					<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-						<h1><?php esc_html_e( 'Access Denied', 'fanfiction-manager' ); ?></h1>
-						<p><?php esc_html_e( 'This chapter is part of a story that is currently in draft status and not publicly available.', 'fanfiction-manager' ); ?></p>
-						<p>
-							<a href="<?php echo esc_url( home_url( '/fanfiction/' ) ); ?>" class="fanfic-button fanfic-button-primary">
-								<?php esc_html_e( 'Back to Stories', 'fanfiction-manager' ); ?>
-							</a>
-						</p>
+				<div class="fanfic-content-wrapper fanfic-fullpage-message">
+					<div class="fanfic-message fanfic-message-error fanfic-message-fullpage" role="alert" aria-live="assertive">
+						<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+						<span class="fanfic-message-content">
+							<strong class="fanfic-message-title"><?php esc_html_e( 'Access Denied', 'fanfiction-manager' ); ?></strong>
+							<span class="fanfic-message-text"><?php esc_html_e( 'This chapter is part of a story that is currently in draft status and not publicly available.', 'fanfiction-manager' ); ?></span>
+							<span class="fanfic-message-actions">
+								<a href="<?php echo esc_url( home_url( '/fanfiction/' ) ); ?>" class="fanfic-button fanfic-button-primary">
+									<?php esc_html_e( 'Back to Stories', 'fanfiction-manager' ); ?>
+								</a>
+							</span>
+						</span>
 					</div>
 				</div>
 				<?php
@@ -178,23 +181,18 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 	}
 
 	if ( ! empty( $warning_parts ) ) {
+		$text = sprintf(
+			esc_html__( 'This chapter is not visible to the public because %s.', 'fanfiction-manager' ),
+			esc_html( implode( esc_html__( ' and ', 'fanfiction-manager' ), $warning_parts ) )
+		);
+
+		// Normalize case
+		$text = mb_strtolower( $text, 'UTF-8' );
+		$text = mb_strtoupper( mb_substr( $text, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $text, 1, null, 'UTF-8' );
 		?>
-		<div class="fanfic-info-box fanfic-warning fanfic-draft-warning" role="status" aria-live="polite">
-			<p>
-				<?php
-$text = sprintf(
-	esc_html__( 'This chapter is not visible to the public because %s.', 'fanfiction-manager' ),
-	esc_html( implode( esc_html__( ' and ', 'fanfiction-manager' ), $warning_parts ) )
-);
-
-// Normalize case
-$text = mb_strtolower( $text, 'UTF-8' );
-$text = mb_strtoupper( mb_substr( $text, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $text, 1, null, 'UTF-8' );
-
-echo $text;
-?>
-
-			</p>
+		<div class="fanfic-message fanfic-message-warning fanfic-draft-warning" role="status" aria-live="polite">
+			<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+			<span class="fanfic-message-content"><?php echo $text; ?></span>
 		</div>
 		<?php
 	}

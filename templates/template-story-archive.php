@@ -215,6 +215,30 @@ if ( $is_taxonomy && $queried_object instanceof WP_Term ) {
 											<?php echo esc_html( $status ); ?>
 										</span>
 									<?php endif; ?>
+									<?php
+									// Age badge (Phase 4.4)
+									if ( class_exists( 'Fanfic_Warnings' ) ) {
+										$story_warnings = Fanfic_Warnings::get_story_warnings( get_the_ID() );
+										$age_priority = array( 'PG' => 1, '13' => 2, '16' => 3, '18' => 4 );
+										$highest_age = 'PG';
+										$highest_priority = 1;
+
+										if ( ! empty( $story_warnings ) ) {
+											foreach ( $story_warnings as $warning ) {
+												if ( ! empty( $warning['min_age'] ) ) {
+													$warning_priority = isset( $age_priority[ $warning['min_age'] ] ) ? $age_priority[ $warning['min_age'] ] : 0;
+													if ( $warning_priority > $highest_priority ) {
+														$highest_priority = $warning_priority;
+														$highest_age = $warning['min_age'];
+													}
+												}
+											}
+										}
+										?>
+										<span class="fanfic-age-badge fanfic-age-badge-<?php echo esc_attr( sanitize_title( $highest_age ) ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age ) ); ?>">
+											<?php echo esc_html( $highest_age ); ?>+
+										</span>
+									<?php } ?>
 								</div>
 							</header>
 
@@ -232,6 +256,22 @@ if ( $is_taxonomy && $queried_object instanceof WP_Term ) {
 										<?php endforeach; ?>
 									</div>
 								<?php endif; ?>
+
+								<?php
+								// Visible tags (Phase 4.4)
+								if ( function_exists( 'fanfic_get_visible_tags' ) ) {
+									$visible_tags = fanfic_get_visible_tags( get_the_ID() );
+									if ( ! empty( $visible_tags ) ) :
+									?>
+									<div class="fanfic-story-tags">
+										<?php foreach ( $visible_tags as $tag ) : ?>
+											<span class="fanfic-tag"><?php echo esc_html( $tag ); ?></span>
+										<?php endforeach; ?>
+									</div>
+									<?php
+									endif;
+								}
+								?>
 
 								<div class="fanfic-story-stats">
 									<?php if ( $word_count ) : ?>
