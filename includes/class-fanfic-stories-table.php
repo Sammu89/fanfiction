@@ -249,6 +249,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 * Render Publication Status column
 	 *
 	 * @since 1.0.0
+	 * @since 1.2.0 Added block reason display
 	 * @param object $item Story item
 	 * @return string Publication status badge with icon
 	 */
@@ -257,7 +258,15 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		$is_blocked = (bool) get_post_meta( $item->ID, '_fanfic_story_blocked', true );
 
 		if ( $is_blocked ) {
-			return '<span class="status-badge status-blocked"><span class="dashicons dashicons-lock"></span> ' . __( 'Blocked', 'fanfiction-manager' ) . '</span>';
+			$block_reason = get_post_meta( $item->ID, '_fanfic_story_blocked_reason', true );
+			$reason_labels = self::get_block_reason_labels();
+			$reason_label = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : $block_reason;
+
+			$output = '<span class="status-badge status-blocked"><span class="dashicons dashicons-lock"></span> ' . __( 'Blocked', 'fanfiction-manager' ) . '</span>';
+			if ( $block_reason && 'manual' !== $block_reason ) {
+				$output .= '<br><small class="block-reason" title="' . esc_attr( $reason_label ) . '">' . esc_html( $reason_label ) . '</small>';
+			}
+			return $output;
 		}
 
 		if ( 'publish' === $post_status ) {
@@ -265,6 +274,29 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		}
 
 		return '<span class="status-badge status-draft"><span class="dashicons dashicons-edit"></span> ' . __( 'Draft', 'fanfiction-manager' ) . '</span>';
+	}
+
+	/**
+	 * Get block reason labels
+	 *
+	 * @since 1.2.0
+	 * @return array Associative array of reason codes to labels
+	 */
+	public static function get_block_reason_labels() {
+		return array(
+			'manual'              => __( 'Manual Block', 'fanfiction-manager' ),
+			'tos_violation'       => __( 'Terms of Service Violation', 'fanfiction-manager' ),
+			'copyright'           => __( 'Copyright Infringement', 'fanfiction-manager' ),
+			'inappropriate'       => __( 'Inappropriate Content', 'fanfiction-manager' ),
+			'spam'                => __( 'Spam or Advertising', 'fanfiction-manager' ),
+			'harassment'          => __( 'Harassment or Bullying', 'fanfiction-manager' ),
+			'illegal'             => __( 'Illegal Content', 'fanfiction-manager' ),
+			'underage'            => __( 'Underage Content', 'fanfiction-manager' ),
+			'rating_mismatch'     => __( 'Rating/Warning Mismatch', 'fanfiction-manager' ),
+			'user_request'        => __( 'Author Request', 'fanfiction-manager' ),
+			'pending_review'      => __( 'Pending Review', 'fanfiction-manager' ),
+			'other'               => __( 'Other', 'fanfiction-manager' ),
+		);
 	}
 
 	/**
@@ -587,6 +619,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			$this->render_change_author_modal();
 			$this->render_apply_genre_modal();
 			$this->render_change_status_modal();
+			$this->render_block_reason_modal();
 		}
 	}
 
@@ -791,7 +824,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			<div class="fanfic-admin-modal-overlay"></div>
 			<div class="fanfic-admin-modal-content">
 				<h2><?php esc_html_e( 'Change Story Status', 'fanfiction-manager' ); ?></h2>
-				
+
 				<div class="fanfic-admin-modal-form">
 					<label for="fanfic-status-select"><?php esc_html_e( 'Select a new status:', 'fanfiction-manager' ); ?></label>
 					<select id="fanfic-status-select" style="width: 100%;">
@@ -813,6 +846,43 @@ class Fanfic_Stories_Table extends WP_List_Table {
 				</div>
 			</div>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Render the modal for the bulk block action with reason selection.
+	 *
+	 * @since 1.2.0
+	 */
+	public function render_block_reason_modal() {
+		$reasons = self::get_block_reason_labels();
+		?>
+		<div id="fanfic-block-reason-modal" style="display:none;" class="fanfic-admin-modal">
+			<div class="fanfic-admin-modal-overlay"></div>
+			<div class="fanfic-admin-modal-content">
+				<h2><?php esc_html_e( 'Block Stories', 'fanfiction-manager' ); ?></h2>
+				<p class="fanfic-modal-warning"><?php esc_html_e( 'Warning: Blocking stories will hide them from the public and prevent authors from editing. This action logs to the moderation log.', 'fanfiction-manager' ); ?></p>
+
+				<div class="fanfic-admin-modal-form">
+					<label for="fanfic-block-reason-select"><?php esc_html_e( 'Select a reason for blocking:', 'fanfiction-manager' ); ?></label>
+					<select id="fanfic-block-reason-select" style="width: 100%;">
+						<option value=""><?php esc_html_e( '-- Select Reason --', 'fanfiction-manager' ); ?></option>
+						<?php foreach ( $reasons as $value => $label ) : ?>
+							<option value="<?php echo esc_attr( $value ); ?>">
+								<?php echo esc_html( $label ); ?>
+							</option>
+						<?php endforeach; ?>
+					</select>
+					<div class="fanfic-admin-modal-message" style="margin-top:10px;"></div>
+				</div>
+
+				<div class="fanfic-admin-modal-actions">
+					<button type="button" class="button fanfic-admin-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
+					<button type="button" class="button button-primary" id="fanfic-confirm-block"><?php esc_html_e( 'Block Stories', 'fanfiction-manager' ); ?></button>
+				</div>
+			</div>
+		</div>
+		<input type="hidden" name="block_reason" id="fanfic-block-reason-value" value="">
 		<?php
 	}
 
@@ -864,10 +934,9 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		                        }
 		                    }
 
+		                    // Block action now uses modal, skip confirm
 		                    if (action === 'block') {
-		                        if (!confirm('<?php esc_html_e( 'Block selected stories? Authors will lose access and stories will be hidden from the public.', 'fanfiction-manager' ); ?>')) {
-		                            return;
-		                        }
+		                        return; // Handled by modal workflow
 		                    }
 
 		                    if (action === 'unblock') {
@@ -883,9 +952,49 @@ class Fanfic_Stories_Table extends WP_List_Table {
 
 		                $('.bulk-publish').on('click', function(e) { e.preventDefault(); run_bulk_action('publish', $(this)); });
 		                $('.bulk-set-draft').on('click', function(e) { e.preventDefault(); run_bulk_action('set_draft', $(this)); });
-		                $('.bulk-block').on('click', function(e) { e.preventDefault(); run_bulk_action('block', $(this)); });
 		                $('.bulk-unblock').on('click', function(e) { e.preventDefault(); run_bulk_action('unblock', $(this)); });
 		                $('.bulk-delete').on('click', function(e) { e.preventDefault(); run_bulk_action('delete', $(this)); });
+
+		                // Handle "Block" bulk action - show modal for reason selection
+		                var $blockButton = null;
+		                $('.bulk-block').on('click', function(e) {
+		                    e.preventDefault();
+		                    var checked_ids = $('input[name="story[]"]:checked').map(function() {
+		                        return $(this).val();
+		                    }).get();
+
+		                    if (checked_ids.length === 0) {
+		                        alert('<?php esc_html_e( 'Please select at least one story to block.', 'fanfiction-manager' ); ?>');
+		                        return;
+		                    }
+
+		                    $blockButton = $(this);
+		                    $('#fanfic-block-reason-select').val('');
+		                    $('#fanfic-block-reason-modal').fadeIn(200);
+		                    $('body').addClass('fanfic-admin-modal-open');
+		                });
+
+		                // Confirm block with reason
+		                $('#fanfic-confirm-block').on('click', function() {
+		                    var reason = $('#fanfic-block-reason-select').val();
+		                    if (!reason) {
+		                        $('#fanfic-block-reason-modal .fanfic-admin-modal-message')
+		                            .html('<span style="color: red;"><?php esc_html_e( 'Please select a reason for blocking.', 'fanfiction-manager' ); ?></span>');
+		                        return;
+		                    }
+
+		                    // Store the reason in hidden field
+		                    $('#fanfic-block-reason-value').val(reason);
+
+		                    // Close modal
+		                    $('#fanfic-block-reason-modal').fadeOut(200);
+		                    $('body').removeClass('fanfic-admin-modal-open');
+
+		                    // Run the block action
+		                    var $form = $blockButton ? $blockButton.closest('form') : $(document).closest('form');
+		                    $form.find('#bulk-action-selector-top, #bulk-action-selector-bottom').val('block');
+		                    $form.find('#doaction, #doaction2').first().trigger('click');
+		                });
 		
 		                // Handle "Change Author" bulk action
 		                $('.bulk-change-author').on('click', function(e) {
@@ -1210,17 +1319,30 @@ class Fanfic_Stories_Table extends WP_List_Table {
 				break;
 
 			case 'block':
+				// Get block reason from form
+				$block_reason = isset( $_REQUEST['block_reason'] ) ? sanitize_key( $_REQUEST['block_reason'] ) : 'manual';
+				$valid_reasons = array_keys( self::get_block_reason_labels() );
+				if ( ! in_array( $block_reason, $valid_reasons, true ) ) {
+					$block_reason = 'manual';
+				}
+
 				foreach ( $story_ids as $story_id ) {
 					$story_status = get_post_status( $story_id );
 					if ( $story_status && ! get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true ) ) {
 						update_post_meta( $story_id, '_fanfic_story_blocked_prev_status', $story_status );
 					}
 					update_post_meta( $story_id, '_fanfic_story_blocked', 1 );
-					update_post_meta( $story_id, '_fanfic_story_blocked_reason', 'manual' );
+					update_post_meta( $story_id, '_fanfic_story_blocked_reason', $block_reason );
 					wp_update_post( array(
 						'ID'          => $story_id,
 						'post_status' => 'draft',
 					) );
+
+					// Fire story blocked hook for moderation log
+					$reason_labels = self::get_block_reason_labels();
+					$reason_label = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : $block_reason;
+					do_action( 'fanfic_story_blocked', $story_id, get_current_user_id(), $block_reason, $reason_label );
+
 					$chapters = get_posts( array(
 						'post_type'      => 'fanfiction_chapter',
 						'post_parent'    => $story_id,
@@ -1234,7 +1356,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 							update_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status', $chapter_status );
 						}
 						update_post_meta( $chapter_id, '_fanfic_story_blocked', 1 );
-						update_post_meta( $chapter_id, '_fanfic_story_blocked_reason', 'manual' );
+						update_post_meta( $chapter_id, '_fanfic_story_blocked_reason', $block_reason );
 						wp_update_post( array(
 							'ID'          => $chapter_id,
 							'post_status' => 'draft',
@@ -1264,6 +1386,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 					delete_post_meta( $story_id, '_fanfic_story_blocked_prev_status' );
 					delete_post_meta( $story_id, '_fanfic_story_blocked' );
 					delete_post_meta( $story_id, '_fanfic_story_blocked_reason' );
+
+					// Fire story unblocked hook for moderation log
+					do_action( 'fanfic_story_unblocked', $story_id, get_current_user_id() );
+
 					$chapters = get_posts( array(
 						'post_type'      => 'fanfiction_chapter',
 						'post_parent'    => $story_id,

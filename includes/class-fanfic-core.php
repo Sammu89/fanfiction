@@ -151,6 +151,7 @@ class Fanfic_Core {
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-users-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-export-import-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-fandoms-admin.php';
+			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-warnings-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-admin.php';
 		}
 	}
@@ -191,6 +192,7 @@ class Fanfic_Core {
 			Fanfic_URL_Config::init();
 			Fanfic_Taxonomies_Admin::init();
 			Fanfic_Fandoms_Admin::init();
+			Fanfic_Warnings_Admin::init();
 			Fanfic_Moderation::init();
 			Fanfic_Moderation_Stamps::init();
 			Fanfic_Users_Admin::init();

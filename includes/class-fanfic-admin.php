@@ -61,11 +61,11 @@ class Fanfic_Admin {
 			30
 		);
 
-		// Add Stories submenu (replaces the default first submenu)
+		// Add Stories submenu (replaces the default first submenu) - renamed to "Story list"
 		add_submenu_page(
 			'fanfiction-manager',
-			__( 'Stories', 'fanfiction-manager' ),
-			__( 'Stories', 'fanfiction-manager' ),
+			__( 'Story list', 'fanfiction-manager' ),
+			__( 'Story list', 'fanfiction-manager' ),
 			'manage_options',
 			'fanfiction-manager',
 			array( __CLASS__, 'render_stories_page' )
@@ -155,27 +155,8 @@ class Fanfic_Admin {
 			array( __CLASS__, 'render_taxonomies_page' )
 		);
 
-		// Add Fandoms submenu (only when enabled)
-		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
-			add_submenu_page(
-				'fanfiction-manager',
-				__( 'Fandoms', 'fanfiction-manager' ),
-				__( 'Fandoms', 'fanfiction-manager' ),
-				'manage_options',
-				'fanfiction-fandoms',
-				array( __CLASS__, 'render_fandoms_page' )
-			);
-		}
-
-		// Add URL Name Rules submenu
-		add_submenu_page(
-			'fanfiction-manager',
-			__( 'URL Name Rules', 'fanfiction-manager' ),
-			__( 'URL Name Rules', 'fanfiction-manager' ),
-			'manage_options',
-			'fanfiction-url-rules',
-			array( __CLASS__, 'render_url_rules_page' )
-		);
+		// Note: Fandoms menu item removed - now accessed via Taxonomies > Fandoms tab
+		// Note: URL Name Rules menu item removed - now accessed via Settings > URL Name tab
 
 		// Add Moderation Queue submenu
 		add_submenu_page(
@@ -286,9 +267,10 @@ class Fanfic_Admin {
 	/**
 	 * Render Settings page
 	 *
-	 * Displays the settings page with tabs: Dashboard, General, Email Templates, Custom CSS.
+	 * Displays the settings page with tabs: General, URL Name, Stats and Status.
 	 *
 	 * @since 1.0.0
+	 * @since 1.2.0 Reorganized tabs - moved Email Templates, Page Templates, Custom CSS to Layout page.
 	 * @return void
 	 */
 	public static function render_settings_page() {
@@ -298,9 +280,9 @@ class Fanfic_Admin {
 		}
 
 		// Get current tab with validation
-		$allowed_tabs = array( 'dashboard', 'general', 'email-templates', 'page-templates', 'custom-css' );
-		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'dashboard';
-		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'dashboard';
+		$allowed_tabs = array( 'general', 'url-name', 'stats-status' );
+		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general';
+		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'general';
 
 		// Display admin notices
 		Fanfic_Settings::display_admin_notices();
@@ -310,41 +292,29 @@ class Fanfic_Admin {
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
 			<nav class="nav-tab-wrapper">
-				<a href="?page=fanfiction-settings&tab=dashboard" class="nav-tab <?php echo $current_tab === 'dashboard' ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'Dashboard', 'fanfiction-manager' ); ?>
-				</a>
 				<a href="?page=fanfiction-settings&tab=general" class="nav-tab <?php echo $current_tab === 'general' ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'General', 'fanfiction-manager' ); ?>
 				</a>
-				<a href="?page=fanfiction-settings&tab=email-templates" class="nav-tab <?php echo $current_tab === 'email-templates' ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'Email Templates', 'fanfiction-manager' ); ?>
+				<a href="?page=fanfiction-settings&tab=url-name" class="nav-tab <?php echo $current_tab === 'url-name' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'URL Name', 'fanfiction-manager' ); ?>
 				</a>
-				<a href="?page=fanfiction-settings&tab=page-templates" class="nav-tab <?php echo $current_tab === 'page-templates' ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'Page Templates', 'fanfiction-manager' ); ?>
-				</a>
-				<a href="?page=fanfiction-settings&tab=custom-css" class="nav-tab <?php echo $current_tab === 'custom-css' ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'Custom CSS', 'fanfiction-manager' ); ?>
+				<a href="?page=fanfiction-settings&tab=stats-status" class="nav-tab <?php echo $current_tab === 'stats-status' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Stats and Status', 'fanfiction-manager' ); ?>
 				</a>
 			</nav>
 
 			<div class="tab-content">
 				<?php
 				switch ( $current_tab ) {
-					case 'general':
-						Fanfic_Settings::render_general_settings_tab();
+					case 'url-name':
+						Fanfic_URL_Config::render();
 						break;
-					case 'email-templates':
-						Fanfic_Settings::render_email_templates_tab();
-						break;
-					case 'page-templates':
-						Fanfic_Settings::render_page_templates_tab();
-						break;
-					case 'custom-css':
-						Fanfic_Settings::render_custom_css_tab();
-						break;
-					case 'dashboard':
-					default:
+					case 'stats-status':
 						Fanfic_Settings::render_dashboard_tab();
+						break;
+					case 'general':
+					default:
+						Fanfic_Settings::render_general_settings_tab();
 						break;
 				}
 				?>
@@ -356,9 +326,11 @@ class Fanfic_Admin {
 	/**
 	 * Render Layout page
 	 *
-	 * Displays the page template and layout settings.
+	 * Displays the page template and layout settings with tabs:
+	 * General, Page Templates, Email Templates, Custom CSS.
 	 *
 	 * @since 1.0.0
+	 * @since 1.2.0 Added tabs for Page Templates, Email Templates, Custom CSS.
 	 * @return void
 	 */
 	public static function render_layout_page() {
@@ -367,6 +339,11 @@ class Fanfic_Admin {
 			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
 		}
 
+		// Get current tab with validation
+		$allowed_tabs = array( 'general', 'page-templates', 'email-templates', 'custom-css' );
+		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general';
+		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'general';
+
 		// Display admin notices
 		Fanfic_Settings::display_admin_notices();
 
@@ -374,119 +351,166 @@ class Fanfic_Admin {
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="fanfic_save_layout_settings">
-				<?php wp_nonce_field( 'fanfic_save_layout_settings_nonce', 'fanfic_layout_settings_nonce' ); ?>
+			<nav class="nav-tab-wrapper">
+				<a href="?page=fanfiction-layout&tab=general" class="nav-tab <?php echo $current_tab === 'general' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'General', 'fanfiction-manager' ); ?>
+				</a>
+				<a href="?page=fanfiction-layout&tab=page-templates" class="nav-tab <?php echo $current_tab === 'page-templates' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Page Templates', 'fanfiction-manager' ); ?>
+				</a>
+				<a href="?page=fanfiction-layout&tab=email-templates" class="nav-tab <?php echo $current_tab === 'email-templates' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Email Templates', 'fanfiction-manager' ); ?>
+				</a>
+				<a href="?page=fanfiction-layout&tab=custom-css" class="nav-tab <?php echo $current_tab === 'custom-css' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Custom CSS', 'fanfiction-manager' ); ?>
+				</a>
+			</nav>
 
-				<!-- Page Template Layout Settings -->
-				<h2><?php esc_html_e( 'Page Template & Layout Settings', 'fanfiction-manager' ); ?></h2>
-				<p class="description" style="margin-bottom: 15px;">
-					<?php esc_html_e( 'These settings control the layout and appearance of Fanfiction plugin pages. They are synchronized with the Customizer settings.', 'fanfiction-manager' ); ?>
-				</p>
-
-				<table class="form-table" role="presentation">
-					<tbody>
-						<!-- Show Sidebar -->
-						<tr>
-							<th scope="row">
-								<label for="fanfic_show_sidebar"><?php esc_html_e( 'Show Sidebar on Fanfiction Pages', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<?php $show_sidebar = get_option( 'fanfic_show_sidebar', '1' ); ?>
-								<label>
-									<input type="checkbox" id="fanfic_show_sidebar" name="fanfic_show_sidebar" value="1" <?php checked( '1', $show_sidebar ); ?>>
-									<?php esc_html_e( 'Display the Fanfiction Sidebar widget area on plugin pages', 'fanfiction-manager' ); ?>
-								</label>
-								<p class="description">
-									<?php
-									printf(
-										/* translators: %s: URL to widgets page */
-										esc_html__( 'Manage sidebar widgets in %s', 'fanfiction-manager' ),
-										'<a href="' . esc_url( admin_url( 'widgets.php' ) ) . '">' . esc_html__( 'Appearance → Widgets', 'fanfiction-manager' ) . '</a>'
-									);
-									?>
-								</p>
-							</td>
-						</tr>
-
-						<!-- Show Breadcrumbs -->
-						<tr>
-							<th scope="row">
-								<label for="fanfic_show_breadcrumbs"><?php esc_html_e( 'Show Breadcrumbs', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<?php $show_breadcrumbs = get_option( 'fanfic_show_breadcrumbs', '1' ); ?>
-								<label>
-									<input type="checkbox" id="fanfic_show_breadcrumbs" name="fanfic_show_breadcrumbs" value="1" <?php checked( '1', $show_breadcrumbs ); ?>>
-									<?php esc_html_e( 'Display breadcrumb navigation on plugin pages', 'fanfiction-manager' ); ?>
-								</label>
-								<p class="description">
-									<?php esc_html_e( 'Breadcrumbs help users understand their location and navigate through the site hierarchy. You can also use the [fanfic-breadcrumbs] shortcode to display breadcrumbs anywhere.', 'fanfiction-manager' ); ?>
-								</p>
-							</td>
-						</tr>
-
-						<!-- Content Width -->
-						<tr>
-							<th scope="row">
-								<?php esc_html_e( 'Content Width', 'fanfiction-manager' ); ?>
-							</th>
-							<td>
-								<?php
-								$page_width = get_option( 'fanfic_page_width', '1200px' );
-								$is_automatic = ( 'automatic' === $page_width );
-								$custom_value = '';
-								$custom_unit = 'px';
-
-								if ( ! $is_automatic && preg_match( '/^(\d+)(px|%)$/', $page_width, $matches ) ) {
-									$custom_value = $matches[1];
-									$custom_unit = $matches[2];
-								}
-								?>
-
-								<fieldset>
-									<label style="display: block; margin-bottom: 10px;">
-										<input type="radio" name="fanfic_page_width_mode" value="automatic" <?php checked( $is_automatic ); ?>>
-										<?php esc_html_e( 'Automatic (adapt to theme)', 'fanfiction-manager' ); ?>
-									</label>
-
-									<label style="display: block; margin-bottom: 5px;">
-										<input type="radio" name="fanfic_page_width_mode" value="custom" <?php checked( ! $is_automatic ); ?>>
-										<?php esc_html_e( 'Custom width:', 'fanfiction-manager' ); ?>
-									</label>
-
-									<div style="margin-left: 25px;">
-										<input type="number"
-											id="fanfic_page_width_value"
-											name="fanfic_page_width_value"
-											value="<?php echo esc_attr( $custom_value ? $custom_value : '1200' ); ?>"
-											min="1"
-											style="width: 100px;">
-
-										<select id="fanfic_page_width_unit" name="fanfic_page_width_unit" style="width: 70px;">
-											<option value="px" <?php selected( $custom_unit, 'px' ); ?>>px</option>
-											<option value="%" <?php selected( $custom_unit, '%' ); ?>>%</option>
-										</select>
-									</div>
-								</fieldset>
-
-								<p class="description">
-									<?php esc_html_e( 'Automatic uses theme\'s default width. Custom width: pixels are responsive (max-width), percentages are exact proportions.', 'fanfiction-manager' ); ?>
-								</p>
-								<p class="description" style="margin-top: 8px; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107;">
-									<strong><?php esc_html_e( 'Note:', 'fanfiction-manager' ); ?></strong>
-									<?php esc_html_e( 'Custom width settings can work differently depending on your theme. Some themes apply their own container widths that may constrain the plugin content.', 'fanfiction-manager' ); ?>
-								</p>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-
-				<p class="submit">
-					<?php submit_button( __( 'Save Layout Settings', 'fanfiction-manager' ), 'primary', 'submit', false ); ?>
-				</p>
-			</form>
+			<div class="tab-content">
+				<?php
+				switch ( $current_tab ) {
+					case 'page-templates':
+						Fanfic_Settings::render_page_templates_tab();
+						break;
+					case 'email-templates':
+						Fanfic_Settings::render_email_templates_tab();
+						break;
+					case 'custom-css':
+						Fanfic_Settings::render_custom_css_tab();
+						break;
+					case 'general':
+					default:
+						self::render_layout_general_tab();
+						break;
+				}
+				?>
+			</div>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Render Layout General tab
+	 *
+	 * Displays the general layout settings (sidebar, breadcrumbs, content width).
+	 *
+	 * @since 1.2.0
+	 * @return void
+	 */
+	private static function render_layout_general_tab() {
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="fanfic_save_layout_settings">
+			<?php wp_nonce_field( 'fanfic_save_layout_settings_nonce', 'fanfic_layout_settings_nonce' ); ?>
+
+			<!-- Page Template Layout Settings -->
+			<h2><?php esc_html_e( 'Page Template & Layout Settings', 'fanfiction-manager' ); ?></h2>
+			<p class="description" style="margin-bottom: 15px;">
+				<?php esc_html_e( 'These settings control the layout and appearance of Fanfiction plugin pages. They are synchronized with the Customizer settings.', 'fanfiction-manager' ); ?>
+			</p>
+
+			<table class="form-table" role="presentation">
+				<tbody>
+					<!-- Show Sidebar -->
+					<tr>
+						<th scope="row">
+							<label for="fanfic_show_sidebar"><?php esc_html_e( 'Show Sidebar on Fanfiction Pages', 'fanfiction-manager' ); ?></label>
+						</th>
+						<td>
+							<?php $show_sidebar = get_option( 'fanfic_show_sidebar', '1' ); ?>
+							<label>
+								<input type="checkbox" id="fanfic_show_sidebar" name="fanfic_show_sidebar" value="1" <?php checked( '1', $show_sidebar ); ?>>
+								<?php esc_html_e( 'Display the Fanfiction Sidebar widget area on plugin pages', 'fanfiction-manager' ); ?>
+							</label>
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %s: URL to widgets page */
+									esc_html__( 'Manage sidebar widgets in %s', 'fanfiction-manager' ),
+									'<a href="' . esc_url( admin_url( 'widgets.php' ) ) . '">' . esc_html__( 'Appearance → Widgets', 'fanfiction-manager' ) . '</a>'
+								);
+								?>
+							</p>
+						</td>
+					</tr>
+
+					<!-- Show Breadcrumbs -->
+					<tr>
+						<th scope="row">
+							<label for="fanfic_show_breadcrumbs"><?php esc_html_e( 'Show Breadcrumbs', 'fanfiction-manager' ); ?></label>
+						</th>
+						<td>
+							<?php $show_breadcrumbs = get_option( 'fanfic_show_breadcrumbs', '1' ); ?>
+							<label>
+								<input type="checkbox" id="fanfic_show_breadcrumbs" name="fanfic_show_breadcrumbs" value="1" <?php checked( '1', $show_breadcrumbs ); ?>>
+								<?php esc_html_e( 'Display breadcrumb navigation on plugin pages', 'fanfiction-manager' ); ?>
+							</label>
+							<p class="description">
+								<?php esc_html_e( 'Breadcrumbs help users understand their location and navigate through the site hierarchy. You can also use the [fanfic-breadcrumbs] shortcode to display breadcrumbs anywhere.', 'fanfiction-manager' ); ?>
+							</p>
+						</td>
+					</tr>
+
+					<!-- Content Width -->
+					<tr>
+						<th scope="row">
+							<?php esc_html_e( 'Content Width', 'fanfiction-manager' ); ?>
+						</th>
+						<td>
+							<?php
+							$page_width = get_option( 'fanfic_page_width', '1200px' );
+							$is_automatic = ( 'automatic' === $page_width );
+							$custom_value = '';
+							$custom_unit = 'px';
+
+							if ( ! $is_automatic && preg_match( '/^(\d+)(px|%)$/', $page_width, $matches ) ) {
+								$custom_value = $matches[1];
+								$custom_unit = $matches[2];
+							}
+							?>
+
+							<fieldset>
+								<label style="display: block; margin-bottom: 10px;">
+									<input type="radio" name="fanfic_page_width_mode" value="automatic" <?php checked( $is_automatic ); ?>>
+									<?php esc_html_e( 'Automatic (adapt to theme)', 'fanfiction-manager' ); ?>
+								</label>
+
+								<label style="display: block; margin-bottom: 5px;">
+									<input type="radio" name="fanfic_page_width_mode" value="custom" <?php checked( ! $is_automatic ); ?>>
+									<?php esc_html_e( 'Custom width:', 'fanfiction-manager' ); ?>
+								</label>
+
+								<div style="margin-left: 25px;">
+									<input type="number"
+										id="fanfic_page_width_value"
+										name="fanfic_page_width_value"
+										value="<?php echo esc_attr( $custom_value ? $custom_value : '1200' ); ?>"
+										min="1"
+										style="width: 100px;">
+
+									<select id="fanfic_page_width_unit" name="fanfic_page_width_unit" style="width: 70px;">
+										<option value="px" <?php selected( $custom_unit, 'px' ); ?>>px</option>
+										<option value="%" <?php selected( $custom_unit, '%' ); ?>>%</option>
+									</select>
+								</div>
+							</fieldset>
+
+							<p class="description">
+								<?php esc_html_e( 'Automatic uses theme\'s default width. Custom width: pixels are responsive (max-width), percentages are exact proportions.', 'fanfiction-manager' ); ?>
+							</p>
+							<p class="description" style="margin-top: 8px; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107;">
+								<strong><?php esc_html_e( 'Note:', 'fanfiction-manager' ); ?></strong>
+								<?php esc_html_e( 'Custom width settings can work differently depending on your theme. Some themes apply their own container widths that may constrain the plugin content.', 'fanfiction-manager' ); ?>
+							</p>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<p class="submit">
+				<?php submit_button( __( 'Save Layout Settings', 'fanfiction-manager' ), 'primary', 'submit', false ); ?>
+			</p>
+		</form>
 		<?php
 	}
 
