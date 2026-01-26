@@ -775,94 +775,6 @@ a.fanfic-button {
 	font-size: 14px;
 }
 
-/* ==========================================================================
-   Legacy Info Box Styles (deprecated - use .fanfic-message instead)
-   Kept for backwards compatibility with templates not yet migrated.
-   See: #fanfic-messages and .fanfic-message-* for new unified system.
-   ========================================================================== */
-.fanfic-info-box {
-	display: flex;
-	gap: 15px;
-	margin: 16px 0;
-	padding-left: 14px;
-	border-radius: 4px;
-	font-size: 0.95em;
-	font-style: italic;
-}
-
-/* Floating notices */
-#fanfic-notice-stack {
-	position: fixed;
-	bottom: 20px;
-	right: 20px;
-	z-index: 999999;
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	max-width: 360px;
-}
-
-.fanfic-floating-notice {
-	margin: 0;
-	width: 100%;
-	opacity: 1;
-	transform: translateY(0);
-	transition: opacity 0.35s ease, transform 0.35s ease;
-}
-
-.fanfic-floating-notice.fanfic-notice-hide {
-	opacity: 0;
-	transform: translateY(-6px);
-}
-
-@media (max-width: 600px) {
-	#fanfic-notice-stack {
-		left: 12px;
-		right: 12px;
-		max-width: none;
-	}
-}
-
-
-/* Message Boxes - WCAG Compliant */
-.box-error, .fanfic-info-box.fanfic-error,
-.notice-error,
-.error-message {
-	background-color: color-mix(in srgb, var(--color-error) 3%, white);
-	border-left: 4px solid var(--color-error);
-	color: var(--color-text);
-}
-
-.box-success, .fanfic-info-box.fanfic-success,
-.notice-success,
-.success-message {
-	background-color: color-mix(in srgb, var(--color-success) 3%, white);
-	border-left: 4px solid var(--color-success);
-	color: var(--color-text);
-}
-
-.box-info, .fanfic-info-box.fanfic-info,
-.notice-info,
-.info-message {
-	background-color: color-mix(in srgb, var(--color-info) 3%, white);
-	border-left: 4px solid var(--color-info);
-	color: var(--color-text);
-}
-
-.box-warning, .fanfic-info-box.fanfic-warning,
-.notice-warning,.fanfic-draft-warning,
-.warning-message {
-	background-color: color-mix(in srgb, var(--color-warning) 3%, white);
-	border-left: 4px solid var(--color-warning);
-	color: var(--color-text);
-}
-
-
-.fanfic-info-box .dashicons {
-	flex-shrink: 0;
-	color: inherit;
-}
-
 /* Breadcrumb */
 .fanfic-breadcrumb {
 	margin-bottom: 20px;
@@ -2832,43 +2744,6 @@ a.fanfic-button {
 	background: #e9ecef;
 	border-color: #adb5bd;
 	color: #212529;
-}
-
-/* Legacy Messages (deprecated - use #fanfic-messages container instead) */
-.fanfic-author-form-wrapper .fanfic-info-box {
-	padding: 16px 20px;
-	border-radius: 6px;
-	margin-bottom: 25px;
-	border-left: 5px solid;
-	font-size: 14.5px;
-	line-height: 1.5;
-}
-
-.fanfic-author-form-wrapper .fanfic-info-box.fanfic-success {
-	background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-	border-left-color: var(--color-success);
-	color: var(--color-success);
-}
-
-.fanfic-author-form-wrapper .fanfic-info-box.fanfic-error {
-	background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-	border-left-color: var(--color-error);
-	color: var(--color-error);
-}
-
-.fanfic-author-form-wrapper .fanfic-info-box.fanfic-info {
-	background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
-	border-left-color: #17a2b8;
-	color: #17a2b8;
-}
-
-.fanfic-author-form-wrapper .fanfic-info-box ul {
-	margin: 12px 0 0 0;
-	padding-left: 25px;
-}
-
-.fanfic-author-form-wrapper .fanfic-info-box li {
-	margin: 6px 0;
 }
 
 /* Responsive */
