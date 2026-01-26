@@ -2,14 +2,7 @@
 /**
  * Universal Archive Template for Fanfiction Stories
  *
- * Uses WordPress native query - optimal performance with single database query.
- * Handles post type archives, taxonomy archives, and multi-taxonomy filtering.
- *
- * URL Examples:
- * - /fanfiction/stories/ (all stories)
- * - /fanfiction/genre/romance/ (single taxonomy)
- * - /fanfiction/stories/?genre=romance&status=completed (multiple filters)
- * - /fanfiction/stories/?genre=romance,fantasy (multiple values)
+ * Uses WordPress native query and Phase 5 browse filters.
  *
  * @package FanfictionManager
  * @subpackage Templates
@@ -18,82 +11,32 @@
 
 get_header();
 
-// Detect context
-$is_taxonomy = is_tax();
-$queried_object = get_queried_object();
-$page_title = '';
-$page_description = '';
+$base_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' );
+$params = function_exists( 'fanfic_get_browse_params' ) ? fanfic_get_browse_params() : array();
 
-// Get active filters from URL
-$url_filters = array();
-$valid_taxonomies = array( 'fanfiction_genre', 'fanfiction_status', 'fanfiction_rating', 'fanfiction_character', 'fanfiction_relationship' );
+$has_filters = ! empty( $params['search'] ) || ! empty( $params['genres'] ) || ! empty( $params['statuses'] ) || ! empty( $params['fandoms'] ) || ! empty( $params['exclude_warnings'] ) || ! empty( $params['age'] ) || ! empty( $params['sort'] );
 
-foreach ( $valid_taxonomies as $taxonomy ) {
-	$param_name = str_replace( 'fanfiction_', '', $taxonomy );
-	if ( isset( $_GET[ $param_name ] ) && ! empty( $_GET[ $param_name ] ) ) {
-		$url_filters[ $param_name ] = sanitize_text_field( wp_unslash( $_GET[ $param_name ] ) );
-	}
-}
+$page_title = esc_html__( 'Story Archive', 'fanfiction-manager' );
+$page_description = $has_filters
+	? esc_html__( 'Browse stories matching your selected filters.', 'fanfiction-manager' )
+	: esc_html__( 'Browse all published fanfiction stories.', 'fanfiction-manager' );
 
-// Build page title and description
-if ( $is_taxonomy && $queried_object instanceof WP_Term ) {
-	$taxonomy_object = get_taxonomy( $queried_object->taxonomy );
-	$taxonomy_label = $taxonomy_object ? $taxonomy_object->labels->singular_name : __( 'Category', 'fanfiction-manager' );
+$genres = get_terms( array(
+	'taxonomy'   => 'fanfiction_genre',
+	'hide_empty' => false,
+) );
 
-	$page_title = sprintf(
-		/* translators: 1: taxonomy name, 2: term name */
-		esc_html__( '%1$s: %2$s', 'fanfiction-manager' ),
-		$taxonomy_label,
-		$queried_object->name
-	);
+$statuses = get_terms( array(
+	'taxonomy'   => 'fanfiction_status',
+	'hide_empty' => false,
+) );
 
-	if ( ! empty( $queried_object->description ) ) {
-		$page_description = $queried_object->description;
-	}
+$warnings = class_exists( 'Fanfic_Warnings' ) ? Fanfic_Warnings::get_available_warnings() : array();
 
-} elseif ( ! empty( $url_filters ) ) {
-	$filter_labels = array();
-
-	foreach ( $url_filters as $param_name => $value ) {
-		$taxonomy = 'fanfiction_' . $param_name;
-		if ( ! taxonomy_exists( $taxonomy ) ) {
-			continue;
-		}
-
-		$values = explode( ',', $value );
-		$term_names = array();
-
-		foreach ( $values as $term_slug ) {
-			$term = get_term_by( 'slug', trim( $term_slug ), $taxonomy );
-			if ( $term ) {
-				$term_names[] = $term->name;
-			}
-		}
-
-		if ( ! empty( $term_names ) ) {
-			$taxonomy_object = get_taxonomy( $taxonomy );
-			$label = $taxonomy_object ? $taxonomy_object->labels->singular_name : ucfirst( $param_name );
-			$filter_labels[] = sprintf( '%s: %s', $label, implode( ', ', $term_names ) );
-		}
-	}
-
-	$page_title = ! empty( $filter_labels )
-		? sprintf(
-			/* translators: %s: comma-separated list of filters */
-			esc_html__( 'Stories Filtered by %s', 'fanfiction-manager' ),
-			implode( ' & ', $filter_labels )
-		)
-		: esc_html__( 'Story Archive', 'fanfiction-manager' );
-
-	$page_description = esc_html__( 'Browse stories matching your selected filters.', 'fanfiction-manager' );
-
-} else {
-	$page_title = esc_html__( 'Story Archive', 'fanfiction-manager' );
-	$page_description = esc_html__( 'Browse all published fanfiction stories.', 'fanfiction-manager' );
-}
+$active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_build_active_filters( $params, $base_url ) : array();
 ?>
 
-<div class="fanfic-archive">
+<div class="fanfic-archive fanfic-browse-page" data-fanfic-browse>
 	<header class="fanfic-archive-header">
 		<h1 class="fanfic-title fanfic-archive-title"><?php echo esc_html( $page_title ); ?></h1>
 
@@ -102,224 +45,177 @@ if ( $is_taxonomy && $queried_object instanceof WP_Term ) {
 				<?php echo wp_kses_post( $page_description ); ?>
 			</div>
 		<?php endif; ?>
-
-		<?php if ( ! empty( $url_filters ) ) : ?>
-			<div class="fanfic-active-filters">
-				<p class="fanfic-filters-label">
-					<strong><?php esc_html_e( 'Active Filters:', 'fanfiction-manager' ); ?></strong>
-				</p>
-				<ul class="fanfic-filter-list">
-					<?php foreach ( $url_filters as $param_name => $value ) : ?>
-						<?php
-						$taxonomy = 'fanfiction_' . $param_name;
-						if ( ! taxonomy_exists( $taxonomy ) ) {
-							continue;
-						}
-
-						$values = explode( ',', $value );
-						foreach ( $values as $term_slug ) {
-							$term = get_term_by( 'slug', trim( $term_slug ), $taxonomy );
-							if ( ! $term ) {
-								continue;
-							}
-
-							// Build URL to remove this filter
-							$current_url_params = $_GET;
-							$current_values = explode( ',', $current_url_params[ $param_name ] );
-							$filtered_values = array_filter(
-								$current_values,
-								function( $v ) use ( $term_slug ) {
-									return trim( $v ) !== trim( $term_slug );
-								}
-							);
-
-							if ( empty( $filtered_values ) ) {
-								unset( $current_url_params[ $param_name ] );
-							} else {
-								$current_url_params[ $param_name ] = implode( ',', $filtered_values );
-							}
-
-							$remove_url = remove_query_arg( array_keys( $url_filters ), get_post_type_archive_link( 'fanfiction_story' ) );
-							if ( ! empty( $current_url_params ) ) {
-								$remove_url = add_query_arg( $current_url_params, $remove_url );
-							}
-							?>
-							<li class="fanfic-filter-item">
-								<span class="fanfic-filter-label"><?php echo esc_html( $term->name ); ?></span>
-								<a href="<?php echo esc_url( $remove_url ); ?>" class="fanfic-filter-remove" aria-label="<?php echo esc_attr( sprintf( __( 'Remove %s filter', 'fanfiction-manager' ), $term->name ) ); ?>">
-									&times;
-								</a>
-							</li>
-						<?php } ?>
-					<?php endforeach; ?>
-				</ul>
-				<a href="<?php echo esc_url( get_post_type_archive_link( 'fanfiction_story' ) ); ?>" class="fanfic-clear-filters">
-					<?php esc_html_e( 'Clear All Filters', 'fanfiction-manager' ); ?>
-				</a>
-			</div>
-		<?php endif; ?>
 	</header>
 
-	<div class="fanfic-archive-content">
-		<?php if ( have_posts() ) : ?>
-			<div class="fanfic-story-grid">
-				<?php
-				while ( have_posts() ) :
-					the_post();
+	<form class="fanfic-browse-form" method="get" action="<?php echo esc_url( $base_url ); ?>" data-fanfic-browse-form>
+		<div class="fanfic-browse-row">
+			<label for="fanfic-search-input"><?php esc_html_e( 'Search stories', 'fanfiction-manager' ); ?></label>
+			<input
+				type="text"
+				id="fanfic-search-input"
+				name="search"
+				value="<?php echo esc_attr( $params['search'] ?? '' ); ?>"
+				placeholder="<?php esc_attr_e( 'Search titles, tags, authors...', 'fanfiction-manager' ); ?>"
+			/>
+		</div>
 
-					// Get story metadata
-					$author_id = get_the_author_meta( 'ID' );
-					$author_name = get_the_author();
-					$story_date = get_the_date();
-					$story_excerpt = has_excerpt() ? get_the_excerpt() : wp_trim_words( get_the_content(), 30 );
-
-					// Get taxonomies
-					$genres = get_the_terms( get_the_ID(), 'fanfiction_genre' );
-					$status_terms = get_the_terms( get_the_ID(), 'fanfiction_status' );
-					$status = $status_terms && ! is_wp_error( $status_terms ) ? $status_terms[0]->name : '';
-
-					// Get metadata
-					$word_count = get_post_meta( get_the_ID(), '_fanfic_word_count', true );
-					// Use the cached chapter count function for better performance
-					$chapters = function_exists( 'ffm_get_story_chapter_count' ) ? ffm_get_story_chapter_count( get_the_ID() ) : 0;
-					?>
-
-					<article id="story-<?php the_ID(); ?>" <?php post_class( 'fanfic-story-card' ); ?>>
-						<?php if ( has_post_thumbnail() ) : ?>
-							<div class="fanfic-story-card-image">
-								<a href="<?php the_permalink(); ?>">
-									<?php the_post_thumbnail( 'medium', array( 'loading' => 'lazy' ) ); ?>
-								</a>
-							</div>
-						<?php endif; ?>
-
-						<div class="fanfic-story-card-content">
-							<header class="fanfic-story-card-header">
-								<h2 class="fanfic-story-card-title">
-									<a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
-								</h2>
-
-								<div class="fanfic-story-card-meta">
-									<span class="fanfic-story-author">
-										<?php
-										printf(
-											/* translators: %s: author name */
-											esc_html__( 'by %s', 'fanfiction-manager' ),
-											'<a href="' . esc_url( fanfic_get_user_profile_url( $author_id ) ) . '">' . esc_html( $author_name ) . '</a>'
-										);
-										?>
-									</span>
-									<span class="fanfic-story-date"><?php echo esc_html( $story_date ); ?></span>
-									<?php if ( $status ) : ?>
-										<span class="fanfic-story-status fanfic-status-<?php echo esc_attr( sanitize_title( $status ) ); ?>">
-											<?php echo esc_html( $status ); ?>
-										</span>
-									<?php endif; ?>
-									<?php
-									// Age badge (Phase 4.4)
-									if ( class_exists( 'Fanfic_Warnings' ) ) {
-										$story_warnings = Fanfic_Warnings::get_story_warnings( get_the_ID() );
-										$age_priority = array( 'PG' => 1, '13' => 2, '16' => 3, '18' => 4 );
-										$highest_age = 'PG';
-										$highest_priority = 1;
-
-										if ( ! empty( $story_warnings ) ) {
-											foreach ( $story_warnings as $warning ) {
-												if ( ! empty( $warning['min_age'] ) ) {
-													$warning_priority = isset( $age_priority[ $warning['min_age'] ] ) ? $age_priority[ $warning['min_age'] ] : 0;
-													if ( $warning_priority > $highest_priority ) {
-														$highest_priority = $warning_priority;
-														$highest_age = $warning['min_age'];
-													}
-												}
-											}
-										}
-										?>
-										<span class="fanfic-age-badge fanfic-age-badge-<?php echo esc_attr( sanitize_title( $highest_age ) ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age ) ); ?>">
-											<?php echo esc_html( $highest_age ); ?>+
-										</span>
-									<?php } ?>
-								</div>
-							</header>
-
-							<div class="fanfic-story-card-excerpt">
-								<?php echo wp_kses_post( $story_excerpt ); ?>
-							</div>
-
-							<footer class="fanfic-story-card-footer">
-								<?php if ( $genres && ! is_wp_error( $genres ) ) : ?>
-									<div class="fanfic-story-genres">
-										<?php foreach ( $genres as $genre ) : ?>
-											<a href="<?php echo esc_url( get_term_link( $genre ) ); ?>" class="fanfic-genre-tag">
-												<?php echo esc_html( $genre->name ); ?>
-											</a>
-										<?php endforeach; ?>
-									</div>
-								<?php endif; ?>
-
-								<?php
-								// Visible tags (Phase 4.4)
-								if ( function_exists( 'fanfic_get_visible_tags' ) ) {
-									$visible_tags = fanfic_get_visible_tags( get_the_ID() );
-									if ( ! empty( $visible_tags ) ) :
-									?>
-									<div class="fanfic-story-tags">
-										<?php foreach ( $visible_tags as $tag ) : ?>
-											<span class="fanfic-tag"><?php echo esc_html( $tag ); ?></span>
-										<?php endforeach; ?>
-									</div>
-									<?php
-									endif;
-								}
-								?>
-
-								<div class="fanfic-story-stats">
-									<?php if ( $word_count ) : ?>
-										<span class="fanfic-stat">
-											<span class="dashicons dashicons-edit"></span>
-											<?php echo esc_html( number_format_i18n( $word_count ) ); ?> <?php esc_html_e( 'words', 'fanfiction-manager' ); ?>
-										</span>
-									<?php endif; ?>
-									<?php if ( $chapters ) : ?>
-										<span class="fanfic-stat">
-											<span class="dashicons dashicons-book"></span>
-											<?php echo esc_html( number_format_i18n( $chapters ) ); ?> <?php echo esc_html( _n( 'chapter', 'chapters', $chapters, 'fanfiction-manager' ) ); ?>
-										</span>
-									<?php endif; ?>
-								</div>
-							</footer>
-						</div>
-					</article>
-
-				<?php endwhile; ?>
+		<div class="fanfic-browse-row fanfic-browse-columns">
+			<div class="fanfic-browse-column">
+				<label for="fanfic-genre-filter"><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
+				<select id="fanfic-genre-filter" name="genre[]" multiple>
+					<?php if ( ! empty( $genres ) && ! is_wp_error( $genres ) ) : ?>
+						<?php foreach ( $genres as $genre ) : ?>
+							<option value="<?php echo esc_attr( $genre->slug ); ?>" <?php selected( in_array( $genre->slug, (array) $params['genres'], true ) ); ?>>
+								<?php echo esc_html( $genre->name ); ?>
+							</option>
+						<?php endforeach; ?>
+					<?php endif; ?>
+				</select>
 			</div>
 
-			<nav class="fanfic-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>">
-				<?php
-				the_posts_pagination(
-					array(
-						'mid_size'  => 2,
-						'prev_text' => __( '&larr; Previous', 'fanfiction-manager' ),
-						'next_text' => __( 'Next &rarr;', 'fanfiction-manager' ),
-					)
-				);
-				?>
-			</nav>
-
-		<?php else : ?>
-
-			<div class="fanfic-no-results">
-				<p><?php esc_html_e( 'No stories found matching your criteria.', 'fanfiction-manager' ); ?></p>
-				<?php if ( ! empty( $url_filters ) ) : ?>
-					<p>
-						<a href="<?php echo esc_url( get_post_type_archive_link( 'fanfiction_story' ) ); ?>" class="fanfic-button fanfic-button-primary">
-							<?php esc_html_e( 'View All Stories', 'fanfiction-manager' ); ?>
-						</a>
-					</p>
-				<?php endif; ?>
+			<div class="fanfic-browse-column">
+				<label for="fanfic-status-filter"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
+				<select id="fanfic-status-filter" name="status[]" multiple>
+					<?php if ( ! empty( $statuses ) && ! is_wp_error( $statuses ) ) : ?>
+						<?php foreach ( $statuses as $status ) : ?>
+							<option value="<?php echo esc_attr( $status->slug ); ?>" <?php selected( in_array( $status->slug, (array) $params['statuses'], true ) ); ?>>
+								<?php echo esc_html( $status->name ); ?>
+							</option>
+						<?php endforeach; ?>
+					<?php endif; ?>
+				</select>
 			</div>
 
+			<div class="fanfic-browse-column">
+				<label for="fanfic-age-filter"><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
+				<select id="fanfic-age-filter" name="age">
+					<option value=""><?php esc_html_e( 'Any age', 'fanfiction-manager' ); ?></option>
+					<option value="PG" <?php selected( 'PG', $params['age'] ?? '' ); ?>><?php esc_html_e( 'PG', 'fanfiction-manager' ); ?></option>
+					<option value="13" <?php selected( '13', $params['age'] ?? '' ); ?>><?php esc_html_e( '13+', 'fanfiction-manager' ); ?></option>
+					<option value="16" <?php selected( '16', $params['age'] ?? '' ); ?>><?php esc_html_e( '16+', 'fanfiction-manager' ); ?></option>
+					<option value="18" <?php selected( '18', $params['age'] ?? '' ); ?>><?php esc_html_e( '18+', 'fanfiction-manager' ); ?></option>
+				</select>
+			</div>
+
+			<div class="fanfic-browse-column">
+				<label for="fanfic-sort-filter"><?php esc_html_e( 'Sort by', 'fanfiction-manager' ); ?></label>
+				<select id="fanfic-sort-filter" name="sort">
+					<option value=""><?php esc_html_e( 'Relevance / Updated', 'fanfiction-manager' ); ?></option>
+					<option value="updated" <?php selected( 'updated', $params['sort'] ?? '' ); ?>><?php esc_html_e( 'Recently updated', 'fanfiction-manager' ); ?></option>
+					<option value="created" <?php selected( 'created', $params['sort'] ?? '' ); ?>><?php esc_html_e( 'Newest', 'fanfiction-manager' ); ?></option>
+					<option value="alphabetical" <?php selected( 'alphabetical', $params['sort'] ?? '' ); ?>><?php esc_html_e( 'A-Z', 'fanfiction-manager' ); ?></option>
+				</select>
+			</div>
+		</div>
+
+		<div class="fanfic-browse-row">
+			<label for="fanfic-fandom-filter"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
+			<input
+				type="text"
+				id="fanfic-fandom-filter"
+				name="fandom"
+				value="<?php echo esc_attr( implode( ' ', (array) $params['fandoms'] ) ); ?>"
+				placeholder="<?php esc_attr_e( 'fandom slug(s)', 'fanfiction-manager' ); ?>"
+			/>
+			<p class="description"><?php esc_html_e( 'Enter fandom slugs separated by spaces.', 'fanfiction-manager' ); ?></p>
+		</div>
+
+		<?php if ( ! empty( $warnings ) ) : ?>
+			<div class="fanfic-browse-row fanfic-browse-warnings">
+				<span class="fanfic-browse-label"><?php esc_html_e( 'Exclude warnings', 'fanfiction-manager' ); ?></span>
+				<div class="fanfic-browse-warning-list">
+					<?php foreach ( $warnings as $warning ) : ?>
+						<label>
+							<input
+								type="checkbox"
+								name="warning[]"
+								value="-<?php echo esc_attr( $warning['slug'] ); ?>"
+								<?php checked( in_array( $warning['slug'], (array) $params['exclude_warnings'], true ) ); ?>
+							/>
+							<?php echo esc_html( $warning['name'] ); ?>
+						</label>
+					<?php endforeach; ?>
+				</div>
+			</div>
 		<?php endif; ?>
+
+		<div class="fanfic-browse-actions">
+			<button type="submit" class="fanfic-button fanfic-button-primary">
+				<?php esc_html_e( 'Apply filters', 'fanfiction-manager' ); ?>
+			</button>
+			<a class="fanfic-button" href="<?php echo esc_url( $base_url ); ?>">
+				<?php esc_html_e( 'Clear all', 'fanfiction-manager' ); ?>
+			</a>
+		</div>
+	</form>
+
+	<div data-fanfic-active-filters>
+	<?php if ( ! empty( $active_filters ) ) : ?>
+		<div class="fanfic-active-filters">
+			<p class="fanfic-filters-label"><strong><?php esc_html_e( 'Active Filters:', 'fanfiction-manager' ); ?></strong></p>
+			<ul class="fanfic-filter-list">
+				<?php foreach ( $active_filters as $filter ) : ?>
+					<li class="fanfic-filter-item">
+						<span class="fanfic-filter-label"><?php echo esc_html( $filter['label'] ); ?></span>
+						<a href="<?php echo esc_url( $filter['url'] ); ?>" class="fanfic-filter-remove" aria-label="<?php esc_attr_e( 'Remove filter', 'fanfiction-manager' ); ?>">
+							&times;
+						</a>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+			<a href="<?php echo esc_url( $base_url ); ?>" class="fanfic-clear-filters">
+				<?php esc_html_e( 'Clear All Filters', 'fanfiction-manager' ); ?>
+			</a>
+		</div>
+	<?php endif; ?>
+	</div>
+
+	<div class="fanfic-archive-content">
+		<div class="fanfic-browse-results" data-fanfic-browse-results>
+			<?php if ( have_posts() ) : ?>
+				<div class="fanfic-story-grid">
+					<?php
+					while ( have_posts() ) :
+						the_post();
+						echo fanfic_get_story_card_html( get_the_ID() );
+					endwhile;
+					?>
+				</div>
+
+				<nav class="fanfic-pagination fanfic-browse-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-browse-pagination>
+					<?php
+					global $wp_query;
+					$pagination_base = fanfic_build_browse_url( $base_url, $params, array( 'paged' => null ) );
+					echo paginate_links( array(
+						'base'      => add_query_arg( 'paged', '%#%', $pagination_base ),
+						'format'    => '',
+						'current'   => max( 1, (int) get_query_var( 'paged' ) ),
+						'total'     => max( 1, (int) $wp_query->max_num_pages ),
+						'prev_text' => esc_html__( '&laquo; Previous', 'fanfiction-manager' ),
+						'next_text' => esc_html__( 'Next &raquo;', 'fanfiction-manager' ),
+					) );
+					?>
+				</nav>
+
+			<?php else : ?>
+
+				<div class="fanfic-no-results">
+					<p><?php esc_html_e( 'No stories found matching your criteria.', 'fanfiction-manager' ); ?></p>
+					<?php if ( $has_filters ) : ?>
+						<p>
+							<a href="<?php echo esc_url( $base_url ); ?>" class="fanfic-button fanfic-button-primary">
+								<?php esc_html_e( 'View All Stories', 'fanfiction-manager' ); ?>
+							</a>
+						</p>
+					<?php endif; ?>
+				</div>
+
+			<?php endif; ?>
+		</div>
+	</div>
+
+	<div class="fanfic-browse-loading" data-fanfic-browse-loading aria-hidden="true">
+		<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
 	</div>
 </div>
 

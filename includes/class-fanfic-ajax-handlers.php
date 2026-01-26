@@ -127,6 +127,17 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
+		// Browse/search results (public + authenticated)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_search',
+			array( __CLASS__, 'ajax_browse_search' ),
+			false, // Allow anonymous
+			array(
+				'rate_limit' => true,
+				'capability' => 'read',
+			)
+		);
+
 		// Notification endpoints (authenticated only)
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_delete_notification',
@@ -1035,6 +1046,117 @@ class Fanfic_AJAX_Handlers {
 		Fanfic_AJAX_Security::send_success_response(
 			array( 'stats' => $stats ),
 			__( 'Stats loaded successfully.', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * AJAX: Browse/search stories with filters
+	 *
+	 * Returns HTML fragments for results + pagination.
+	 *
+	 * @since 1.2.0
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_browse_search() {
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array( 'nonce' ),
+			array( 'search', 's', 'genre', 'status', 'fandom', 'warning', 'age', 'sort', 'paged', 'base_url' )
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response( $params->get_error_code(), $params->get_error_message(), 400 );
+		}
+
+		if ( ! function_exists( 'fanfic_get_browse_params' ) || ! function_exists( 'fanfic_build_browse_query_args' ) ) {
+			Fanfic_AJAX_Security::send_error_response( 'missing_dependencies', __( 'Browse helpers are not available.', 'fanfiction-manager' ), 500 );
+		}
+
+		$normalized = fanfic_get_browse_params( $params );
+		$paged = isset( $params['paged'] ) ? absint( $params['paged'] ) : 1;
+		$per_page = (int) get_option( 'posts_per_page', 10 );
+
+		$query_args = fanfic_build_browse_query_args( $normalized, $paged, $per_page );
+		$browse_query = new WP_Query( $query_args );
+
+		$html = '';
+		if ( $browse_query->have_posts() ) {
+			while ( $browse_query->have_posts() ) {
+				$browse_query->the_post();
+				$html .= fanfic_get_story_card_html( get_the_ID() );
+			}
+			wp_reset_postdata();
+		} else {
+			$html = '<div class="fanfic-no-results"><p>' . esc_html__( 'No stories found matching your criteria.', 'fanfiction-manager' ) . '</p></div>';
+		}
+
+		$base_url = isset( $params['base_url'] ) ? esc_url_raw( $params['base_url'] ) : '';
+		if ( empty( $base_url ) ) {
+			$base_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' );
+		}
+
+		$pagination_html = '';
+		if ( $browse_query->max_num_pages > 1 ) {
+			$pagination_base = fanfic_build_browse_url( $base_url, $normalized, array( 'paged' => null ) );
+			$pagination_html = paginate_links( array(
+				'base'      => add_query_arg( 'paged', '%#%', $pagination_base ),
+				'format'    => '',
+				'current'   => max( 1, $paged ),
+				'total'     => (int) $browse_query->max_num_pages,
+				'prev_text' => esc_html__( '&laquo; Previous', 'fanfiction-manager' ),
+				'next_text' => esc_html__( 'Next &raquo;', 'fanfiction-manager' ),
+			) );
+		}
+
+		$active_html = '';
+		if ( function_exists( 'fanfic_build_active_filters' ) ) {
+			$active_filters = fanfic_build_active_filters( $normalized, $base_url );
+			if ( ! empty( $active_filters ) ) {
+				ob_start();
+				?>
+				<div class="fanfic-active-filters">
+					<p class="fanfic-filters-label"><strong><?php esc_html_e( 'Active Filters:', 'fanfiction-manager' ); ?></strong></p>
+					<ul class="fanfic-filter-list">
+						<?php foreach ( $active_filters as $filter ) : ?>
+							<li class="fanfic-filter-item">
+								<span class="fanfic-filter-label"><?php echo esc_html( $filter['label'] ); ?></span>
+								<a href="<?php echo esc_url( $filter['url'] ); ?>" class="fanfic-filter-remove" aria-label="<?php esc_attr_e( 'Remove filter', 'fanfiction-manager' ); ?>">
+									&times;
+								</a>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+					<a href="<?php echo esc_url( $base_url ); ?>" class="fanfic-clear-filters">
+						<?php esc_html_e( 'Clear All Filters', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+				<?php
+				$active_html = ob_get_clean();
+			}
+		}
+
+		$count_label = sprintf(
+			esc_html(
+				_n(
+					'Found %d story',
+					'Found %d stories',
+					$browse_query->found_posts,
+					'fanfiction-manager'
+				)
+			),
+			absint( $browse_query->found_posts )
+		);
+
+		Fanfic_AJAX_Security::send_success_response(
+			array(
+				'html'           => $html,
+				'pagination'     => $pagination_html,
+				'active_filters' => $active_html,
+				'found'          => absint( $browse_query->found_posts ),
+				'count_label'    => $count_label,
+				'total_pages'    => absint( $browse_query->max_num_pages ),
+				'current_page'   => max( 1, $paged ),
+			),
+			__( 'Results loaded.', 'fanfiction-manager' )
 		);
 	}
 

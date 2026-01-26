@@ -54,34 +54,33 @@ $current_user = wp_get_current_user();
 
 <!-- Unified Messages Container -->
 <div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
-<?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'story_created' ) : ?>
-	<div class="fanfic-message fanfic-message-success" role="status">
-		<span class="fanfic-message-icon" aria-hidden="true">&#10003;</span>
-		<span class="fanfic-message-content"><?php esc_html_e( 'Story created successfully!', 'fanfiction-manager' ); ?></span>
-		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
-	</div>
-<?php endif; ?>
-<?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'profile_updated' ) : ?>
-	<div class="fanfic-message fanfic-message-success" role="status">
-		<span class="fanfic-message-icon" aria-hidden="true">&#10003;</span>
-		<span class="fanfic-message-content"><?php esc_html_e( 'Profile updated successfully!', 'fanfiction-manager' ); ?></span>
-		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
-	</div>
-<?php endif; ?>
-<?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'story_deleted' ) : ?>
-	<div class="fanfic-message fanfic-message-success" role="status">
-		<span class="fanfic-message-icon" aria-hidden="true">&#10003;</span>
-		<span class="fanfic-message-content"><?php esc_html_e( 'Story deleted successfully.', 'fanfiction-manager' ); ?></span>
-		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
-	</div>
-<?php endif; ?>
-<?php if ( isset( $_GET['error'] ) ) : ?>
-	<div class="fanfic-message fanfic-message-error" role="alert">
-		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
-		<span class="fanfic-message-content"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ); ?></span>
-		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
-	</div>
-<?php endif; ?>
+<?php
+// Display flash messages
+$flash_messages = Fanfic_Flash_Messages::get_messages();
+if ( ! empty( $flash_messages ) ) {
+    foreach ( $flash_messages as $msg ) {
+        $type = esc_attr( $msg['type'] );
+        $message = esc_html( $msg['message'] );
+        $icon = ( $type === 'success' ) ? '&#10003;' : '&#10007;'; // Simplified for example
+        $role = ( $type === 'error' ) ? 'alert' : 'status';
+
+        echo "<div class='fanfic-message fanfic-message-{$type}' role='{$role}'>
+                <span class='fanfic-message-icon' aria-hidden='true'>{$icon}</span>
+                <span class='fanfic-message-content'>{$message}</span>
+                <button class='fanfic-message-close' aria-label='" . esc_attr__( 'Dismiss message', 'fanfiction-manager' ) . "'>&times;</button>
+              </div>";
+    }
+}
+
+// Manually display a direct error from URL if it exists (for backward compatibility or specific cases)
+if ( isset( $_GET['error'] ) ) {
+    echo "<div class='fanfic-message fanfic-message-error' role='alert'>
+            <span class='fanfic-message-icon' aria-hidden='true'>&#10007;</span>
+            <span class='fanfic-message-content'>" . esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ) . "</span>
+            <button class='fanfic-message-close' aria-label='" . esc_attr__( 'Dismiss message', 'fanfiction-manager' ) . "'>&times;</button>
+          </div>";
+}
+?>
 </div>
 
 <!-- Dashboard Header -->

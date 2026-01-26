@@ -463,24 +463,37 @@ class Fanfic_Export_Import_Admin {
 			return;
 		}
 
-		// Redirect with success message
-		$redirect_args = array(
-			'page'          => 'fanfiction-settings',
-			'tab'           => 'import-export',
-			'import'        => 'success',
-			'type'          => $import_type,
-			'success_count' => $result['success_count'],
-			'error_count'   => $result['error_count'],
-			'dry_run'       => $dry_run ? '1' : '0',
+		// Prepare success message
+		$success_count = $result['success_count'];
+		$error_count   = $result['error_count'];
+		$type          = $import_type;
+		$dry_run_text  = $dry_run ? __( 'Dry run complete:', 'fanfiction-manager' ) : __( 'Import complete:', 'fanfiction-manager' );
+
+		$message = sprintf(
+			/* translators: 1: Dry run or Import complete, 2: success count, 3: import type */
+			__( '%1$s %2$d %3$s imported successfully.', 'fanfiction-manager' ),
+			$dry_run_text,
+			$success_count,
+			esc_html( $type )
 		);
+
+		if ( $error_count > 0 ) {
+			$message .= ' ' . sprintf(
+				/* translators: %d: error count */
+				__( '%d errors occurred.', 'fanfiction-manager' ),
+				$error_count
+			);
+			Fanfic_Flash_Messages::add_message( 'warning', $message );
+		} else {
+			Fanfic_Flash_Messages::add_message( 'success', $message );
+		}
 
 		// Store errors in transient if any
 		if ( ! empty( $result['errors'] ) ) {
 			set_transient( 'fanfic_import_errors_' . get_current_user_id(), $result['errors'], 300 );
-			$redirect_args['has_errors'] = '1';
 		}
-
-		wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) );
+		
+		wp_safe_redirect( admin_url( 'admin.php?page=fanfiction-settings&tab=import-export' ) );
 		exit;
 	}
 
@@ -492,17 +505,8 @@ class Fanfic_Export_Import_Admin {
 	 * @return void
 	 */
 	private static function redirect_with_error( $message ) {
-		wp_safe_redirect(
-			add_query_arg(
-				array(
-					'page'    => 'fanfiction-settings',
-					'tab'     => 'import-export',
-					'import'  => 'error',
-					'message' => urlencode( $message ),
-				),
-				admin_url( 'admin.php' )
-			)
-		);
+		Fanfic_Flash_Messages::add_message( 'error', $message );
+		wp_safe_redirect( admin_url( 'admin.php?page=fanfiction-settings&tab=import-export' ) );
 		exit;
 	}
 
@@ -519,70 +523,46 @@ class Fanfic_Export_Import_Admin {
 			return;
 		}
 
-		// Import success notice
-		if ( isset( $_GET['import'] ) && 'success' === $_GET['import'] ) {
-			$success_count = isset( $_GET['success_count'] ) ? absint( $_GET['success_count'] ) : 0;
-			$error_count = isset( $_GET['error_count'] ) ? absint( $_GET['error_count'] ) : 0;
-			$dry_run = isset( $_GET['dry_run'] ) && '1' === $_GET['dry_run'];
-			$type = isset( $_GET['type'] ) ? sanitize_text_field( wp_unslash( $_GET['type'] ) ) : '';
+		// Retrieve flash messages
+		$flash_messages = Fanfic_Flash_Messages::get_messages();
 
-			$class = $error_count > 0 ? 'notice-warning' : 'notice-success';
-			?>
-			<div class="notice <?php echo esc_attr( $class ); ?> is-dismissible">
-				<p>
-					<?php
-					if ( $dry_run ) {
-						printf(
-							/* translators: 1: success count, 2: import type */
-							esc_html__( 'Dry run complete: %1$d %2$s would be imported successfully.', 'fanfiction-manager' ),
-							$success_count,
-							esc_html( $type )
-						);
-					} else {
-						printf(
-							/* translators: 1: success count, 2: import type */
-							esc_html__( 'Import complete: %1$d %2$s imported successfully.', 'fanfiction-manager' ),
-							$success_count,
-							esc_html( $type )
-						);
-					}
-
-					if ( $error_count > 0 ) {
-						echo ' ';
-						printf(
-							/* translators: %d: error count */
-							esc_html__( '%d errors occurred.', 'fanfiction-manager' ),
-							$error_count
-						);
-					}
-					?>
-				</p>
-				<?php
-				// Display errors if any
-				if ( isset( $_GET['has_errors'] ) && '1' === $_GET['has_errors'] ) {
-					$errors = get_transient( 'fanfic_import_errors_' . get_current_user_id() );
-					if ( $errors ) {
-						echo '<details style="margin-top: 10px;"><summary style="cursor: pointer; font-weight: 600;">' . esc_html__( 'Show Errors', 'fanfiction-manager' ) . '</summary>';
-						echo '<ul style="margin: 10px 0; padding-left: 20px; max-height: 300px; overflow-y: auto;">';
-						foreach ( $errors as $error ) {
-							echo '<li>' . esc_html( $error ) . '</li>';
-						}
-						echo '</ul></details>';
-						delete_transient( 'fanfic_import_errors_' . get_current_user_id() );
-					}
+		// Display flash messages as admin notices
+		if ( ! empty( $flash_messages ) ) {
+			foreach ( $flash_messages as $msg ) {
+				$type = $msg['type'];
+				$message = $msg['message'];
+				$notice_class = 'notice-info'; // Default
+				if ( 'success' === $type ) {
+					$notice_class = 'notice-success';
+				} elseif ( 'error' === $type ) {
+					$notice_class = 'notice-error';
+				} elseif ( 'warning' === $type ) {
+					$notice_class = 'notice-warning';
 				}
 				?>
-			</div>
-			<?php
+				<div class="notice <?php echo esc_attr( $notice_class ); ?> is-dismissible">
+					<p><?php echo wp_kses_post( $message ); ?></p>
+				</div>
+				<?php
+			}
 		}
 
-		// Import error notice
-		if ( isset( $_GET['import'] ) && 'error' === $_GET['import'] && isset( $_GET['message'] ) ) {
+		// Display specific import errors stored in transient if any
+		$import_errors = get_transient( 'fanfic_import_errors_' . get_current_user_id() );
+		if ( ! empty( $import_errors ) && is_array( $import_errors ) ) {
 			?>
-			<div class="notice error-message is-dismissible">
-				<p><?php echo esc_html( urldecode( sanitize_text_field( wp_unslash( $_GET['message'] ) ) ) ); ?></p>
+			<div class="notice notice-error is-dismissible">
+				<p><strong><?php esc_html_e( 'Detailed Import Errors:', 'fanfiction-manager' ); ?></strong></p>
+				<details style="margin-top: 10px;"><summary style="cursor: pointer; font-weight: 600;"><?php esc_html_e( 'Show Details', 'fanfiction-manager' ); ?></summary>
+					<ul style="margin: 10px 0; padding-left: 20px; max-height: 300px; overflow-y: auto;">
+						<?php foreach ( $import_errors as $error ) : ?>
+							<li><?php echo esc_html( $error ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				</details>
 			</div>
 			<?php
+			delete_transient( 'fanfic_import_errors_' . get_current_user_id() );
 		}
 	}
 

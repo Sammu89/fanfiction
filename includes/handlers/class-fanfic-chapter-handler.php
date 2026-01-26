@@ -161,10 +161,11 @@ class Fanfic_Chapter_Handler {
 				// Validation failed - keep as draft, show errors
 				$validation_errors = array_values( $validation['missing_fields'] );
 				set_transient( 'fanfic_chapter_validation_errors_' . $current_user->ID . '_' . $chapter_id, $validation_errors, 60 );
+				Fanfic_Flash_Messages::add_message( 'error', __( 'Chapter could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ) );
 
-				// Redirect to chapter edit page with validation error
+				// Redirect to chapter edit page
 				$chapter_url = get_permalink( $chapter_id );
-				$edit_url = add_query_arg( array( 'action' => 'edit', 'validation_error' => '1' ), $chapter_url );
+				$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
 				wp_redirect( $edit_url );
 				exit;
 			}
@@ -202,18 +203,13 @@ class Fanfic_Chapter_Handler {
 			}
 		}
 
-
-
 		// Redirect to chapter edit page
 		$chapter_url = get_permalink( $chapter_id );
 		$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
 
-		// Add parameter to show publication prompt if this is first chapter
+		// Add message if this is first published chapter
 		if ( $is_first_published_chapter ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'Redirecting to: ' . $edit_url . ' with publish prompt' );
-			}
-			$edit_url = add_query_arg( 'show_publish_prompt', '1', $edit_url );
+			Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first published chapter! Consider publishing your story now.', 'fanfiction-manager' ) );
 		}
 
 		// Check if this is an AJAX request
@@ -360,10 +356,11 @@ class Fanfic_Chapter_Handler {
 				// Validation failed - keep as draft, show errors
 				$validation_errors = array_values( $validation['missing_fields'] );
 				set_transient( 'fanfic_chapter_validation_errors_' . $current_user->ID . '_' . $chapter_id, $validation_errors, 60 );
+				Fanfic_Flash_Messages::add_message( 'error', __( 'Chapter could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ) );
 
 				// Redirect back with validation error
 				$chapter_url = get_permalink( $chapter_id );
-				$edit_url = add_query_arg( array( 'action' => 'edit', 'validation_error' => '1' ), $chapter_url );
+				$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
 				wp_redirect( $edit_url );
 				exit;
 			}
@@ -378,7 +375,6 @@ class Fanfic_Chapter_Handler {
 				error_log( 'Chapter ' . $chapter_id . ' published after validation' );
 			}
 		}
-
 
 		// Check if this is becoming the first published chapter
 		$is_first_published_chapter = false;
@@ -432,26 +428,20 @@ class Fanfic_Chapter_Handler {
 			}
 		}
 
-		// Redirect back with success message
-		$redirect_url = add_query_arg(
-			array(
-				'chapter_id' => $chapter_id,
-				'updated' => 'success'
-			),
-			wp_get_referer()
-		);
+		// Add success message
+		Fanfic_Flash_Messages::add_message( 'success', __( 'Chapter updated successfully!', 'fanfiction-manager' ) );
 
-	// Add parameter if story was auto-drafted
-	if ( $was_story_auto_drafted ) {
-		$redirect_url = add_query_arg( 'story_auto_drafted', '1', $redirect_url );
-	}
-
-		// Add parameter to show publication prompt if this is first chapter
-		if ( $is_first_published_chapter ) {
-			$redirect_url = add_query_arg( 'show_publish_prompt', '1', $redirect_url );
+		// Add warning message if story was auto-drafted
+		if ( $was_story_auto_drafted ) {
+			Fanfic_Flash_Messages::add_message( 'warning', __( 'Story was automatically set to draft status because this was its last published chapter/prologue.', 'fanfiction-manager' ) );
 		}
 
-		wp_redirect( $redirect_url );
+		// Add info message if this is first published chapter
+		if ( $is_first_published_chapter ) {
+			Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first published chapter! Consider publishing your story now.', 'fanfiction-manager' ) );
+		}
+
+		wp_redirect( wp_get_referer() );
 		exit;
 	}
 
@@ -492,8 +482,11 @@ class Fanfic_Chapter_Handler {
 		// Delete the chapter
 		wp_delete_post( $chapter_id, true );
 
-		// Redirect to manage stories with success message
-		$redirect_url = add_query_arg( 'chapter_deleted', 'success', Fanfic_Story_Handler::get_page_url_with_fallback( 'manage-stories' ) );
+		// Add success message
+		Fanfic_Flash_Messages::add_message( 'success', __( 'Chapter deleted successfully.', 'fanfiction-manager' ) );
+
+		// Redirect to manage stories
+		$redirect_url = Fanfic_Story_Handler::get_page_url_with_fallback( 'manage-stories' );
 		wp_redirect( $redirect_url );
 		exit;
 	}

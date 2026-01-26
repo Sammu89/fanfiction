@@ -280,9 +280,10 @@ class Fanfic_Story_Handler {
 				if ( ! empty( $validation_errors ) ) {
 					// Validation failed - story stays as draft, show errors
 					set_transient( 'fanfic_story_validation_errors_' . $current_user->ID . '_' . $story_id, $validation_errors, 60 );
+					Fanfic_Flash_Messages::add_message( 'error', __( 'Story could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ) );
 					// Redirect back to story with validation error, removing any success params
 					$referer = remove_query_arg( 'success', wp_get_referer() );
-					wp_safe_redirect( add_query_arg( 'validation_error', '1', $referer ) );
+					wp_safe_redirect( add_query_arg( 'action', 'edit', $referer ) ); // Redirect to edit page
 					exit;
 				}
 
@@ -334,10 +335,12 @@ class Fanfic_Story_Handler {
 
 			// Redirect based on action
 			if ( 'add_chapter' === $form_action ) {
+				Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated. Now add your first chapter!', 'fanfiction-manager' ) );
 				$story_permalink = get_permalink( $story_id );
 				$redirect_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
 			} else {
-				$redirect_url = add_query_arg( 'success', 'true', wp_get_referer() );
+				Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated successfully!', 'fanfiction-manager' ) );
+				$redirect_url = wp_get_referer();
 			}
 
 			wp_safe_redirect( $redirect_url );
@@ -499,6 +502,7 @@ class Fanfic_Story_Handler {
 
 		// Redirect to story permalink with action parameter
 		$story_permalink = get_permalink( $story_id );
+		Fanfic_Flash_Messages::add_message( 'success', __( 'Story created as draft. Now add your first chapter!', 'fanfiction-manager' ) );
 		$add_chapter_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
 		wp_redirect( $add_chapter_url );
 		exit;
@@ -618,6 +622,7 @@ class Fanfic_Story_Handler {
 		// Determine redirect based on whether story had chapters before
 		if ( ! $had_chapters_before && 'draft' === $save_action ) {
 			// First save without chapters - redirect to add chapter page
+			Fanfic_Flash_Messages::add_message( 'success', __( 'Story saved as draft. Now add your first chapter!', 'fanfiction-manager' ) );
 			$redirect_url = add_query_arg(
 				array(
 					'action'   => 'add-chapter',
@@ -627,13 +632,8 @@ class Fanfic_Story_Handler {
 			);
 		} else {
 			// Normal save - redirect back with success message
-			$redirect_url = add_query_arg(
-				array(
-					'story_id' => $story_id,
-					'updated'  => 'success',
-				),
-				wp_get_referer()
-			);
+			Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated successfully!', 'fanfiction-manager' ) );
+			$redirect_url = wp_get_referer();
 		}
 
 		wp_redirect( $redirect_url );
@@ -673,7 +673,8 @@ class Fanfic_Story_Handler {
 
 		$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
 		if ( $is_blocked && ! current_user_can( 'delete_others_posts' ) ) {
-			$redirect_url = add_query_arg( 'error', fanfic_get_blocked_story_message(), self::get_page_url_with_fallback( 'manage-stories' ) );
+			Fanfic_Flash_Messages::add_message( 'error', fanfic_get_blocked_story_message() );
+			$redirect_url = self::get_page_url_with_fallback( 'manage-stories' );
 			wp_redirect( $redirect_url );
 			exit;
 		}
@@ -695,7 +696,8 @@ class Fanfic_Story_Handler {
 		wp_delete_post( $story_id, true );
 
 		// Redirect to manage stories with success message
-		$redirect_url = add_query_arg( 'story_deleted', 'success', self::get_page_url_with_fallback( 'manage-stories' ) );
+        Fanfic_Flash_Messages::add_message( 'success', __( 'Story deleted successfully.', 'fanfiction-manager' ) );
+		$redirect_url = self::get_page_url_with_fallback( 'manage-stories' );
 		wp_redirect( $redirect_url );
 		exit;
 	}

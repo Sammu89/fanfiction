@@ -544,28 +544,32 @@ class Fanfic_Core {
 			return;
 		}
 
-		// Check for URL parameters
-		$valid_taxonomies = array( 'fanfiction_genre', 'fanfiction_status', 'fanfiction_rating', 'fanfiction_character', 'fanfiction_relationship' );
-		$tax_query = array();
-
-		foreach ( $valid_taxonomies as $taxonomy ) {
-			$param_name = str_replace( 'fanfiction_', '', $taxonomy );
-
-			if ( isset( $_GET[ $param_name ] ) && ! empty( $_GET[ $param_name ] ) ) {
-				$values = explode( ',', sanitize_text_field( wp_unslash( $_GET[ $param_name ] ) ) );
-
-				$tax_query[] = array(
-					'taxonomy' => $taxonomy,
-					'field'    => 'slug',
-					'terms'    => array_map( 'trim', $values ),
-				);
-			}
+		$params = function_exists( 'fanfic_get_browse_params' ) ? fanfic_get_browse_params() : array();
+		$paged = (int) $query->get( 'paged' );
+		$paged = $paged > 0 ? $paged : max( 1, (int) get_query_var( 'paged' ) );
+		$per_page = (int) $query->get( 'posts_per_page' );
+		if ( $per_page <= 0 ) {
+			$per_page = (int) get_option( 'posts_per_page', 10 );
 		}
 
-		// If URL filters exist, apply them to the query
-		if ( ! empty( $tax_query ) ) {
-			$tax_query['relation'] = 'AND'; // All filters must match
-			$query->set( 'tax_query', $tax_query );
+		if ( function_exists( 'fanfic_build_browse_query_args' ) ) {
+			$args = fanfic_build_browse_query_args( $params, $paged, $per_page );
+
+			// Preserve existing tax query (taxonomy archives) and merge with URL filters
+			$existing_tax_query = (array) $query->get( 'tax_query', array() );
+			if ( ! empty( $args['tax_query'] ) ) {
+				$merged_tax_query = array_merge( $existing_tax_query, $args['tax_query'] );
+				$merged_tax_query['relation'] = 'AND';
+				$query->set( 'tax_query', $merged_tax_query );
+			} elseif ( ! empty( $existing_tax_query ) ) {
+				$query->set( 'tax_query', $existing_tax_query );
+			}
+
+			unset( $args['tax_query'] );
+
+			foreach ( $args as $key => $value ) {
+				$query->set( $key, $value );
+			}
 		}
 	}
 
@@ -975,6 +979,31 @@ class Fanfic_Core {
 						'rateLimited'       => __( 'Too many requests. Please wait a moment.', 'fanfiction-manager' ),
 						'loginRequired'     => __( 'You must be logged in to do that.', 'fanfiction-manager' ),
 					),
+				)
+			);
+		}
+
+		// Browse/search enhancements (Phase 5)
+		$browse_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-browse.js';
+		$is_browse_context = is_post_type_archive( 'fanfiction_story' ) ||
+			'search' === get_query_var( 'fanfic_page' );
+
+		if ( $is_browse_context && file_exists( $browse_js_file ) ) {
+			wp_enqueue_script(
+				'fanfiction-browse',
+				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-browse.js',
+				array( 'jquery' ),
+				FANFIC_VERSION,
+				true
+			);
+
+			wp_localize_script(
+				'fanfiction-browse',
+				'fanficBrowse',
+				array(
+					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'action'  => 'fanfic_search',
+					'nonce'   => wp_create_nonce( 'fanfic_search' ),
 				)
 			);
 		}

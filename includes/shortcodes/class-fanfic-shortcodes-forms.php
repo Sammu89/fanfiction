@@ -53,6 +53,45 @@ class Fanfic_Shortcodes_Forms {
 	 * @param array $atts Shortcode attributes.
 	 * @return string Login form HTML.
 	 */
+	/**
+	 * Renders flash messages from the session.
+	 *
+	 * @since 1.0.0
+	 * @return string HTML for the messages.
+	 */
+	private static function render_flash_messages() {
+		$messages = Fanfic_Flash_Messages::get_messages();
+		if ( empty( $messages ) ) {
+			return '';
+		}
+
+		$output = '<div class="fanfic-messages-container" role="region" aria-label="' . esc_attr__( 'System Messages', 'fanfiction-manager' ) . '" aria-live="polite">';
+		foreach ( $messages as $msg ) {
+			$type = esc_attr( $msg['type'] );
+			$message = esc_html( $msg['message'] );
+			$icon = ( 'success' === $type ) ? '&#10003;' : '&#10007;'; // Simplified
+			$role = ( 'error' === $type ) ? 'alert' : 'status';
+
+			$output .= "<div class='fanfic-message fanfic-message-{$type}' role='{$role}'>
+							<span class='fanfic-message-icon' aria-hidden='true'>{$icon}</span>
+							<span class='fanfic-message-content'>{$message}</span>
+							<button class='fanfic-message-close' aria-label='" . esc_attr__( 'Dismiss message', 'fanfiction-manager' ) . "'>&times;</button>
+						  </div>";
+		}
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Login form shortcode
+	 *
+	 * [fanfic-login-form]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Login form HTML.
+	 */
 	public static function login_form( $atts ) {
 		// If user is already logged in, show message
 		if ( is_user_logged_in() ) {
@@ -72,24 +111,10 @@ class Fanfic_Shortcodes_Forms {
 		// Get redirect URL
 		$redirect_to = ! empty( $atts['redirect'] ) ? $atts['redirect'] : home_url();
 
-		// Check for error/success messages
-		$message = '';
-		if ( isset( $_GET['login'] ) ) {
-			if ( 'failed' === $_GET['login'] ) {
-				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
-					esc_html__( 'Login failed. Please check your username and password.', 'fanfiction-manager' ) .
-					'</div>';
-			} elseif ( 'empty' === $_GET['login'] ) {
-				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
-					esc_html__( 'Please enter your username and password.', 'fanfiction-manager' ) .
-					'</div>';
-			}
-		}
-
 		ob_start();
 		?>
 		<div class="fanfic-login-form-wrapper">
-			<?php echo $message; ?>
+			<?php echo self::render_flash_messages(); ?>
 			<form class="fanfic-login-form" method="post" action="" novalidate>
 				<?php wp_nonce_field( 'fanfic_login_action', 'fanfic_login_nonce' ); ?>
 
@@ -176,16 +201,6 @@ class Fanfic_Shortcodes_Forms {
 				'</div>';
 		}
 
-		// Check for error/success messages
-		$message = '';
-		if ( isset( $_GET['register'] ) ) {
-			if ( 'success' === $_GET['register'] ) {
-				$message = '<div class="fanfic-info-box fanfic-success" role="alert">' .
-					esc_html__( 'Registration successful! You can now log in.', 'fanfiction-manager' ) .
-					'</div>';
-			}
-		}
-
 		// Get validation errors from transient
 		$errors = array();
 		$errors = get_transient( 'fanfic_register_errors' );
@@ -197,7 +212,7 @@ class Fanfic_Shortcodes_Forms {
 		ob_start();
 		?>
 		<div class="fanfic-register-form-wrapper">
-			<?php echo $message; ?>
+			<?php echo self::render_flash_messages(); ?>
 
 			<?php if ( ! empty( $errors ) ) : ?>
 				<div class="fanfic-info-box fanfic-error" role="alert">
@@ -338,28 +353,10 @@ class Fanfic_Shortcodes_Forms {
 				'</div>';
 		}
 
-		// Check for error/success messages
-		$message = '';
-		if ( isset( $_GET['password-reset'] ) ) {
-			if ( 'sent' === $_GET['password-reset'] ) {
-				$message = '<div class="fanfic-info-box fanfic-success" role="alert">' .
-					esc_html__( 'Password reset instructions have been sent to your email address.', 'fanfiction-manager' ) .
-					'</div>';
-			} elseif ( 'invalid' === $_GET['password-reset'] ) {
-				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
-					esc_html__( 'Invalid email address.', 'fanfiction-manager' ) .
-					'</div>';
-			} elseif ( 'empty' === $_GET['password-reset'] ) {
-				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
-					esc_html__( 'Please enter your email address.', 'fanfiction-manager' ) .
-					'</div>';
-			}
-		}
-
 		ob_start();
 		?>
 		<div class="fanfic-password-reset-form-wrapper">
-			<?php echo $message; ?>
+			<?php echo self::render_flash_messages(); ?>
 			<form class="fanfic-password-reset-form" method="post" action="" novalidate>
 				<?php wp_nonce_field( 'fanfic_password_reset_action', 'fanfic_password_reset_nonce' ); ?>
 
@@ -530,7 +527,8 @@ class Fanfic_Shortcodes_Forms {
 
 		// Validate
 		if ( empty( $username ) || empty( $password ) ) {
-			wp_redirect( add_query_arg( 'login', 'empty', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'error', __( 'Please enter your username and password.', 'fanfiction-manager' ) );
+			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
@@ -544,7 +542,8 @@ class Fanfic_Shortcodes_Forms {
 		$user = wp_signon( $credentials, is_ssl() );
 
 		if ( is_wp_error( $user ) ) {
-			wp_redirect( add_query_arg( 'login', 'failed', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'error', __( 'Login failed. Please check your username and password.', 'fanfiction-manager' ) );
+			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
@@ -650,7 +649,8 @@ class Fanfic_Shortcodes_Forms {
 		$user->set_role( 'fanfiction_reader' );
 
 		// Success - redirect to login with success message
-		wp_redirect( add_query_arg( 'register', 'success', wp_get_referer() ) );
+        Fanfic_Flash_Messages::add_message( 'success', __( 'Registration successful! You can now log in.', 'fanfiction-manager' ) );
+		wp_redirect( wp_get_referer() );
 		exit;
 	}
 
@@ -675,12 +675,14 @@ class Fanfic_Shortcodes_Forms {
 
 		// Validate
 		if ( empty( $email ) ) {
-			wp_redirect( add_query_arg( 'password-reset', 'empty', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'error', __( 'Please enter your email address.', 'fanfiction-manager' ) );
+			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
 		if ( ! is_email( $email ) ) {
-			wp_redirect( add_query_arg( 'password-reset', 'invalid', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'error', __( 'Invalid email address.', 'fanfiction-manager' ) );
+			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
@@ -688,8 +690,9 @@ class Fanfic_Shortcodes_Forms {
 		$user = get_user_by( 'email', $email );
 
 		if ( ! $user ) {
-			// For security, don't reveal if email exists or not
-			wp_redirect( add_query_arg( 'password-reset', 'sent', wp_get_referer() ) );
+			// For security, don't reveal if email exists or not, but still show a success message.
+			Fanfic_Flash_Messages::add_message( 'success', __( 'Password reset instructions have been sent to your email address.', 'fanfiction-manager' ) );
+			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
@@ -697,12 +700,14 @@ class Fanfic_Shortcodes_Forms {
 		$result = retrieve_password( $user->user_login );
 
 		if ( is_wp_error( $result ) ) {
-			wp_redirect( add_query_arg( 'password-reset', 'invalid', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'error', $result->get_error_message() );
+			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
 		// Success
-		wp_redirect( add_query_arg( 'password-reset', 'sent', wp_get_referer() ) );
+		Fanfic_Flash_Messages::add_message( 'success', __( 'Password reset instructions have been sent to your email address.', 'fanfiction-manager' ) );
+		wp_redirect( wp_get_referer() );
 		exit;
 	}
 
@@ -799,27 +804,6 @@ class Fanfic_Shortcodes_Forms {
 		}
 
 		// Check for success/error messages
-		$message = '';
-		if ( isset( $_GET['report'] ) ) {
-			if ( 'success' === $_GET['report'] ) {
-				$message = '<div class="fanfic-info-box fanfic-success" role="alert">' .
-					esc_html__( 'Thank you for your report. Our moderation team will review it shortly.', 'fanfiction-manager' ) .
-					'</div>';
-			} elseif ( 'duplicate' === $_GET['report'] ) {
-				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
-					esc_html__( 'You have already reported this content.', 'fanfiction-manager' ) .
-					'</div>';
-			} elseif ( 'recaptcha_failed' === $_GET['report'] ) {
-				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
-					esc_html__( 'reCAPTCHA verification failed. Please try again.', 'fanfiction-manager' ) .
-					'</div>';
-			} elseif ( 'error' === $_GET['report'] ) {
-				$message = '<div class="fanfic-info-box fanfic-error" role="alert">' .
-					esc_html__( 'Failed to submit report. Please try again.', 'fanfiction-manager' ) .
-					'</div>';
-			}
-		}
-
 		// Get validation errors from transient
 		$errors = get_transient( 'fanfic_report_errors_' . get_current_user_id() );
 		if ( ! is_array( $errors ) ) {
@@ -853,7 +837,7 @@ class Fanfic_Shortcodes_Forms {
 		ob_start();
 		?>
 		<div class="fanfic-report-form-wrapper">
-			<?php echo $message; ?>
+			<?php echo self::render_flash_messages(); ?>
 
 			<?php if ( ! empty( $errors ) ) : ?>
 				<div class="fanfic-info-box fanfic-error" role="alert">
@@ -1070,7 +1054,8 @@ class Fanfic_Shortcodes_Forms {
 				} else {
 					$response_body = json_decode( wp_remote_retrieve_body( $response ), true );
 					if ( empty( $response_body['success'] ) ) {
-						wp_redirect( add_query_arg( 'report', 'recaptcha_failed', wp_get_referer() ) );
+						Fanfic_Flash_Messages::add_message( 'error', __( 'reCAPTCHA verification failed. Please try again.', 'fanfiction-manager' ) );
+						wp_redirect( wp_get_referer() );
 						exit;
 					}
 				}
@@ -1126,7 +1111,8 @@ class Fanfic_Shortcodes_Forms {
 		}
 
 		if ( $duplicate ) {
-			wp_redirect( add_query_arg( 'report', 'duplicate', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'error', __( 'You have already reported this content.', 'fanfiction-manager' ) );
+			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
@@ -1154,7 +1140,8 @@ class Fanfic_Shortcodes_Forms {
 		);
 
 		if ( false === $inserted ) {
-			wp_redirect( add_query_arg( 'report', 'error', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'error', __( 'Failed to submit report. Please try again.', 'fanfiction-manager' ) );
+			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
@@ -1162,7 +1149,8 @@ class Fanfic_Shortcodes_Forms {
 		self::send_report_notification( $content_id, $content_type, $reason, $details, $reporter_id );
 
 		// Success - redirect with success message
-		wp_redirect( add_query_arg( 'report', 'success', wp_get_referer() ) );
+		Fanfic_Flash_Messages::add_message( 'success', __( 'Thank you for your report. Our moderation team will review it shortly.', 'fanfiction-manager' ) );
+		wp_redirect( wp_get_referer() );
 		exit;
 	}
 

@@ -309,6 +309,57 @@ class Fanfic_Fandoms {
 	}
 
 	/**
+	 * Get story IDs by fandom slugs.
+	 *
+	 * @since 1.2.0
+	 * @param string[] $slugs Fandom slugs.
+	 * @return int[] Story IDs.
+	 */
+	public static function get_story_ids_by_fandom_slugs( $slugs ) {
+		if ( ! self::tables_ready() ) {
+			return array();
+		}
+
+		$slugs = array_values( array_unique( array_map( 'sanitize_title', (array) $slugs ) ) );
+		if ( empty( $slugs ) ) {
+			return array();
+		}
+
+		$cache_key = '';
+		if ( class_exists( 'Fanfic_Cache' ) ) {
+			$cache_key = Fanfic_Cache::get_key( 'search', 'fandoms_' . md5( wp_json_encode( $slugs ) ) );
+			$cached = Fanfic_Cache::get( $cache_key, null, Fanfic_Cache::SHORT );
+			if ( false !== $cached ) {
+				return array_map( 'absint', (array) $cached );
+			}
+		}
+
+		global $wpdb;
+		$fandoms_table = self::get_fandoms_table();
+		$relations_table = self::get_story_fandoms_table();
+		$placeholders = implode( ',', array_fill( 0, count( $slugs ), '%s' ) );
+
+		$results = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT sf.story_id
+				FROM {$relations_table} sf
+				INNER JOIN {$fandoms_table} f ON f.id = sf.fandom_id
+				WHERE f.is_active = 1
+				  AND f.slug IN ({$placeholders})",
+				$slugs
+			)
+		);
+
+		$results = array_map( 'absint', (array) $results );
+
+		if ( ! empty( $cache_key ) ) {
+			Fanfic_Cache::set( $cache_key, $results, Fanfic_Cache::SHORT );
+		}
+
+		return $results;
+	}
+
+	/**
 	 * Save story fandom relations and original flag
 	 *
 	 * @since 1.0.0

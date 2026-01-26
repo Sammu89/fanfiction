@@ -1358,15 +1358,13 @@ class Fanfic_Shortcodes_User {
 			) );
 
 			// Redirect with success message
-			wp_safe_redirect( add_query_arg( 'fanfic_action', 'user_banned', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'success', __( 'User banned successfully.', 'fanfiction-manager' ) );
+			wp_safe_redirect( wp_get_referer() );
 			exit;
 		}
 
-		// Display success message if redirected back
-		$output = '';
-		if ( isset( $_GET['fanfic_action'] ) && 'user_banned' === $_GET['fanfic_action'] ) {
-			$output .= '<div class="fanfic-notice fanfic-notice-success"><p>' . esc_html__( 'User banned successfully.', 'fanfiction-manager' ) . '</p></div>';
-		}
+		// Display flash messages
+		$output = self::render_flash_messages();
 
 		// Display form
 		ob_start();
@@ -1447,15 +1445,13 @@ class Fanfic_Shortcodes_User {
 			) );
 
 			// Redirect with success message
-			wp_safe_redirect( add_query_arg( 'fanfic_action', 'user_promoted', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'success', __( 'User promoted to moderator successfully.', 'fanfiction-manager' ) );
+			wp_safe_redirect( wp_get_referer() );
 			exit;
 		}
 
-		// Display success message if redirected back
-		$output = '';
-		if ( isset( $_GET['fanfic_action'] ) && 'user_promoted' === $_GET['fanfic_action'] ) {
-			$output .= '<div class="fanfic-notice fanfic-notice-success"><p>' . esc_html__( 'User promoted to moderator successfully.', 'fanfiction-manager' ) . '</p></div>';
-		}
+		// Display flash messages
+		$output = self::render_flash_messages();
 
 		// Display form
 		ob_start();
@@ -1541,15 +1537,13 @@ class Fanfic_Shortcodes_User {
 			) );
 
 			// Redirect with success message
-			wp_safe_redirect( add_query_arg( 'fanfic_action', 'user_demoted', wp_get_referer() ) );
+			Fanfic_Flash_Messages::add_message( 'success', __( 'User demoted to author successfully.', 'fanfiction-manager' ) );
+			wp_safe_redirect( wp_get_referer() );
 			exit;
 		}
 
-		// Display success message if redirected back
-		$output = '';
-		if ( isset( $_GET['fanfic_action'] ) && 'user_demoted' === $_GET['fanfic_action'] ) {
-			$output .= '<div class="fanfic-notice fanfic-notice-success"><p>' . esc_html__( 'User demoted to author successfully.', 'fanfiction-manager' ) . '</p></div>';
-		}
+		// Display flash messages
+		$output = self::render_flash_messages();
 
 		// Display form
 		ob_start();

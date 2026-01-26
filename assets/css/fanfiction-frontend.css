@@ -3666,6 +3666,67 @@ a.fanfic-button {
 	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
 }
 
+.fanfic-browse-form {
+	margin: 0 0 25px 0;
+	padding: 20px;
+	background: #fff;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.fanfic-browse-row {
+	margin-bottom: 16px;
+}
+
+.fanfic-browse-row label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 6px;
+}
+
+.fanfic-browse-columns {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 16px;
+}
+
+.fanfic-browse-form input[type="text"],
+.fanfic-browse-form select {
+	width: 100%;
+	padding: 8px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 6px;
+}
+
+.fanfic-browse-warning-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 14px;
+}
+
+.fanfic-browse-warning-list label {
+	font-weight: 500;
+}
+
+.fanfic-browse-actions {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.fanfic-browse-loading {
+	display: none;
+	text-align: center;
+	padding: 15px 0;
+	font-weight: 600;
+}
+
+.fanfic-browse-loading.is-active {
+	display: block;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
 	.fanfic-story,

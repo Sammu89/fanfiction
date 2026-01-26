@@ -203,8 +203,8 @@ class Fanfic_Profile_Handler {
 			);
 		} else {
 			// Regular form submission - redirect
-			$redirect_url = add_query_arg( 'updated', 'success', wp_get_referer() ? wp_get_referer() : home_url() );
-			error_log( 'Regular submission - Redirecting to: ' . $redirect_url );
+            Fanfic_Flash_Messages::add_message( 'success', __( 'Profile updated successfully!', 'fanfiction-manager' ) );
+			$redirect_url = wp_get_referer() ? wp_get_referer() : home_url();
 			wp_safe_redirect( $redirect_url );
 			exit;
 		}

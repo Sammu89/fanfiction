@@ -369,7 +369,20 @@ class Fanfic_Search_Index {
 		$table = $wpdb->prefix . 'fanfic_story_search_index';
 
 		// Sanitize keyword for FULLTEXT search
-		$keyword = sanitize_text_field( $keyword );
+		$keyword = trim( sanitize_text_field( $keyword ) );
+		if ( '' === $keyword ) {
+			return array();
+		}
+
+		$limit = max( 1, absint( $limit ) );
+		$cache_key = '';
+		if ( class_exists( 'Fanfic_Cache' ) ) {
+			$cache_key = Fanfic_Cache::get_key( 'search', 'index_' . md5( $keyword . '|' . $limit ) );
+			$cached = Fanfic_Cache::get( $cache_key, null, Fanfic_Cache::SHORT );
+			if ( false !== $cached ) {
+				return array_map( 'intval', (array) $cached );
+			}
+		}
 
 		// Use FULLTEXT search with MATCH...AGAINST
 		$results = $wpdb->get_col(
@@ -377,13 +390,21 @@ class Fanfic_Search_Index {
 				"SELECT story_id
 				FROM {$table}
 				WHERE MATCH(indexed_text) AGAINST(%s IN NATURAL LANGUAGE MODE)
+				ORDER BY MATCH(indexed_text) AGAINST(%s IN NATURAL LANGUAGE MODE) DESC
 				LIMIT %d",
+				$keyword,
 				$keyword,
 				$limit
 			)
 		);
 
-		return is_array( $results ) ? array_map( 'intval', $results ) : array();
+		$results = is_array( $results ) ? array_map( 'intval', $results ) : array();
+
+		if ( ! empty( $cache_key ) ) {
+			Fanfic_Cache::set( $cache_key, $results, Fanfic_Cache::SHORT );
+		}
+
+		return $results;
 	}
 
 	/**
