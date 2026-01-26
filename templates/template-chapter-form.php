@@ -527,13 +527,14 @@ if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'You must be logged in to manage chapters.', 'fanfiction-manager' ); ?></p>
-		<p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content">
+			<?php esc_html_e( 'You must be logged in to manage chapters.', 'fanfiction-manager' ); ?>
 			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
-		</p>
+		</span>
 	</div>
 	<?php
 	return;
@@ -555,8 +556,9 @@ if ( $is_edit_mode ) {
 
 	if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
 		?>
-		<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-			<p><?php esc_html_e( 'Chapter not found.', 'fanfiction-manager' ); ?></p>
+		<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+			<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+			<span class="fanfic-message-content"><?php esc_html_e( 'Chapter not found.', 'fanfiction-manager' ); ?></span>
 		</div>
 		<?php
 		return;
@@ -571,8 +573,9 @@ if ( $is_edit_mode ) {
 } else {
 	// Invalid context
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'Invalid context for chapter form.', 'fanfiction-manager' ); ?></p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Invalid context for chapter form.', 'fanfiction-manager' ); ?></span>
 	</div>
 	<?php
 	return;
@@ -581,8 +584,9 @@ if ( $is_edit_mode ) {
 // Validate story exists
 if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'Story not found.', 'fanfiction-manager' ); ?></p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Story not found.', 'fanfiction-manager' ); ?></span>
 	</div>
 	<?php
 	return;
@@ -591,13 +595,14 @@ if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
 // Check permissions
 if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'You do not have permission to manage chapters for this story.', 'fanfiction-manager' ); ?></p>
-		<p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content">
+			<?php esc_html_e( 'You do not have permission to manage chapters for this story.', 'fanfiction-manager' ); ?>
 			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
 			</a>
-		</p>
+		</span>
 	</div>
 	<?php
 	return;
@@ -626,21 +631,24 @@ if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can
 
 	$reason_message = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : __( 'This story has been blocked by a moderator.', 'fanfiction-manager' );
 	?>
-	<div class="fanfic-error-notice fanfic-blocked-notice" role="alert" aria-live="assertive">
-		<h3><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></h3>
-		<p><?php echo esc_html( $reason_message ); ?></p>
-		<p class="fanfic-block-info">
-			<?php esc_html_e( 'You cannot add or edit chapters while the story is blocked.', 'fanfiction-manager' ); ?>
-			<?php esc_html_e( 'If you believe this was done in error, please contact site administration.', 'fanfiction-manager' ); ?>
-		</p>
-		<p>
-			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
-				<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
-			</a>
-			<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
-				<?php esc_html_e( 'View Story', 'fanfiction-manager' ); ?>
-			</a>
-		</p>
+	<div class="fanfic-message fanfic-message-error fanfic-blocked-notice" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+		<span class="fanfic-message-content">
+			<strong><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></strong><br>
+			<?php echo esc_html( $reason_message ); ?><br>
+			<span class="fanfic-block-info">
+				<?php esc_html_e( 'You cannot add or edit chapters while the story is blocked.', 'fanfiction-manager' ); ?>
+				<?php esc_html_e( 'If you believe this was done in error, please contact site administration.', 'fanfiction-manager' ); ?>
+			</span>
+			<span class="fanfic-message-actions">
+				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
+					<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+				</a>
+				<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
+					<?php esc_html_e( 'View Story', 'fanfiction-manager' ); ?>
+				</a>
+			</span>
+		</span>
 	</div>
 	<?php
 	return;
@@ -972,11 +980,11 @@ do_action( 'fanfic_chapter_form_messages', $story_id, $chapter_id, $is_edit_mode
 				</div>
 
 				<!-- Info Box -->
-				<div class="fanfic-info-box box-info" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
-					<span class="dashicons dashicons-info" aria-hidden="true"></span>
-					<p>
+				<div class="fanfic-message fanfic-message-info" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
+					<span class="fanfic-message-icon" aria-hidden="true">&#8505;</span>
+					<span class="fanfic-message-content">
 						<?php esc_html_e( 'Chapter content supports plain text, bold, italic, and line breaks. No links or HTML allowed.', 'fanfiction-manager' ); ?>
-					</p>
+					</span>
 				</div>
 			</div>
 
@@ -1071,13 +1079,17 @@ do_action( 'fanfic_chapter_form_messages', $story_id, $chapter_id, $is_edit_mode
 		document.addEventListener('DOMContentLoaded', function() {
 			console.log('DOMContentLoaded fired in chapter form');
 
-			// Close button functionality for notices
-			var closeButtons = document.querySelectorAll('.fanfic-notice-close');
+			// Close button functionality for messages
+			var closeButtons = document.querySelectorAll('.fanfic-message-close');
 			closeButtons.forEach(function(button) {
 				button.addEventListener('click', function() {
-					var notice = this.closest('.fanfic-info-box box-success, .fanfic-error-notice');
-					if (notice) {
-						notice.style.display = 'none';
+					var message = this.closest('.fanfic-message');
+					if (message) {
+						message.style.opacity = '0';
+						message.style.transform = 'translateY(-10px)';
+						setTimeout(function() {
+							message.remove();
+						}, 300);
 					}
 				});
 			});
@@ -1363,30 +1375,32 @@ do_action( 'fanfic_chapter_form_messages', $story_id, $chapter_id, $is_edit_mode
 			})
 			.then(function(data) {
 				if (data.success) {
-					// Update succeeded - show success message and update original values
-					var successNotice = document.createElement('div');
-					successNotice.className = '.fanfic-info-box box-success';
-					successNotice.setAttribute('role', 'status');
-					successNotice.setAttribute('aria-live', 'polite');
-					successNotice.innerHTML = '<p>' + data.data.message + '</p><button class="fanfic-notice-close" aria-label="Close notice">&times;</button>';
+					// Update succeeded - show success message using unified message system
+					if (window.FanficMessages) {
+						window.FanficMessages.success(data.data.message);
+					} else {
+						// Fallback if FanficMessages not available
+						var successNotice = document.createElement('div');
+						successNotice.className = 'fanfic-message fanfic-message-success';
+						successNotice.setAttribute('role', 'status');
+						successNotice.setAttribute('aria-live', 'polite');
+						successNotice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">&#10003;</span><span class="fanfic-message-content">' + data.data.message + '</span><button class="fanfic-message-close" aria-label="Close message">&times;</button>';
 
-					// Insert notice at top of form
-					var formSection = document.querySelector('.fanfic-form-section');
-					if (formSection) {
-						formSection.insertBefore(successNotice, formSection.firstChild);
-
-						// Add close button handler
-						var closeBtn = successNotice.querySelector('.fanfic-notice-close');
-						if (closeBtn) {
-							closeBtn.addEventListener('click', function() {
-								successNotice.style.display = 'none';
-							});
+						var container = document.getElementById('fanfic-messages');
+						if (container) {
+							container.appendChild(successNotice);
+							var closeBtn = successNotice.querySelector('.fanfic-message-close');
+							if (closeBtn) {
+								closeBtn.addEventListener('click', function() {
+									successNotice.style.opacity = '0';
+									setTimeout(function() { successNotice.remove(); }, 300);
+								});
+							}
+							setTimeout(function() {
+								successNotice.style.opacity = '0';
+								setTimeout(function() { successNotice.remove(); }, 300);
+							}, 5000);
 						}
-
-						// Auto-hide after 5 seconds
-						setTimeout(function() {
-							successNotice.style.display = 'none';
-						}, 5000);
 					}
 
 					// Update original values to match current values
@@ -1399,34 +1413,34 @@ do_action( 'fanfic_chapter_form_messages', $story_id, $chapter_id, $is_edit_mode
 					button.textContent = originalText;
 					button.disabled = true;
 				} else {
-					// Update failed - show error message
-					var errorNotice = document.createElement('div');
-					errorNotice.className = 'fanfic-error-notice';
-					errorNotice.setAttribute('role', 'alert');
-					errorNotice.setAttribute('aria-live', 'assertive');
-
-					var errorHtml = '<ul>';
+					// Update failed - show error message using unified message system
+					var errorMessage = '';
 					if (data.data && data.data.errors) {
-						data.data.errors.forEach(function(error) {
-							errorHtml += '<li>' + error + '</li>';
-						});
+						errorMessage = data.data.errors.join(', ');
 					} else {
-						errorHtml += '<li>' + (data.data.message || '<?php echo esc_js( __( 'Failed to update chapter.', 'fanfiction-manager' ) ); ?>') + '</li>';
+						errorMessage = data.data.message || '<?php echo esc_js( __( 'Failed to update chapter.', 'fanfiction-manager' ) ); ?>';
 					}
-					errorHtml += '</ul><button class="fanfic-notice-close" aria-label="Close notice">&times;</button>';
-					errorNotice.innerHTML = errorHtml;
 
-					// Insert notice at top of form
-					var formSection = document.querySelector('.fanfic-form-section');
-					if (formSection) {
-						formSection.insertBefore(errorNotice, formSection.firstChild);
+					if (window.FanficMessages) {
+						window.FanficMessages.error(errorMessage, { autoDismiss: false });
+					} else {
+						// Fallback if FanficMessages not available
+						var errorNotice = document.createElement('div');
+						errorNotice.className = 'fanfic-message fanfic-message-error';
+						errorNotice.setAttribute('role', 'alert');
+						errorNotice.setAttribute('aria-live', 'assertive');
+						errorNotice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span><span class="fanfic-message-content">' + errorMessage + '</span><button class="fanfic-message-close" aria-label="Close message">&times;</button>';
 
-						// Add close button handler
-						var closeBtn = errorNotice.querySelector('.fanfic-notice-close');
-						if (closeBtn) {
-							closeBtn.addEventListener('click', function() {
-								errorNotice.style.display = 'none';
-							});
+						var container = document.getElementById('fanfic-messages');
+						if (container) {
+							container.appendChild(errorNotice);
+							var closeBtn = errorNotice.querySelector('.fanfic-message-close');
+							if (closeBtn) {
+								closeBtn.addEventListener('click', function() {
+									errorNotice.style.opacity = '0';
+									setTimeout(function() { errorNotice.remove(); }, 300);
+								});
+							}
 						}
 					}
 
@@ -1582,13 +1596,17 @@ do_action( 'fanfic_chapter_form_messages', $story_id, $chapter_id, $is_edit_mode
 			// to prevent race condition where TinyMCE returns empty content before loading
 		}
 
-		// Close notice buttons
-		var closeButtons = document.querySelectorAll('.fanfic-notice-close');
+		// Close message buttons
+		var closeButtons = document.querySelectorAll('.fanfic-message-close');
 		closeButtons.forEach(function(button) {
 			button.addEventListener('click', function() {
-				var notice = this.closest('.fanfic-info-box box-success, .fanfic-error-notice');
-				if (notice) {
-					notice.style.display = 'none';
+				var message = this.closest('.fanfic-message');
+				if (message) {
+					message.style.opacity = '0';
+					message.style.transform = 'translateY(-10px)';
+					setTimeout(function() {
+						message.remove();
+					}, 300);
 				}
 			});
 		});

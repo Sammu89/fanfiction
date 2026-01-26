@@ -115,15 +115,16 @@ if ( $story_post && 'fanfiction_story' === $story_post->post_type && 'publish' !
 	$status_obj = get_post_status_object( $story_post->post_status );
 	$status_label = $status_obj && ! empty( $status_obj->label ) ? $status_obj->label : $story_post->post_status;
 	?>
-	<div class="fanfic-info-box fanfic-warning fanfic-draft-warning" role="status" aria-live="polite">
-		<p>
+	<div class="fanfic-message fanfic-message-warning fanfic-draft-warning" role="status" aria-live="polite">
+		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+		<span class="fanfic-message-content">
 			<?php
 			printf(
 				esc_html__( 'This story is not visible to the public because its status is %s.', 'fanfiction-manager' ),
 				esc_html( $status_label )
 			);
 			?>
-		</p>
+		</span>
 	</div>
 	<?php
 }

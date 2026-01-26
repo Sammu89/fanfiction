@@ -178,23 +178,18 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 	}
 
 	if ( ! empty( $warning_parts ) ) {
+		$text = sprintf(
+			esc_html__( 'This chapter is not visible to the public because %s.', 'fanfiction-manager' ),
+			esc_html( implode( esc_html__( ' and ', 'fanfiction-manager' ), $warning_parts ) )
+		);
+
+		// Normalize case
+		$text = mb_strtolower( $text, 'UTF-8' );
+		$text = mb_strtoupper( mb_substr( $text, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $text, 1, null, 'UTF-8' );
 		?>
-		<div class="fanfic-info-box fanfic-warning fanfic-draft-warning" role="status" aria-live="polite">
-			<p>
-				<?php
-$text = sprintf(
-	esc_html__( 'This chapter is not visible to the public because %s.', 'fanfiction-manager' ),
-	esc_html( implode( esc_html__( ' and ', 'fanfiction-manager' ), $warning_parts ) )
-);
-
-// Normalize case
-$text = mb_strtolower( $text, 'UTF-8' );
-$text = mb_strtoupper( mb_substr( $text, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $text, 1, null, 'UTF-8' );
-
-echo $text;
-?>
-
-			</p>
+		<div class="fanfic-message fanfic-message-warning fanfic-draft-warning" role="status" aria-live="polite">
+			<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+			<span class="fanfic-message-content"><?php echo $text; ?></span>
 		</div>
 		<?php
 	}

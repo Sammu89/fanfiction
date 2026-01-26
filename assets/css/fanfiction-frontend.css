@@ -5619,3 +5619,111 @@ body.fanfic-member-profile .wp-block-post-title {
 .fanfic-message-entering {
 	animation: fanfic-message-fade-in 0.3s ease forwards;
 }
+
+/* Full page message variant (for error pages, maintenance, etc.) */
+.fanfic-fullpage-message {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	min-height: 300px;
+	padding: 40px 20px;
+}
+
+.fanfic-message-fullpage {
+	max-width: 600px;
+	flex-direction: column;
+	text-align: center;
+	padding: 40px 30px;
+	border-radius: 12px;
+	border-left: none;
+	border-top: 4px solid;
+}
+
+.fanfic-message-fullpage.fanfic-message-error {
+	border-top-color: var(--color-danger, #dc2626);
+}
+
+.fanfic-message-fullpage.fanfic-message-warning {
+	border-top-color: var(--color-warning, #f59e0b);
+}
+
+.fanfic-message-fullpage .fanfic-message-icon {
+	font-size: 48px;
+	margin-bottom: 20px;
+}
+
+.fanfic-message-fullpage .fanfic-message-content {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.fanfic-message-fullpage .fanfic-message-title {
+	display: block;
+	font-size: 24px;
+	margin-bottom: 8px;
+}
+
+.fanfic-message-fullpage .fanfic-message-text {
+	display: block;
+	font-size: 16px;
+	line-height: 1.6;
+}
+
+.fanfic-message-fullpage .fanfic-message-detail {
+	display: block;
+	font-size: 14px;
+	margin-top: 8px;
+}
+
+.fanfic-message-fullpage .fanfic-message-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	justify-content: center;
+	margin-top: 20px;
+}
+
+.fanfic-message-fullpage .fanfic-message-admin-notice {
+	display: block;
+	margin-top: 20px;
+	padding: 12px 16px;
+	background: rgba(245, 158, 11, 0.15);
+	border-radius: 6px;
+	font-size: 13px;
+	text-align: left;
+}
+
+/* Inline message actions (for buttons within messages) */
+.fanfic-message .fanfic-message-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 12px;
+}
+
+.fanfic-message .fanfic-block-info {
+	display: block;
+	margin-top: 8px;
+	font-size: 13px;
+	opacity: 0.9;
+}
+
+/* Empty state placeholder */
+.fanfic-empty-state {
+	padding: 40px 20px;
+	text-align: center;
+	background: var(--color-bg-secondary, #f8f9fa);
+	border-radius: 8px;
+	border: 1px dashed var(--color-border, #ddd);
+}
+
+.fanfic-empty-state p {
+	margin: 0 0 16px 0;
+	color: var(--color-text-secondary, #666);
+	font-size: 15px;
+}
+
+.fanfic-empty-state .fanfic-button {
+	margin-top: 8px;
+}

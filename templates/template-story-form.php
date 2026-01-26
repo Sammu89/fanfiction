@@ -19,13 +19,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'You must be logged in to create or edit stories.', 'fanfiction-manager' ); ?></p>
-		<p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content">
+			<?php esc_html_e( 'You must be logged in to create or edit stories.', 'fanfiction-manager' ); ?>
 			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
-		</p>
+		</span>
 	</div>
 	<?php
 	return;
@@ -47,13 +48,14 @@ if ( $is_edit_mode ) {
 
 	if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
 		?>
-		<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-			<p><?php esc_html_e( 'Story not found.', 'fanfiction-manager' ); ?></p>
-			<p>
+		<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+			<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+			<span class="fanfic-message-content">
+				<?php esc_html_e( 'Story not found.', 'fanfiction-manager' ); ?>
 				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
 					<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
 				</a>
-			</p>
+			</span>
 		</div>
 		<?php
 		return;
@@ -62,13 +64,14 @@ if ( $is_edit_mode ) {
 	// Check if user has permission to edit this story
 	if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 		?>
-		<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-			<p><?php esc_html_e( 'Access Denied: You do not have permission to edit this story.', 'fanfiction-manager' ); ?></p>
-			<p>
+		<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+			<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+			<span class="fanfic-message-content">
+				<?php esc_html_e( 'Access Denied: You do not have permission to edit this story.', 'fanfiction-manager' ); ?>
 				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
 					<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
 				</a>
-			</p>
+			</span>
 		</div>
 		<?php
 		return;
@@ -98,21 +101,24 @@ if ( $is_edit_mode ) {
 
 		$reason_message = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : __( 'This story has been blocked by a moderator.', 'fanfiction-manager' );
 		?>
-		<div class="fanfic-error-notice fanfic-blocked-notice" role="alert" aria-live="assertive">
-			<h3><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></h3>
-			<p><?php echo esc_html( $reason_message ); ?></p>
-			<p class="fanfic-block-info">
-				<?php esc_html_e( 'You can still view your story, but editing and publishing are disabled until the block is lifted.', 'fanfiction-manager' ); ?>
-				<?php esc_html_e( 'If you believe this was done in error, please contact site administration.', 'fanfiction-manager' ); ?>
-			</p>
-			<p>
-				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
-					<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
-				</a>
-				<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
-					<?php esc_html_e( 'View Story', 'fanfiction-manager' ); ?>
-				</a>
-			</p>
+		<div class="fanfic-message fanfic-message-error fanfic-blocked-notice" role="alert" aria-live="assertive">
+			<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+			<span class="fanfic-message-content">
+				<strong><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></strong><br>
+				<?php echo esc_html( $reason_message ); ?><br>
+				<span class="fanfic-block-info">
+					<?php esc_html_e( 'You can still view your story, but editing and publishing are disabled until the block is lifted.', 'fanfiction-manager' ); ?>
+					<?php esc_html_e( 'If you believe this was done in error, please contact site administration.', 'fanfiction-manager' ); ?>
+				</span>
+				<span class="fanfic-message-actions">
+					<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
+						<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+					</a>
+					<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
+						<?php esc_html_e( 'View Story', 'fanfiction-manager' ); ?>
+					</a>
+				</span>
+			</span>
 		</div>
 		<?php
 		return;
@@ -123,8 +129,9 @@ if ( $is_edit_mode ) {
 	// Create mode - check if user has capability to create stories
 	if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 		?>
-		<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-			<p><?php esc_html_e( 'Access Denied: You do not have permission to create stories.', 'fanfiction-manager' ); ?></p>
+		<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+			<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+			<span class="fanfic-message-content"><?php esc_html_e( 'Access Denied: You do not have permission to create stories.', 'fanfiction-manager' ); ?></span>
 		</div>
 		<?php
 		return;
@@ -279,11 +286,11 @@ if ( $is_edit_mode ) {
 			<h2 id="form-heading" class="screen-reader-text"><?php echo $is_edit_mode ? esc_html__( 'Story Edit Form', 'fanfiction-manager' ) : esc_html__( 'Story Creation Form', 'fanfiction-manager' ); ?></h2>
 
 			<!-- Info Box -->
-			<div class="fanfic-info-box" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
-				<span class="dashicons dashicons-info" aria-hidden="true"></span>
-				<p>
+			<div class="fanfic-message fanfic-message-info" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
+				<span class="fanfic-message-icon" aria-hidden="true">&#8505;</span>
+				<span class="fanfic-message-content">
 					<?php echo $is_edit_mode ? esc_html__( 'Your story must have an introduction, at least one chapter, a genre, and a status to be published.', 'fanfiction-manager' ) : esc_html__( 'All fields marked with an asterisk (*) are required. Your story will be saved as a draft until you add at least one chapter.', 'fanfiction-manager' ); ?>
-				</p>
+				</span>
 			</div>
 
 			<!-- Story Form -->
@@ -934,17 +941,21 @@ fanfic_render_breadcrumb( 'edit-story', array(
 ) );
 ?>
 
-<!-- Inline Script for Notice Dismissal and Delete Confirmation -->
+<!-- Inline Script for Message Dismissal and Delete Confirmation -->
 <script>
 (function() {
-	// Close button functionality for notices
+	// Close button functionality for messages
 	document.addEventListener('DOMContentLoaded', function() {
-		var closeButtons = document.querySelectorAll('.fanfic-notice-close');
+		var closeButtons = document.querySelectorAll('.fanfic-message-close');
 		closeButtons.forEach(function(button) {
 			button.addEventListener('click', function() {
-				var notice = this.closest('.fanfic-info-box box-success, .fanfic-error-notice');
-				if (notice) {
-					notice.style.display = 'none';
+				var message = this.closest('.fanfic-message');
+				if (message) {
+					message.style.opacity = '0';
+					message.style.transform = 'translateY(-10px)';
+					setTimeout(function() {
+						message.remove();
+					}, 300);
 				}
 			});
 		});
