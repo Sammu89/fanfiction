@@ -22,13 +22,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'You must be logged in to view this page.', 'fanfiction-manager' ); ?></p>
-		<p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content">
+			<?php esc_html_e( 'You must be logged in to view this page.', 'fanfiction-manager' ); ?>
 			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
-		</p>
+		</span>
 	</div>
 	<?php
 	return;
@@ -37,8 +38,9 @@ if ( ! is_user_logged_in() ) {
 // Check if user has author capability
 if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php esc_html_e( 'Access Denied: You do not have permission to view the author dashboard.', 'fanfiction-manager' ); ?></p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Access Denied: You do not have permission to view the author dashboard.', 'fanfiction-manager' ); ?></span>
 	</div>
 	<?php
 	return;

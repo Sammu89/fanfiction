@@ -14,9 +14,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! is_user_logged_in() ) {
 	?>
-	<div class="fanfic-error-notice" role="alert">
-		<p>Please log in to edit your profile.</p>
-		<p><a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">Login</a></p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content">
+			<?php esc_html_e( 'Please log in to edit your profile.', 'fanfiction-manager' ); ?>
+			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary"><?php esc_html_e( 'Login', 'fanfiction-manager' ); ?></a>
+		</span>
 	</div>
 	<?php
 	return;

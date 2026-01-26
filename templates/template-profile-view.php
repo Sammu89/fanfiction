@@ -81,8 +81,9 @@ $user = get_user_by( 'login', $member_name );
 
 if ( ! $user ) {
 	?>
-	<div class="fanfic-error-notice" role="alert">
-		<p><?php esc_html_e( 'User not found.', 'fanfiction-manager' ); ?></p>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'User not found.', 'fanfiction-manager' ); ?></span>
 	</div>
 	<?php
 	return;
