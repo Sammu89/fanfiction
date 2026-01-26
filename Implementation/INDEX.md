@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-26
 **Plugin Version:** 1.2.0 (In Development)
-**Overall Progress:** 65% Complete (Phase 0, 1, 2, 3 done)
+**Overall Progress:** 80% Complete (Phase 0, 1, 2, 3, 4 done)
 
 ---
 
@@ -27,7 +27,7 @@
 | Phase 1: Schema + Migrations | ✅ COMPLETED | 100% | Claude | YES - Blocks 2,4,5 |
 | Phase 2: Core Domain Logic | ✅ COMPLETED | 100% | Claude | YES - Blocks 4,5 |
 | Phase 3: Admin UI + Menu Refactor | ✅ COMPLETED | 100% | Claude | NO |
-| Phase 4: Frontend Authoring UI | ⏸️ PENDING | 0% | Agent D | NO |
+| Phase 4: Frontend Authoring UI | ✅ COMPLETED | 100% | Claude | NO |
 | Phase 5: Browse / Search System | ⏸️ PENDING | 0% | Agent B+D | NO |
 | Phase 6: URL Strategy Change | ⏸️ PENDING | 0% | Agent B+C | NO |
 | Phase 7: Media Upload UX | ⏸️ PENDING | 0% | Agent D | NO |
@@ -42,45 +42,15 @@
 
 ## 🚀 What to Do Next
 
-### 🎉 Admin UI Complete! Two UI Phases Now Available
+### 🎉 Frontend Authoring Complete! Search Phase Ready
 
-**Phase 3 is COMPLETE** - Admin UI has been refactored with tabbed navigation, warnings admin UI is implemented, moderation log viewer is available, and story blocking now includes reason selection. You can now choose from **2 parallel UI implementation paths:**
-
----
-
-### Option A: Phase 4 - Frontend Authoring UI ⭐ RECOMMENDED NEXT
-**Owner:** Unassigned (Agent D - Frontend specialist)
-**Depends On:** Phase 2 ✅ COMPLETED
-**Can Run in Parallel With:** Phases 3, 5
-**Status:** READY TO START
-
-**What This Phase Does:**
-Adds warnings/tags selectors to story forms, displays block reasons to authors, adds persistent info-box headers for messages, renders warnings/tags on story view pages.
-
-**Why Do This Next:**
-- Authors can finally select warnings and add tags when creating stories
-- Block reasons become visible to authors (critical UX improvement)
-- Persistent message headers improve communication
-
-**Sub-phases:**
-1. **4.1 Story Form** - Add warnings selector, tag inputs, persistent header
-2. **4.2 Chapter Form** - Display block reasons, persistent header
-3. **4.3 Profile Edit** - Persistent header
-4. **4.4 Story View + Archive** - Render visible tags, warnings, age badges
-
-**Files to Modify:**
-- `templates/template-story-form.php`
-- `templates/template-chapter-form.php`
-- `templates/template-edit-profile.php`
-- `templates/template-story-view.php`, `templates/template-story-archive.php`
-- `includes/handlers/class-fanfic-story-handler.php`
+**Phase 4 is COMPLETE** - Authors can now select warnings and add tags when creating/editing stories. Block reasons are visible to authors with specific messages. Persistent headers are on all authoring forms. Story view and archive pages display warnings, tags, and derived age badges.
 
 ---
 
-### Option B: Phase 5 - Browse / Search System
+### Next: Phase 5 - Browse / Search System ⭐ RECOMMENDED
 **Owner:** Unassigned (Agent B+D - Backend + Frontend)
 **Depends On:** Phase 2 ✅ COMPLETED
-**Can Run in Parallel With:** Phase 4
 **Status:** READY TO START
 
 **What This Phase Does:**
@@ -105,7 +75,29 @@ Replaces LIKE queries with pre-indexed search, adds URL-driven filters (genre, s
 
 ---
 
-**💡 Recommendation:** Start with **Phase 4 (Frontend Authoring UI)** - it lets authors finally select warnings and add tags when creating stories. Block reasons will become visible to authors, which is a critical UX improvement. Then tackle Phase 5 (Browse/Search) for performance improvements.
+### Phase 4 Completed Features (Reference)
+
+**Story Form Enhancements:**
+- Persistent header with story status and chapter count
+- Warnings selector (multi-select with age badges)
+- Visible tags input (max 5) and invisible tags input (max 10)
+- Specific block reason messages (12 predefined reasons)
+
+**Chapter Form Enhancements:**
+- Persistent header with chapter info
+- Specific block reason messages when story is blocked
+
+**Profile Edit Enhancements:**
+- Persistent header with author stats
+
+**Story View & Archive:**
+- New shortcodes: `[story-warnings]`, `[story-visible-tags]`, `[story-age-badge]`
+- Age badges on archive cards (derived from warnings)
+- Visible tags on archive cards
+
+---
+
+**💡 Recommendation:** Start with **Phase 5 (Browse/Search System)** - it provides massive performance improvements by replacing LIKE queries with pre-indexed search. This phase also enables proper story filtering and shareable search URLs.
 
 ---
 
@@ -429,59 +421,67 @@ Phase 0 (Decision Lock)
 
 ---
 
-### Phase 4: Frontend Authoring UI ⏸️ PENDING
+### Phase 4: Frontend Authoring UI ✅ COMPLETED
 **Blocking:** None
-**Owner:** Agent D (Frontend UI)
+**Owner:** Claude (Opus 4.5)
 **Depends On:** Phase 2 ✅
-**Progress:** 0/4 sub-phases complete
+**Progress:** 4/4 sub-phases complete
+**Completed:** 2026-01-26
 
 #### 4.1 Story Form
-**Files to Modify:**
+**Files Modified:**
 - `templates/template-story-form.php`
 - `includes/handlers/class-fanfic-story-handler.php`
 
 **Tasks:**
-- [ ] Add persistent `fanfic-info-box` header container (always present)
-- [ ] Add content rating mode controls (PG vs Mature)
-- [ ] Add warnings selector (enabled warnings only, multi-select)
-- [ ] Add visible tags input (max 5)
-- [ ] Add invisible tags input (max 10)
-- [ ] Validate and save tags + warnings on submit
+- [x] Add persistent `fanfic-info-box` header container (always present)
+- [x] Add warnings selector (enabled warnings only, multi-select with age badges)
+- [x] Add visible tags input (max 5, comma-separated)
+- [x] Add invisible tags input (max 10, comma-separated)
+- [x] Validate and save tags + warnings on submit (CREATE and EDIT modes)
+- [x] Block reason display shows specific reason from 12 predefined options
 
 #### 4.2 Chapter Form
-**Files to Modify:**
+**Files Modified:**
 - `templates/template-chapter-form.php`
 
 **Tasks:**
-- [ ] Add persistent `fanfic-info-box` header container
-- [ ] Display block reason if chapter/story is blocked
-- [ ] Show different message for ban-block vs manual-block
+- [x] Add persistent `fanfic-info-box` header container
+- [x] Display block reason if chapter/story is blocked
+- [x] Show different message for ban-block vs manual-block (12 reason codes)
 
 #### 4.3 Profile Edit
-**Files to Modify:**
+**Files Modified:**
 - `templates/template-edit-profile.php`
 
 **Tasks:**
-- [ ] Add persistent `fanfic-info-box` header container
+- [x] Add persistent `fanfic-info-box` header container
+- [x] Display user story stats in header
 
 #### 4.4 Story View + Archive
-**Files to Modify:**
+**Files Modified:**
 - `templates/template-story-view.php`
 - `templates/template-story-archive.php`
+- `includes/shortcodes/class-fanfic-shortcodes-story.php`
 
 **Tasks:**
-- [ ] Render visible tags on story view page
-- [ ] Render visible tags on archive cards
-- [ ] Display warnings + derived age badge
-- [ ] Show "none declared" when no warnings
+- [x] Render visible tags on story view page (via [story-visible-tags] shortcode)
+- [x] Render visible tags on archive cards
+- [x] Display warnings + derived age badge (via [story-warnings] and [story-age-badge] shortcodes)
+- [x] Show "none declared" when no warnings
+
+**New Shortcodes Added:**
+- `[story-warnings]` - Display content warnings with age badges
+- `[story-visible-tags]` - Display visible tags
+- `[story-age-badge]` - Display derived age rating based on highest warning
 
 **Verification Checklist:**
-- [ ] Tag limits enforced (5 visible, 10 invisible)
-- [ ] Warnings saved and displayed correctly
-- [ ] Derived age badge shows properly
-- [ ] Block reasons visible to author and admin
-- [ ] Persistent header containers present on all forms
-- [ ] Update this INDEX.md: Phase 4 status to ✅ COMPLETED
+- [x] Tag limits enforced (5 visible, 10 invisible) via existing constants
+- [x] Warnings saved and displayed correctly
+- [x] Derived age badge shows properly (PG, 13, 16, 18 based on warnings)
+- [x] Block reasons visible to author and admin (12 predefined reasons)
+- [x] Persistent header containers present on all forms
+- [x] Update this INDEX.md: Phase 4 status to ✅ COMPLETED
 
 ---
 

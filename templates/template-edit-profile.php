@@ -32,6 +32,61 @@ $avatar_url = get_user_meta( $current_user->ID, '_fanfic_avatar_url', true );
 $image_upload_settings = function_exists( 'fanfic_get_image_upload_settings' ) ? fanfic_get_image_upload_settings() : array( 'enabled' => false, 'max_value' => 1, 'max_unit' => 'mb' );
 $image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 
+// Get user stats for persistent header
+$story_count = count( get_posts( array(
+	'post_type'      => 'fanfiction_story',
+	'author'         => $current_user->ID,
+	'post_status'    => 'any',
+	'posts_per_page' => -1,
+	'fields'         => 'ids',
+) ) );
+$published_story_count = count( get_posts( array(
+	'post_type'      => 'fanfiction_story',
+	'author'         => $current_user->ID,
+	'post_status'    => 'publish',
+	'posts_per_page' => -1,
+	'fields'         => 'ids',
+) ) );
+?>
+
+<!-- Persistent Header Container for System Messages -->
+<div class="fanfic-persistent-header" id="fanfic-profile-header" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
+	<div class="fanfic-header-info">
+		<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>
+		<span>
+			<?php
+			if ( $story_count === 0 ) {
+				esc_html_e( 'Manage your author profile. You haven\'t written any stories yet.', 'fanfiction-manager' );
+			} elseif ( $published_story_count === 0 ) {
+				printf(
+					/* translators: %d: Number of draft stories */
+					esc_html( _n( 'Manage your author profile. You have %d unpublished story.', 'Manage your author profile. You have %d unpublished stories.', $story_count, 'fanfiction-manager' ) ),
+					$story_count
+				);
+			} else {
+				printf(
+					/* translators: 1: Number of published stories, 2: Total number of stories */
+					esc_html__( 'Manage your author profile. You have %1$d published of %2$d total stories.', 'fanfiction-manager' ),
+					$published_story_count,
+					$story_count
+				);
+			}
+			?>
+		</span>
+	</div>
+
+	<?php
+	/**
+	 * Hook for adding persistent header messages to the profile form.
+	 *
+	 * @since 1.2.0
+	 * @param WP_User $current_user The current user object.
+	 */
+	do_action( 'fanfic_profile_form_header', $current_user );
+	?>
+</div>
+
+<?php
 // Success/error messages
 $message = '';
 if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {

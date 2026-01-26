@@ -33,6 +33,7 @@ function fanfic_get_default_story_view_template() {
 		<div class="fanfic-story-meta">
 			<span class="fanfic-story-author"><?php esc_html_e( 'by', 'fanfiction-manager' ); ?> [story-author-link]</span>
 			<span class="fanfic-story-status">[story-status]</span>
+			<span class="fanfic-story-age">[story-age-badge]</span>
 		</div>
 	</header>
 
@@ -51,6 +52,8 @@ function fanfic_get_default_story_view_template() {
 				<strong><?php esc_html_e( 'Genres:', 'fanfiction-manager' ); ?></strong> [story-genres]
 			</div>
 			[story-fandoms]
+			[story-warnings]
+			[story-visible-tags]
 		</div>
 
 		<div class="fanfic-story-stats" role="contentinfo" aria-label="<?php esc_attr_e( 'Story statistics', 'fanfiction-manager' ); ?>">

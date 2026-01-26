@@ -605,12 +605,40 @@ if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 
 $is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
 if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+	// Get block reason for display
+	$block_reason = get_post_meta( $story_id, '_fanfic_story_blocked_reason', true );
+
+	// Map reason codes to user-friendly labels
+	$reason_labels = array(
+		'manual'              => __( 'This story has been blocked by a moderator.', 'fanfiction-manager' ),
+		'tos_violation'       => __( 'This story was blocked for violating our Terms of Service.', 'fanfiction-manager' ),
+		'copyright'           => __( 'This story was blocked due to a copyright concern.', 'fanfiction-manager' ),
+		'inappropriate'       => __( 'This story was blocked for containing inappropriate content.', 'fanfiction-manager' ),
+		'spam'                => __( 'This story was blocked for spam or advertising.', 'fanfiction-manager' ),
+		'harassment'          => __( 'This story was blocked for harassment or bullying content.', 'fanfiction-manager' ),
+		'illegal'             => __( 'This story was blocked for containing potentially illegal content.', 'fanfiction-manager' ),
+		'underage'            => __( 'This story was blocked for content concerns regarding minors.', 'fanfiction-manager' ),
+		'rating_mismatch'     => __( 'This story was blocked because the content does not match its rating/warnings.', 'fanfiction-manager' ),
+		'user_request'        => __( 'This story was blocked at your request.', 'fanfiction-manager' ),
+		'pending_review'      => __( 'This story is pending moderator review.', 'fanfiction-manager' ),
+		'other'               => __( 'This story has been blocked. Please contact support for more information.', 'fanfiction-manager' ),
+	);
+
+	$reason_message = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : __( 'This story has been blocked by a moderator.', 'fanfiction-manager' );
 	?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php echo esc_html( fanfic_get_blocked_story_message() ); ?></p>
+	<div class="fanfic-error-notice fanfic-blocked-notice" role="alert" aria-live="assertive">
+		<h3><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></h3>
+		<p><?php echo esc_html( $reason_message ); ?></p>
+		<p class="fanfic-block-info">
+			<?php esc_html_e( 'You cannot add or edit chapters while the story is blocked.', 'fanfiction-manager' ); ?>
+			<?php esc_html_e( 'If you believe this was done in error, please contact site administration.', 'fanfiction-manager' ); ?>
+		</p>
 		<p>
 			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
 				<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+			</a>
+			<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
+				<?php esc_html_e( 'View Story', 'fanfiction-manager' ); ?>
 			</a>
 		</p>
 	</div>
@@ -703,6 +731,80 @@ fanfic_render_breadcrumb( 'edit-chapter', array(
 	'is_edit_mode'  => $is_edit_mode,
 ) );
 ?>
+
+<!-- Persistent Header Container for System Messages -->
+<div class="fanfic-persistent-header" id="fanfic-chapter-form-header" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
+	<?php
+	// Get existing chapters count
+	$existing_chapter_count = count( get_posts( array(
+		'post_type'      => 'fanfiction_chapter',
+		'post_parent'    => $story_id,
+		'post_status'    => 'any',
+		'posts_per_page' => -1,
+		'fields'         => 'ids',
+	) ) );
+	$story_status = get_post_status( $story_id );
+	$story_is_draft = 'draft' === $story_status;
+	?>
+
+	<?php if ( $is_edit_mode ) : ?>
+		<div class="fanfic-header-info">
+			<span class="dashicons dashicons-edit" aria-hidden="true"></span>
+			<span>
+				<?php
+				printf(
+					/* translators: %s: chapter title */
+					esc_html__( 'Editing chapter: %s', 'fanfiction-manager' ),
+					esc_html( $chapter->post_title )
+				);
+				?>
+			</span>
+		</div>
+	<?php elseif ( $existing_chapter_count === 0 ) : ?>
+		<div class="fanfic-header-info">
+			<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>
+			<span><?php esc_html_e( 'This will be the first chapter of your story!', 'fanfiction-manager' ); ?></span>
+		</div>
+	<?php elseif ( $story_is_draft ) : ?>
+		<div class="fanfic-header-info">
+			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
+			<span>
+				<?php
+				printf(
+					/* translators: %d: Number of existing chapters */
+					esc_html( _n( 'Adding a chapter to your draft story (%d existing chapter).', 'Adding a chapter to your draft story (%d existing chapters).', $existing_chapter_count, 'fanfiction-manager' ) ),
+					$existing_chapter_count
+				);
+				?>
+			</span>
+		</div>
+	<?php else : ?>
+		<div class="fanfic-header-info">
+			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
+			<span>
+				<?php
+				printf(
+					/* translators: %d: Number of existing chapters */
+					esc_html( _n( 'Adding a chapter to your published story (%d existing chapter).', 'Adding a chapter to your published story (%d existing chapters).', $existing_chapter_count, 'fanfiction-manager' ) ),
+					$existing_chapter_count
+				);
+				?>
+			</span>
+		</div>
+	<?php endif; ?>
+
+	<?php
+	/**
+	 * Hook for adding persistent header messages to the chapter form.
+	 *
+	 * @since 1.2.0
+	 * @param int  $story_id     Story ID.
+	 * @param int  $chapter_id   Chapter ID (0 for create mode).
+	 * @param bool $is_edit_mode Whether we're in edit mode.
+	 */
+	do_action( 'fanfic_chapter_form_header', $story_id, $chapter_id, $is_edit_mode );
+	?>
+</div>
 
 <!-- Success/Error Messages -->
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'true' ) : ?>

@@ -43,6 +43,11 @@ class Fanfic_Shortcodes_Story {
 		add_shortcode( 'story-views', array( __CLASS__, 'story_views' ) );
 		add_shortcode( 'story-is-featured', array( __CLASS__, 'story_is_featured' ) );
 		add_shortcode( 'fanfic-story-image', array( __CLASS__, 'fanfic_story_image' ) );
+
+		// Phase 4.4: Warnings, tags, and age badges
+		add_shortcode( 'story-warnings', array( __CLASS__, 'story_warnings' ) );
+		add_shortcode( 'story-visible-tags', array( __CLASS__, 'story_visible_tags' ) );
+		add_shortcode( 'story-age-badge', array( __CLASS__, 'story_age_badge' ) );
 	}
 
 	/**
@@ -517,5 +522,204 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		return '<span class="story-featured-badge" aria-label="' . esc_attr__( 'Featured story', 'fanfiction-manager' ) . '">' . esc_html__( 'Featured', 'fanfiction-manager' ) . '</span>';
+	}
+
+	/**
+	 * Story warnings shortcode
+	 *
+	 * [story-warnings]
+	 *
+	 * Displays content warnings associated with the story.
+	 * Shows "None declared" if no warnings are set.
+	 *
+	 * @since 1.2.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Warnings HTML.
+	 */
+	public static function story_warnings( $atts ) {
+		$atts = shortcode_atts(
+			array(
+				'show_none'    => 'true',  // Show "None declared" if no warnings
+				'show_label'   => 'true',  // Show "Warnings:" label
+				'show_age'     => 'true',  // Show age badge next to each warning
+				'link'         => 'false', // Whether to link to archive (not implemented yet)
+			),
+			$atts,
+			'story-warnings'
+		);
+
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		// Check if warnings class exists
+		if ( ! class_exists( 'Fanfic_Warnings' ) ) {
+			return '';
+		}
+
+		$warnings = Fanfic_Warnings::get_story_warnings( $story_id );
+		$show_label = filter_var( $atts['show_label'], FILTER_VALIDATE_BOOLEAN );
+		$show_none = filter_var( $atts['show_none'], FILTER_VALIDATE_BOOLEAN );
+		$show_age = filter_var( $atts['show_age'], FILTER_VALIDATE_BOOLEAN );
+
+		$output = '<div class="fanfic-story-warnings">';
+
+		if ( $show_label ) {
+			$output .= '<strong>' . esc_html__( 'Content Warnings:', 'fanfiction-manager' ) . '</strong> ';
+		}
+
+		if ( empty( $warnings ) ) {
+			if ( $show_none ) {
+				$output .= '<span class="story-warnings story-warnings-none">' . esc_html__( 'None declared', 'fanfiction-manager' ) . '</span>';
+			}
+		} else {
+			$warning_items = array();
+			foreach ( $warnings as $warning ) {
+				$item = '<span class="story-warning-item">';
+				$item .= '<span class="story-warning-name">' . esc_html( $warning['name'] ) . '</span>';
+				if ( $show_age && ! empty( $warning['min_age'] ) ) {
+					$item .= ' <span class="story-warning-age-badge fanfic-age-badge-' . esc_attr( sanitize_title( $warning['min_age'] ) ) . '">' . esc_html( $warning['min_age'] ) . '</span>';
+				}
+				$item .= '</span>';
+				$warning_items[] = $item;
+			}
+			$output .= '<span class="story-warnings" aria-label="' . esc_attr__( 'Content warnings', 'fanfiction-manager' ) . '">' . implode( ', ', $warning_items ) . '</span>';
+		}
+
+		$output .= '</div>';
+		return $output;
+	}
+
+	/**
+	 * Story visible tags shortcode
+	 *
+	 * [story-visible-tags]
+	 *
+	 * Displays visible tags associated with the story.
+	 *
+	 * @since 1.2.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Tags HTML.
+	 */
+	public static function story_visible_tags( $atts ) {
+		$atts = shortcode_atts(
+			array(
+				'show_label' => 'true',  // Show "Tags:" label
+				'show_none'  => 'false', // Show message when no tags
+				'separator'  => ', ',    // Separator between tags
+			),
+			$atts,
+			'story-visible-tags'
+		);
+
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		// Get visible tags
+		if ( ! function_exists( 'fanfic_get_visible_tags' ) ) {
+			return '';
+		}
+
+		$tags = fanfic_get_visible_tags( $story_id );
+		$show_label = filter_var( $atts['show_label'], FILTER_VALIDATE_BOOLEAN );
+		$show_none = filter_var( $atts['show_none'], FILTER_VALIDATE_BOOLEAN );
+
+		if ( empty( $tags ) ) {
+			if ( $show_none ) {
+				$output = '<div class="fanfic-story-tags">';
+				if ( $show_label ) {
+					$output .= '<strong>' . esc_html__( 'Tags:', 'fanfiction-manager' ) . '</strong> ';
+				}
+				$output .= '<span class="story-tags story-tags-none">' . esc_html__( 'No tags', 'fanfiction-manager' ) . '</span>';
+				$output .= '</div>';
+				return $output;
+			}
+			return '';
+		}
+
+		$output = '<div class="fanfic-story-tags">';
+
+		if ( $show_label ) {
+			$output .= '<strong>' . esc_html__( 'Tags:', 'fanfiction-manager' ) . '</strong> ';
+		}
+
+		$tag_items = array();
+		foreach ( $tags as $tag ) {
+			$tag_items[] = '<span class="story-tag-item">' . esc_html( $tag ) . '</span>';
+		}
+
+		$output .= '<span class="story-tags" aria-label="' . esc_attr__( 'Story tags', 'fanfiction-manager' ) . '">' . implode( esc_html( $atts['separator'] ), $tag_items ) . '</span>';
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Story age badge shortcode
+	 *
+	 * [story-age-badge]
+	 *
+	 * Displays the derived age rating badge based on the story's warnings.
+	 * The age rating is determined by the highest min_age from all warnings.
+	 *
+	 * @since 1.2.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Age badge HTML.
+	 */
+	public static function story_age_badge( $atts ) {
+		$atts = shortcode_atts(
+			array(
+				'default'    => 'PG',     // Default age rating if no warnings
+				'show_label' => 'false',  // Show "Age Rating:" label
+			),
+			$atts,
+			'story-age-badge'
+		);
+
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		// Check if warnings class exists
+		if ( ! class_exists( 'Fanfic_Warnings' ) ) {
+			return '';
+		}
+
+		$warnings = Fanfic_Warnings::get_story_warnings( $story_id );
+		$show_label = filter_var( $atts['show_label'], FILTER_VALIDATE_BOOLEAN );
+
+		// Determine highest age rating from warnings
+		$age_priority = array( 'PG' => 1, '13' => 2, '16' => 3, '18' => 4 );
+		$highest_age = $atts['default'];
+		$highest_priority = isset( $age_priority[ $highest_age ] ) ? $age_priority[ $highest_age ] : 1;
+
+		if ( ! empty( $warnings ) ) {
+			foreach ( $warnings as $warning ) {
+				if ( ! empty( $warning['min_age'] ) ) {
+					$warning_priority = isset( $age_priority[ $warning['min_age'] ] ) ? $age_priority[ $warning['min_age'] ] : 0;
+					if ( $warning_priority > $highest_priority ) {
+						$highest_priority = $warning_priority;
+						$highest_age = $warning['min_age'];
+					}
+				}
+			}
+		}
+
+		$output = '<span class="fanfic-age-rating">';
+
+		if ( $show_label ) {
+			$output .= '<span class="age-rating-label">' . esc_html__( 'Age Rating:', 'fanfiction-manager' ) . '</span> ';
+		}
+
+		$age_class = 'fanfic-age-badge fanfic-age-badge-' . sanitize_title( $highest_age );
+		$output .= '<span class="' . esc_attr( $age_class ) . '" aria-label="' . esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age ) ) . '">' . esc_html( $highest_age ) . '+</span>';
+
+		$output .= '</span>';
+
+		return $output;
 	}
 }

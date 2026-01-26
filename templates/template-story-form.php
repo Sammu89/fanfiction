@@ -76,12 +76,41 @@ if ( $is_edit_mode ) {
 
 	$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
 	if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+		// Get block reason for display
+		$block_reason = get_post_meta( $story_id, '_fanfic_story_blocked_reason', true );
+		$block_info = function_exists( 'fanfic_get_block_info' ) ? fanfic_get_block_info( $story_id ) : null;
+
+		// Map reason codes to user-friendly labels
+		$reason_labels = array(
+			'manual'              => __( 'This story has been blocked by a moderator.', 'fanfiction-manager' ),
+			'tos_violation'       => __( 'This story was blocked for violating our Terms of Service.', 'fanfiction-manager' ),
+			'copyright'           => __( 'This story was blocked due to a copyright concern.', 'fanfiction-manager' ),
+			'inappropriate'       => __( 'This story was blocked for containing inappropriate content.', 'fanfiction-manager' ),
+			'spam'                => __( 'This story was blocked for spam or advertising.', 'fanfiction-manager' ),
+			'harassment'          => __( 'This story was blocked for harassment or bullying content.', 'fanfiction-manager' ),
+			'illegal'             => __( 'This story was blocked for containing potentially illegal content.', 'fanfiction-manager' ),
+			'underage'            => __( 'This story was blocked for content concerns regarding minors.', 'fanfiction-manager' ),
+			'rating_mismatch'     => __( 'This story was blocked because the content does not match its rating/warnings.', 'fanfiction-manager' ),
+			'user_request'        => __( 'This story was blocked at your request.', 'fanfiction-manager' ),
+			'pending_review'      => __( 'This story is pending moderator review.', 'fanfiction-manager' ),
+			'other'               => __( 'This story has been blocked. Please contact support for more information.', 'fanfiction-manager' ),
+		);
+
+		$reason_message = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : __( 'This story has been blocked by a moderator.', 'fanfiction-manager' );
 		?>
-		<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-			<p><?php echo esc_html( fanfic_get_blocked_story_message() ); ?></p>
+		<div class="fanfic-error-notice fanfic-blocked-notice" role="alert" aria-live="assertive">
+			<h3><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></h3>
+			<p><?php echo esc_html( $reason_message ); ?></p>
+			<p class="fanfic-block-info">
+				<?php esc_html_e( 'You can still view your story, but editing and publishing are disabled until the block is lifted.', 'fanfiction-manager' ); ?>
+				<?php esc_html_e( 'If you believe this was done in error, please contact site administration.', 'fanfiction-manager' ); ?>
+			</p>
 			<p>
 				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-primary">
 					<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+				</a>
+				<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button fanfic-button-secondary">
+					<?php esc_html_e( 'View Story', 'fanfiction-manager' ); ?>
 				</a>
 			</p>
 		</div>
@@ -123,6 +152,68 @@ fanfic_render_breadcrumb( 'edit-story', array(
 	'is_edit_mode' => $is_edit_mode,
 ) );
 ?>
+
+<!-- Persistent Header Container for System Messages -->
+<div class="fanfic-persistent-header" id="fanfic-story-form-header" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
+	<?php if ( $is_edit_mode ) : ?>
+		<?php
+		// Get story stats for display
+		$chapter_count = count( get_posts( array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		) ) );
+		$post_status = get_post_status( $story_id );
+		$is_draft = 'draft' === $post_status;
+		?>
+		<div class="fanfic-header-info">
+			<?php if ( $is_draft && $chapter_count === 0 ) : ?>
+				<span class="dashicons dashicons-warning" aria-hidden="true"></span>
+				<span><?php esc_html_e( 'This story needs at least one chapter before it can be published.', 'fanfiction-manager' ); ?></span>
+			<?php elseif ( $is_draft ) : ?>
+				<span class="dashicons dashicons-edit" aria-hidden="true"></span>
+				<span>
+					<?php
+					printf(
+						/* translators: %d: Number of chapters */
+						esc_html( _n( 'Draft story with %d chapter.', 'Draft story with %d chapters.', $chapter_count, 'fanfiction-manager' ) ),
+						$chapter_count
+					);
+					?>
+				</span>
+			<?php else : ?>
+				<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+				<span>
+					<?php
+					printf(
+						/* translators: %d: Number of chapters */
+						esc_html( _n( 'Published with %d chapter.', 'Published with %d chapters.', $chapter_count, 'fanfiction-manager' ) ),
+						$chapter_count
+					);
+					?>
+				</span>
+			<?php endif; ?>
+		</div>
+	<?php else : ?>
+		<div class="fanfic-header-info">
+			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
+			<span><?php esc_html_e( 'Fill in the details below to create your new story.', 'fanfiction-manager' ); ?></span>
+		</div>
+	<?php endif; ?>
+
+	<?php
+	/**
+	 * Hook for adding persistent header messages to the story form.
+	 *
+	 * @since 1.2.0
+	 * @param int  $story_id     Story ID (0 for create mode).
+	 * @param bool $is_edit_mode Whether we're in edit mode.
+	 */
+	do_action( 'fanfic_story_form_header', $story_id, $is_edit_mode );
+	?>
+</div>
 
 <!-- Success/Error Messages -->
 <?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'true' ) : ?>
@@ -382,6 +473,112 @@ if ( $is_edit_mode ) {
 								<p class="description"><?php esc_html_e( 'Select up to 5 fandoms. Search requires at least 2 characters.', 'fanfiction-manager' ); ?></p>
 							</div>
 						<?php endif; ?>
+
+						<?php
+						// ========================================================================
+						// WARNINGS AND TAGS SECTION (Phase 4.1)
+						// ========================================================================
+						?>
+
+						<!-- Content Warnings -->
+						<?php
+						$available_warnings = array();
+						if ( class_exists( 'Fanfic_Warnings' ) ) {
+							$available_warnings = Fanfic_Warnings::get_available_warnings();
+						}
+						$current_warnings = array();
+						if ( $is_edit_mode && class_exists( 'Fanfic_Warnings' ) ) {
+							$story_warnings = Fanfic_Warnings::get_story_warnings( $story_id );
+							$current_warnings = wp_list_pluck( $story_warnings, 'id' );
+						}
+						?>
+						<?php if ( ! empty( $available_warnings ) ) : ?>
+						<div class="fanfic-form-field">
+							<label><?php esc_html_e( 'Content Warnings', 'fanfiction-manager' ); ?></label>
+							<div class="fanfic-checkboxes fanfic-checkboxes-warnings">
+								<?php foreach ( $available_warnings as $warning ) : ?>
+									<?php
+									$is_checked = isset( $_POST['fanfic_story_warnings'] ) ?
+										in_array( $warning['id'], (array) $_POST['fanfic_story_warnings'] ) :
+										( $is_edit_mode && in_array( $warning['id'], $current_warnings ) );
+									$age_class = 'fanfic-warning-age-' . sanitize_title( $warning['min_age'] );
+									?>
+									<label class="fanfic-checkbox-label fanfic-warning-item <?php echo esc_attr( $age_class ); ?>" title="<?php echo esc_attr( $warning['description'] ); ?>">
+										<input
+											type="checkbox"
+											name="fanfic_story_warnings[]"
+											value="<?php echo esc_attr( $warning['id'] ); ?>"
+											class="fanfic-checkbox"
+											<?php checked( $is_checked ); ?>
+										/>
+										<span class="fanfic-warning-name"><?php echo esc_html( $warning['name'] ); ?></span>
+										<span class="fanfic-warning-age-badge"><?php echo esc_html( $warning['min_age'] ); ?></span>
+									</label>
+								<?php endforeach; ?>
+							</div>
+							<p class="description"><?php esc_html_e( 'Select content warnings that apply to your story. Warnings affect the minimum age rating.', 'fanfiction-manager' ); ?></p>
+						</div>
+						<?php endif; ?>
+
+						<!-- Visible Tags -->
+						<?php
+						$current_visible_tags = array();
+						if ( $is_edit_mode && function_exists( 'fanfic_get_visible_tags' ) ) {
+							$current_visible_tags = fanfic_get_visible_tags( $story_id );
+						}
+						$visible_tags_value = isset( $_POST['fanfic_visible_tags'] ) ? sanitize_text_field( $_POST['fanfic_visible_tags'] ) : implode( ', ', $current_visible_tags );
+						?>
+						<div class="fanfic-form-field">
+							<label for="fanfic_visible_tags"><?php esc_html_e( 'Visible Tags', 'fanfiction-manager' ); ?></label>
+							<input
+								type="text"
+								id="fanfic_visible_tags"
+								name="fanfic_visible_tags"
+								class="fanfic-input fanfic-tags-input"
+								value="<?php echo esc_attr( $visible_tags_value ); ?>"
+								placeholder="<?php esc_attr_e( 'tag1, tag2, tag3', 'fanfiction-manager' ); ?>"
+								data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5 ); ?>"
+							/>
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %d: Maximum number of visible tags */
+									esc_html__( 'Add up to %d visible tags separated by commas. These tags will be displayed on your story page and used for search.', 'fanfiction-manager' ),
+									defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5
+								);
+								?>
+							</p>
+						</div>
+
+						<!-- Invisible Tags (for search only) -->
+						<?php
+						$current_invisible_tags = array();
+						if ( $is_edit_mode && function_exists( 'fanfic_get_invisible_tags' ) ) {
+							$current_invisible_tags = fanfic_get_invisible_tags( $story_id );
+						}
+						$invisible_tags_value = isset( $_POST['fanfic_invisible_tags'] ) ? sanitize_text_field( $_POST['fanfic_invisible_tags'] ) : implode( ', ', $current_invisible_tags );
+						?>
+						<div class="fanfic-form-field">
+							<label for="fanfic_invisible_tags"><?php esc_html_e( 'Search Tags (Hidden)', 'fanfiction-manager' ); ?></label>
+							<input
+								type="text"
+								id="fanfic_invisible_tags"
+								name="fanfic_invisible_tags"
+								class="fanfic-input fanfic-tags-input"
+								value="<?php echo esc_attr( $invisible_tags_value ); ?>"
+								placeholder="<?php esc_attr_e( 'search term 1, search term 2', 'fanfiction-manager' ); ?>"
+								data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10 ); ?>"
+							/>
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %d: Maximum number of invisible tags */
+									esc_html__( 'Add up to %d hidden tags for search indexing only. These tags help readers find your story but are not displayed publicly.', 'fanfiction-manager' ),
+									defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10
+								);
+								?>
+							</p>
+						</div>
 
 						<!-- Featured Image -->
 						<div class="fanfic-form-field">

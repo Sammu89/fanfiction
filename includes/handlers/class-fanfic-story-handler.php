@@ -110,6 +110,15 @@ class Fanfic_Story_Handler {
 		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'save_draft';
 
+		// Get warnings and tags (Phase 4.1)
+		$warning_ids = isset( $_POST['fanfic_story_warnings'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_warnings'] ) : array();
+		$visible_tags_raw = isset( $_POST['fanfic_visible_tags'] ) ? sanitize_text_field( $_POST['fanfic_visible_tags'] ) : '';
+		$invisible_tags_raw = isset( $_POST['fanfic_invisible_tags'] ) ? sanitize_text_field( $_POST['fanfic_invisible_tags'] ) : '';
+
+		// Parse tags from comma-separated string
+		$visible_tags = array_filter( array_map( 'trim', explode( ',', $visible_tags_raw ) ) );
+		$invisible_tags = array_filter( array_map( 'trim', explode( ',', $invisible_tags_raw ) ) );
+
 		// Validate
 		if ( empty( $title ) ) {
 			$errors[] = __( 'Story title is required.', 'fanfiction-manager' );
@@ -164,6 +173,19 @@ class Fanfic_Story_Handler {
 			// Save fandoms
 			if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
 				Fanfic_Fandoms::save_story_fandoms( $new_story_id, $fandom_ids, $is_original_work );
+			}
+
+			// Save warnings (Phase 4.1)
+			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				Fanfic_Warnings::save_story_warnings( $new_story_id, $warning_ids );
+			}
+
+			// Save tags (Phase 4.1)
+			if ( function_exists( 'fanfic_save_visible_tags' ) ) {
+				fanfic_save_visible_tags( $new_story_id, $visible_tags );
+			}
+			if ( function_exists( 'fanfic_save_invisible_tags' ) ) {
+				fanfic_save_invisible_tags( $new_story_id, $invisible_tags );
 			}
 
 			// Set featured image
@@ -285,6 +307,19 @@ class Fanfic_Story_Handler {
 			// Save fandoms
 			if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
 				Fanfic_Fandoms::save_story_fandoms( $story_id, $fandom_ids, $is_original_work );
+			}
+
+			// Save warnings (Phase 4.1)
+			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				Fanfic_Warnings::save_story_warnings( $story_id, $warning_ids );
+			}
+
+			// Save tags (Phase 4.1)
+			if ( function_exists( 'fanfic_save_visible_tags' ) ) {
+				fanfic_save_visible_tags( $story_id, $visible_tags );
+			}
+			if ( function_exists( 'fanfic_save_invisible_tags' ) ) {
+				fanfic_save_invisible_tags( $story_id, $invisible_tags );
 			}
 
 			// Update featured image
