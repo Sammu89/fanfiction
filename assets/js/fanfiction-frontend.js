@@ -133,7 +133,215 @@
 	});
 
 	/**
-	 * Notice Handler - Enhanced notification system
+	 * Unified Messages Handler
+	 * Displays all notifications in a single container (#fanfic-messages)
+	 * with fade-in/fade-out transitions
+	 */
+	const Messages = {
+		containerId: 'fanfic-messages',
+		defaultDuration: 8000, // Auto-dismiss after 8 seconds (0 = no auto-dismiss)
+
+		/**
+		 * Get or create the messages container
+		 */
+		getContainer: function() {
+			let $container = $('#' + this.containerId);
+			if (!$container.length) {
+				// Container doesn't exist, create it and prepend to main content area
+				$container = $('<div>', {
+					id: this.containerId,
+					class: 'fanfic-messages-container',
+					role: 'region',
+					'aria-label': 'System messages',
+					'aria-live': 'polite'
+				});
+				// Try to find the best place to insert it
+				const $target = $('.fanfic-author-form-wrapper, .fanfic-form-wrapper, .fanfic-content-primary, main, .fanfic-content').first();
+				if ($target.length) {
+					$target.prepend($container);
+				} else {
+					$('body').prepend($container);
+				}
+			}
+			return $container;
+		},
+
+		/**
+		 * Add a message to the container
+		 * @param {string} type - Message type: 'success', 'error', 'warning', 'info'
+		 * @param {string} content - The message content (can include HTML)
+		 * @param {object} options - Optional settings { duration, dismissible, id }
+		 */
+		add: function(type, content, options) {
+			options = options || {};
+			const duration = typeof options.duration !== 'undefined' ? options.duration : this.defaultDuration;
+			const dismissible = typeof options.dismissible !== 'undefined' ? options.dismissible : true;
+			const messageId = options.id || 'fanfic-msg-' + Date.now();
+
+			const $container = this.getContainer();
+
+			// Create message element
+			const $message = $('<div>', {
+				id: messageId,
+				class: 'fanfic-message fanfic-message-' + type,
+				role: type === 'error' ? 'alert' : 'status'
+			});
+
+			// Add icon
+			const icons = {
+				success: '✓',
+				error: '✕',
+				warning: '⚠',
+				info: 'ℹ'
+			};
+			$message.append($('<span>', { class: 'fanfic-message-icon', 'aria-hidden': 'true' }).text(icons[type] || icons.info));
+
+			// Add content
+			$message.append($('<span>', { class: 'fanfic-message-content' }).html(content));
+
+			// Add close button if dismissible
+			if (dismissible) {
+				const $closeBtn = $('<button>', {
+					class: 'fanfic-message-close',
+					'aria-label': 'Dismiss message',
+					type: 'button'
+				}).html('&times;');
+
+				$closeBtn.on('click', () => {
+					this.remove(messageId);
+				});
+
+				$message.append($closeBtn);
+			}
+
+			// Hide initially for animation
+			$message.css({ opacity: 0, transform: 'translateY(-10px)' });
+
+			// Add to container
+			$container.append($message);
+
+			// Trigger reflow and animate in
+			$message[0].offsetHeight; // Force reflow
+			$message.css({ opacity: 1, transform: 'translateY(0)' });
+
+			// Auto-dismiss if duration > 0
+			if (duration > 0) {
+				setTimeout(() => {
+					this.remove(messageId);
+				}, duration);
+			}
+
+			return messageId;
+		},
+
+		/**
+		 * Remove a message by ID
+		 */
+		remove: function(messageId) {
+			const $message = $('#' + messageId);
+			if ($message.length) {
+				$message.css({ opacity: 0, transform: 'translateY(-10px)' });
+				setTimeout(() => {
+					$message.remove();
+				}, 300);
+			}
+		},
+
+		/**
+		 * Clear all messages
+		 */
+		clear: function() {
+			const $container = $('#' + this.containerId);
+			$container.find('.fanfic-message').each((i, el) => {
+				$(el).css({ opacity: 0, transform: 'translateY(-10px)' });
+			});
+			setTimeout(() => {
+				$container.empty();
+			}, 300);
+		},
+
+		/**
+		 * Shorthand methods
+		 */
+		success: function(content, options) {
+			return this.add('success', content, options);
+		},
+		error: function(content, options) {
+			return this.add('error', content, options);
+		},
+		warning: function(content, options) {
+			return this.add('warning', content, options);
+		},
+		info: function(content, options) {
+			return this.add('info', content, options);
+		},
+
+		/**
+		 * Initialize: Move existing page-load messages into the container
+		 */
+		init: function() {
+			const $container = this.getContainer();
+			const self = this;
+
+			// Find existing messages and move them into the container
+			const existingSelectors = [
+				'.fanfic-info-box.box-success',
+				'.fanfic-info-box.fanfic-success',
+				'.fanfic-info-box.fanfic-error',
+				'.fanfic-info-box.fanfic-warning',
+				'.fanfic-info-box.fanfic-info',
+				'.fanfic-error-notice',
+				'.fanfic-validation-error-notice',
+				'.fanfic-blocked-notice'
+			];
+
+			$(existingSelectors.join(',')).each(function() {
+				const $existing = $(this);
+				// Skip if already in our container
+				if ($existing.closest('#' + self.containerId).length) {
+					return;
+				}
+
+				// Determine type from classes
+				let type = 'info';
+				if ($existing.hasClass('box-success') || $existing.hasClass('fanfic-success')) {
+					type = 'success';
+				} else if ($existing.hasClass('fanfic-error') || $existing.hasClass('fanfic-error-notice') || $existing.hasClass('fanfic-validation-error-notice')) {
+					type = 'error';
+				} else if ($existing.hasClass('fanfic-warning') || $existing.hasClass('fanfic-blocked-notice')) {
+					type = 'warning';
+				}
+
+				// Get content
+				const content = $existing.html();
+
+				// Remove the close button from content if it exists (we'll add our own)
+				const $temp = $('<div>').html(content);
+				$temp.find('.fanfic-notice-close').remove();
+				const cleanContent = $temp.html();
+
+				// Add to our container
+				self.add(type, cleanContent, { duration: type === 'error' ? 0 : self.defaultDuration });
+
+				// Remove original
+				$existing.remove();
+			});
+		}
+	};
+
+	// Initialize Messages on document ready
+	$(document).ready(function() {
+		// Only init if a messages container exists or there are existing messages to move
+		if ($('#fanfic-messages').length || $('.fanfic-info-box, .fanfic-error-notice, .fanfic-validation-error-notice').length) {
+			Messages.init();
+		}
+	});
+
+	// Expose Messages globally
+	window.FanficMessages = Messages;
+
+	/**
+	 * Notice Handler - Enhanced notification system (legacy, uses Messages when available)
 	 */
 	const Notice = {
 		stackId: 'fanfic-notice-stack',

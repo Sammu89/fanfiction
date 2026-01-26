@@ -5567,3 +5567,176 @@ body.fanfic-member-profile .wp-block-post-title {
 	font-size: 16px;
 	line-height: 1;
 }
+
+/* ==========================================================================
+   Unified Messages Container
+   ========================================================================== */
+
+/**
+ * Main container for all system messages
+ * Empty by default, hidden when no messages
+ */
+#fanfic-messages,
+.fanfic-messages-container {
+	margin: 0 0 20px 0;
+	min-height: 0;
+}
+
+/* Hide when empty */
+#fanfic-messages:empty,
+.fanfic-messages-container:empty {
+	display: none;
+}
+
+/**
+ * Individual message styling
+ */
+.fanfic-message {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 14px 18px;
+	margin-bottom: 12px;
+	border-radius: 6px;
+	border-left: 4px solid;
+	background: #fff;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+	transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fanfic-message:last-child {
+	margin-bottom: 0;
+}
+
+/* Message icon */
+.fanfic-message-icon {
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+	font-weight: bold;
+}
+
+/* Message content */
+.fanfic-message-content {
+	flex: 1;
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.fanfic-message-content p {
+	margin: 0 0 8px 0;
+}
+
+.fanfic-message-content p:last-child {
+	margin-bottom: 0;
+}
+
+.fanfic-message-content ul {
+	margin: 8px 0 0 0;
+	padding-left: 20px;
+}
+
+.fanfic-message-content li {
+	margin: 4px 0;
+}
+
+/* Close button */
+.fanfic-message-close {
+	flex-shrink: 0;
+	background: transparent;
+	border: none;
+	font-size: 20px;
+	line-height: 1;
+	padding: 0;
+	margin: -4px -4px -4px 8px;
+	cursor: pointer;
+	opacity: 0.5;
+	transition: opacity 0.2s ease;
+	color: inherit;
+}
+
+.fanfic-message-close:hover,
+.fanfic-message-close:focus {
+	opacity: 1;
+	outline: none;
+}
+
+.fanfic-message-close:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+/* Message Types - WCAG compliant colors */
+.fanfic-message-success {
+	background-color: #f0fdf4;
+	border-left-color: var(--color-success, #22c55e);
+	color: #166534;
+}
+
+.fanfic-message-success .fanfic-message-icon {
+	color: var(--color-success, #22c55e);
+}
+
+.fanfic-message-error {
+	background-color: #fef2f2;
+	border-left-color: var(--color-error, #ef4444);
+	color: #991b1b;
+}
+
+.fanfic-message-error .fanfic-message-icon {
+	color: var(--color-error, #ef4444);
+}
+
+.fanfic-message-warning {
+	background-color: #fffbeb;
+	border-left-color: var(--color-warning, #f59e0b);
+	color: #92400e;
+}
+
+.fanfic-message-warning .fanfic-message-icon {
+	color: var(--color-warning, #f59e0b);
+}
+
+.fanfic-message-info {
+	background-color: #eff6ff;
+	border-left-color: var(--color-info, #3b82f6);
+	color: #1e40af;
+}
+
+.fanfic-message-info .fanfic-message-icon {
+	color: var(--color-info, #3b82f6);
+}
+
+/* Blocked notice specific styling */
+.fanfic-message-warning h3 {
+	margin: 0 0 8px 0;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.fanfic-message-warning .fanfic-block-info {
+	margin-top: 8px;
+	font-size: 13px;
+	opacity: 0.9;
+}
+
+/* Animation classes */
+@keyframes fanfic-message-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.fanfic-message-entering {
+	animation: fanfic-message-fade-in 0.3s ease forwards;
+}
