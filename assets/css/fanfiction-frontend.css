@@ -775,7 +775,11 @@ a.fanfic-button {
 	font-size: 14px;
 }
 
-/* Info Box */
+/* ==========================================================================
+   Legacy Info Box Styles (deprecated - use .fanfic-message instead)
+   Kept for backwards compatibility with templates not yet migrated.
+   See: #fanfic-messages and .fanfic-message-* for new unified system.
+   ========================================================================== */
 .fanfic-info-box {
 	display: flex;
 	gap: 15px;
@@ -2830,7 +2834,7 @@ a.fanfic-button {
 	color: #212529;
 }
 
-/* Messages */
+/* Legacy Messages (deprecated - use #fanfic-messages container instead) */
 .fanfic-author-form-wrapper .fanfic-info-box {
 	padding: 16px 20px;
 	border-radius: 6px;

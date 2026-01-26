@@ -32,85 +32,48 @@ $avatar_url = get_user_meta( $current_user->ID, '_fanfic_avatar_url', true );
 $image_upload_settings = function_exists( 'fanfic_get_image_upload_settings' ) ? fanfic_get_image_upload_settings() : array( 'enabled' => false, 'max_value' => 1, 'max_unit' => 'mb' );
 $image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 
-// Get user stats for persistent header
-$story_count = count( get_posts( array(
-	'post_type'      => 'fanfiction_story',
-	'author'         => $current_user->ID,
-	'post_status'    => 'any',
-	'posts_per_page' => -1,
-	'fields'         => 'ids',
-) ) );
-$published_story_count = count( get_posts( array(
-	'post_type'      => 'fanfiction_story',
-	'author'         => $current_user->ID,
-	'post_status'    => 'publish',
-	'posts_per_page' => -1,
-	'fields'         => 'ids',
-) ) );
 ?>
 
-<!-- Persistent Header Container for System Messages -->
-<div class="fanfic-persistent-header" id="fanfic-profile-header" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
-	<div class="fanfic-header-info">
-		<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>
-		<span>
-			<?php
-			if ( $story_count === 0 ) {
-				esc_html_e( 'Manage your author profile. You haven\'t written any stories yet.', 'fanfiction-manager' );
-			} elseif ( $published_story_count === 0 ) {
-				printf(
-					/* translators: %d: Number of draft stories */
-					esc_html( _n( 'Manage your author profile. You have %d unpublished story.', 'Manage your author profile. You have %d unpublished stories.', $story_count, 'fanfiction-manager' ) ),
-					$story_count
-				);
-			} else {
-				printf(
-					/* translators: 1: Number of published stories, 2: Total number of stories */
-					esc_html__( 'Manage your author profile. You have %1$d published of %2$d total stories.', 'fanfiction-manager' ),
-					$published_story_count,
-					$story_count
-				);
-			}
-			?>
-		</span>
-	</div>
-
-	<?php
-	/**
-	 * Hook for adding persistent header messages to the profile form.
-	 *
-	 * @since 1.2.0
-	 * @param WP_User $current_user The current user object.
-	 */
-	do_action( 'fanfic_profile_form_header', $current_user );
-	?>
-</div>
-
+<!-- Unified Messages Container -->
+<div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php
-// Success/error messages
-$message = '';
-if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) {
-	?>
-	<div class="fanfic-info-box fanfic-success" role="alert">
-		<?php esc_html_e( 'Profile updated successfully.', 'fanfiction-manager' ); ?>
+// Success message from URL
+if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) : ?>
+	<div class="fanfic-message fanfic-message-success" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">✓</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Profile updated successfully.', 'fanfiction-manager' ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
-	<?php
-}
+<?php endif;
 
+// Validation errors from transient
 $errors = get_transient( 'fanfic_profile_errors_' . $current_user->ID );
 if ( $errors ) {
 	delete_transient( 'fanfic_profile_errors_' . $current_user->ID );
 	?>
-	<div class="fanfic-info-box fanfic-error" role="alert">
-		<ul>
-			<?php foreach ( $errors as $error ) : ?>
-				<li><?php echo esc_html( $error ); ?></li>
-			<?php endforeach; ?>
-		</ul>
+	<div class="fanfic-message fanfic-message-error" role="alert">
+		<span class="fanfic-message-icon" aria-hidden="true">✕</span>
+		<span class="fanfic-message-content">
+			<ul>
+				<?php foreach ( $errors as $error ) : ?>
+					<li><?php echo esc_html( $error ); ?></li>
+				<?php endforeach; ?>
+			</ul>
+		</span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
 	<?php
 }
+
+/**
+ * Hook for adding messages to the profile form.
+ *
+ * @since 1.2.0
+ * @param WP_User $current_user The current user object.
+ */
+do_action( 'fanfic_profile_form_messages', $current_user );
 ?>
+</div>
 
 <p><?php esc_html_e( 'Update your author profile information.', 'fanfiction-manager' ); ?></p>
 

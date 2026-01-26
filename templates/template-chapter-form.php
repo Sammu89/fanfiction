@@ -732,131 +732,82 @@ fanfic_render_breadcrumb( 'edit-chapter', array(
 ) );
 ?>
 
-<!-- Persistent Header Container for System Messages -->
-<div class="fanfic-persistent-header" id="fanfic-chapter-form-header" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
-	<?php
-	// Get existing chapters count
-	$existing_chapter_count = count( get_posts( array(
-		'post_type'      => 'fanfiction_chapter',
-		'post_parent'    => $story_id,
-		'post_status'    => 'any',
-		'posts_per_page' => -1,
-		'fields'         => 'ids',
-	) ) );
-	$story_status = get_post_status( $story_id );
-	$story_is_draft = 'draft' === $story_status;
-	?>
-
-	<?php if ( $is_edit_mode ) : ?>
-		<div class="fanfic-header-info">
-			<span class="dashicons dashicons-edit" aria-hidden="true"></span>
-			<span>
-				<?php
-				printf(
-					/* translators: %s: chapter title */
-					esc_html__( 'Editing chapter: %s', 'fanfiction-manager' ),
-					esc_html( $chapter->post_title )
-				);
-				?>
-			</span>
-		</div>
-	<?php elseif ( $existing_chapter_count === 0 ) : ?>
-		<div class="fanfic-header-info">
-			<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>
-			<span><?php esc_html_e( 'This will be the first chapter of your story!', 'fanfiction-manager' ); ?></span>
-		</div>
-	<?php elseif ( $story_is_draft ) : ?>
-		<div class="fanfic-header-info">
-			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
-			<span>
-				<?php
-				printf(
-					/* translators: %d: Number of existing chapters */
-					esc_html( _n( 'Adding a chapter to your draft story (%d existing chapter).', 'Adding a chapter to your draft story (%d existing chapters).', $existing_chapter_count, 'fanfiction-manager' ) ),
-					$existing_chapter_count
-				);
-				?>
-			</span>
-		</div>
-	<?php else : ?>
-		<div class="fanfic-header-info">
-			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
-			<span>
-				<?php
-				printf(
-					/* translators: %d: Number of existing chapters */
-					esc_html( _n( 'Adding a chapter to your published story (%d existing chapter).', 'Adding a chapter to your published story (%d existing chapters).', $existing_chapter_count, 'fanfiction-manager' ) ),
-					$existing_chapter_count
-				);
-				?>
-			</span>
-		</div>
-	<?php endif; ?>
-
-	<?php
-	/**
-	 * Hook for adding persistent header messages to the chapter form.
-	 *
-	 * @since 1.2.0
-	 * @param int  $story_id     Story ID.
-	 * @param int  $chapter_id   Chapter ID (0 for create mode).
-	 * @param bool $is_edit_mode Whether we're in edit mode.
-	 */
-	do_action( 'fanfic_chapter_form_header', $story_id, $chapter_id, $is_edit_mode );
-	?>
-</div>
-
-<!-- Success/Error Messages -->
-<?php if ( isset( $_GET['success'] ) && $_GET['success'] === 'true' ) : ?>
-	<div class="fanfic-info-box box-success" role="status" aria-live="polite">
-		<p><?php echo $is_edit_mode ? esc_html__( 'Chapter updated successfully!', 'fanfiction-manager' ) : esc_html__( 'Chapter created successfully!', 'fanfiction-manager' ); ?></p>
-		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
-	</div>
-<?php endif; ?>
-
-<?php if ( isset( $_GET['updated'] ) && $_GET['updated'] === 'success' ) : ?>
-	<div class="fanfic-info-box box-success" role="status" aria-live="polite">
-		<p><?php esc_html_e( 'Chapter updated successfully!', 'fanfiction-manager' ); ?></p>
-		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
-	</div>
-<?php endif; ?>
-
-<?php if ( isset( $_GET['error'] ) ) : ?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<p><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ); ?></p>
-		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
-	</div>
-<?php endif; ?>
-
-<?php if ( ! empty( $errors ) && is_array( $errors ) ) : ?>
-	<div class="fanfic-error-notice" role="alert" aria-live="assertive">
-		<ul>
-			<?php foreach ( $errors as $error ) : ?>
-				<li><?php echo esc_html( $error ); ?></li>
-			<?php endforeach; ?>
-		</ul>
-		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
-	</div>
-<?php endif; ?>
-
-<!-- Display validation errors from pre-publish validation -->
+<!-- Unified Messages Container -->
+<div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php
+// Success message from URL
+if ( isset( $_GET['success'] ) && $_GET['success'] === 'true' ) : ?>
+	<div class="fanfic-message fanfic-message-success" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">✓</span>
+		<span class="fanfic-message-content"><?php echo $is_edit_mode ? esc_html__( 'Chapter updated successfully!', 'fanfiction-manager' ) : esc_html__( 'Chapter created successfully!', 'fanfiction-manager' ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+<?php endif;
+
+// Updated message from URL
+if ( isset( $_GET['updated'] ) && $_GET['updated'] === 'success' ) : ?>
+	<div class="fanfic-message fanfic-message-success" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">✓</span>
+		<span class="fanfic-message-content"><?php esc_html_e( 'Chapter updated successfully!', 'fanfiction-manager' ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+<?php endif;
+
+// Error message from URL
+if ( isset( $_GET['error'] ) ) : ?>
+	<div class="fanfic-message fanfic-message-error" role="alert">
+		<span class="fanfic-message-icon" aria-hidden="true">✕</span>
+		<span class="fanfic-message-content"><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ); ?></span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+<?php endif;
+
+// Validation errors from transient
+if ( ! empty( $errors ) && is_array( $errors ) ) : ?>
+	<div class="fanfic-message fanfic-message-error" role="alert">
+		<span class="fanfic-message-icon" aria-hidden="true">✕</span>
+		<span class="fanfic-message-content">
+			<ul>
+				<?php foreach ( $errors as $error ) : ?>
+					<li><?php echo esc_html( $error ); ?></li>
+				<?php endforeach; ?>
+			</ul>
+		</span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+<?php endif;
+
+// Pre-publish validation errors
 $validation_errors = $is_edit_mode ? get_transient( 'fanfic_chapter_validation_errors_' . get_current_user_id() . '_' . $chapter_id ) : false;
 if ( $validation_errors ) {
 	delete_transient( 'fanfic_chapter_validation_errors_' . get_current_user_id() . '_' . $chapter_id );
 	?>
-	<div class="fanfic-validation-error-notice" role="alert" aria-live="assertive">
-		<p><strong><?php echo esc_html( fanfic_get_validation_error_heading( 'chapter' ) ); ?></strong></p>
-		<ul>
-			<?php foreach ( $validation_errors as $error ) : ?>
-				<li><?php echo esc_html( $error ); ?></li>
-			<?php endforeach; ?>
-		</ul>
-		<button class="fanfic-notice-close" aria-label="<?php esc_attr_e( 'Close notice', 'fanfiction-manager' ); ?>">&times;</button>
+	<div class="fanfic-message fanfic-message-error" role="alert">
+		<span class="fanfic-message-icon" aria-hidden="true">✕</span>
+		<span class="fanfic-message-content">
+			<p><strong><?php echo esc_html( fanfic_get_validation_error_heading( 'chapter' ) ); ?></strong></p>
+			<ul>
+				<?php foreach ( $validation_errors as $error ) : ?>
+					<li><?php echo esc_html( $error ); ?></li>
+				<?php endforeach; ?>
+			</ul>
+		</span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
 	</div>
 	<?php
 }
+
+/**
+ * Hook for adding messages to the chapter form.
+ *
+ * @since 1.2.0
+ * @param int  $story_id     Story ID.
+ * @param int  $chapter_id   Chapter ID (0 for create mode).
+ * @param bool $is_edit_mode Whether we're in edit mode.
+ */
+do_action( 'fanfic_chapter_form_messages', $story_id, $chapter_id, $is_edit_mode );
 ?>
+</div>
 
 <p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
 
