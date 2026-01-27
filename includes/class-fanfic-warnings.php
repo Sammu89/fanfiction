@@ -55,7 +55,7 @@ class Fanfic_Warnings {
 	 * @return void
 	 */
 	public static function maybe_seed_warnings() {
-		if ( ! self::tables_ready() ) {
+		if ( ! Fanfic_Database_Setup::tables_exist() ) {
 			return;
 		}
 

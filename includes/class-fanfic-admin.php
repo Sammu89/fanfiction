@@ -34,6 +34,7 @@ class Fanfic_Admin {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'add_admin_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
+		add_action( 'admin_footer', array( __CLASS__, 'add_external_link_target_blank' ) );
 	}
 
 	/**
@@ -70,50 +71,6 @@ class Fanfic_Admin {
 			'fanfiction-manager',
 			array( __CLASS__, 'render_stories_page' )
 		);
-
-		// Add My Dashboard submenu (links to frontend dashboard)
-		$dashboard_url = fanfic_get_dashboard_url();
-		if ( $dashboard_url ) {
-			add_submenu_page(
-				'fanfiction-manager',
-				__( 'My Dashboard', 'fanfiction-manager' ),
-				__( 'My Dashboard', 'fanfiction-manager' ),
-				'read',
-				$dashboard_url,
-				''
-			);
-		}
-
-		// Add Add Story submenu (links to frontend create story page)
-		// Create story is accessed via main page with ?action=create-story
-		$page_ids = get_option( 'fanfic_system_page_ids', array() );
-		if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
-			$create_story_url = add_query_arg( 'action', 'create-story', get_permalink( $page_ids['main'] ) );
-			add_submenu_page(
-				'fanfiction-manager',
-				__( 'Add Story', 'fanfiction-manager' ),
-				__( 'Add Story', 'fanfiction-manager' ),
-				'read',
-				$create_story_url,
-				''
-			);
-		}
-
-		// Add My Profile submenu (links to frontend profile page)
-		$current_user = wp_get_current_user();
-		if ( $current_user && $current_user->ID ) {
-			$profile_url = fanfic_get_user_profile_url( $current_user->ID );
-			if ( $profile_url ) {
-				add_submenu_page(
-					'fanfiction-manager',
-					__( 'My Profile', 'fanfiction-manager' ),
-					__( 'My Profile', 'fanfiction-manager' ),
-					'read',
-					$profile_url,
-					''
-				);
-			}
-		}
 
 		// Add Settings submenu
 		add_submenu_page(
@@ -167,6 +124,64 @@ class Fanfic_Admin {
 			'fanfiction-moderation',
 			array( __CLASS__, 'render_moderation_page' )
 		);
+
+		// Add My Dashboard submenu (links to frontend dashboard - opens in new tab)
+		$dashboard_url = fanfic_get_dashboard_url();
+		if ( $dashboard_url ) {
+			add_submenu_page(
+				'fanfiction-manager',
+				__( 'My Dashboard', 'fanfiction-manager' ),
+				__( 'My Dashboard', 'fanfiction-manager' ),
+				'read',
+				$dashboard_url,
+				''
+			);
+		}
+
+		// Add My Profile submenu (links to frontend profile page - opens in new tab)
+		$current_user = wp_get_current_user();
+		if ( $current_user && $current_user->ID ) {
+			$profile_url = fanfic_get_user_profile_url( $current_user->ID );
+			if ( $profile_url ) {
+				add_submenu_page(
+					'fanfiction-manager',
+					__( 'My Profile', 'fanfiction-manager' ),
+					__( 'My Profile', 'fanfiction-manager' ),
+					'read',
+					$profile_url,
+					''
+				);
+			}
+		}
+	}
+
+	/**
+	 * Add target="_blank" to external admin menu links
+	 *
+	 * Uses JavaScript to add target="_blank" to submenu links that start with "My "
+	 * since WordPress doesn't natively support this for admin menu items.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function add_external_link_target_blank() {
+		// Only run on admin pages
+		if ( ! is_admin() ) {
+			return;
+		}
+		?>
+<script type="text/javascript">
+jQuery(document).ready(function($) {
+	$('#toplevel_page_fanfiction-manager .wp-submenu a').each(function() {
+		var linkText = $(this).text().trim();
+		if (linkText.indexOf('My ') === 0) {
+			$(this).attr('target', '_blank');
+			$(this).attr('rel', 'noopener noreferrer');
+		}
+	});
+});
+</script>
+<?php
 	}
 
 	/**

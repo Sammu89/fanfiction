@@ -170,9 +170,9 @@ class Fanfic_URL_Schema {
 
             'search' => array(
                 'type'             => 'dynamic',
-                'default'          => __( 'search', 'fanfiction-manager' ),
-                'label'            => __( 'Search Page', 'fanfiction-manager' ),
-                'description'      => __( 'URL for the search page.', 'fanfiction-manager' ),
+                'default'          => __( 'browse', 'fanfiction-manager' ),
+                'label'            => __( 'Browse Page', 'fanfiction-manager' ),
+                'description'      => __( 'URL for the browse page.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{search}/',
                 'option_key'       => 'fanfic_search_slug',
                 'group'            => 'dynamic',

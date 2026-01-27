@@ -221,7 +221,7 @@ class Fanfic_Page_Template {
 			array(
 				'name'          => __( 'Fanfiction Sidebar', 'fanfiction-manager' ),
 				'id'            => 'fanfiction-sidebar',
-				'description'   => __( 'Widget area for Fanfiction Manager plugin pages (Dashboard, Create Story, Search, Members, etc.).', 'fanfiction-manager' ),
+				'description'   => __( 'Widget area for Fanfiction Manager plugin pages (Dashboard, Create Story, Browse, Members, etc.).', 'fanfiction-manager' ),
 				'before_widget' => '<section id="%1$s" class="widget fanfiction-widget %2$s">',
 				'after_widget'  => '</section>',
 				'before_title'  => '<h2 class="widget-title">',

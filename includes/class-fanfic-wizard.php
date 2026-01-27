@@ -545,7 +545,7 @@ private function render_choice_screen() {
 				<ul style="list-style: disc; margin-left: 2em;">
 					<li><?php esc_html_e( 'Base URL slug for your fanfiction pages', 'fanfiction-manager' ); ?></li>
 					<li><?php esc_html_e( 'Story subdirectory to avoid conflicts with system pages', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Secondary path customization (dashboard, user, search)', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'Secondary path customization (dashboard, user, browse)', 'fanfiction-manager' ); ?></li>
 					<li><?php esc_html_e( 'User roles (moderators and administrators)', 'fanfiction-manager' ); ?></li>
 					<li><?php esc_html_e( 'Default taxonomy terms (Genre and Status)', 'fanfiction-manager' ); ?></li>
 					<li><?php esc_html_e( 'System pages creation', 'fanfiction-manager' ); ?></li>

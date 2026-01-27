@@ -307,6 +307,7 @@ class Fanfic_Core {
 		// Handle chapter_number and chapter_type query vars
 		add_action( 'template_redirect', array( $this, 'handle_chapter_query_vars' ) );
 		add_action( 'template_redirect', array( $this, 'handle_blocked_story_access' ), 12 );
+		add_action( 'template_redirect', array( $this, 'redirect_browse_archives' ), 5 );
 
 		// Display suspension notice to banned users on frontend
 		add_action( 'wp_footer', array( $this, 'display_suspension_notice' ) );
@@ -1121,6 +1122,76 @@ class Fanfic_Core {
 		status_header( 404 );
 		nocache_headers();
 		include get_404_template();
+		exit;
+	}
+
+	/**
+	 * Redirect story archives and taxonomy archives to the unified browse page.
+	 *
+	 * @since 1.2.0
+	 * @return void
+	 */
+	public function redirect_browse_archives() {
+		if ( is_admin() || wp_doing_ajax() ) {
+			return;
+		}
+
+		// Only redirect archive/taxonomy contexts.
+		if ( ! is_post_type_archive( 'fanfiction_story' ) && ! is_tax() ) {
+			return;
+		}
+
+		// Avoid redirecting the browse page itself.
+		if ( get_query_var( 'fanfic_page' ) ) {
+			return;
+		}
+
+		if ( ! function_exists( 'fanfic_get_page_url' ) ) {
+			return;
+		}
+
+		$browse_url = fanfic_get_page_url( 'search' );
+		if ( empty( $browse_url ) ) {
+			return;
+		}
+
+		$args = array();
+
+		if ( is_tax() ) {
+			$term = get_queried_object();
+			if ( $term instanceof WP_Term ) {
+				switch ( $term->taxonomy ) {
+					case 'fanfiction_genre':
+						$args['genre'] = $term->slug;
+						break;
+					case 'fanfiction_status':
+						$args['status'] = $term->slug;
+						break;
+					default:
+						$param = str_replace( 'fanfiction_', '', $term->taxonomy );
+						$args[ $param ] = $term->slug;
+						break;
+				}
+			}
+		}
+
+		if ( ! empty( $_GET ) ) {
+			$raw_params = wp_unslash( $_GET );
+			$sanitized = array();
+			foreach ( $raw_params as $key => $value ) {
+				$key = sanitize_key( $key );
+				if ( is_array( $value ) ) {
+					$sanitized[ $key ] = array_map( 'sanitize_text_field', $value );
+				} else {
+					$sanitized[ $key ] = sanitize_text_field( $value );
+				}
+			}
+
+			$args = array_merge( $args, $sanitized );
+		}
+
+		$target = add_query_arg( $args, $browse_url );
+		wp_safe_redirect( $target, 301 );
 		exit;
 	}
 

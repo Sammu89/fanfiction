@@ -374,14 +374,14 @@ class Fanfic_URL_Config {
                                     'description'    => __( 'Handles both author directory list and individual profiles', 'fanfiction-manager' ),
                                 ) );
 
-                                // Search Page
+                                // Browse Page
                                 self::render_slug_input_row( array(
                                     'id'             => 'fanfic_search_slug',
                                     'name'           => 'fanfic_search_slug',
-                                    'label'          => __( 'Search Page', 'fanfiction-manager' ),
-                                    'value'          => isset( $current_slugs['search'] ) ? $current_slugs['search'] : 'search',
+                                    'label'          => __( 'Browse Page', 'fanfiction-manager' ),
+                                    'value'          => isset( $current_slugs['search'] ) ? $current_slugs['search'] : 'browse',
                                     'preview_id'     => 'search-preview-code',
-                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">search</span>/',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">browse</span>/',
                                     'required'       => true,
                                     'data_slug_type' => 'search',
                                 ) );
@@ -1186,9 +1186,9 @@ class Fanfic_URL_Config {
             }
         }
 
-        // Search
+        // Browse
         if ( isset( $_POST['fanfic_search_slug'] ) ) {
-            $result = $this->save_slug_field( 'fanfic_search_slug', 'search', self::OPTION_SEARCH_SLUG, __( 'Search slug', 'fanfiction-manager' ) );
+            $result = $this->save_slug_field( 'fanfic_search_slug', 'search', self::OPTION_SEARCH_SLUG, __( 'Browse slug', 'fanfiction-manager' ) );
             if ( $result ) {
                 if ( isset( $result['error'] ) ) {
                     $errors[] = $result['error'];

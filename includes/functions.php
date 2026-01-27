@@ -646,9 +646,9 @@ function fanfic_get_create_story_url() {
 }
 
 /**
- * Get URL for the search page
+ * Get URL for the browse page
  *
- * @return string The search page URL.
+ * @return string The browse page URL.
  */
 function fanfic_get_search_url() {
 	return fanfic_get_page_url( 'search' );
@@ -826,7 +826,7 @@ function fanfic_get_parent_url( $post_id = 0 ) {
  *                        - 'view-profile' : View user profile (frontend)
  *                        - 'members' : Members listing page
  *                        - 'stories' : Story archive page
- *                        - 'search' : Search page
+ *                        - 'search' : Browse page
  * @param array  $args    Optional. Additional arguments:
  *                        - 'story_id' (int) : Story ID for story/chapter contexts
  *                        - 'story_title' (string) : Story title (optional, will be fetched if not provided)
@@ -1059,7 +1059,7 @@ function fanfic_render_breadcrumb( $context, $args = array() ) {
 		case 'search':
 			$items[] = array(
 				'url'    => '',
-				'label'  => __( 'Search', 'fanfiction-manager' ),
+				'label'  => __( 'Browse', 'fanfiction-manager' ),
 				'active' => true,
 			);
 			break;

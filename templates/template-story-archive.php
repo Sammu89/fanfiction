@@ -1,8 +1,8 @@
 <?php
 /**
- * Universal Archive Template for Fanfiction Stories
+ * Universal Browse Template for Fanfiction Stories
  *
- * Uses WordPress native query and Phase 5 browse filters.
+ * Uses WordPress native query and browse filters.
  *
  * @package FanfictionManager
  * @subpackage Templates
@@ -11,12 +11,15 @@
 
 get_header();
 
-$base_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' );
+$base_url = function_exists( 'fanfic_get_page_url' ) ? fanfic_get_page_url( 'search' ) : '';
+if ( empty( $base_url ) ) {
+	$base_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' );
+}
 $params = function_exists( 'fanfic_get_browse_params' ) ? fanfic_get_browse_params() : array();
 
 $has_filters = ! empty( $params['search'] ) || ! empty( $params['genres'] ) || ! empty( $params['statuses'] ) || ! empty( $params['fandoms'] ) || ! empty( $params['exclude_warnings'] ) || ! empty( $params['age'] ) || ! empty( $params['sort'] );
 
-$page_title = esc_html__( 'Story Archive', 'fanfiction-manager' );
+$page_title = esc_html__( 'Browse Stories', 'fanfiction-manager' );
 $page_description = $has_filters
 	? esc_html__( 'Browse stories matching your selected filters.', 'fanfiction-manager' )
 	: esc_html__( 'Browse all published fanfiction stories.', 'fanfiction-manager' );

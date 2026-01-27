@@ -142,27 +142,6 @@ class Fanfic_Templates {
 			}
 		}
 
-		if ( is_post_type_archive( 'fanfiction_story' ) ) {
-			$custom_template = self::locate_template( 'template-story-archive.php' );
-			if ( $custom_template ) {
-				return $custom_template;
-			}
-		}
-
-		if ( is_tax( 'fanfiction_genre' ) ) {
-			$custom_template = self::locate_template( 'taxonomy-fanfiction_genre.php' );
-			if ( $custom_template ) {
-				return $custom_template;
-			}
-		}
-
-		if ( is_tax( 'fanfiction_status' ) ) {
-			$custom_template = self::locate_template( 'taxonomy-fanfiction_status.php' );
-			if ( $custom_template ) {
-				return $custom_template;
-			}
-		}
-
 		$fanfic_page = get_query_var( 'fanfic_page' );
 
 		if ( $fanfic_page ) {
@@ -179,7 +158,7 @@ class Fanfic_Templates {
 					$fanfic_content_template = 'template-dashboard.php';
 					break;
 				case 'search':
-					$fanfic_content_template = 'template-search-page.php';
+					$fanfic_content_template = 'template-story-archive.php';
 					break;
 				// Add other cases as needed
 			}
@@ -775,8 +754,8 @@ class Fanfic_Templates {
 				'template' => 'dashboard',
 			),
 			'search'          => array(
-				'title'    => __( 'Search', 'fanfiction-manager' ),
-				'slug'     => isset( $custom_slugs['search'] ) ? $custom_slugs['search'] : 'search',
+				'title'    => __( 'Browse', 'fanfiction-manager' ),
+				'slug'     => isset( $custom_slugs['search'] ) ? $custom_slugs['search'] : 'browse',
 				'template' => 'search',
 			),
 			'members'         => array(
