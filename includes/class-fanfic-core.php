@@ -124,6 +124,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-seo.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-fandoms.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-warnings.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-languages.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
 		require_once FANFIC_INCLUDES_DIR . 'functions.php';
@@ -152,6 +153,7 @@ class Fanfic_Core {
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-export-import-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-fandoms-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-warnings-admin.php';
+			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-languages-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-admin.php';
 		}
 	}
@@ -193,6 +195,7 @@ class Fanfic_Core {
 			Fanfic_Taxonomies_Admin::init();
 			Fanfic_Fandoms_Admin::init();
 			Fanfic_Warnings_Admin::init();
+			Fanfic_Languages_Admin::init();
 			Fanfic_Moderation::init();
 			Fanfic_Moderation_Stamps::init();
 			Fanfic_Users_Admin::init();
@@ -277,6 +280,7 @@ class Fanfic_Core {
 		Fanfic_SEO::init();
 		Fanfic_Fandoms::init();
 		Fanfic_Warnings::init();
+		Fanfic_Languages::init();
 		Fanfic_Search_Index::init();
 		Fanfic_Moderation_Log::init();
 
@@ -1243,6 +1247,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-database-setup.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-fandoms.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-warnings.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-languages.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
 

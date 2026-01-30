@@ -29,6 +29,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_story_fandoms: Story-fandom relations
  * - wp_fanfic_warnings: Warning definitions (NEW in 1.2.0)
  * - wp_fanfic_story_warnings: Story-warning relations (NEW in 1.2.0)
+ * - wp_fanfic_languages: Language definitions (NEW in 1.3.0)
+ * - wp_fanfic_story_languages: Story-language relations (NEW in 1.3.0)
  * - wp_fanfic_story_search_index: Pre-computed search index (NEW in 1.2.0)
  * - wp_fanfic_moderation_log: Moderation action log (NEW in 1.2.0)
  *
@@ -42,7 +44,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.2.0';
+	const DB_VERSION = '1.3.0';
 
 	/**
 	 * Option name for database version tracking
@@ -304,7 +306,41 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_warnings table';
 		}
 
-		// 12. Story Search Index Table
+		// 12. Languages Table
+		$table_languages = $prefix . 'fanfic_languages';
+		$sql_languages   = "CREATE TABLE IF NOT EXISTS {$table_languages} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			slug varchar(10) NOT NULL,
+			name varchar(255) NOT NULL,
+			native_name varchar(255) DEFAULT NULL,
+			is_active tinyint(1) NOT NULL DEFAULT 1,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_slug (slug),
+			KEY idx_active (is_active),
+			KEY idx_name (name)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_languages );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_languages ) ) {
+			$errors[] = 'Failed to create languages table';
+		}
+
+		// 13. Story-Language Relations Table
+		$table_story_languages = $prefix . 'fanfic_story_languages';
+		$sql_story_languages   = "CREATE TABLE IF NOT EXISTS {$table_story_languages} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			language_id bigint(20) UNSIGNED NOT NULL,
+			UNIQUE KEY unique_story_language (story_id, language_id),
+			KEY idx_story (story_id),
+			KEY idx_language_story (language_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_languages );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_languages ) ) {
+			$errors[] = 'Failed to create story_languages table';
+		}
+
+		// 15. Story Search Index Table
 		$table_search_index = $prefix . 'fanfic_story_search_index';
 		$sql_search_index   = "CREATE TABLE IF NOT EXISTS {$table_search_index} (
 			story_id bigint(20) UNSIGNED NOT NULL,
@@ -320,7 +356,7 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_search_index table';
 		}
 
-		// 13. Moderation Log Table
+		// 16. Moderation Log Table
 		$table_moderation_log = $prefix . 'fanfic_moderation_log';
 		$sql_moderation_log   = "CREATE TABLE IF NOT EXISTS {$table_moderation_log} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -397,6 +433,8 @@ class Fanfic_Database_Setup {
 		$tables = array(
 			$prefix . 'fanfic_moderation_log',
 			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_notifications',
@@ -426,7 +464,7 @@ class Fanfic_Database_Setup {
 	 * Check if all tables exist
 	 *
 	 * @since 1.0.0
-	 * @return bool True if all 13 tables exist, false if any missing.
+	 * @return bool True if all 15 tables exist, false if any missing.
 	 */
 	public static function tables_exist() {
 		global $wpdb;
@@ -444,6 +482,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_languages',
+			$prefix . 'fanfic_story_languages',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_moderation_log',
 		);
@@ -557,6 +597,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_languages',
+			$prefix . 'fanfic_story_languages',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_moderation_log',
 		);
@@ -632,6 +674,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_languages',
+			$prefix . 'fanfic_story_languages',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_moderation_log',
 		);
@@ -669,6 +713,8 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_languages',
+			$prefix . 'fanfic_story_languages',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_moderation_log',
 		);
@@ -705,6 +751,8 @@ class Fanfic_Database_Setup {
 		$tables = array(
 			$prefix . 'fanfic_moderation_log',
 			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_notifications',

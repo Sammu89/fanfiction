@@ -57,6 +57,7 @@ class Fanfic_Taxonomies_Admin {
 		add_action( 'admin_post_fanfic_delete_custom_taxonomy', array( __CLASS__, 'delete_custom_taxonomy' ) );
 		add_action( 'admin_post_fanfic_save_fandom_settings', array( __CLASS__, 'save_fandom_settings' ) );
 		add_action( 'admin_post_fanfic_save_taxonomy_settings', array( __CLASS__, 'save_taxonomy_settings' ) );
+		add_action( 'admin_post_fanfic_save_language_settings', array( __CLASS__, 'save_language_settings' ) );
 
 		// Hook into fanfic_register_custom_taxonomies action used by Fanfic_Taxonomies class
 		add_action( 'fanfic_register_custom_taxonomies', array( __CLASS__, 'register_custom_taxonomies' ) );
@@ -466,7 +467,7 @@ class Fanfic_Taxonomies_Admin {
 		}
 
 		// Get current tab with validation
-		$allowed_tabs = array( 'general', 'genres', 'status', 'warnings', 'fandoms' );
+		$allowed_tabs = array( 'general', 'genres', 'status', 'warnings', 'fandoms', 'languages' );
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general';
 		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'general';
 
@@ -475,6 +476,9 @@ class Fanfic_Taxonomies_Admin {
 
 		// Check if fandoms is enabled
 		$enable_fandoms = Fanfic_Settings::get_setting( 'enable_fandom_classification', false );
+
+		// Check if languages is enabled
+		$enable_languages = Fanfic_Settings::get_setting( 'enable_language_classification', false );
 
 		?>
 		<div class="wrap">
@@ -496,6 +500,11 @@ class Fanfic_Taxonomies_Admin {
 				<?php if ( $enable_fandoms ) : ?>
 					<a href="?page=fanfiction-taxonomies&tab=fandoms" class="nav-tab <?php echo $current_tab === 'fandoms' ? 'nav-tab-active' : ''; ?>">
 						<?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?>
+					</a>
+				<?php endif; ?>
+				<?php if ( $enable_languages ) : ?>
+					<a href="?page=fanfiction-taxonomies&tab=languages" class="nav-tab <?php echo $current_tab === 'languages' ? 'nav-tab-active' : ''; ?>">
+						<?php esc_html_e( 'Languages', 'fanfiction-manager' ); ?>
 					</a>
 				<?php endif; ?>
 			</nav>
@@ -521,6 +530,13 @@ class Fanfic_Taxonomies_Admin {
 							Fanfic_Fandoms_Admin::render();
 						} else {
 							self::render_fandoms_placeholder();
+						}
+						break;
+					case 'languages':
+						if ( $enable_languages && class_exists( 'Fanfic_Languages_Admin' ) ) {
+							Fanfic_Languages_Admin::render();
+						} else {
+							self::render_languages_placeholder();
 						}
 						break;
 					case 'general':
@@ -549,6 +565,7 @@ class Fanfic_Taxonomies_Admin {
 		$can_add_more = $custom_count < self::MAX_CUSTOM_TAXONOMIES;
 
 		$enable_fandoms = Fanfic_Settings::get_setting( 'enable_fandom_classification', false );
+		$enable_languages = Fanfic_Settings::get_setting( 'enable_language_classification', false );
 		$enable_warnings = true; // Warnings are always enabled in 1.2.0
 		$enable_tags = true; // Tags are always enabled in 1.2.0
 
@@ -592,6 +609,16 @@ class Fanfic_Taxonomies_Admin {
 									<?php esc_html_e( 'Enable fandom classification', 'fanfiction-manager' ); ?>
 								</label>
 								<p class="description"><?php esc_html_e( 'Enable the fandom classification system for optional fandom tagging with fast search and custom tables. Manage fandoms in the Fandoms tab.', 'fanfiction-manager' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Language Classification', 'fanfiction-manager' ); ?></th>
+							<td>
+								<label>
+									<input type="checkbox" name="enable_language_classification" value="1" <?php checked( $enable_languages, true ); ?>>
+									<?php esc_html_e( 'Enable language classification', 'fanfiction-manager' ); ?>
+								</label>
+								<p class="description"><?php esc_html_e( 'Enable the language classification system for stories. Authors can select the language their story is written in. Manage languages in the Languages tab.', 'fanfiction-manager' ); ?></p>
 							</td>
 						</tr>
 					</tbody>
@@ -862,6 +889,28 @@ class Fanfic_Taxonomies_Admin {
 	}
 
 	/**
+	 * Render Languages placeholder (when disabled or not loaded)
+	 *
+	 * @since 1.3.0
+	 * @return void
+	 */
+	private static function render_languages_placeholder() {
+		?>
+		<div class="fanfic-taxonomy-tab">
+			<h2><?php esc_html_e( 'Languages', 'fanfiction-manager' ); ?></h2>
+			<p class="description"><?php esc_html_e( 'Language classification is not enabled.', 'fanfiction-manager' ); ?></p>
+
+			<div class="notice notice-info inline">
+				<p>
+					<?php esc_html_e( 'Enable language classification in the General tab to manage languages.', 'fanfiction-manager' ); ?>
+					<a href="?page=fanfiction-taxonomies&tab=general"><?php esc_html_e( 'Go to General tab', 'fanfiction-manager' ); ?></a>
+				</p>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Display admin notices
 	 *
 	 * Shows success or error messages based on URL parameters.
@@ -973,6 +1022,10 @@ class Fanfic_Taxonomies_Admin {
 		// Save fandom classification setting
 		$enable_fandoms = isset( $_POST['enable_fandom_classification'] ) && '1' === $_POST['enable_fandom_classification'];
 		Fanfic_Settings::update_setting( 'enable_fandom_classification', $enable_fandoms );
+
+		// Save language classification setting
+		$enable_languages = isset( $_POST['enable_language_classification'] ) && '1' === $_POST['enable_language_classification'];
+		Fanfic_Settings::update_setting( 'enable_language_classification', $enable_languages );
 
 		wp_safe_redirect(
 			add_query_arg(

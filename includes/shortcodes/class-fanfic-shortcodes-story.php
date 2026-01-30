@@ -35,6 +35,7 @@ class Fanfic_Shortcodes_Story {
 		add_shortcode( 'story-featured-image', array( __CLASS__, 'story_featured_image' ) );
 		add_shortcode( 'story-genres', array( __CLASS__, 'story_genres' ) );
 		add_shortcode( 'story-fandoms', array( __CLASS__, 'story_fandoms' ) );
+		add_shortcode( 'story-language', array( __CLASS__, 'story_language' ) );
 		add_shortcode( 'story-status', array( __CLASS__, 'story_status' ) );
 		add_shortcode( 'story-publication-date', array( __CLASS__, 'story_publication_date' ) );
 		add_shortcode( 'story-last-updated', array( __CLASS__, 'story_last_updated' ) );
@@ -277,6 +278,71 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		return '<div class="fanfic-story-fandoms"><strong>' . esc_html__( 'Fandoms:', 'fanfiction-manager' ) . '</strong> <span class="story-fandoms" aria-label="' . esc_attr__( 'Story fandoms', 'fanfiction-manager' ) . '">' . implode( ', ', $labels ) . '</span></div>';
+	}
+
+	/**
+	 * Story language shortcode
+	 *
+	 * [story-language]
+	 *
+	 * Displays the language associated with the story.
+	 *
+	 * @since 1.3.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Language HTML.
+	 */
+	public static function story_language( $atts ) {
+		if ( ! class_exists( 'Fanfic_Languages' ) || ! Fanfic_Languages::is_enabled() ) {
+			return '';
+		}
+
+		$atts = shortcode_atts(
+			array(
+				'show_label'    => 'true',  // Show "Language:" label
+				'show_native'   => 'true',  // Show native name in parentheses
+				'show_none'     => 'false', // Show "Not specified" if no language set
+			),
+			$atts,
+			'story-language'
+		);
+
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		$show_label = filter_var( $atts['show_label'], FILTER_VALIDATE_BOOLEAN );
+		$show_native = filter_var( $atts['show_native'], FILTER_VALIDATE_BOOLEAN );
+		$show_none = filter_var( $atts['show_none'], FILTER_VALIDATE_BOOLEAN );
+
+		$language = Fanfic_Languages::get_story_language( $story_id );
+
+		if ( ! $language ) {
+			if ( $show_none ) {
+				$output = '<div class="fanfic-story-language">';
+				if ( $show_label ) {
+					$output .= '<strong>' . esc_html__( 'Language:', 'fanfiction-manager' ) . '</strong> ';
+				}
+				$output .= '<span class="story-language story-language-none">' . esc_html__( 'Not specified', 'fanfiction-manager' ) . '</span>';
+				$output .= '</div>';
+				return $output;
+			}
+			return '';
+		}
+
+		$label = esc_html( $language['name'] );
+		if ( $show_native && ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
+			$label .= ' <span class="story-language-native">(' . esc_html( $language['native_name'] ) . ')</span>';
+		}
+
+		$output = '<div class="fanfic-story-language">';
+		if ( $show_label ) {
+			$output .= '<strong>' . esc_html__( 'Language:', 'fanfiction-manager' ) . '</strong> ';
+		}
+		$output .= '<span class="story-language" aria-label="' . esc_attr__( 'Story language', 'fanfiction-manager' ) . '">' . $label . '</span>';
+		$output .= '</div>';
+
+		return $output;
 	}
 
 	/**
