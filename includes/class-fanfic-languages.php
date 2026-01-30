@@ -459,6 +459,66 @@ class Fanfic_Languages {
 	}
 
 	/**
+	 * Get story IDs by multiple language slugs
+	 *
+	 * Returns stories matching ANY of the provided language slugs.
+	 *
+	 * @since 1.3.0
+	 * @param array $slugs Array of language slugs.
+	 * @return int[] Story IDs.
+	 */
+	public static function get_story_ids_by_language_slugs( $slugs ) {
+		if ( ! self::tables_ready() ) {
+			return array();
+		}
+
+		$slugs = array_filter( array_map( 'sanitize_title', (array) $slugs ) );
+		if ( empty( $slugs ) ) {
+			return array();
+		}
+
+		// For single slug, use the optimized single method
+		if ( 1 === count( $slugs ) ) {
+			return self::get_story_ids_by_language_slug( reset( $slugs ) );
+		}
+
+		$cache_key = '';
+		if ( class_exists( 'Fanfic_Cache' ) ) {
+			$hash = md5( implode( '|', $slugs ) );
+			$cache_key = Fanfic_Cache::get_key( 'search', 'languages_' . $hash );
+			$cached = Fanfic_Cache::get( $cache_key, null, Fanfic_Cache::SHORT );
+			if ( false !== $cached ) {
+				return array_map( 'absint', (array) $cached );
+			}
+		}
+
+		global $wpdb;
+		$languages_table = self::get_languages_table();
+		$relations_table = self::get_story_languages_table();
+
+		$placeholders = implode( ',', array_fill( 0, count( $slugs ), '%s' ) );
+
+		$results = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT sl.story_id
+				FROM {$relations_table} sl
+				INNER JOIN {$languages_table} l ON l.id = sl.language_id
+				WHERE l.is_active = 1
+				  AND l.slug IN ({$placeholders})",
+				$slugs
+			)
+		);
+
+		$results = array_map( 'absint', (array) $results );
+
+		if ( ! empty( $cache_key ) ) {
+			Fanfic_Cache::set( $cache_key, $results, Fanfic_Cache::SHORT );
+		}
+
+		return $results;
+	}
+
+	/**
 	 * Save story language relation
 	 *
 	 * @since 1.3.0

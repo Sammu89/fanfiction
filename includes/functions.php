@@ -2019,6 +2019,7 @@ function fanfic_get_browse_params( $source = null ) {
 		'genres'           => fanfic_parse_slug_list( $source['genre'] ?? '' ),
 		'statuses'         => fanfic_parse_slug_list( $source['status'] ?? '' ),
 		'fandoms'          => fanfic_parse_slug_list( $source['fandom'] ?? '' ),
+		'languages'        => fanfic_parse_slug_list( $source['language'] ?? '' ),
 		'exclude_warnings' => fanfic_parse_warning_exclusions( $source['warning'] ?? '' ),
 		'age'              => fanfic_normalize_age_filter( $source['age'] ?? '' ),
 		'sort'             => fanfic_normalize_sort_filter( $source['sort'] ?? '' ),
@@ -2197,6 +2198,24 @@ function fanfic_build_browse_query_args( $params, $paged = 1, $per_page = 12 ) {
 		}
 	}
 
+	// Language filters (custom table)
+	if ( ! empty( $params['languages'] ) && class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
+		$language_story_ids = Fanfic_Languages::get_story_ids_by_language_slugs( $params['languages'] );
+		if ( empty( $language_story_ids ) ) {
+			$post__in = array( 0 );
+		} else {
+			$language_story_ids = array_map( 'absint', (array) $language_story_ids );
+			if ( is_array( $post__in ) ) {
+				$post__in = array_values( array_intersect( $post__in, $language_story_ids ) );
+				if ( empty( $post__in ) ) {
+					$post__in = array( 0 );
+				}
+			} else {
+				$post__in = $language_story_ids;
+			}
+		}
+	}
+
 	// Taxonomy filters (genre/status)
 	$tax_query = array();
 	if ( ! empty( $params['genres'] ) ) {
@@ -2272,6 +2291,9 @@ function fanfic_build_browse_url_args( $params ) {
 	}
 	if ( ! empty( $params['fandoms'] ) ) {
 		$args['fandom'] = implode( ' ', $params['fandoms'] );
+	}
+	if ( ! empty( $params['languages'] ) ) {
+		$args['language'] = implode( ' ', $params['languages'] );
 	}
 	if ( ! empty( $params['exclude_warnings'] ) ) {
 		$warning_values = array_map(
@@ -2503,6 +2525,18 @@ function fanfic_build_active_filters( $params, $base_url ) {
 			'label' => sprintf( __( 'Fandom: %s', 'fanfiction-manager' ), $slug ),
 			'url'   => fanfic_build_browse_url( $base_url, $params, array( 'fandoms' => $new_values, 'paged' => null ) ),
 		);
+	}
+
+	if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
+		foreach ( (array) $params['languages'] as $slug ) {
+			$language = Fanfic_Languages::get_by_slug( $slug );
+			$label = $language ? $language['name'] : $slug;
+			$new_values = array_values( array_diff( $params['languages'], array( $slug ) ) );
+			$filters[] = array(
+				'label' => sprintf( __( 'Language: %s', 'fanfiction-manager' ), $label ),
+				'url'   => fanfic_build_browse_url( $base_url, $params, array( 'languages' => $new_values, 'paged' => null ) ),
+			);
+		}
 	}
 
 	$warning_map = array();
