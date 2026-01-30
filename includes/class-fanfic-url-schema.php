@@ -169,13 +169,13 @@ class Fanfic_URL_Schema {
             ),
 
             'search' => array(
-                'type'             => 'dynamic',
+                'type'             => 'system',
                 'default'          => __( 'browse', 'fanfiction-manager' ),
                 'label'            => __( 'Browse Page', 'fanfiction-manager' ),
                 'description'      => __( 'URL for the browse page.', 'fanfiction-manager' ),
                 'preview_template' => '{home}{base}/{search}/',
-                'option_key'       => 'fanfic_search_slug',
-                'group'            => 'dynamic',
+                'option_key'       => 'fanfic_system_page_slugs',
+                'group'            => 'system',
             ),
 
             'error' => array(

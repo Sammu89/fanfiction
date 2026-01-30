@@ -145,46 +145,39 @@ do_action( 'fanfic_profile_form_messages', $current_user );
 				</div>
 
 				<!-- Avatar URL -->
-				<div class="fanfic-form-field">
-					<label for="fanfic_avatar_url"><?php esc_html_e( 'Avatar Image URL', 'fanfiction-manager' ); ?></label>
+				<div class="fanfic-form-field fanfic-has-dropzone">
+					<label for="fanfic_avatar_url"><?php esc_html_e( 'Avatar Image', 'fanfiction-manager' ); ?></label>
+
+					<!-- Dropzone for WordPress Media Library -->
+					<div
+						id="fanfic_avatar_dropzone"
+						class="fanfic-image-dropzone"
+						data-target="#fanfic_avatar_url"
+						data-title="<?php esc_attr_e( 'Select Avatar Image', 'fanfiction-manager' ); ?>"
+						role="button"
+						tabindex="0"
+						aria-label="<?php esc_attr_e( 'Click or drag to upload avatar image', 'fanfiction-manager' ); ?>"
+					>
+						<div class="fanfic-dropzone-placeholder">
+							<span class="fanfic-dropzone-placeholder-icon" aria-hidden="true">👤</span>
+							<span class="fanfic-dropzone-placeholder-text"><?php esc_html_e( 'Click to select avatar', 'fanfiction-manager' ); ?></span>
+							<span class="fanfic-dropzone-placeholder-hint"><?php esc_html_e( 'or drag and drop here', 'fanfiction-manager' ); ?></span>
+						</div>
+					</div>
+
+					<!-- Hidden URL input (populated by dropzone) -->
 					<input
 						type="url"
 						id="fanfic_avatar_url"
 						name="fanfic_avatar_url"
 						class="fanfic-input"
 						value="<?php echo isset( $_POST['fanfic_avatar_url'] ) ? esc_attr( $_POST['fanfic_avatar_url'] ) : esc_attr( $avatar_url ); ?>"
+						placeholder="<?php esc_attr_e( 'Image URL will appear here', 'fanfiction-manager' ); ?>"
+						aria-label="<?php esc_attr_e( 'Avatar image URL', 'fanfiction-manager' ); ?>"
 					/>
-					<?php if ( $image_upload_enabled ) : ?>
-						<label for="fanfic_avatar_file" style="margin-top: 10px; display: block;">
-							<?php esc_html_e( 'Or upload an avatar', 'fanfiction-manager' ); ?>
-						</label>
-						<input
-							type="file"
-							id="fanfic_avatar_file"
-							name="fanfic_avatar_file"
-							class="fanfic-input"
-							accept="image/*"
-							data-url-target="#fanfic_avatar_url"
-						/>
-						<button
-							type="button"
-							class="button fanfic-ajax-upload-button"
-							data-file-input="#fanfic_avatar_file"
-							data-nonce="<?php echo wp_create_nonce( 'fanfic_ajax_image_upload' ); ?>"
-							data-context="<?php esc_attr_e( 'Avatar', 'fanfiction-manager' ); ?>"
-						>
-							<?php esc_html_e( 'Upload', 'fanfiction-manager' ); ?>
-						</button>
-						<span class="fanfic-upload-status"></span>
-						<p class="description">
-							<?php esc_html_e( 'Larger images will be resized to 1024px and converted to WEBP format.', 'fanfiction-manager' ); ?>
-						</p>
-					<?php endif; ?>
-					<?php if ( ! empty( $avatar_url ) ) : ?>
-						<div class="fanfic-avatar-preview">
-							<img src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php esc_attr_e( 'Avatar preview', 'fanfiction-manager' ); ?>" />
-						</div>
-					<?php endif; ?>
+					<p class="description">
+						<?php esc_html_e( 'Select an image from your media library or enter a URL directly.', 'fanfiction-manager' ); ?>
+					</p>
 				</div>
 			</div>
 

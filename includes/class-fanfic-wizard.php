@@ -334,6 +334,7 @@ class Fanfic_Wizard {
 			'login',
 			'register',
 			'password-reset',
+			'search',
 			'error',
 			'maintenance',
 		);
@@ -545,7 +546,7 @@ private function render_choice_screen() {
 				<ul style="list-style: disc; margin-left: 2em;">
 					<li><?php esc_html_e( 'Base URL slug for your fanfiction pages', 'fanfiction-manager' ); ?></li>
 					<li><?php esc_html_e( 'Story subdirectory to avoid conflicts with system pages', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Secondary path customization (dashboard, user, browse)', 'fanfiction-manager' ); ?></li>
+					<li><?php esc_html_e( 'Secondary path customization (dashboard, members)', 'fanfiction-manager' ); ?></li>
 					<li><?php esc_html_e( 'User roles (moderators and administrators)', 'fanfiction-manager' ); ?></li>
 					<li><?php esc_html_e( 'Default taxonomy terms (Genre and Status)', 'fanfiction-manager' ); ?></li>
 					<li><?php esc_html_e( 'System pages creation', 'fanfiction-manager' ); ?></li>
@@ -557,6 +558,51 @@ private function render_choice_screen() {
 						<strong><?php esc_html_e( 'Anonymous Usage Statistics:', 'fanfiction-manager' ); ?></strong>
 						<?php esc_html_e( 'This plugin collects anonymous statistical data to help improve and maintain the plugin. This includes basic usage metrics such as plugin version, WordPress version, and feature usage. No personal or sensitive information is collected.', 'fanfiction-manager' ); ?>
 					</p>
+				</div>
+
+				<!-- Base Slug Choice -->
+				<div style="margin-top: 30px; padding: 20px; border: 1px solid #ddd; background: #f9f9f9;">
+					<h4 style="margin-top: 0;"><?php esc_html_e( 'Main URL Strategy', 'fanfiction-manager' ); ?></h4>
+					<p class="description">
+						<?php esc_html_e( 'Choose how you want your plugin URLs to be structured.', 'fanfiction-manager' ); ?>
+					</p>
+
+					<div style="margin-top: 15px;">
+						<?php $use_base_slug = get_option( 'fanfic_use_base_slug', true ); ?>
+						<label style="display: block; margin-bottom: 15px; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+							<input
+								type="radio"
+								name="fanfic_use_base_slug"
+								value="1"
+								<?php checked( $use_base_slug, true ); ?>
+								style="margin-right: 10px;"
+							>
+							<strong><?php esc_html_e( 'WordPress URL with Base Slug (Recommended)', 'fanfiction-manager' ); ?></strong>
+							<br>
+							<span class="description" style="margin-left: 24px;">
+								<?php esc_html_e( 'URLs like: yoursite.com/fanfiction/...', 'fanfiction-manager' ); ?>
+								<br>
+								<?php esc_html_e( 'Isolates plugin from main WordPress pages and logic, avoiding URL conflicts.', 'fanfiction-manager' ); ?>
+							</span>
+						</label>
+
+						<label style="display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+							<input
+								type="radio"
+								name="fanfic_use_base_slug"
+								value="0"
+								<?php checked( $use_base_slug, false ); ?>
+								style="margin-right: 10px;"
+							>
+							<strong><?php esc_html_e( 'WordPress Main URL Root', 'fanfiction-manager' ); ?></strong>
+							<br>
+							<span class="description" style="margin-left: 24px;">
+								<?php esc_html_e( 'URLs like: yoursite.com/...', 'fanfiction-manager' ); ?>
+								<br>
+								<?php esc_html_e( 'Overwrites WordPress main homepage settings and might conflict with other plugins.', 'fanfiction-manager' ); ?>
+							</span>
+						</label>
+					</div>
 				</div>
 
 				<!-- Main Page Display Mode -->
@@ -948,12 +994,18 @@ private function render_choice_screen() {
 	/**
 	 * Save welcome step data
 	 *
-	 * Saves the main page mode selection from step 1.
+	 * Saves the main page mode and base slug choice from step 1.
 	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	private function save_welcome_step() {
+		// Save base slug choice
+		if ( isset( $_POST['fanfic_use_base_slug'] ) ) {
+			$use_base_slug = '1' === $_POST['fanfic_use_base_slug'];
+			update_option( 'fanfic_use_base_slug', $use_base_slug );
+		}
+
 		// Save main page mode
 		if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
 			$main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
@@ -996,7 +1048,7 @@ private function render_choice_screen() {
 			update_option( 'fanfic_story_path', $story_path );
 		}
 
-		// 3. Validate and save dynamic page paths (dashboard, members, search)
+		// 3. Validate and save dynamic page paths (dashboard, members)
 		$secondary_slugs_input = array();
 		$secondary_config = Fanfic_URL_Schema::get_slugs_by_group( 'dynamic' );
 
@@ -1106,8 +1158,8 @@ private function render_choice_screen() {
 
 					// Handle dynamic pages
 					if ( in_array( $key, $dynamic_pages, true ) ) {
-						// Skip dashboard/search if already set from secondary paths
-						if ( ( $key === 'dashboard' || $key === 'search' ) && ! empty( $current_dynamic_slugs[ $key ] ) && $current_dynamic_slugs[ $key ] !== $slug ) {
+						// Skip dashboard if already set from secondary paths
+						if ( $key === 'dashboard' && ! empty( $current_dynamic_slugs[ $key ] ) && $current_dynamic_slugs[ $key ] !== $slug ) {
 							continue;
 						}
 						$dynamic_page_slugs[ $key ] = $slug;

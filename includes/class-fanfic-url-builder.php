@@ -75,7 +75,6 @@ class Fanfic_URL_Builder {
 		// Load dynamic page slugs from individual options (same pattern as base and story_path)
 		$dynamic_slugs = array(
 			'dashboard'    => $this->sanitize_slug( get_option( 'fanfic_dashboard_slug', 'dashboard' ) ),
-			'search'       => $this->sanitize_slug( get_option( 'fanfic_search_slug', 'browse' ) ),
 			'members'      => $this->sanitize_slug( get_option( 'fanfic_members_slug', 'members' ) ),
 		);
 

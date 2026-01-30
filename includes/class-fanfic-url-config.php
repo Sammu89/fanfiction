@@ -86,7 +86,6 @@ class Fanfic_URL_Config {
      *
      * @var string
      */
-    const OPTION_SEARCH_SLUG = 'fanfic_search_slug';
 
     /**
      * Initialize the URL configuration functionality
@@ -102,6 +101,7 @@ class Fanfic_URL_Config {
         }
         add_action( 'admin_post_fanfic_save_url_config', array( self::$instance, 'save_url_config' ) );
         add_action( 'admin_post_fanfic_delete_redirect', array( self::$instance, 'delete_redirect' ) );
+        add_action( 'admin_post_fanfic_switch_url_mode', array( self::$instance, 'switch_url_mode' ) );
         add_action( 'template_redirect', array( self::$instance, 'handle_301_redirects' ) );
     }
 
@@ -183,6 +183,7 @@ class Fanfic_URL_Config {
         $current_slugs      = self::get_current_slugs();
         $page_slugs         = get_option( 'fanfic_system_page_slugs', array() );
         $page_ids           = get_option( 'fanfic_system_page_ids', array() );
+        $use_base_slug      = get_option( 'fanfic_use_base_slug', true );
 
         // Determine nonce and action based on context
         if ( $in_wizard ) {
@@ -192,6 +193,32 @@ class Fanfic_URL_Config {
             echo '<input type="hidden" name="action" value="fanfic_save_url_config">';
         }
         ?>
+
+        <?php if ( $in_wizard ) : ?>
+        <!-- Info Card for Base Slug Choice -->
+        <div class="fanfic-config-section" style="margin-bottom: 25px;">
+            <div class="fanfic-section-header" style="background: #f0f6fc; border-bottom: 1px solid #c3c4c7; padding: 15px 20px;">
+                <h3 style="margin: 0; font-size: 16px;">
+                    <?php
+                    if ( $use_base_slug ) {
+                        esc_html_e( 'Main URL: WordPress URL with Base Slug', 'fanfiction-manager' );
+                    } else {
+                        esc_html_e( 'Main URL: WordPress Main URL Root', 'fanfiction-manager' );
+                    }
+                    ?>
+                </h3>
+                <p class="description" style="margin: 5px 0 0 0;">
+                    <?php
+                    if ( $use_base_slug ) {
+                        esc_html_e( 'Using base slug isolates plugin from main WordPress pages and logic, avoiding URL conflicts.', 'fanfiction-manager' );
+                    } else {
+                        esc_html_e( 'Using main URL root will overwrite WordPress main homepage settings and might conflict with other plugins. Change to base slug if incompatibilities arise.', 'fanfiction-manager' );
+                    }
+                    ?>
+                </p>
+            </div>
+        </div>
+        <?php endif; ?>
 
                 <!-- ============================================ -->
                 <!-- SECTION 2: PRIMARY URLs -->
@@ -207,6 +234,7 @@ class Fanfic_URL_Config {
                     <div class="fanfic-section-content">
                         <table class="form-table" role="presentation">
                             <tbody>
+                                <?php if ( $use_base_slug ) : ?>
                                 <!-- Base Slug -->
                                 <tr>
                                     <th scope="row">
@@ -236,6 +264,10 @@ class Fanfic_URL_Config {
                                         <div class="fanfic-slug-validation" id="base-slug-validation"></div>
                                     </td>
                                 </tr>
+                                <?php else : ?>
+                                <!-- Hidden input to maintain empty base slug -->
+                                <input type="hidden" name="fanfic_base_slug" value="">
+                                <?php endif; ?>
 
                                 <!-- Stories Slug -->
                                 <tr>
@@ -374,18 +406,6 @@ class Fanfic_URL_Config {
                                     'description'    => __( 'Handles both author directory list and individual profiles', 'fanfiction-manager' ),
                                 ) );
 
-                                // Browse Page
-                                self::render_slug_input_row( array(
-                                    'id'             => 'fanfic_search_slug',
-                                    'name'           => 'fanfic_search_slug',
-                                    'label'          => __( 'Browse Page', 'fanfiction-manager' ),
-                                    'value'          => isset( $current_slugs['search'] ) ? $current_slugs['search'] : 'browse',
-                                    'preview_id'     => 'search-preview-code',
-                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">browse</span>/',
-                                    'required'       => true,
-                                    'data_slug_type' => 'search',
-                                ) );
-
                                 // Login
                                 $login_slug = isset( $page_slugs['login'] ) ? $page_slugs['login'] : 'login';
                                 self::render_slug_input_row( array(
@@ -397,6 +417,19 @@ class Fanfic_URL_Config {
                                     'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $login_slug ) . '</span>/',
                                     'required'       => false,
                                     'data_slug_type' => 'system_login',
+                                ) );
+
+                                // Browse Page
+                                $browse_slug = isset( $page_slugs['search'] ) ? $page_slugs['search'] : ( isset( $current_slugs['search'] ) ? $current_slugs['search'] : 'browse' );
+                                self::render_slug_input_row( array(
+                                    'id'             => 'fanfic_search_slug',
+                                    'name'           => 'fanfic_system_page_slugs[search]',
+                                    'label'          => __( 'Browse Page', 'fanfiction-manager' ),
+                                    'value'          => $browse_slug,
+                                    'preview_id'     => 'search-preview-code',
+                                    'preview_html'   => $base_url . '<span class="fanfic-dynamic-slug">' . esc_html( $browse_slug ) . '</span>/',
+                                    'required'       => false,
+                                    'data_slug_type' => 'system_search',
                                 ) );
 
                                 // Register
@@ -1040,6 +1073,8 @@ class Fanfic_URL_Config {
             wp_die( 'You do not have sufficient permissions to access this page.', 'Permission Denied', array( 'response' => 403 ) );
         }
 
+        $use_base_slug = get_option( 'fanfic_use_base_slug', true );
+
         ?>
         <div class="wrap fanfic-url-config-wrap">
             <h1><?php echo esc_html__( 'URL Configuration', 'fanfiction-manager' ); ?></h1>
@@ -1048,6 +1083,72 @@ class Fanfic_URL_Config {
             </p>
 
             <?php self::display_notices(); ?>
+
+            <!-- URL Strategy Mode Switcher -->
+            <div class="fanfic-config-section" style="margin-bottom: 25px;">
+                <div class="fanfic-section-header" style="background: #2271b1; border-bottom: 1px solid #135e96;">
+                    <h2 style="color: #fff; margin: 0;">
+                        <?php echo esc_html__( 'URL Strategy Mode', 'fanfiction-manager' ); ?>
+                    </h2>
+                    <p class="description" style="color: #fff; margin: 5px 0 0 0;">
+                        <?php echo esc_html__( 'Choose how your plugin URLs are structured.', 'fanfiction-manager' ); ?>
+                    </p>
+                </div>
+                <div class="fanfic-section-content">
+                    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="fanfic-url-mode-form">
+                        <?php wp_nonce_field( 'fanfic_switch_url_mode', 'fanfic_url_mode_nonce' ); ?>
+                        <input type="hidden" name="action" value="fanfic_switch_url_mode">
+
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <?php echo esc_html__( 'Current Mode', 'fanfiction-manager' ); ?>
+                                </th>
+                                <td>
+                                    <label style="display: block; margin-bottom: 15px;">
+                                        <input type="radio" name="fanfic_use_base_slug" value="1" <?php checked( $use_base_slug, true ); ?>>
+                                        <strong><?php echo esc_html__( 'WordPress URL with Base Slug (Recommended)', 'fanfiction-manager' ); ?></strong>
+                                        <br>
+                                        <span class="description" style="margin-left: 24px;">
+                                            <?php echo esc_html__( 'URLs like: yoursite.com/fanfiction/... - Isolates plugin from WordPress pages, avoiding conflicts.', 'fanfiction-manager' ); ?>
+                                        </span>
+                                    </label>
+
+                                    <label style="display: block;">
+                                        <input type="radio" name="fanfic_use_base_slug" value="0" <?php checked( $use_base_slug, false ); ?>>
+                                        <strong><?php echo esc_html__( 'WordPress Main URL Root', 'fanfiction-manager' ); ?></strong>
+                                        <br>
+                                        <span class="description" style="margin-left: 24px;">
+                                            <?php echo esc_html__( 'URLs like: yoursite.com/... - Overwrites WordPress homepage settings, may conflict with other plugins.', 'fanfiction-manager' ); ?>
+                                        </span>
+                                    </label>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <div class="notice notice-warning inline" style="margin: 20px 0;">
+                            <p>
+                                <strong><?php echo esc_html__( 'Warning:', 'fanfiction-manager' ); ?></strong>
+                                <?php echo esc_html__( 'Switching URL modes will rebuild all system pages and change your site structure. This will result in:', 'fanfiction-manager' ); ?>
+                            </p>
+                            <ul style="list-style: disc; margin-left: 20px;">
+                                <li><?php echo esc_html__( 'Broken bookmarked links for users', 'fanfiction-manager' ); ?></li>
+                                <li><?php echo esc_html__( 'Search engines will need to re-index your entire site', 'fanfiction-manager' ); ?></li>
+                                <li><?php echo esc_html__( 'Temporary disruption to site navigation', 'fanfiction-manager' ); ?></li>
+                            </ul>
+                            <p>
+                                <?php echo esc_html__( 'Only switch modes if absolutely necessary.', 'fanfiction-manager' ); ?>
+                            </p>
+                        </div>
+
+                        <p>
+                            <button type="submit" class="button button-primary" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to switch URL modes? This will rebuild all pages and may temporarily break site navigation.', 'fanfiction-manager' ) ); ?>');">
+                                <?php echo esc_html__( 'Switch Mode and Rebuild Pages', 'fanfiction-manager' ); ?>
+                            </button>
+                        </p>
+                    </form>
+                </div>
+            </div>
 
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="fanfic-url-config-form">
                 <?php self::render_form_fields( false ); ?>
@@ -1186,18 +1287,6 @@ class Fanfic_URL_Config {
             }
         }
 
-        // Browse
-        if ( isset( $_POST['fanfic_search_slug'] ) ) {
-            $result = $this->save_slug_field( 'fanfic_search_slug', 'search', self::OPTION_SEARCH_SLUG, __( 'Browse slug', 'fanfiction-manager' ) );
-            if ( $result ) {
-                if ( isset( $result['error'] ) ) {
-                    $errors[] = $result['error'];
-                } elseif ( isset( $result['success'] ) ) {
-                    $success_messages[] = $result['success'];
-                }
-            }
-        }
-
         // 5. Save chapter slugs (prologue, chapter, epilogue) - grouped
         $chapter_slugs_input = array();
         $chapter_config = Fanfic_URL_Schema::get_slugs_by_group( 'chapters' );
@@ -1255,7 +1344,7 @@ class Fanfic_URL_Config {
                     // Handle dynamic pages
                     if ( in_array( $key, $dynamic_pages, true ) ) {
                         // Skip dashboard/search if already set from secondary paths
-                        if ( ( $key === 'dashboard' || $key === 'search' ) && ! empty( $current_dynamic_slugs[ $key ] ) && $current_dynamic_slugs[ $key ] !== $slug ) {
+                        if ( $key === 'dashboard' && ! empty( $current_dynamic_slugs[ $key ] ) && $current_dynamic_slugs[ $key ] !== $slug ) {
                             continue;
                         }
                         $dynamic_page_slugs[ $key ] = $slug;
@@ -1422,6 +1511,17 @@ class Fanfic_URL_Config {
             delete_transient( 'fanfic_url_config_success' );
         }
 
+        // Display warning message
+        $warning = get_transient( 'fanfic_url_config_warning' );
+        if ( $warning ) {
+            ?>
+            <div class="notice notice-warning is-dismissible">
+                <p><?php echo wp_kses_post( $warning ); ?></p>
+            </div>
+            <?php
+            delete_transient( 'fanfic_url_config_warning' );
+        }
+
         // Display error message
         $error = get_transient( 'fanfic_url_config_error' );
         if ( $error ) {
@@ -1432,6 +1532,62 @@ class Fanfic_URL_Config {
             <?php
             delete_transient( 'fanfic_url_config_error' );
         }
+    }
+
+    /**
+     * Handle URL mode switching
+     *
+     * Switches between base slug and no base slug modes, rebuilds pages, and flushes rules.
+     *
+     * @since 1.0.0
+     * @return void
+     */
+    public function switch_url_mode() {
+        // Check user capabilities
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'You do not have sufficient permissions to access this page.', 'Permission Denied', array( 'response' => 403 ) );
+        }
+
+        // Verify nonce
+        if ( ! isset( $_POST['fanfic_url_mode_nonce'] ) ||
+             ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_url_mode_nonce'] ) ), 'fanfic_switch_url_mode' ) ) {
+            wp_die( 'Security check failed.', 'Security Error', array( 'response' => 403 ) );
+        }
+
+        // Get the new mode
+        $new_use_base_slug = isset( $_POST['fanfic_use_base_slug'] ) && '1' === $_POST['fanfic_use_base_slug'];
+        $old_use_base_slug = get_option( 'fanfic_use_base_slug', true );
+
+        // Only proceed if mode is actually changing
+        if ( $new_use_base_slug !== $old_use_base_slug ) {
+            // Update the option
+            update_option( 'fanfic_use_base_slug', $new_use_base_slug );
+
+            // Rebuild all system pages with new hierarchy
+            $base_slug = get_option( self::OPTION_BASE_SLUG, 'fanfiction' );
+            $rebuild_result = Fanfic_Templates::create_system_pages( $base_slug );
+
+            // Flush rewrite rules
+            $this->flush_all_rewrite_rules();
+
+            // Set success message
+            $message = sprintf(
+                /* translators: %s: new mode name */
+                __( 'URL mode switched successfully to "%s". All pages have been rebuilt.', 'fanfiction-manager' ),
+                $new_use_base_slug ? __( 'Base Slug Mode', 'fanfiction-manager' ) : __( 'Root URL Mode', 'fanfiction-manager' )
+            );
+            set_transient( 'fanfic_url_config_success', $message, 30 );
+
+            // Add warning about broken links
+            $warning = __( 'Note: Old bookmarked links may be broken. Search engines will need to re-index your site.', 'fanfiction-manager' );
+            set_transient( 'fanfic_url_config_warning', $warning, 30 );
+        } else {
+            set_transient( 'fanfic_url_config_success', __( 'No changes made - mode is already set to the selected value.', 'fanfiction-manager' ), 30 );
+        }
+
+        // Redirect back
+        wp_safe_redirect( add_query_arg( array( 'page' => 'fanfiction-settings', 'tab' => 'url-name' ), admin_url( 'admin.php' ) ) );
+        exit;
     }
 
     /**

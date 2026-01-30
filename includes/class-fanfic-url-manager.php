@@ -118,7 +118,6 @@ class Fanfic_URL_Manager {
 		// Load dynamic page slugs from individual options (same pattern as base and story_path)
 		$dynamic_slugs = array(
 			'dashboard'    => $this->sanitize_slug( get_option( 'fanfic_dashboard_slug', 'dashboard' ) ),
-			'search'       => $this->sanitize_slug( get_option( 'fanfic_search_slug', 'browse' ) ),
 			'members'      => $this->sanitize_slug( get_option( 'fanfic_members_slug', 'members' ) ),
 		);
 
@@ -192,15 +191,6 @@ class Fanfic_URL_Manager {
 			add_rewrite_rule(
 				'^' . $base . '/' . $slugs['dashboard'] . '/?$',
 				'index.php?fanfic_page=dashboard',
-				'top'
-			);
-		}
-
-		// Browse: /fanfiction/browse/
-		if ( isset( $slugs['search'] ) ) {
-			add_rewrite_rule(
-				'^' . $base . '/' . $slugs['search'] . '/?$',
-				'index.php?fanfic_page=search',
 				'top'
 			);
 		}

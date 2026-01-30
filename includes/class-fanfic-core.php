@@ -986,8 +986,11 @@ class Fanfic_Core {
 
 		// Browse/search enhancements (Phase 5)
 		$browse_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-browse.js';
+		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+		$is_browse_page = is_page() && isset( $page_ids['search'] ) && is_page( $page_ids['search'] );
 		$is_browse_context = is_post_type_archive( 'fanfiction_story' ) ||
-			'search' === get_query_var( 'fanfic_page' );
+			'search' === get_query_var( 'fanfic_page' ) ||
+			$is_browse_page;
 
 		if ( $is_browse_context && file_exists( $browse_js_file ) ) {
 			wp_enqueue_script(
@@ -1022,10 +1025,14 @@ class Fanfic_Core {
 		$current_template = ! empty( $fanfic_content_template ) ? basename( $fanfic_content_template ) : '';
 
 		if ( in_array( $current_template, $upload_form_templates, true ) ) {
+			// Enqueue WordPress media library
+			wp_enqueue_media();
+
+			// Enqueue our custom media uploader script with wp-media dependency
 			wp_enqueue_script(
 				'fanfiction-image-upload',
 				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-image-upload.js',
-				array( 'jquery' ),
+				array( 'jquery', 'media-upload', 'media-views' ),
 				FANFIC_VERSION,
 				true
 			);
@@ -1034,7 +1041,9 @@ class Fanfic_Core {
 				'fanfiction-image-upload',
 				'fanficUploader',
 				array(
-					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
+					'restUrl'   => esc_url_raw( rest_url() ),
+					'restNonce' => wp_create_nonce( 'wp_rest' ),
 				)
 			);
 		}

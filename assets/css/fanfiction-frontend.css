@@ -5788,3 +5788,166 @@ body.fanfic-member-profile .wp-block-post-title {
 .fanfic-empty-state .fanfic-button {
 	margin-top: 8px;
 }
+
+/* ============================================
+   IMAGE DROPZONE UPLOADER (Phase 7)
+   WordPress Media Library Integration
+   ============================================ */
+
+/* Dropzone container */
+.fanfic-image-dropzone {
+	position: relative;
+	min-height: 180px;
+	padding: 20px;
+	border: 2px dashed var(--color-border, #ddd);
+	border-radius: var(--radius-lg, 6px);
+	background: var(--base-background-soft, #fafafa);
+	text-align: center;
+	cursor: pointer;
+	transition: var(--transition-normal);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 15px;
+}
+
+.fanfic-image-dropzone:hover {
+	border-color: var(--accent-color, #0073aa);
+	background: var(--color-white, #fff);
+	box-shadow: 0 2px 8px var(--shadow-light);
+}
+
+.fanfic-image-dropzone:focus {
+	outline: 2px solid var(--accent-color, #0073aa);
+	outline-offset: 2px;
+}
+
+/* Dragover state */
+.fanfic-image-dropzone.fanfic-dropzone-dragover {
+	border-color: var(--accent-light, #00a0d2);
+	background: hsl(200, 80%, 96%);
+	box-shadow: 0 0 0 4px rgba(0, 160, 210, 0.1);
+}
+
+/* Error state */
+.fanfic-image-dropzone.fanfic-dropzone-error {
+	border-color: var(--color-error, #dc3545);
+	background: hsl(354, 70%, 98%);
+}
+
+/* Uploading state */
+.fanfic-image-dropzone.fanfic-dropzone-uploading {
+	border-color: var(--accent-light, #00a0d2);
+	background: hsl(200, 80%, 98%);
+	opacity: 0.8;
+	pointer-events: none;
+}
+
+.fanfic-image-dropzone.fanfic-dropzone-uploading .fanfic-dropzone-placeholder {
+	animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+	0%, 100% {
+		opacity: 0.6;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+/* Placeholder text */
+.fanfic-dropzone-placeholder {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+	color: var(--color-text-muted, #666);
+	font-size: 14px;
+	pointer-events: none;
+}
+
+.fanfic-dropzone-placeholder-icon {
+	font-size: 48px;
+	opacity: 0.3;
+	margin-bottom: 5px;
+}
+
+.fanfic-dropzone-placeholder-text {
+	font-weight: 600;
+	color: var(--color-text, #333);
+}
+
+.fanfic-dropzone-placeholder-hint {
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+/* Preview container */
+.fanfic-dropzone-preview {
+	position: relative;
+	display: none;
+	max-width: 100%;
+}
+
+.fanfic-dropzone-preview img {
+	max-width: 100%;
+	max-height: 200px;
+	height: auto;
+	border-radius: var(--radius-md, 4px);
+	box-shadow: 0 2px 8px var(--shadow-medium);
+}
+
+/* Remove button */
+.fanfic-dropzone-remove {
+	position: absolute;
+	top: -8px;
+	right: -8px;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: var(--color-error, #dc3545);
+	color: var(--color-white, #fff);
+	border: 2px solid var(--color-white, #fff);
+	font-size: 20px;
+	line-height: 1;
+	cursor: pointer;
+	transition: var(--transition-fast);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.fanfic-dropzone-remove:hover {
+	background: hsl(354, 70%, 45%);
+	transform: scale(1.1);
+}
+
+.fanfic-dropzone-remove:focus {
+	outline: 2px solid var(--color-error, #dc3545);
+	outline-offset: 2px;
+}
+
+/* Hide URL input when using dropzone */
+.fanfic-has-dropzone .fanfic-input[type="url"] {
+	margin-top: 10px;
+	font-size: 12px;
+	color: var(--color-text-muted, #666);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.fanfic-image-dropzone {
+		min-height: 150px;
+	}
+	
+	.fanfic-dropzone-placeholder-icon {
+		font-size: 36px;
+	}
+	
+	.fanfic-dropzone-preview img {
+		max-height: 150px;
+	}
+}
+
