@@ -279,6 +279,24 @@ class Fanfic_Shortcodes_Search {
 				<p class="description"><?php esc_html_e( 'Enter fandom slugs separated by spaces.', 'fanfiction-manager' ); ?></p>
 			</div>
 
+			<?php if ( ! empty( $context['languages'] ) ) : ?>
+				<div class="fanfic-browse-row">
+					<label for="fanfic-language-filter"><?php esc_html_e( 'Language', 'fanfiction-manager' ); ?></label>
+					<select id="fanfic-language-filter" name="language[]" multiple>
+						<?php foreach ( $context['languages'] as $language ) : ?>
+							<option value="<?php echo esc_attr( $language['slug'] ); ?>" <?php selected( in_array( $language['slug'], (array) $context['params']['languages'], true ) ); ?>>
+								<?php
+								echo esc_html( $language['name'] );
+								if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
+									echo ' (' . esc_html( $language['native_name'] ) . ')';
+								}
+								?>
+							</option>
+						<?php endforeach; ?>
+					</select>
+				</div>
+			<?php endif; ?>
+
 			<?php if ( ! empty( $context['warnings'] ) ) : ?>
 				<div class="fanfic-browse-row fanfic-browse-warnings">
 					<span class="fanfic-browse-label"><?php esc_html_e( 'Exclude warnings', 'fanfiction-manager' ); ?></span>
@@ -465,6 +483,7 @@ class Fanfic_Shortcodes_Search {
 			|| ! empty( $params['genres'] )
 			|| ! empty( $params['statuses'] )
 			|| ! empty( $params['fandoms'] )
+			|| ! empty( $params['languages'] )
 			|| ! empty( $params['exclude_warnings'] )
 			|| ! empty( $params['age'] )
 			|| ! empty( $params['sort'] );
@@ -486,6 +505,11 @@ class Fanfic_Shortcodes_Search {
 
 		$warnings = class_exists( 'Fanfic_Warnings' ) ? Fanfic_Warnings::get_available_warnings() : array();
 
+		$languages = array();
+		if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
+			$languages = Fanfic_Languages::get_active_languages();
+		}
+
 		$active_filters = function_exists( 'fanfic_build_active_filters' )
 			? fanfic_build_active_filters( $params, $base_url )
 			: array();
@@ -499,6 +523,7 @@ class Fanfic_Shortcodes_Search {
 			'genres'          => $genres,
 			'statuses'        => $statuses,
 			'warnings'        => $warnings,
+			'languages'       => $languages,
 			'active_filters'  => $active_filters,
 		);
 	}

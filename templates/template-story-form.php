@@ -438,6 +438,40 @@ if ( $is_edit_mode ) {
 							</div>
 						<?php endif; ?>
 
+						<?php if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) : ?>
+							<?php
+							// Get current language for edit mode
+							$current_language_id = 0;
+							if ( $is_edit_mode ) {
+								$current_language_id = Fanfic_Languages::get_story_language_id( $story_id );
+							}
+							// Check for POST data
+							if ( isset( $_POST['fanfic_story_language'] ) ) {
+								$current_language_id = absint( $_POST['fanfic_story_language'] );
+							}
+							$available_languages = Fanfic_Languages::get_active_languages();
+							?>
+							<!-- Language -->
+							<div class="fanfic-form-field">
+								<label for="fanfic_story_language"><?php esc_html_e( 'Language', 'fanfiction-manager' ); ?></label>
+								<select id="fanfic_story_language" name="fanfic_story_language" class="fanfic-select">
+									<option value=""><?php esc_html_e( 'Select a language...', 'fanfiction-manager' ); ?></option>
+									<?php foreach ( $available_languages as $lang ) : ?>
+										<?php
+										$lang_label = esc_html( $lang['name'] );
+										if ( ! empty( $lang['native_name'] ) && $lang['native_name'] !== $lang['name'] ) {
+											$lang_label .= ' (' . esc_html( $lang['native_name'] ) . ')';
+										}
+										?>
+										<option value="<?php echo esc_attr( $lang['id'] ); ?>" <?php selected( $current_language_id, $lang['id'] ); ?>>
+											<?php echo $lang_label; ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+								<p class="description"><?php esc_html_e( 'Select the language your story is written in.', 'fanfiction-manager' ); ?></p>
+							</div>
+						<?php endif; ?>
+
 						<?php
 						// ========================================================================
 						// WARNINGS AND TAGS SECTION (Phase 4.1)

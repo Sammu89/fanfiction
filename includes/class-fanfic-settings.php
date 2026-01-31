@@ -189,6 +189,7 @@ class Fanfic_Settings {
 			'allow_anonymous_likes'          => false,
 			'allow_anonymous_reports'        => false,
 			'enable_fandom_classification'   => false,
+			'enable_language_classification' => false,
 			'enable_image_uploads'           => false,
 			'image_upload_max_value'         => 1,
 			'image_upload_max_unit'          => 'mb',
@@ -284,6 +285,7 @@ class Fanfic_Settings {
 		// Image uploads
 		$sanitized['enable_image_uploads'] = isset( $settings['enable_image_uploads'] ) && $settings['enable_image_uploads'];
 		$sanitized['enable_fandom_classification'] = isset( $settings['enable_fandom_classification'] ) && $settings['enable_fandom_classification'];
+		$sanitized['enable_language_classification'] = isset( $settings['enable_language_classification'] ) && $settings['enable_language_classification'];
 		$max_value = isset( $settings['image_upload_max_value'] ) ? absint( $settings['image_upload_max_value'] ) : 1;
 		if ( $max_value < 1 ) {
 			$max_value = 1;

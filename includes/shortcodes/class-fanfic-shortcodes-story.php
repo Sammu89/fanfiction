@@ -35,6 +35,7 @@ class Fanfic_Shortcodes_Story {
 		add_shortcode( 'story-featured-image', array( __CLASS__, 'story_featured_image' ) );
 		add_shortcode( 'story-genres', array( __CLASS__, 'story_genres' ) );
 		add_shortcode( 'story-fandoms', array( __CLASS__, 'story_fandoms' ) );
+		add_shortcode( 'story-language', array( __CLASS__, 'story_language' ) );
 		add_shortcode( 'story-status', array( __CLASS__, 'story_status' ) );
 		add_shortcode( 'story-publication-date', array( __CLASS__, 'story_publication_date' ) );
 		add_shortcode( 'story-last-updated', array( __CLASS__, 'story_last_updated' ) );
@@ -277,6 +278,41 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		return '<div class="fanfic-story-fandoms"><strong>' . esc_html__( 'Fandoms:', 'fanfiction-manager' ) . '</strong> <span class="story-fandoms" aria-label="' . esc_attr__( 'Story fandoms', 'fanfiction-manager' ) . '">' . implode( ', ', $labels ) . '</span></div>';
+	}
+
+	/**
+	 * Story language shortcode
+	 *
+	 * [story-language]
+	 *
+	 * Displays the language associated with the story.
+	 * Always shows label with native name. Returns empty if no language set.
+	 *
+	 * @since 1.3.0
+	 * @return string Language HTML or empty string.
+	 */
+	public static function story_language() {
+		if ( ! class_exists( 'Fanfic_Languages' ) || ! Fanfic_Languages::is_enabled() ) {
+			return '';
+		}
+
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		$language = Fanfic_Languages::get_story_language( $story_id );
+
+		if ( ! $language ) {
+			return '';
+		}
+
+		$label = esc_html( $language['name'] );
+		if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
+			$label .= ' <span class="story-language-native">(' . esc_html( $language['native_name'] ) . ')</span>';
+		}
+
+		return '<div class="fanfic-story-language"><strong>' . esc_html__( 'Language:', 'fanfiction-manager' ) . '</strong> <span class="story-language" aria-label="' . esc_attr__( 'Story language', 'fanfiction-manager' ) . '">' . $label . '</span></div>';
 	}
 
 	/**
