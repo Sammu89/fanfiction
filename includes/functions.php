@@ -2023,7 +2023,19 @@ function fanfic_get_browse_params( $source = null ) {
 		'exclude_warnings' => fanfic_parse_warning_exclusions( $source['warning'] ?? '' ),
 		'age'              => fanfic_normalize_age_filter( $source['age'] ?? '' ),
 		'sort'             => fanfic_normalize_sort_filter( $source['sort'] ?? '' ),
+		'custom'           => array(),
 	);
+
+	// Parse custom taxonomy params.
+	if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+		$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+		foreach ( $custom_taxonomies as $taxonomy ) {
+			$slug = $taxonomy['slug'];
+			if ( isset( $source[ $slug ] ) ) {
+				$params['custom'][ $slug ] = fanfic_parse_slug_list( $source[ $slug ] );
+			}
+		}
+	}
 
 	return $params;
 }
@@ -2216,6 +2228,31 @@ function fanfic_build_browse_query_args( $params, $paged = 1, $per_page = 12 ) {
 		}
 	}
 
+	// Custom taxonomy filters (custom tables)
+	if ( ! empty( $params['custom'] ) && class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+		foreach ( $params['custom'] as $taxonomy_slug => $term_slugs ) {
+			if ( empty( $term_slugs ) ) {
+				continue;
+			}
+			$custom_story_ids = Fanfic_Custom_Taxonomies::get_story_ids_by_term_slugs( $taxonomy_slug, $term_slugs );
+			if ( empty( $custom_story_ids ) ) {
+				$post__in = array( 0 );
+				break;
+			} else {
+				$custom_story_ids = array_map( 'absint', (array) $custom_story_ids );
+				if ( is_array( $post__in ) ) {
+					$post__in = array_values( array_intersect( $post__in, $custom_story_ids ) );
+					if ( empty( $post__in ) ) {
+						$post__in = array( 0 );
+						break;
+					}
+				} else {
+					$post__in = $custom_story_ids;
+				}
+			}
+		}
+	}
+
 	// Taxonomy filters (genre/status)
 	$tax_query = array();
 	if ( ! empty( $params['genres'] ) ) {
@@ -2309,6 +2346,15 @@ function fanfic_build_browse_url_args( $params ) {
 	}
 	if ( ! empty( $params['sort'] ) ) {
 		$args['sort'] = $params['sort'];
+	}
+
+	// Custom taxonomies.
+	if ( ! empty( $params['custom'] ) && is_array( $params['custom'] ) ) {
+		foreach ( $params['custom'] as $taxonomy_slug => $term_slugs ) {
+			if ( ! empty( $term_slugs ) ) {
+				$args[ $taxonomy_slug ] = implode( ' ', $term_slugs );
+			}
+		}
 	}
 
 	return $args;
@@ -2575,6 +2621,30 @@ function fanfic_build_active_filters( $params, $base_url ) {
 			'label' => sprintf( __( 'Sort: %s', 'fanfiction-manager' ), $sort_labels[ $params['sort'] ] ?? $params['sort'] ),
 			'url'   => fanfic_build_browse_url( $base_url, $params, array( 'sort' => null, 'paged' => null ) ),
 		);
+	}
+
+	// Custom taxonomies.
+	if ( ! empty( $params['custom'] ) && class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+		foreach ( $params['custom'] as $taxonomy_slug => $term_slugs ) {
+			if ( empty( $term_slugs ) ) {
+				continue;
+			}
+			$taxonomy = Fanfic_Custom_Taxonomies::get_taxonomy_by_slug( $taxonomy_slug );
+			if ( ! $taxonomy ) {
+				continue;
+			}
+			foreach ( (array) $term_slugs as $slug ) {
+				$term = Fanfic_Custom_Taxonomies::get_term_by_slug( $taxonomy['id'], $slug );
+				$label = $term ? $term['name'] : $slug;
+				$new_values = array_values( array_diff( $term_slugs, array( $slug ) ) );
+				$new_custom = $params['custom'];
+				$new_custom[ $taxonomy_slug ] = $new_values;
+				$filters[] = array(
+					'label' => sprintf( '%s: %s', $taxonomy['name'], $label ),
+					'url'   => fanfic_build_browse_url( $base_url, $params, array( 'custom' => $new_custom, 'paged' => null ) ),
+				);
+			}
+		}
 	}
 
 	return $filters;

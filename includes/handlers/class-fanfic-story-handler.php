@@ -118,6 +118,18 @@ class Fanfic_Story_Handler {
 		// Get language (Phase 4.x)
 		$language_id = isset( $_POST['fanfic_story_language'] ) ? absint( $_POST['fanfic_story_language'] ) : 0;
 
+		// Get custom taxonomy values
+		$custom_taxonomy_values = array();
+		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+			$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+			foreach ( $custom_taxonomies as $taxonomy ) {
+				$post_key = 'fanfic_custom_' . $taxonomy['slug'];
+				if ( isset( $_POST[ $post_key ] ) ) {
+					$custom_taxonomy_values[ $taxonomy['id'] ] = array_map( 'absint', (array) $_POST[ $post_key ] );
+				}
+			}
+		}
+
 		// Parse tags from comma-separated string
 		$visible_tags = array_filter( array_map( 'trim', explode( ',', $visible_tags_raw ) ) );
 		$invisible_tags = array_filter( array_map( 'trim', explode( ',', $invisible_tags_raw ) ) );
@@ -186,6 +198,13 @@ class Fanfic_Story_Handler {
 			// Save language
 			if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
 				Fanfic_Languages::save_story_language( $new_story_id, $language_id );
+			}
+
+			// Save custom taxonomy values
+			if ( class_exists( 'Fanfic_Custom_Taxonomies' ) && ! empty( $custom_taxonomy_values ) ) {
+				foreach ( $custom_taxonomy_values as $taxonomy_id => $term_ids ) {
+					Fanfic_Custom_Taxonomies::save_story_terms( $new_story_id, $taxonomy_id, $term_ids );
+				}
 			}
 
 			// Save tags (Phase 4.1)
@@ -326,6 +345,13 @@ class Fanfic_Story_Handler {
 			// Save language
 			if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
 				Fanfic_Languages::save_story_language( $story_id, $language_id );
+			}
+
+			// Save custom taxonomy values
+			if ( class_exists( 'Fanfic_Custom_Taxonomies' ) && ! empty( $custom_taxonomy_values ) ) {
+				foreach ( $custom_taxonomy_values as $taxonomy_id => $term_ids ) {
+					Fanfic_Custom_Taxonomies::save_story_terms( $story_id, $taxonomy_id, $term_ids );
+				}
 			}
 
 			// Save tags (Phase 4.1)

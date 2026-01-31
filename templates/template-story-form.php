@@ -474,6 +474,57 @@ if ( $is_edit_mode ) {
 
 						<?php
 						// ========================================================================
+						// CUSTOM TAXONOMIES SECTION
+						// ========================================================================
+						if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) :
+							$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+							foreach ( $custom_taxonomies as $custom_taxonomy ) :
+								$custom_terms = Fanfic_Custom_Taxonomies::get_active_terms( $custom_taxonomy['id'] );
+								if ( empty( $custom_terms ) ) {
+									continue;
+								}
+
+								// Get current values for edit mode
+								$current_term_ids = array();
+								if ( $is_edit_mode ) {
+									$current_term_ids = Fanfic_Custom_Taxonomies::get_story_term_ids( $story_id, $custom_taxonomy['id'] );
+								}
+								// Check for POST data
+								$post_key = 'fanfic_custom_' . $custom_taxonomy['slug'];
+								if ( isset( $_POST[ $post_key ] ) ) {
+									$current_term_ids = array_map( 'absint', (array) $_POST[ $post_key ] );
+								}
+								?>
+								<div class="fanfic-form-field">
+									<label for="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>"><?php echo esc_html( $custom_taxonomy['name'] ); ?></label>
+									<?php if ( 'single' === $custom_taxonomy['selection_type'] ) : ?>
+										<select id="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>" name="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>" class="fanfic-select">
+											<option value=""><?php esc_html_e( 'Select...', 'fanfiction-manager' ); ?></option>
+											<?php foreach ( $custom_terms as $term ) : ?>
+												<option value="<?php echo esc_attr( $term['id'] ); ?>" <?php selected( in_array( (int) $term['id'], $current_term_ids, true ) ); ?>>
+													<?php echo esc_html( $term['name'] ); ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
+									<?php else : ?>
+										<div class="fanfic-checkboxes fanfic-checkboxes-custom">
+											<?php foreach ( $custom_terms as $term ) : ?>
+												<?php $is_checked = in_array( (int) $term['id'], $current_term_ids, true ); ?>
+												<label class="fanfic-checkbox-label">
+													<input type="checkbox" name="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>[]" value="<?php echo esc_attr( $term['id'] ); ?>" <?php checked( $is_checked ); ?>>
+													<?php echo esc_html( $term['name'] ); ?>
+												</label>
+											<?php endforeach; ?>
+										</div>
+									<?php endif; ?>
+								</div>
+								<?php
+							endforeach;
+						endif;
+						?>
+
+						<?php
+						// ========================================================================
 						// WARNINGS AND TAGS SECTION (Phase 4.1)
 						// ========================================================================
 						?>

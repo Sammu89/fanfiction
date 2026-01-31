@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Fanfic_Database_Setup
  *
- * Creates and manages 13 custom tables:
+ * Creates and manages 16 custom tables:
  * - wp_fanfic_ratings: Chapter ratings (1-5 stars)
  * - wp_fanfic_likes: Chapter likes
  * - wp_fanfic_reading_progress: Mark chapters as read
@@ -31,6 +31,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_story_warnings: Story-warning relations (NEW in 1.2.0)
  * - wp_fanfic_languages: Language definitions (NEW in 1.3.0)
  * - wp_fanfic_story_languages: Story-language relations (NEW in 1.3.0)
+ * - wp_fanfic_custom_taxonomies: Custom taxonomy definitions (NEW in 1.4.0)
+ * - wp_fanfic_custom_terms: Custom taxonomy terms (NEW in 1.4.0)
+ * - wp_fanfic_story_custom_terms: Story-custom term relations (NEW in 1.4.0)
  * - wp_fanfic_story_search_index: Pre-computed search index (NEW in 1.2.0)
  * - wp_fanfic_moderation_log: Moderation action log (NEW in 1.2.0)
  *
@@ -44,7 +47,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.3.0';
+	const DB_VERSION = '1.4.0';
 
 	/**
 	 * Option name for database version tracking
@@ -340,7 +343,65 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_languages table';
 		}
 
-		// 15. Story Search Index Table
+		// 14. Custom Taxonomies Table
+		$table_custom_taxonomies = $prefix . 'fanfic_custom_taxonomies';
+		$sql_custom_taxonomies   = "CREATE TABLE IF NOT EXISTS {$table_custom_taxonomies} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			slug varchar(191) NOT NULL,
+			name varchar(255) NOT NULL,
+			selection_type enum('single','multi') NOT NULL DEFAULT 'single',
+			is_active tinyint(1) NOT NULL DEFAULT 1,
+			sort_order int(11) NOT NULL DEFAULT 0,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_slug (slug),
+			KEY idx_active (is_active),
+			KEY idx_sort (sort_order)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_custom_taxonomies );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_custom_taxonomies ) ) {
+			$errors[] = 'Failed to create custom_taxonomies table';
+		}
+
+		// 15. Custom Terms Table
+		$table_custom_terms = $prefix . 'fanfic_custom_terms';
+		$sql_custom_terms   = "CREATE TABLE IF NOT EXISTS {$table_custom_terms} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			taxonomy_id bigint(20) UNSIGNED NOT NULL,
+			slug varchar(191) NOT NULL,
+			name varchar(255) NOT NULL,
+			is_active tinyint(1) NOT NULL DEFAULT 1,
+			sort_order int(11) NOT NULL DEFAULT 0,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_taxonomy_slug (taxonomy_id, slug),
+			KEY idx_taxonomy (taxonomy_id),
+			KEY idx_active (is_active),
+			KEY idx_name (name),
+			FULLTEXT KEY idx_name_fulltext (name)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_custom_terms );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_custom_terms ) ) {
+			$errors[] = 'Failed to create custom_terms table';
+		}
+
+		// 16. Story-Custom Terms Relations Table
+		$table_story_custom_terms = $prefix . 'fanfic_story_custom_terms';
+		$sql_story_custom_terms   = "CREATE TABLE IF NOT EXISTS {$table_story_custom_terms} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			term_id bigint(20) UNSIGNED NOT NULL,
+			UNIQUE KEY unique_story_term (story_id, term_id),
+			KEY idx_story (story_id),
+			KEY idx_term_story (term_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_custom_terms );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_custom_terms ) ) {
+			$errors[] = 'Failed to create story_custom_terms table';
+		}
+
+		// 17. Story Search Index Table
 		$table_search_index = $prefix . 'fanfic_story_search_index';
 		$sql_search_index   = "CREATE TABLE IF NOT EXISTS {$table_search_index} (
 			story_id bigint(20) UNSIGNED NOT NULL,
@@ -433,6 +494,9 @@ class Fanfic_Database_Setup {
 		$tables = array(
 			$prefix . 'fanfic_moderation_log',
 			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_custom_terms',
+			$prefix . 'fanfic_custom_terms',
+			$prefix . 'fanfic_custom_taxonomies',
 			$prefix . 'fanfic_story_languages',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_warnings',
@@ -484,6 +548,9 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_custom_taxonomies',
+			$prefix . 'fanfic_custom_terms',
+			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_moderation_log',
 		);
@@ -599,6 +666,9 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_custom_taxonomies',
+			$prefix . 'fanfic_custom_terms',
+			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_moderation_log',
 		);
@@ -676,6 +746,9 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_custom_taxonomies',
+			$prefix . 'fanfic_custom_terms',
+			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_moderation_log',
 		);
@@ -715,6 +788,9 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_custom_taxonomies',
+			$prefix . 'fanfic_custom_terms',
+			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_moderation_log',
 		);
@@ -751,6 +827,9 @@ class Fanfic_Database_Setup {
 		$tables = array(
 			$prefix . 'fanfic_moderation_log',
 			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_custom_terms',
+			$prefix . 'fanfic_custom_terms',
+			$prefix . 'fanfic_custom_taxonomies',
 			$prefix . 'fanfic_story_languages',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_warnings',

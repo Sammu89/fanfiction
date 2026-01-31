@@ -297,6 +297,37 @@ class Fanfic_Shortcodes_Search {
 				</div>
 			<?php endif; ?>
 
+			<?php if ( ! empty( $context['custom_taxonomies'] ) ) : ?>
+				<?php foreach ( $context['custom_taxonomies'] as $custom_taxonomy ) : ?>
+					<?php if ( ! empty( $custom_taxonomy['terms'] ) ) : ?>
+						<?php
+						$custom_params = isset( $context['params']['custom'][ $custom_taxonomy['slug'] ] ) ? (array) $context['params']['custom'][ $custom_taxonomy['slug'] ] : array();
+						?>
+						<div class="fanfic-browse-row">
+							<label for="fanfic-<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>-filter"><?php echo esc_html( $custom_taxonomy['name'] ); ?></label>
+							<?php if ( 'single' === $custom_taxonomy['selection_type'] ) : ?>
+								<select id="fanfic-<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>-filter" name="<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>">
+									<option value=""><?php esc_html_e( 'Any', 'fanfiction-manager' ); ?></option>
+									<?php foreach ( $custom_taxonomy['terms'] as $term ) : ?>
+										<option value="<?php echo esc_attr( $term['slug'] ); ?>" <?php selected( in_array( $term['slug'], $custom_params, true ) ); ?>>
+											<?php echo esc_html( $term['name'] ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+							<?php else : ?>
+								<select id="fanfic-<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>-filter" name="<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>[]" multiple>
+									<?php foreach ( $custom_taxonomy['terms'] as $term ) : ?>
+										<option value="<?php echo esc_attr( $term['slug'] ); ?>" <?php selected( in_array( $term['slug'], $custom_params, true ) ); ?>>
+											<?php echo esc_html( $term['name'] ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+							<?php endif; ?>
+						</div>
+					<?php endif; ?>
+				<?php endforeach; ?>
+			<?php endif; ?>
+
 			<?php if ( ! empty( $context['warnings'] ) ) : ?>
 				<div class="fanfic-browse-row fanfic-browse-warnings">
 					<span class="fanfic-browse-label"><?php esc_html_e( 'Exclude warnings', 'fanfiction-manager' ); ?></span>
@@ -484,6 +515,7 @@ class Fanfic_Shortcodes_Search {
 			|| ! empty( $params['statuses'] )
 			|| ! empty( $params['fandoms'] )
 			|| ! empty( $params['languages'] )
+			|| ! empty( $params['custom'] )
 			|| ! empty( $params['exclude_warnings'] )
 			|| ! empty( $params['age'] )
 			|| ! empty( $params['sort'] );
@@ -510,21 +542,36 @@ class Fanfic_Shortcodes_Search {
 			$languages = Fanfic_Languages::get_active_languages();
 		}
 
+		$custom_taxonomies = array();
+		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+			$all_custom = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+			foreach ( $all_custom as $taxonomy ) {
+				$custom_taxonomies[] = array(
+					'id'             => $taxonomy['id'],
+					'slug'           => $taxonomy['slug'],
+					'name'           => $taxonomy['name'],
+					'selection_type' => $taxonomy['selection_type'],
+					'terms'          => Fanfic_Custom_Taxonomies::get_active_terms( $taxonomy['id'] ),
+				);
+			}
+		}
+
 		$active_filters = function_exists( 'fanfic_build_active_filters' )
 			? fanfic_build_active_filters( $params, $base_url )
 			: array();
 
 		return array(
-			'base_url'        => $base_url,
-			'params'          => $params,
-			'has_filters'     => $has_filters,
-			'page_title'      => $page_title,
-			'page_description'=> $page_description,
-			'genres'          => $genres,
-			'statuses'        => $statuses,
-			'warnings'        => $warnings,
-			'languages'       => $languages,
-			'active_filters'  => $active_filters,
+			'base_url'          => $base_url,
+			'params'            => $params,
+			'has_filters'       => $has_filters,
+			'page_title'        => $page_title,
+			'page_description'  => $page_description,
+			'genres'            => $genres,
+			'statuses'          => $statuses,
+			'warnings'          => $warnings,
+			'languages'         => $languages,
+			'custom_taxonomies' => $custom_taxonomies,
+			'active_filters'    => $active_filters,
 		);
 	}
 }
