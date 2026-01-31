@@ -124,6 +124,9 @@ class Fanfic_Wizard {
 		// Add admin menu for wizard
 		add_action( 'admin_menu', array( $this, 'add_wizard_menu' ) );
 
+		// Handle skip action before any output
+		add_action( 'admin_init', array( $this, 'handle_skip_action' ), 9 );
+
 		// Check if wizard should be shown
 		add_action( 'admin_init', array( $this, 'check_wizard_redirect' ), 10 );
 
@@ -168,6 +171,23 @@ class Fanfic_Wizard {
 		if ( isset( $_GET['page'] ) && 'fanfic-setup-wizard' === $_GET['page'] ) {
 			global $title;
 			$title = __( 'Setup Wizard', 'fanfiction-manager' );
+		}
+	}
+
+	/**
+	 * Handle skip action from wizard choice screen
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public function handle_skip_action() {
+		if ( isset( $_GET['page'], $_GET['action'] ) && 'fanfic-setup-wizard' === $_GET['page'] && 'skip' === $_GET['action'] ) {
+			// Prevent wizard from showing on next load
+			delete_option( 'fanfic_show_wizard' );
+
+			// Redirect to settings page
+			wp_safe_redirect( admin_url( 'admin.php?page=fanfiction-settings' ) );
+			exit;
 		}
 	}
 
@@ -378,13 +398,6 @@ class Fanfic_Wizard {
 		$admin_title = __( 'Setup Wizard', 'fanfiction-manager' );
 		$parent_file = '';
 		$hook_suffix = 'admin_page_fanfic-setup-wizard';
-
-		// Check if user wants to skip wizard (from choice screen)
-		if ( isset( $_GET['action'] ) && 'skip' === $_GET['action'] ) {
-			delete_option( 'fanfic_show_wizard' );
-			wp_safe_redirect( admin_url( 'admin.php?page=fanfiction-settings' ) );
-			exit;
-		}
 
 		// Check if wizard already completed and pages exist
 		$wizard_completed = get_option( 'fanfic_wizard_completed', false );
