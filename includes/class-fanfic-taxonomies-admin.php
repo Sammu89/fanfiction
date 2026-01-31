@@ -467,9 +467,16 @@ class Fanfic_Taxonomies_Admin {
 		}
 
 		// Get current tab with validation
-		$allowed_tabs = array( 'general', 'genres', 'status', 'warnings', 'fandoms', 'languages' );
+		$allowed_tabs = array( 'general', 'genres', 'status', 'warnings', 'fandoms', 'languages', 'custom' );
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general';
-		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'general';
+
+		// Check for custom taxonomy tabs (custom-{slug})
+		$is_custom_tab = false;
+		if ( class_exists( 'Fanfic_Custom_Taxonomies_Admin' ) && Fanfic_Custom_Taxonomies_Admin::is_custom_taxonomy_tab( $current_tab ) ) {
+			$is_custom_tab = true;
+		} elseif ( ! in_array( $current_tab, $allowed_tabs, true ) ) {
+			$current_tab = 'general';
+		}
 
 		// Display notices
 		self::display_notices();
@@ -479,6 +486,12 @@ class Fanfic_Taxonomies_Admin {
 
 		// Check if languages is enabled
 		$enable_languages = Fanfic_Settings::get_setting( 'enable_language_classification', false );
+
+		// Get custom taxonomy tabs
+		$custom_taxonomy_tabs = array();
+		if ( class_exists( 'Fanfic_Custom_Taxonomies_Admin' ) ) {
+			$custom_taxonomy_tabs = Fanfic_Custom_Taxonomies_Admin::get_custom_taxonomy_tabs();
+		}
 
 		?>
 		<div class="wrap">
@@ -507,42 +520,61 @@ class Fanfic_Taxonomies_Admin {
 						<?php esc_html_e( 'Languages', 'fanfiction-manager' ); ?>
 					</a>
 				<?php endif; ?>
+				<a href="?page=fanfiction-taxonomies&tab=custom" class="nav-tab <?php echo $current_tab === 'custom' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Custom', 'fanfiction-manager' ); ?>
+				</a>
+				<?php foreach ( $custom_taxonomy_tabs as $tab_slug => $tab_name ) : ?>
+					<a href="?page=fanfiction-taxonomies&tab=<?php echo esc_attr( $tab_slug ); ?>" class="nav-tab <?php echo $current_tab === $tab_slug ? 'nav-tab-active' : ''; ?>">
+						<?php echo esc_html( $tab_name ); ?>
+					</a>
+				<?php endforeach; ?>
 			</nav>
 
 			<div class="tab-content">
 				<?php
-				switch ( $current_tab ) {
-					case 'genres':
-						self::render_genres_tab();
-						break;
-					case 'status':
-						self::render_status_tab();
-						break;
-					case 'warnings':
-						if ( class_exists( 'Fanfic_Warnings_Admin' ) ) {
-							Fanfic_Warnings_Admin::render();
-						} else {
-							self::render_warnings_placeholder();
-						}
-						break;
-					case 'fandoms':
-						if ( $enable_fandoms && class_exists( 'Fanfic_Fandoms_Admin' ) ) {
-							Fanfic_Fandoms_Admin::render();
-						} else {
-							self::render_fandoms_placeholder();
-						}
-						break;
-					case 'languages':
-						if ( $enable_languages && class_exists( 'Fanfic_Languages_Admin' ) ) {
-							Fanfic_Languages_Admin::render();
-						} else {
-							self::render_languages_placeholder();
-						}
-						break;
-					case 'general':
-					default:
-						self::render_general_tab();
-						break;
+				if ( $is_custom_tab ) {
+					// Render custom taxonomy terms page
+					$taxonomy_slug = Fanfic_Custom_Taxonomies_Admin::get_taxonomy_slug_from_tab( $current_tab );
+					Fanfic_Custom_Taxonomies_Admin::render_terms_page( $taxonomy_slug );
+				} else {
+					switch ( $current_tab ) {
+						case 'genres':
+							self::render_genres_tab();
+							break;
+						case 'status':
+							self::render_status_tab();
+							break;
+						case 'warnings':
+							if ( class_exists( 'Fanfic_Warnings_Admin' ) ) {
+								Fanfic_Warnings_Admin::render();
+							} else {
+								self::render_warnings_placeholder();
+							}
+							break;
+						case 'fandoms':
+							if ( $enable_fandoms && class_exists( 'Fanfic_Fandoms_Admin' ) ) {
+								Fanfic_Fandoms_Admin::render();
+							} else {
+								self::render_fandoms_placeholder();
+							}
+							break;
+						case 'languages':
+							if ( $enable_languages && class_exists( 'Fanfic_Languages_Admin' ) ) {
+								Fanfic_Languages_Admin::render();
+							} else {
+								self::render_languages_placeholder();
+							}
+							break;
+						case 'custom':
+							if ( class_exists( 'Fanfic_Custom_Taxonomies_Admin' ) ) {
+								Fanfic_Custom_Taxonomies_Admin::render_creation_panel();
+							}
+							break;
+						case 'general':
+						default:
+							self::render_general_tab();
+							break;
+					}
 				}
 				?>
 			</div>
