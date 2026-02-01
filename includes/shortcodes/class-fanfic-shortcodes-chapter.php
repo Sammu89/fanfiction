@@ -41,7 +41,7 @@ class Fanfic_Shortcodes_Chapter {
 	/**
 	 * Custom Chapter Image shortcode
 	 *
-	 * [fanfic-chapter-image class="my-class" alt="My alt text"]
+	 * [fanfic-chapter-image]
 	 *
 	 * @since 2.1.0
 	 * @param array $atts Shortcode attributes.
@@ -55,7 +55,6 @@ class Fanfic_Shortcodes_Chapter {
 
 		$atts = shortcode_atts(
 			array(
-				'class' => 'fanfic-chapter-image',
 				'alt'   => get_the_title( $chapter_id ),
 			),
 			$atts,
@@ -63,7 +62,7 @@ class Fanfic_Shortcodes_Chapter {
 		);
 
 		// Sanitize attributes
-		$class = esc_attr( $atts['class'] );
+		$class = 'fanfic-chapter-image';
 		$alt = esc_attr( $atts['alt'] );
 
 		$image_url = get_post_meta( $chapter_id, '_fanfic_chapter_image_url', true );

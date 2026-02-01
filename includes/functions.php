@@ -1519,6 +1519,10 @@ function fanfic_normalize_tags( $tags, $limit ) {
  * @return array Array of visible tags
  */
 function fanfic_get_visible_tags( $story_id ) {
+	if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_tags', true ) ) {
+		return array();
+	}
+
 	$tags = get_post_meta( $story_id, FANFIC_META_VISIBLE_TAGS, true );
 
 	if ( ! is_array( $tags ) ) {
@@ -1536,6 +1540,10 @@ function fanfic_get_visible_tags( $story_id ) {
  * @return array Array of invisible tags
  */
 function fanfic_get_invisible_tags( $story_id ) {
+	if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_tags', true ) ) {
+		return array();
+	}
+
 	$tags = get_post_meta( $story_id, FANFIC_META_INVISIBLE_TAGS, true );
 
 	if ( ! is_array( $tags ) ) {
@@ -1632,6 +1640,10 @@ function fanfic_delete_all_tags( $story_id ) {
  * @return string HTML output
  */
 function fanfic_render_visible_tags( $story_id, $wrapper = 'div', $class = 'fanfic-tags' ) {
+	if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_tags', true ) ) {
+		return '';
+	}
+
 	$tags = fanfic_get_visible_tags( $story_id );
 
 	if ( empty( $tags ) ) {
@@ -2502,6 +2514,8 @@ function fanfic_get_story_card_html( $story_id ) {
 						<?php endforeach; ?>
 					</div>
 				<?php endif; ?>
+
+				<?php echo do_shortcode( '[story-taxonomies]' ); ?>
 
 				<div class="fanfic-story-stats">
 					<?php if ( $word_count ) : ?>

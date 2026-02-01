@@ -54,7 +54,7 @@ class Fanfic_Shortcodes_Story {
 	/**
 	 * Custom Story Image shortcode
 	 *
-	 * [fanfic-story-image class="my-class" alt="My alt text"]
+	 * [fanfic-story-image]
 	 *
 	 * @since 2.1.0
 	 * @param array $atts Shortcode attributes.
@@ -68,7 +68,6 @@ class Fanfic_Shortcodes_Story {
 
 		$atts = shortcode_atts(
 			array(
-				'class' => 'fanfic-story-image',
 				'alt'   => get_the_title( $story_id ),
 				'size'  => 'full', // Allow size attribute for thumbnail
 			),
@@ -77,7 +76,7 @@ class Fanfic_Shortcodes_Story {
 		);
 
 		// Sanitize attributes
-		$class = esc_attr( $atts['class'] );
+		$class = 'fanfic-story-image';
 		$alt = esc_attr( $atts['alt'] );
 		$size = sanitize_key( $atts['size'] );
 
@@ -589,6 +588,10 @@ class Fanfic_Shortcodes_Story {
 			return '';
 		}
 
+		if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_warnings', true ) ) {
+			return '';
+		}
+
 		// Check if warnings class exists
 		if ( ! class_exists( 'Fanfic_Warnings' ) ) {
 			return '';
@@ -651,6 +654,10 @@ class Fanfic_Shortcodes_Story {
 
 		$story_id = Fanfic_Shortcodes::get_current_story_id();
 		if ( ! $story_id ) {
+			return '';
+		}
+
+		if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_tags', true ) ) {
 			return '';
 		}
 
@@ -717,6 +724,10 @@ class Fanfic_Shortcodes_Story {
 
 		$story_id = Fanfic_Shortcodes::get_current_story_id();
 		if ( ! $story_id ) {
+			return '';
+		}
+
+		if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_warnings', true ) ) {
 			return '';
 		}
 

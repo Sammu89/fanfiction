@@ -29,6 +29,10 @@ class Fanfic_Warnings_Admin {
 	 * @return void
 	 */
 	public static function init() {
+		if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_warnings', true ) ) {
+			return;
+		}
+
 		add_action( 'admin_post_fanfic_add_warning', array( __CLASS__, 'handle_add_warning' ) );
 		add_action( 'admin_post_fanfic_update_warning', array( __CLASS__, 'handle_update_warning' ) );
 		add_action( 'admin_post_fanfic_toggle_warning', array( __CLASS__, 'handle_toggle_warning' ) );
@@ -45,6 +49,18 @@ class Fanfic_Warnings_Admin {
 	public static function render() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
+		}
+
+		if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_warnings', true ) ) {
+			?>
+			<div class="notice notice-info inline">
+				<p>
+					<?php esc_html_e( 'Warnings are disabled. Enable them in the General tab to manage content warnings.', 'fanfiction-manager' ); ?>
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=fanfiction-taxonomies&tab=general' ) ); ?>"><?php esc_html_e( 'Go to General tab', 'fanfiction-manager' ); ?></a>
+				</p>
+			</div>
+			<?php
+			return;
 		}
 
 		if ( ! self::tables_ready() ) {

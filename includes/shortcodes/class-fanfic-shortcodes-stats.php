@@ -60,8 +60,8 @@ class Fanfic_Shortcodes_Stats {
 		// NEW: Like system shortcodes (v2.0)
 		add_shortcode( 'fanfiction-story-like-count', array( __CLASS__, 'story_like_count' ) );
 
-		// NEW: Compact rating shortcodes (v2.0)
-		add_shortcode( 'fanfiction-story-rating-compact', array( __CLASS__, 'story_rating_compact' ) );
+		// Story rating (v2.0)
+		add_shortcode( 'fanfiction-story-rating', array( __CLASS__, 'story_rating' ) );
 	}
 
 	/**
@@ -1227,30 +1227,16 @@ class Fanfic_Shortcodes_Stats {
 	}
 
 	/**
-	 * Compact story rating shortcode (NEW v2.0)
+	 * Story rating shortcode
 	 *
-	 * [fanfiction-story-rating-compact id="123" format="short"]
+	 * [fanfiction-story-rating]
 	 *
 	 * @since 2.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Compact rating HTML.
+	 * @param array $atts Shortcode attributes (ignored).
+	 * @return string Rating HTML.
 	 */
-	public static function story_rating_compact( $atts ) {
-		$atts = Fanfic_Shortcodes::sanitize_atts(
-			$atts,
-			array(
-				'id'     => 0,
-				'format' => 'short',
-			),
-			'fanfiction-story-rating-compact'
-		);
-
-		$story_id = absint( $atts['id'] );
-
-		// Auto-detect story ID from context if not provided
-		if ( ! $story_id ) {
-			$story_id = Fanfic_Shortcodes::get_current_story_id();
-		}
+	public static function story_rating( $atts ) {
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
 
 		if ( ! $story_id ) {
 			return '';
@@ -1266,25 +1252,11 @@ class Fanfic_Shortcodes_Stats {
 
 		$rating = $rating_data->average_rating;
 		$count = $rating_data->total_votes;
-		$format = sanitize_key( $atts['format'] );
 
-		// Format output based on format attribute
-		if ( 'long' === $format ) {
-			// Long format: "4.45 stars (23 ratings)"
-			return sprintf(
-				'<span class="fanfic-rating-compact fanfic-rating-long">%s %s</span>',
-				esc_html( number_format_i18n( $rating, 2 ) ),
-				sprintf(
-					esc_html( _n( 'star (%d rating)', 'stars (%d ratings)', $count, 'fanfiction-manager' ) ),
-					number_format_i18n( $count )
-				)
-			);
-		} else {
-			// Short format (default): "4.45 ★"
-			return sprintf(
-				'<span class="fanfic-rating-compact fanfic-rating-short">%s &#9733;</span>',
-				esc_html( number_format_i18n( $rating, 2 ) )
-			);
-		}
+		return sprintf(
+			'<span class="fanfic-rating-compact fanfic-rating-short">%s&#9733; (%s)</span>',
+			esc_html( number_format_i18n( $rating, 2 ) ),
+			esc_html( number_format_i18n( $count ) )
+		);
 	}
 }

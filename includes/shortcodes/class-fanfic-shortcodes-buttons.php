@@ -37,48 +37,22 @@ class Fanfic_Shortcodes_Buttons {
 	/**
 	 * Context-aware action buttons shortcode
 	 *
-	 * [fanfiction-action-buttons context="story" actions="bookmark,subscribe,share"]
+	 * [fanfiction-action-buttons]
 	 *
 	 * @since 2.0.0
 	 * @param array $atts Shortcode attributes.
 	 * @return string Action buttons HTML.
 	 */
 	public static function action_buttons( $atts ) {
-		global $post;
-
-		$atts = Fanfic_Shortcodes::sanitize_atts(
-			$atts,
-			array(
-				'context' => '',
-				'actions' => '',
-			),
-			'fanfiction-action-buttons'
-		);
-
-		// Auto-detect context if not provided
-		$context = sanitize_key( $atts['context'] );
-		if ( empty( $context ) ) {
-			$context = self::detect_context();
-		}
+		$context = self::detect_context();
 
 		// Return empty if context couldn't be determined
 		if ( ! $context ) {
 			return '';
 		}
 
-		// Parse actions parameter (comma-separated list)
-		$requested_actions = array();
-		if ( ! empty( $atts['actions'] ) ) {
-			$requested_actions = array_map( 'trim', explode( ',', $atts['actions'] ) );
-		}
-
 		// Get available actions for this context
 		$available_actions = self::get_context_actions( $context );
-
-		// Filter actions if specific ones were requested
-		if ( ! empty( $requested_actions ) ) {
-			$available_actions = array_intersect( $available_actions, $requested_actions );
-		}
 
 		// Return empty if no actions available
 		if ( empty( $available_actions ) ) {
@@ -143,6 +117,11 @@ class Fanfic_Shortcodes_Buttons {
 	 * @return array Available actions.
 	 */
 	private static function get_context_actions( $context ) {
+		$enable_likes = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_likes', true ) : true;
+		$enable_subscribe = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_subscribe', true ) : true;
+		$enable_share = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_share', true ) : true;
+		$enable_report = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_report', true ) : true;
+
 		$actions = array();
 
 		switch ( $context ) {
@@ -157,6 +136,20 @@ class Fanfic_Shortcodes_Buttons {
 			case 'author':
 				$actions = array( 'follow', 'share' );
 				break;
+		}
+
+		// Apply settings toggles.
+		if ( ! $enable_likes ) {
+			$actions = array_diff( $actions, array( 'like' ) );
+		}
+		if ( ! $enable_subscribe ) {
+			$actions = array_diff( $actions, array( 'subscribe' ) );
+		}
+		if ( ! $enable_share ) {
+			$actions = array_diff( $actions, array( 'share' ) );
+		}
+		if ( ! $enable_report ) {
+			$actions = array_diff( $actions, array( 'report' ) );
 		}
 
 		return apply_filters( 'fanfic_action_buttons_actions', $actions, $context );

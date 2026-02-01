@@ -341,6 +341,10 @@ class Fanfic_Warnings {
 	 * @return array Array of warning objects
 	 */
 	public static function get_story_warnings( $story_id ) {
+		if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_warnings', true ) ) {
+			return array();
+		}
+
 		global $wpdb;
 		$warnings_table  = $wpdb->prefix . 'fanfic_warnings';
 		$relations_table = $wpdb->prefix . 'fanfic_story_warnings';
@@ -435,6 +439,10 @@ class Fanfic_Warnings {
 	 * @return array Array of enabled warning objects
 	 */
 	public static function get_available_warnings() {
+		if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_warnings', true ) ) {
+			return array();
+		}
+
 		$warnings = self::get_all( true );
 
 		if ( ! class_exists( 'Fanfic_Settings' ) ) {

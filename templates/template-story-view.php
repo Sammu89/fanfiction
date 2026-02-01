@@ -51,9 +51,7 @@ function fanfic_get_default_story_view_template() {
 			<div class="fanfic-story-genres">
 				<strong><?php esc_html_e( 'Genres:', 'fanfiction-manager' ); ?></strong> [story-genres]
 			</div>
-			[story-fandoms]
-			[story-warnings]
-			[story-visible-tags]
+			[story-taxonomies]
 		</div>
 
 		<div class="fanfic-story-stats" role="contentinfo" aria-label="<?php esc_attr_e( 'Story statistics', 'fanfiction-manager' ); ?>">
@@ -61,12 +59,12 @@ function fanfic_get_default_story_view_template() {
 			<span class="fanfic-story-chapters-count"><strong><?php esc_html_e( 'Chapters:', 'fanfiction-manager' ); ?></strong> [story-chapters]</span>
 			<span class="fanfic-story-views"><strong><?php esc_html_e( 'Views:', 'fanfiction-manager' ); ?></strong> [story-views]</span>
 			<span class="fanfic-story-likes">[fanfiction-story-like-count]</span>
-			<span class="fanfic-story-rating">[fanfiction-story-rating-compact format="short"]</span>
+			<span class="fanfic-story-rating">[fanfiction-story-rating]</span>
 		</div>
 	</section>
 
 	<div class="fanfic-story-actions">
-		[fanfiction-action-buttons context="story" actions="follow,bookmark,subscribe,share,report"]
+		[fanfiction-action-buttons]
 	</div>
 
 	<nav class="fanfic-story-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">

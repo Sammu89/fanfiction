@@ -2,7 +2,7 @@
 /**
  * Taxonomy Shortcodes Class
  *
- * Handles all taxonomy-related shortcodes including custom taxonomies.
+ * Handles taxonomy-related shortcodes.
  *
  * @package FanfictionManager
  * @subpackage Shortcodes
@@ -24,109 +24,126 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Shortcodes_Taxonomy {
 
 	/**
-	 * Register taxonomy shortcodes
-	 *
-	 * Registers static shortcodes and dynamically creates custom taxonomy shortcodes.
+	 * Register taxonomy shortcodes.
 	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	public static function register() {
-		// Register dynamic custom taxonomy shortcodes
-		self::register_custom_taxonomy_shortcodes();
+		add_shortcode( 'story-taxonomies', array( __CLASS__, 'story_taxonomies' ) );
 	}
 
 	/**
-	 * Register custom taxonomy shortcodes dynamically
+	 * Global taxonomy shortcode.
 	 *
-	 * Creates shortcodes for all custom taxonomies.
+	 * [story-taxonomies]
 	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	private static function register_custom_taxonomy_shortcodes() {
-		// Get all registered taxonomies
-		$taxonomies = get_taxonomies( array(), 'objects' );
-
-		foreach ( $taxonomies as $taxonomy ) {
-			// Only process fanfiction taxonomies
-			if ( strpos( $taxonomy->name, 'fanfic_' ) !== 0 ) {
-				continue;
-			}
-
-			// Skip built-in taxonomies (already handled by story shortcodes)
-			if ( in_array( $taxonomy->name, array( 'fanfiction_genre', 'fanfiction_status' ), true ) ) {
-				continue;
-			}
-
-			// Create shortcode name from taxonomy slug
-			$shortcode_name = str_replace( 'fanfic_', 'fanfic-custom-taxo-', $taxonomy->name );
-
-			// Register the shortcode
-			add_shortcode( $shortcode_name, function( $atts ) use ( $taxonomy ) {
-				return Fanfic_Shortcodes_Taxonomy::custom_taxonomy_terms( $atts, $taxonomy->name );
-			} );
-
-			// Register the title shortcode
-			$title_shortcode = $shortcode_name . '-title';
-			add_shortcode( $title_shortcode, function( $atts ) use ( $taxonomy ) {
-				return Fanfic_Shortcodes_Taxonomy::custom_taxonomy_title( $atts, $taxonomy->name );
-			} );
-		}
-	}
-
-	/**
-	 * Custom taxonomy terms shortcode
-	 *
-	 * [fanfic-custom-taxo-{slug}]
+	 * Outputs a combined list of warnings, fandoms, languages, and custom taxonomies.
 	 *
 	 * @since 1.0.0
-	 * @param array  $atts Shortcode attributes.
-	 * @param string $taxonomy_name Taxonomy name.
-	 * @return string Taxonomy terms HTML.
+	 * @param array $atts Shortcode attributes.
+	 * @return string HTML output.
 	 */
-	public static function custom_taxonomy_terms( $atts, $taxonomy_name ) {
+	public static function story_taxonomies( $atts ) {
 		$story_id = Fanfic_Shortcodes::get_current_story_id();
-
 		if ( ! $story_id ) {
 			return '';
 		}
 
-		$terms = get_the_terms( $story_id, $taxonomy_name );
+		$rows = array();
 
-		if ( ! $terms || is_wp_error( $terms ) ) {
-			return '';
+		// Warnings.
+		$warnings = array();
+		if ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_warnings', true ) ) {
+			$warnings = array();
+		} elseif ( class_exists( 'Fanfic_Warnings' ) ) {
+			$warnings = Fanfic_Warnings::get_story_warnings( $story_id );
 		}
-
-		$term_links = array();
-		foreach ( $terms as $term ) {
-			$term_links[] = sprintf(
-				'<a href="%s" class="taxonomy-term-link">%s</a>',
-				esc_url( get_term_link( $term ) ),
-				esc_html( $term->name )
+		if ( ! empty( $warnings ) ) {
+			$warning_names = array_map(
+				function( $warning ) {
+					return $warning['name'] ?? '';
+				},
+				$warnings
 			);
+			$warning_names = array_filter( array_map( 'trim', $warning_names ) );
+			if ( ! empty( $warning_names ) ) {
+				$rows[] = array(
+					'label'  => __( 'Warnings', 'fanfiction-manager' ),
+					'values' => $warning_names,
+				);
+			}
 		}
 
-		return '<span class="custom-taxonomy-terms" role="navigation" aria-label="' . esc_attr__( 'Taxonomy terms', 'fanfiction-manager' ) . '">' . implode( ', ', $term_links ) . '</span>';
-	}
+		// Fandoms.
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			$fandoms = Fanfic_Fandoms::get_story_fandom_labels( $story_id );
+			if ( ! empty( $fandoms ) ) {
+				$fandom_names = array_map(
+					function( $row ) {
+						return $row['label'] ?? '';
+					},
+					$fandoms
+				);
+				$fandom_names = array_filter( array_map( 'trim', $fandom_names ) );
+				if ( ! empty( $fandom_names ) ) {
+					$rows[] = array(
+						'label'  => __( 'Fandoms', 'fanfiction-manager' ),
+						'values' => $fandom_names,
+					);
+				}
+			}
+		}
 
-	/**
-	 * Custom taxonomy title shortcode
-	 *
-	 * [fanfic-custom-taxo-{slug}-title]
-	 *
-	 * @since 1.0.0
-	 * @param array  $atts Shortcode attributes.
-	 * @param string $taxonomy_name Taxonomy name.
-	 * @return string Taxonomy label/title.
-	 */
-	public static function custom_taxonomy_title( $atts, $taxonomy_name ) {
-		$taxonomy = get_taxonomy( $taxonomy_name );
+		// Languages.
+		if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
+			$language = Fanfic_Languages::get_story_language_label( $story_id, true );
+			if ( '' !== $language ) {
+				$rows[] = array(
+					'label'  => __( 'Language', 'fanfiction-manager' ),
+					'values' => array( $language ),
+				);
+			}
+		}
 
-		if ( ! $taxonomy ) {
+		// Custom taxonomies.
+		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+			$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+			foreach ( $custom_taxonomies as $taxonomy ) {
+				$terms = Fanfic_Custom_Taxonomies::get_story_terms( $story_id, $taxonomy['id'] );
+				if ( empty( $terms ) ) {
+					continue;
+				}
+				$term_names = array_map(
+					function( $term ) {
+						return $term['name'] ?? '';
+					},
+					$terms
+				);
+				$term_names = array_filter( array_map( 'trim', $term_names ) );
+				if ( empty( $term_names ) ) {
+					continue;
+				}
+				$rows[] = array(
+					'label'  => $taxonomy['name'],
+					'values' => $term_names,
+				);
+			}
+		}
+
+		if ( empty( $rows ) ) {
 			return '';
 		}
 
-		return '<span class="custom-taxonomy-title">' . esc_html( $taxonomy->label ) . '</span>';
+		$output = '<div class="fanfic-story-taxonomies-group">';
+		foreach ( $rows as $row ) {
+			$output .= '<div class="fanfic-story-taxonomy-row">';
+			$output .= '<strong>' . esc_html( $row['label'] ) . ':</strong> ';
+			$output .= '<span>' . esc_html( implode( ', ', $row['values'] ) ) . '</span>';
+			$output .= '</div>';
+		}
+		$output .= '</div>';
+
+		return $output;
 	}
 }

@@ -78,215 +78,7 @@ class Fanfic_Custom_Taxonomies_Admin {
 		return str_replace( 'custom-', '', $tab );
 	}
 
-	/**
-	 * Render custom taxonomy creation panel.
-	 *
-	 * @since 1.4.0
-	 * @return void
-	 */
-	public static function render_creation_panel() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
 
-		self::display_notices();
-
-		$taxonomies = Fanfic_Custom_Taxonomies::get_all_taxonomies();
-		?>
-		<div class="wrap">
-			<h2><?php esc_html_e( 'Custom Taxonomies', 'fanfiction-manager' ); ?></h2>
-			<p class="description"><?php esc_html_e( 'Create your own custom taxonomies for classifying stories. Each taxonomy creates a new tab for managing its terms.', 'fanfiction-manager' ); ?></p>
-
-			<!-- Create Taxonomy -->
-			<div class="fanfic-custom-taxonomy-create">
-				<h3><?php esc_html_e( 'Create New Taxonomy', 'fanfiction-manager' ); ?></h3>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="fanfic-form-inline">
-					<input type="hidden" name="action" value="fanfic_create_custom_taxonomy">
-					<?php wp_nonce_field( 'fanfic_create_custom_taxonomy', 'fanfic_create_custom_taxonomy_nonce' ); ?>
-
-					<table class="form-table">
-						<tr>
-							<th scope="row">
-								<label for="taxonomy_name"><?php esc_html_e( 'Name', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<input type="text" id="taxonomy_name" name="taxonomy_name" class="regular-text" required>
-								<p class="description"><?php esc_html_e( 'The display name for this taxonomy (e.g., "Characters", "Pairings").', 'fanfiction-manager' ); ?></p>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row">
-								<label for="taxonomy_slug"><?php esc_html_e( 'Slug', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<input type="text" id="taxonomy_slug" name="taxonomy_slug" class="regular-text" pattern="[a-z0-9\-]+" maxlength="32">
-								<p class="description"><?php esc_html_e( 'URL-friendly identifier. Leave blank to auto-generate from name.', 'fanfiction-manager' ); ?></p>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row">
-								<label for="taxonomy_selection_type"><?php esc_html_e( 'Selection Type', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<select id="taxonomy_selection_type" name="taxonomy_selection_type">
-									<option value="single"><?php esc_html_e( 'Single (dropdown like Language)', 'fanfiction-manager' ); ?></option>
-									<option value="multi"><?php esc_html_e( 'Multiple (tags like Fandoms)', 'fanfiction-manager' ); ?></option>
-								</select>
-								<p class="description"><?php esc_html_e( 'Single: user selects one option. Multiple: user can select many options.', 'fanfiction-manager' ); ?></p>
-							</td>
-						</tr>
-					</table>
-
-					<p class="submit">
-						<button type="submit" class="button button-primary"><?php esc_html_e( 'Create Taxonomy', 'fanfiction-manager' ); ?></button>
-					</p>
-				</form>
-			</div>
-
-			<?php if ( ! empty( $taxonomies ) ) : ?>
-				<!-- Existing Taxonomies -->
-				<div class="fanfic-custom-taxonomies-list">
-					<h3><?php esc_html_e( 'Existing Custom Taxonomies', 'fanfiction-manager' ); ?></h3>
-					<table class="wp-list-table widefat fixed striped">
-						<thead>
-							<tr>
-								<th scope="col" class="manage-column column-name"><?php esc_html_e( 'Name', 'fanfiction-manager' ); ?></th>
-								<th scope="col" class="manage-column column-slug"><?php esc_html_e( 'Slug', 'fanfiction-manager' ); ?></th>
-								<th scope="col" class="manage-column column-type"><?php esc_html_e( 'Type', 'fanfiction-manager' ); ?></th>
-								<th scope="col" class="manage-column column-shortcode"><?php esc_html_e( 'Shortcode', 'fanfiction-manager' ); ?></th>
-								<th scope="col" class="manage-column column-stats"><?php esc_html_e( 'Stats', 'fanfiction-manager' ); ?></th>
-								<th scope="col" class="manage-column column-status"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
-								<th scope="col" class="manage-column column-actions"><?php esc_html_e( 'Actions', 'fanfiction-manager' ); ?></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $taxonomies as $taxonomy ) : ?>
-								<?php
-								$stats      = Fanfic_Custom_Taxonomies::get_taxonomy_stats( $taxonomy['id'] );
-								$is_active  = ! empty( $taxonomy['is_active'] );
-								$tab_link   = admin_url( 'admin.php?page=fanfiction-taxonomies&tab=custom-' . $taxonomy['slug'] );
-								$edit_nonce = wp_create_nonce( 'fanfic_update_custom_taxonomy_' . $taxonomy['id'] );
-								?>
-								<tr>
-									<td class="column-name">
-										<strong><a href="<?php echo esc_url( $tab_link ); ?>"><?php echo esc_html( $taxonomy['name'] ); ?></a></strong>
-									</td>
-									<td class="column-slug">
-										<code><?php echo esc_html( $taxonomy['slug'] ); ?></code>
-									</td>
-									<td class="column-type">
-										<?php echo 'multi' === $taxonomy['selection_type'] ? esc_html__( 'Multiple', 'fanfiction-manager' ) : esc_html__( 'Single', 'fanfiction-manager' ); ?>
-									</td>
-									<td class="column-shortcode">
-										<code>[story-<?php echo esc_html( $taxonomy['slug'] ); ?>]</code>
-									</td>
-									<td class="column-stats">
-										<?php
-										printf(
-											/* translators: 1: term count, 2: story count */
-											esc_html__( '%1$d terms, %2$d stories', 'fanfiction-manager' ),
-											$stats['term_count'],
-											$stats['story_count']
-										);
-										?>
-									</td>
-									<td class="column-status">
-										<?php if ( $is_active ) : ?>
-											<span class="fanfic-status-badge fanfic-status-active"><?php esc_html_e( 'Active', 'fanfiction-manager' ); ?></span>
-										<?php else : ?>
-											<span class="fanfic-status-badge fanfic-status-inactive"><?php esc_html_e( 'Inactive', 'fanfiction-manager' ); ?></span>
-										<?php endif; ?>
-									</td>
-									<td class="column-actions">
-										<a href="<?php echo esc_url( $tab_link ); ?>" class="button button-small">
-											<?php esc_html_e( 'Manage Terms', 'fanfiction-manager' ); ?>
-										</a>
-										<button type="button" class="button button-small fanfic-edit-taxonomy-btn"
-											data-id="<?php echo esc_attr( $taxonomy['id'] ); ?>"
-											data-name="<?php echo esc_attr( $taxonomy['name'] ); ?>"
-											data-active="<?php echo $is_active ? '1' : '0'; ?>"
-											data-nonce="<?php echo esc_attr( $edit_nonce ); ?>">
-											<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
-										</button>
-									</td>
-								</tr>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
-				</div>
-			<?php endif; ?>
-		</div>
-
-		<!-- Edit Taxonomy Modal -->
-		<div class="fanfic-admin-modal" id="fanfic-edit-taxonomy-modal" aria-hidden="true">
-			<div class="fanfic-admin-modal-overlay"></div>
-			<div class="fanfic-admin-modal-content">
-				<h2><?php esc_html_e( 'Edit Taxonomy', 'fanfiction-manager' ); ?></h2>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="fanfic-admin-modal-form" id="fanfic-edit-taxonomy-form">
-					<input type="hidden" name="action" value="fanfic_update_custom_taxonomy">
-					<input type="hidden" name="taxonomy_id" id="fanfic-edit-taxonomy-id" value="">
-					<input type="hidden" name="fanfic_update_custom_taxonomy_nonce" id="fanfic-edit-taxonomy-nonce" value="">
-
-					<p>
-						<label for="fanfic-edit-taxonomy-name"><?php esc_html_e( 'Name', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
-						<input type="text" id="fanfic-edit-taxonomy-name" name="taxonomy_name" class="regular-text" required>
-					</p>
-
-					<p>
-						<label>
-							<input type="checkbox" name="taxonomy_is_active" id="fanfic-edit-taxonomy-active" value="1">
-							<?php esc_html_e( 'Active', 'fanfiction-manager' ); ?>
-						</label>
-					</p>
-
-					<div class="fanfic-admin-modal-actions">
-						<button type="button" class="button fanfic-button-danger fanfic-delete-taxonomy-btn"><?php esc_html_e( 'Delete Taxonomy', 'fanfiction-manager' ); ?></button>
-						<button type="button" class="button fanfic-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
-						<button type="submit" class="button button-primary"><?php esc_html_e( 'Update', 'fanfiction-manager' ); ?></button>
-					</div>
-				</form>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="fanfic-delete-taxonomy-form" style="display: none;">
-					<input type="hidden" name="action" value="fanfic_delete_custom_taxonomy">
-					<input type="hidden" name="taxonomy_id" id="fanfic-delete-taxonomy-id" value="">
-					<?php wp_nonce_field( 'fanfic_delete_custom_taxonomy', 'fanfic_delete_custom_taxonomy_nonce' ); ?>
-				</form>
-			</div>
-		</div>
-
-		<script>
-		jQuery(document).ready(function($) {
-			// Edit Taxonomy Modal
-			$('.fanfic-edit-taxonomy-btn').on('click', function() {
-				var $btn = $(this);
-				$('#fanfic-edit-taxonomy-id').val($btn.data('id'));
-				$('#fanfic-edit-taxonomy-name').val($btn.data('name'));
-				$('#fanfic-edit-taxonomy-active').prop('checked', $btn.data('active') === 1);
-				$('#fanfic-edit-taxonomy-nonce').val($btn.data('nonce'));
-				$('#fanfic-delete-taxonomy-id').val($btn.data('id'));
-				$('#fanfic-edit-taxonomy-modal').attr('aria-hidden', 'false');
-			});
-
-			// Delete Taxonomy
-			$('.fanfic-delete-taxonomy-btn').on('click', function() {
-				if (confirm(<?php echo wp_json_encode( __( 'Are you sure you want to delete this taxonomy? All terms and story associations will be permanently deleted. This cannot be undone.', 'fanfiction-manager' ) ); ?>)) {
-					$('#fanfic-delete-taxonomy-form').submit();
-				}
-			});
-
-			// Close modals
-			$('.fanfic-modal-cancel, .fanfic-admin-modal-overlay').on('click', function() {
-				$(this).closest('.fanfic-admin-modal').attr('aria-hidden', 'true');
-			});
-
-			$(document).on('keydown', function(e) {
-				if (e.key === 'Escape') {
-					$('.fanfic-admin-modal').attr('aria-hidden', 'true');
-				}
-			});
-		});
-		</script>
-		<?php
-	}
 
 	/**
 	 * Render terms management page for a custom taxonomy.
@@ -324,6 +116,17 @@ class Fanfic_Custom_Taxonomies_Admin {
 		?>
 		<div class="wrap">
 			<h2><?php echo esc_html( $taxonomy['name'] ); ?></h2>
+			<div class="fanfic-terms-actions">
+				<button type="button"
+					class="button button-secondary fanfic-edit-taxonomy-btn"
+					data-id="<?php echo esc_attr( $taxonomy['id'] ); ?>"
+					data-name="<?php echo esc_attr( $taxonomy['name'] ); ?>"
+					data-selection-type="<?php echo esc_attr( $taxonomy['selection_type'] ); ?>"
+					data-active="<?php echo ! empty( $taxonomy['is_active'] ) ? '1' : '0'; ?>"
+					data-nonce="<?php echo esc_attr( wp_create_nonce( 'fanfic_update_custom_taxonomy_' . $taxonomy['id'] ) ); ?>">
+					<?php esc_html_e( 'Edit Taxonomy', 'fanfiction-manager' ); ?>
+				</button>
+			</div>
 			<p class="description">
 				<?php
 				printf(
@@ -472,7 +275,7 @@ class Fanfic_Custom_Taxonomies_Admin {
 			<div class="fanfic-admin-modal" id="fanfic-add-term-modal" aria-hidden="true">
 				<div class="fanfic-admin-modal-overlay"></div>
 				<div class="fanfic-admin-modal-content">
-					<h2><?php esc_html_e( 'Add Term', 'fanfiction-manager' ); ?></h2>
+					<h2><?php esc_html_e( 'Add Terms', 'fanfiction-manager' ); ?></h2>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="fanfic-admin-modal-form">
 						<input type="hidden" name="action" value="fanfic_add_custom_term">
 						<input type="hidden" name="taxonomy_id" value="<?php echo esc_attr( $taxonomy['id'] ); ?>">
@@ -480,19 +283,52 @@ class Fanfic_Custom_Taxonomies_Admin {
 						<?php wp_nonce_field( 'fanfic_add_custom_term', 'fanfic_add_custom_term_nonce' ); ?>
 
 						<p>
-							<label for="fanfic-add-term-name"><?php esc_html_e( 'Name', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
-							<input type="text" id="fanfic-add-term-name" name="term_name" class="regular-text" required>
-						</p>
-
-						<p>
-							<label for="fanfic-add-term-slug"><?php esc_html_e( 'Slug', 'fanfiction-manager' ); ?></label>
-							<input type="text" id="fanfic-add-term-slug" name="term_slug" class="regular-text">
-							<span class="description"><?php esc_html_e( 'Leave blank to auto-generate from name.', 'fanfiction-manager' ); ?></span>
+							<label for="fanfic-add-term-names"><?php esc_html_e( 'Term Names (comma-separated)', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
+							<textarea id="fanfic-add-term-names" name="term_names" rows="4" required></textarea>
+							<span class="description"><?php esc_html_e( 'Add one or more terms separated by commas.', 'fanfiction-manager' ); ?></span>
 						</p>
 
 						<div class="fanfic-admin-modal-actions">
 							<button type="button" class="button fanfic-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
-							<button type="submit" class="button button-primary"><?php esc_html_e( 'Add Term', 'fanfiction-manager' ); ?></button>
+							<button type="submit" class="button button-primary"><?php esc_html_e( 'Add Terms', 'fanfiction-manager' ); ?></button>
+						</div>
+					</form>
+				</div>
+			</div>
+
+			<!-- Edit Taxonomy Modal -->
+			<div class="fanfic-admin-modal" id="fanfic-edit-taxonomy-modal" aria-hidden="true">
+				<div class="fanfic-admin-modal-overlay"></div>
+				<div class="fanfic-admin-modal-content">
+					<h2><?php esc_html_e( 'Edit Taxonomy', 'fanfiction-manager' ); ?></h2>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="fanfic-admin-modal-form" id="fanfic-edit-taxonomy-form">
+						<input type="hidden" name="action" value="fanfic_update_custom_taxonomy">
+						<input type="hidden" name="taxonomy_id" id="fanfic-edit-taxonomy-id" value="">
+						<input type="hidden" name="fanfic_update_custom_taxonomy_nonce" id="fanfic-edit-taxonomy-nonce" value="">
+
+						<p>
+							<label for="fanfic-edit-taxonomy-name"><?php esc_html_e( 'Name', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
+							<input type="text" id="fanfic-edit-taxonomy-name" name="taxonomy_name" class="regular-text" required>
+						</p>
+
+						<p>
+							<label for="fanfic-edit-taxonomy-selection-type"><?php esc_html_e( 'Selection Type', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
+							<select id="fanfic-edit-taxonomy-selection-type" name="taxonomy_selection_type" required>
+								<option value="single"><?php esc_html_e( 'Single choice', 'fanfiction-manager' ); ?></option>
+								<option value="multi"><?php esc_html_e( 'Multiple Choice', 'fanfiction-manager' ); ?></option>
+							</select>
+						</p>
+
+						<p>
+							<label>
+								<input type="checkbox" name="taxonomy_is_active" id="fanfic-edit-taxonomy-active" value="1">
+								<?php esc_html_e( 'Active', 'fanfiction-manager' ); ?>
+							</label>
+						</p>
+
+						<div class="fanfic-admin-modal-actions">
+							<button type="button" class="button fanfic-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
+							<button type="submit" class="button button-primary"><?php esc_html_e( 'Update', 'fanfiction-manager' ); ?></button>
 						</div>
 					</form>
 				</div>
@@ -548,6 +384,17 @@ class Fanfic_Custom_Taxonomies_Admin {
 			// Add Term Modal
 			$('#fanfic-add-term-btn').on('click', function() {
 				$('#fanfic-add-term-modal').attr('aria-hidden', 'false');
+			});
+
+			// Edit Taxonomy Modal
+			$('.fanfic-edit-taxonomy-btn').on('click', function() {
+				var $btn = $(this);
+				$('#fanfic-edit-taxonomy-id').val($btn.data('id'));
+				$('#fanfic-edit-taxonomy-name').val($btn.data('name'));
+				$('#fanfic-edit-taxonomy-selection-type').val($btn.data('selection-type'));
+				$('#fanfic-edit-taxonomy-active').prop('checked', $btn.data('active') === 1);
+				$('#fanfic-edit-taxonomy-nonce').val($btn.data('nonce'));
+				$('#fanfic-edit-taxonomy-modal').attr('aria-hidden', 'false');
 			});
 
 			// Edit Term Modal
@@ -609,26 +456,25 @@ class Fanfic_Custom_Taxonomies_Admin {
 		self::check_admin_nonce( 'fanfic_create_custom_taxonomy', 'fanfic_create_custom_taxonomy_nonce' );
 
 		$name           = isset( $_POST['taxonomy_name'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_name'] ) ) : '';
-		$slug           = isset( $_POST['taxonomy_slug'] ) ? sanitize_title( wp_unslash( $_POST['taxonomy_slug'] ) ) : '';
 		$selection_type = isset( $_POST['taxonomy_selection_type'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_selection_type'] ) ) : 'single';
+		$name           = '' !== $name ? ucfirst( $name ) : '';
 
 		if ( '' === $name ) {
-			self::redirect_with_message( 'custom', 'error', 'missing_fields' );
+			self::redirect_with_message( 'general', 'error', 'missing_fields' );
 		}
 
 		$result = Fanfic_Custom_Taxonomies::create_taxonomy(
 			array(
 				'name'           => $name,
-				'slug'           => $slug,
 				'selection_type' => $selection_type,
 			)
 		);
 
 		if ( is_wp_error( $result ) ) {
-			self::redirect_with_message( 'custom', 'error', $result->get_error_code() );
+			self::redirect_with_message( 'general', 'error', $result->get_error_code() );
 		}
 
-		self::redirect_with_message( 'custom', 'success', 'taxonomy_created' );
+		self::redirect_with_message( 'general', 'success', 'taxonomy_created' );
 	}
 
 	/**
@@ -642,25 +488,28 @@ class Fanfic_Custom_Taxonomies_Admin {
 		self::check_admin_nonce( 'fanfic_update_custom_taxonomy_' . $taxonomy_id, 'fanfic_update_custom_taxonomy_nonce' );
 
 		$name      = isset( $_POST['taxonomy_name'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_name'] ) ) : '';
+		$name      = '' !== $name ? ucfirst( $name ) : '';
+		$selection_type = isset( $_POST['taxonomy_selection_type'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_selection_type'] ) ) : 'single';
 		$is_active = isset( $_POST['taxonomy_is_active'] ) ? 1 : 0;
 
 		if ( ! $taxonomy_id || '' === $name ) {
-			self::redirect_with_message( 'custom', 'error', 'missing_fields' );
+			self::redirect_with_message( 'general', 'error', 'missing_fields' );
 		}
 
 		$result = Fanfic_Custom_Taxonomies::update_taxonomy(
 			$taxonomy_id,
 			array(
-				'name'      => $name,
-				'is_active' => $is_active,
+				'name'           => $name,
+				'selection_type' => $selection_type,
+				'is_active'      => $is_active,
 			)
 		);
 
 		if ( is_wp_error( $result ) ) {
-			self::redirect_with_message( 'custom', 'error', $result->get_error_code() );
+			self::redirect_with_message( 'general', 'error', $result->get_error_code() );
 		}
 
-		self::redirect_with_message( 'custom', 'success', 'taxonomy_updated' );
+		self::redirect_with_message( 'general', 'success', 'taxonomy_updated' );
 	}
 
 	/**
@@ -675,16 +524,16 @@ class Fanfic_Custom_Taxonomies_Admin {
 		$taxonomy_id = isset( $_POST['taxonomy_id'] ) ? absint( $_POST['taxonomy_id'] ) : 0;
 
 		if ( ! $taxonomy_id ) {
-			self::redirect_with_message( 'custom', 'error', 'missing_fields' );
+			self::redirect_with_message( 'general', 'error', 'missing_fields' );
 		}
 
 		$result = Fanfic_Custom_Taxonomies::delete_taxonomy( $taxonomy_id );
 
 		if ( is_wp_error( $result ) ) {
-			self::redirect_with_message( 'custom', 'error', $result->get_error_code() );
+			self::redirect_with_message( 'general', 'error', $result->get_error_code() );
 		}
 
-		self::redirect_with_message( 'custom', 'success', 'taxonomy_deleted' );
+		self::redirect_with_message( 'general', 'success', 'taxonomy_deleted' );
 	}
 
 	// =========================================================================
@@ -702,23 +551,29 @@ class Fanfic_Custom_Taxonomies_Admin {
 
 		$taxonomy_id   = isset( $_POST['taxonomy_id'] ) ? absint( $_POST['taxonomy_id'] ) : 0;
 		$taxonomy_slug = isset( $_POST['taxonomy_slug'] ) ? sanitize_title( wp_unslash( $_POST['taxonomy_slug'] ) ) : '';
+		$raw_names     = isset( $_POST['term_names'] ) ? sanitize_textarea_field( wp_unslash( $_POST['term_names'] ) ) : '';
 		$name          = isset( $_POST['term_name'] ) ? sanitize_text_field( wp_unslash( $_POST['term_name'] ) ) : '';
 		$slug          = isset( $_POST['term_slug'] ) ? sanitize_title( wp_unslash( $_POST['term_slug'] ) ) : '';
 
-		if ( ! $taxonomy_id || '' === $name ) {
+		$names = self::split_names( $raw_names );
+		if ( empty( $names ) && '' !== $name ) {
+			$names = array( $name );
+		}
+
+		if ( ! $taxonomy_id || empty( $names ) ) {
 			self::redirect_with_message( 'custom-' . $taxonomy_slug, 'error', 'missing_fields' );
 		}
 
-		$result = Fanfic_Custom_Taxonomies::create_term(
-			$taxonomy_id,
-			array(
-				'name' => $name,
-				'slug' => $slug,
-			)
-		);
+		foreach ( $names as $term_name ) {
+			$term_data = array( 'name' => $term_name );
+			if ( 1 === count( $names ) && '' !== $slug ) {
+				$term_data['slug'] = $slug;
+			}
 
-		if ( is_wp_error( $result ) ) {
-			self::redirect_with_message( 'custom-' . $taxonomy_slug, 'error', $result->get_error_code() );
+			$result = Fanfic_Custom_Taxonomies::create_term( $taxonomy_id, $term_data );
+			if ( is_wp_error( $result ) ) {
+				self::redirect_with_message( 'custom-' . $taxonomy_slug, 'error', $result->get_error_code() );
+			}
 		}
 
 		self::redirect_with_message( 'custom-' . $taxonomy_slug, 'success', 'term_added' );
@@ -854,11 +709,20 @@ class Fanfic_Custom_Taxonomies_Admin {
 	 * @since 1.4.0
 	 * @return void
 	 */
-	private static function display_notices() {
+	// =========================================================================
+	// Helpers
+	// =========================================================================
+
+	/**
+	 * Display admin notices.
+	 *
+	 * @since 1.4.0
+	 * @return void
+	 */
+	public static function display_notices() {
 		$success_messages = array(
 			'taxonomy_created' => __( 'Taxonomy created successfully.', 'fanfiction-manager' ),
 			'taxonomy_updated' => __( 'Taxonomy updated.', 'fanfiction-manager' ),
-			'taxonomy_deleted' => __( 'Taxonomy deleted.', 'fanfiction-manager' ),
 			'term_added'       => __( 'Term added.', 'fanfiction-manager' ),
 			'term_updated'     => __( 'Term updated.', 'fanfiction-manager' ),
 			'term_deleted'     => __( 'Term deleted.', 'fanfiction-manager' ),
@@ -866,6 +730,8 @@ class Fanfic_Custom_Taxonomies_Admin {
 
 		$error_messages = array(
 			'missing_fields'  => __( 'Required fields are missing.', 'fanfiction-manager' ),
+			'invalid_data'    => __( 'Name and slug are required.', 'fanfiction-manager' ),
+			'tables_not_ready' => __( 'Custom taxonomy tables are missing. Please re-activate the plugin to create database tables.', 'fanfiction-manager' ),
 			'duplicate_slug'  => __( 'A taxonomy with this slug already exists.', 'fanfiction-manager' ),
 			'reserved_slug'   => __( 'This slug is reserved and cannot be used.', 'fanfiction-manager' ),
 			'not_found'       => __( 'Item not found.', 'fanfiction-manager' ),
@@ -896,16 +762,7 @@ class Fanfic_Custom_Taxonomies_Admin {
 			}
 		}
 	}
-
-	/**
-	 * Get filtered terms.
-	 *
-	 * @since 1.4.0
-	 * @param int    $taxonomy_id Taxonomy ID.
-	 * @param string $search      Search query.
-	 * @param string $status      Filter status.
-	 * @return array
-	 */
+	
 	private static function get_filtered_terms( $taxonomy_id, $search = '', $status = '' ) {
 		global $wpdb;
 		$table = $wpdb->prefix . 'fanfic_custom_terms';
@@ -928,6 +785,24 @@ class Fanfic_Custom_Taxonomies_Admin {
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		return $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A );
+	}
+
+	/**
+	 * Split comma-separated names.
+	 *
+	 * @since 1.4.0
+	 * @param string $names Raw list.
+	 * @return string[]
+	 */
+	private static function split_names( $names ) {
+		if ( '' === $names ) {
+			return array();
+		}
+		$parts = array_map( 'trim', explode( ',', $names ) );
+		$parts = array_filter( $parts, function( $value ) {
+			return '' !== $value;
+		} );
+		return array_values( $parts );
 	}
 
 	/**

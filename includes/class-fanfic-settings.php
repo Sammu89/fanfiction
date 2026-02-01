@@ -186,6 +186,8 @@ class Fanfic_Settings {
 			'enable_subscribe'               => true,
 			'enable_share'                   => true,
 			'enable_report'                  => true,
+			'enable_warnings'                => true,
+			'enable_tags'                    => true,
 			'allow_anonymous_likes'          => false,
 			'allow_anonymous_reports'        => false,
 			'enable_fandom_classification'   => false,
@@ -302,6 +304,8 @@ class Fanfic_Settings {
 		$sanitized['enable_subscribe'] = isset( $settings['enable_subscribe'] ) && $settings['enable_subscribe'];
 		$sanitized['enable_share']     = isset( $settings['enable_share'] ) && $settings['enable_share'];
 		$sanitized['enable_report']    = isset( $settings['enable_report'] ) && $settings['enable_report'];
+		$sanitized['enable_warnings']  = isset( $settings['enable_warnings'] ) && $settings['enable_warnings'];
+		$sanitized['enable_tags']      = isset( $settings['enable_tags'] ) && $settings['enable_tags'];
 
 		// Anonymous user permissions
 		$sanitized['allow_anonymous_likes']   = isset( $settings['allow_anonymous_likes'] ) && $settings['allow_anonymous_likes'];

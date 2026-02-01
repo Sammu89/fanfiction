@@ -127,6 +127,69 @@ class Fanfic_Search_Index {
 			}
 		}
 
+		// 7. Genres
+		$genre_terms = get_the_terms( $story_id, 'fanfiction_genre' );
+		if ( $genre_terms && ! is_wp_error( $genre_terms ) ) {
+			$genre_names = wp_list_pluck( $genre_terms, 'name' );
+			if ( ! empty( $genre_names ) ) {
+				$parts[] = implode( ' ', $genre_names );
+			}
+		}
+
+		// 8. Status
+		$status_terms = get_the_terms( $story_id, 'fanfiction_status' );
+		if ( $status_terms && ! is_wp_error( $status_terms ) ) {
+			$status_names = wp_list_pluck( $status_terms, 'name' );
+			if ( ! empty( $status_names ) ) {
+				$parts[] = implode( ' ', $status_names );
+			}
+		}
+
+		// 9. Warnings
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			$warnings = Fanfic_Warnings::get_story_warnings( $story_id );
+			if ( ! empty( $warnings ) ) {
+				$warning_names = wp_list_pluck( $warnings, 'name' );
+				if ( ! empty( $warning_names ) ) {
+					$parts[] = implode( ' ', $warning_names );
+				}
+			}
+		}
+
+		// 10. Fandoms
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			$fandoms = Fanfic_Fandoms::get_story_fandom_labels( $story_id );
+			if ( ! empty( $fandoms ) ) {
+				$fandom_names = wp_list_pluck( $fandoms, 'label' );
+				if ( ! empty( $fandom_names ) ) {
+					$parts[] = implode( ' ', $fandom_names );
+				}
+			}
+		}
+
+		// 11. Languages
+		if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
+			$language = Fanfic_Languages::get_story_language_label( $story_id, true );
+			if ( '' !== $language ) {
+				$parts[] = $language;
+			}
+		}
+
+		// 12. Custom taxonomies
+		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+			$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+			foreach ( $custom_taxonomies as $taxonomy ) {
+				$terms = Fanfic_Custom_Taxonomies::get_story_terms( $story_id, $taxonomy['id'] );
+				if ( empty( $terms ) ) {
+					continue;
+				}
+				$term_names = wp_list_pluck( $terms, 'name' );
+				if ( ! empty( $term_names ) ) {
+					$parts[] = implode( ' ', $term_names );
+				}
+			}
+		}
+
 		// Combine all parts
 		$indexed_text = implode( ' ', $parts );
 

@@ -531,17 +531,20 @@ if ( $is_edit_mode ) {
 
 						<!-- Content Warnings -->
 						<?php
+						$enable_warnings = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_warnings', true ) : true;
+						$enable_tags     = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_tags', true ) : true;
+
 						$available_warnings = array();
-						if ( class_exists( 'Fanfic_Warnings' ) ) {
+						if ( $enable_warnings && class_exists( 'Fanfic_Warnings' ) ) {
 							$available_warnings = Fanfic_Warnings::get_available_warnings();
 						}
 						$current_warnings = array();
-						if ( $is_edit_mode && class_exists( 'Fanfic_Warnings' ) ) {
+						if ( $enable_warnings && $is_edit_mode && class_exists( 'Fanfic_Warnings' ) ) {
 							$story_warnings = Fanfic_Warnings::get_story_warnings( $story_id );
 							$current_warnings = wp_list_pluck( $story_warnings, 'id' );
 						}
 						?>
-						<?php if ( ! empty( $available_warnings ) ) : ?>
+						<?php if ( $enable_warnings && ! empty( $available_warnings ) ) : ?>
 						<div class="fanfic-form-field">
 							<label><?php esc_html_e( 'Content Warnings', 'fanfiction-manager' ); ?></label>
 							<div class="fanfic-checkboxes fanfic-checkboxes-warnings">
@@ -572,62 +575,66 @@ if ( $is_edit_mode ) {
 						<!-- Visible Tags -->
 						<?php
 						$current_visible_tags = array();
-						if ( $is_edit_mode && function_exists( 'fanfic_get_visible_tags' ) ) {
+						if ( $enable_tags && $is_edit_mode && function_exists( 'fanfic_get_visible_tags' ) ) {
 							$current_visible_tags = fanfic_get_visible_tags( $story_id );
 						}
 						$visible_tags_value = isset( $_POST['fanfic_visible_tags'] ) ? sanitize_text_field( $_POST['fanfic_visible_tags'] ) : implode( ', ', $current_visible_tags );
 						?>
-						<div class="fanfic-form-field">
-							<label for="fanfic_visible_tags"><?php esc_html_e( 'Visible Tags', 'fanfiction-manager' ); ?></label>
-							<input
-								type="text"
-								id="fanfic_visible_tags"
-								name="fanfic_visible_tags"
-								class="fanfic-input fanfic-tags-input"
-								value="<?php echo esc_attr( $visible_tags_value ); ?>"
-								placeholder="<?php esc_attr_e( 'tag1, tag2, tag3', 'fanfiction-manager' ); ?>"
-								data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5 ); ?>"
-							/>
-							<p class="description">
-								<?php
-								printf(
-									/* translators: %d: Maximum number of visible tags */
-									esc_html__( 'Add up to %d visible tags separated by commas. These tags will be displayed on your story page and used for search.', 'fanfiction-manager' ),
-									defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5
-								);
-								?>
-							</p>
-						</div>
+						<?php if ( $enable_tags ) : ?>
+							<div class="fanfic-form-field">
+								<label for="fanfic_visible_tags"><?php esc_html_e( 'Visible Tags', 'fanfiction-manager' ); ?></label>
+								<input
+									type="text"
+									id="fanfic_visible_tags"
+									name="fanfic_visible_tags"
+									class="fanfic-input fanfic-tags-input"
+									value="<?php echo esc_attr( $visible_tags_value ); ?>"
+									placeholder="<?php esc_attr_e( 'tag1, tag2, tag3', 'fanfiction-manager' ); ?>"
+									data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5 ); ?>"
+								/>
+								<p class="description">
+									<?php
+									printf(
+										/* translators: %d: Maximum number of visible tags */
+										esc_html__( 'Add up to %d visible tags separated by commas. These tags will be displayed on your story page and used for search.', 'fanfiction-manager' ),
+										defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5
+									);
+									?>
+								</p>
+							</div>
+						<?php endif; ?>
 
 						<!-- Invisible Tags (for search only) -->
 						<?php
 						$current_invisible_tags = array();
-						if ( $is_edit_mode && function_exists( 'fanfic_get_invisible_tags' ) ) {
+						if ( $enable_tags && $is_edit_mode && function_exists( 'fanfic_get_invisible_tags' ) ) {
 							$current_invisible_tags = fanfic_get_invisible_tags( $story_id );
 						}
 						$invisible_tags_value = isset( $_POST['fanfic_invisible_tags'] ) ? sanitize_text_field( $_POST['fanfic_invisible_tags'] ) : implode( ', ', $current_invisible_tags );
 						?>
-						<div class="fanfic-form-field">
-							<label for="fanfic_invisible_tags"><?php esc_html_e( 'Search Tags (Hidden)', 'fanfiction-manager' ); ?></label>
-							<input
-								type="text"
-								id="fanfic_invisible_tags"
-								name="fanfic_invisible_tags"
-								class="fanfic-input fanfic-tags-input"
-								value="<?php echo esc_attr( $invisible_tags_value ); ?>"
-								placeholder="<?php esc_attr_e( 'search term 1, search term 2', 'fanfiction-manager' ); ?>"
-								data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10 ); ?>"
-							/>
-							<p class="description">
-								<?php
-								printf(
-									/* translators: %d: Maximum number of invisible tags */
-									esc_html__( 'Add up to %d hidden tags for search indexing only. These tags help readers find your story but are not displayed publicly.', 'fanfiction-manager' ),
-									defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10
-								);
-								?>
-							</p>
-						</div>
+						<?php if ( $enable_tags ) : ?>
+							<div class="fanfic-form-field">
+								<label for="fanfic_invisible_tags"><?php esc_html_e( 'Search Tags (Hidden)', 'fanfiction-manager' ); ?></label>
+								<input
+									type="text"
+									id="fanfic_invisible_tags"
+									name="fanfic_invisible_tags"
+									class="fanfic-input fanfic-tags-input"
+									value="<?php echo esc_attr( $invisible_tags_value ); ?>"
+									placeholder="<?php esc_attr_e( 'search term 1, search term 2', 'fanfiction-manager' ); ?>"
+									data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10 ); ?>"
+								/>
+								<p class="description">
+									<?php
+									printf(
+										/* translators: %d: Maximum number of invisible tags */
+										esc_html__( 'Add up to %d hidden tags for search indexing only. These tags help readers find your story but are not displayed publicly.', 'fanfiction-manager' ),
+										defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10
+									);
+									?>
+								</p>
+							</div>
+						<?php endif; ?>
 
 						<!-- Featured Image -->
 						<div class="fanfic-form-field fanfic-has-dropzone">

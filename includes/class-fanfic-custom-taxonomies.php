@@ -351,6 +351,11 @@ class Fanfic_Custom_Taxonomies {
 			$format[]            = '%d';
 		}
 
+		if ( isset( $data['selection_type'] ) ) {
+			$update['selection_type'] = 'multi' === $data['selection_type'] ? 'multi' : 'single';
+			$format[]                 = '%s';
+		}
+
 		if ( isset( $data['sort_order'] ) ) {
 			$update['sort_order'] = absint( $data['sort_order'] );
 			$format[]             = '%d';

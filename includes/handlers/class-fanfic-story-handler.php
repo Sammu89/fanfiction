@@ -111,9 +111,11 @@ class Fanfic_Story_Handler {
 		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'save_draft';
 
 		// Get warnings and tags (Phase 4.1)
-		$warning_ids = isset( $_POST['fanfic_story_warnings'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_warnings'] ) : array();
-		$visible_tags_raw = isset( $_POST['fanfic_visible_tags'] ) ? sanitize_text_field( $_POST['fanfic_visible_tags'] ) : '';
-		$invisible_tags_raw = isset( $_POST['fanfic_invisible_tags'] ) ? sanitize_text_field( $_POST['fanfic_invisible_tags'] ) : '';
+		$enable_warnings = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_warnings', true ) : true;
+		$enable_tags     = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_tags', true ) : true;
+		$warning_ids = $enable_warnings && isset( $_POST['fanfic_story_warnings'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_warnings'] ) : array();
+		$visible_tags_raw = $enable_tags && isset( $_POST['fanfic_visible_tags'] ) ? sanitize_text_field( $_POST['fanfic_visible_tags'] ) : '';
+		$invisible_tags_raw = $enable_tags && isset( $_POST['fanfic_invisible_tags'] ) ? sanitize_text_field( $_POST['fanfic_invisible_tags'] ) : '';
 
 		// Get language (Phase 4.x)
 		$language_id = isset( $_POST['fanfic_story_language'] ) ? absint( $_POST['fanfic_story_language'] ) : 0;
@@ -131,8 +133,8 @@ class Fanfic_Story_Handler {
 		}
 
 		// Parse tags from comma-separated string
-		$visible_tags = array_filter( array_map( 'trim', explode( ',', $visible_tags_raw ) ) );
-		$invisible_tags = array_filter( array_map( 'trim', explode( ',', $invisible_tags_raw ) ) );
+		$visible_tags = $enable_tags ? array_filter( array_map( 'trim', explode( ',', $visible_tags_raw ) ) ) : array();
+		$invisible_tags = $enable_tags ? array_filter( array_map( 'trim', explode( ',', $invisible_tags_raw ) ) ) : array();
 
 		// Validate
 		if ( empty( $title ) ) {
@@ -191,7 +193,7 @@ class Fanfic_Story_Handler {
 			}
 
 			// Save warnings (Phase 4.1)
-			if ( class_exists( 'Fanfic_Warnings' ) ) {
+			if ( $enable_warnings && class_exists( 'Fanfic_Warnings' ) ) {
 				Fanfic_Warnings::save_story_warnings( $new_story_id, $warning_ids );
 			}
 
@@ -208,10 +210,10 @@ class Fanfic_Story_Handler {
 			}
 
 			// Save tags (Phase 4.1)
-			if ( function_exists( 'fanfic_save_visible_tags' ) ) {
+			if ( $enable_tags && function_exists( 'fanfic_save_visible_tags' ) ) {
 				fanfic_save_visible_tags( $new_story_id, $visible_tags );
 			}
-			if ( function_exists( 'fanfic_save_invisible_tags' ) ) {
+			if ( $enable_tags && function_exists( 'fanfic_save_invisible_tags' ) ) {
 				fanfic_save_invisible_tags( $new_story_id, $invisible_tags );
 			}
 
@@ -338,7 +340,7 @@ class Fanfic_Story_Handler {
 			}
 
 			// Save warnings (Phase 4.1)
-			if ( class_exists( 'Fanfic_Warnings' ) ) {
+			if ( $enable_warnings && class_exists( 'Fanfic_Warnings' ) ) {
 				Fanfic_Warnings::save_story_warnings( $story_id, $warning_ids );
 			}
 
@@ -355,10 +357,10 @@ class Fanfic_Story_Handler {
 			}
 
 			// Save tags (Phase 4.1)
-			if ( function_exists( 'fanfic_save_visible_tags' ) ) {
+			if ( $enable_tags && function_exists( 'fanfic_save_visible_tags' ) ) {
 				fanfic_save_visible_tags( $story_id, $visible_tags );
 			}
-			if ( function_exists( 'fanfic_save_invisible_tags' ) ) {
+			if ( $enable_tags && function_exists( 'fanfic_save_invisible_tags' ) ) {
 				fanfic_save_invisible_tags( $story_id, $invisible_tags );
 			}
 

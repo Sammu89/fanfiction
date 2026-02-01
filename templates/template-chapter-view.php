@@ -39,7 +39,7 @@ function fanfic_get_default_chapter_view_template() {
 	<h2 class="fanfic-chapter-title">[fanfic-chapter-title]</h2>
 
 	<!-- Chapter Cover Image -->
-	[fanfic-chapter-image class="fanfic-chapter-cover-image"]
+[fanfic-chapter-image]
 
 	<!-- Meta information (dates) -->
 	<div class="fanfic-chapter-meta">
@@ -82,7 +82,7 @@ function fanfic_get_default_chapter_view_template() {
 
 <!-- Action buttons (like, bookmark, mark-read, subscribe, share, report, edit) -->
 <div class="fanfic-chapter-actions">
-	[fanfiction-action-buttons context="chapter" actions="follow,like,bookmark,mark-read,subscribe,share,report"]
+[fanfiction-action-buttons]
 </div>
 
 <!-- Chapter navigation (previous/next) -->

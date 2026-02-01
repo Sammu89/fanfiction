@@ -29,6 +29,10 @@
 	display: none;
 }
 
+.fanfic-admin-modal[aria-hidden="false"] {
+	display: block;
+}
+
 .fanfic-admin-modal-overlay {
 	position: absolute;
 	top: 0;
