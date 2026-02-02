@@ -18,6 +18,33 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Registers built-in taxonomies (Genre and Status) and supports dynamic custom taxonomies.
  */
 class Fanfic_Taxonomies {
+	/**
+	 * Default terms used when taxonomy is empty.
+	 *
+	 * @var string[]
+	 */
+	const DEFAULT_GENRES = array(
+		'Romance',
+		'Adventure',
+		'Drama',
+		'Horror',
+		'Mystery',
+		'Sci-Fi',
+		'Fantasy',
+		'Comedy',
+	);
+
+	/**
+	 * Canonical status defaults keyed by stable slug.
+	 *
+	 * @var string[]
+	 */
+	const DEFAULT_STATUSES = array(
+		'ongoing'   => 'Ongoing',
+		'finished'  => 'Finished',
+		'on-hiatus' => 'On Hiatus',
+		'abandoned' => 'Abandoned',
+	);
 
 	/**
 	 * Register all taxonomies.
@@ -27,9 +54,23 @@ class Fanfic_Taxonomies {
 	public static function register() {
 		self::register_genre_taxonomy();
 		self::register_status_taxonomy();
+		self::ensure_default_terms();
 
 		// Hook for registering dynamic custom taxonomies (to be implemented)
 		do_action( 'fanfic_register_custom_taxonomies' );
+	}
+
+	/**
+	 * Ensure taxonomy defaults exist.
+	 *
+	 * Genres follow "empty => seed, non-empty => keep".
+	 * Status terms always ensure canonical defaults exist.
+	 *
+	 * @return void
+	 */
+	public static function ensure_default_terms() {
+		self::ensure_default_genres_if_empty();
+		self::ensure_default_statuses();
 	}
 
 	/**
@@ -144,6 +185,77 @@ class Fanfic_Taxonomies {
 		);
 
 		register_taxonomy( 'fanfiction_status', array( 'fanfiction_story' ), $args );
+	}
+
+	/**
+	 * Seed default genres only when taxonomy has no terms.
+	 *
+	 * @return void
+	 */
+	private static function ensure_default_genres_if_empty() {
+		$terms = get_terms(
+			array(
+				'taxonomy'   => 'fanfiction_genre',
+				'hide_empty' => false,
+				'fields'     => 'ids',
+			)
+		);
+
+		if ( is_wp_error( $terms ) || ! empty( $terms ) ) {
+			return;
+		}
+
+		foreach ( self::DEFAULT_GENRES as $term_name ) {
+			if ( ! term_exists( $term_name, 'fanfiction_genre' ) ) {
+				wp_insert_term( $term_name, 'fanfiction_genre' );
+			}
+		}
+	}
+
+	/**
+	 * Ensure canonical status defaults exist.
+	 *
+	 * Keeps renamed terms by tracking IDs in an option map.
+	 *
+	 * @return void
+	 */
+	private static function ensure_default_statuses() {
+		$map = get_option( 'fanfic_default_status_term_ids', array() );
+		$map = is_array( $map ) ? $map : array();
+
+		foreach ( self::DEFAULT_STATUSES as $slug => $label ) {
+			$term_id = isset( $map[ $slug ] ) ? absint( $map[ $slug ] ) : 0;
+
+			// If we already track a term ID and it still exists, keep it (renamed is fine).
+			if ( $term_id > 0 ) {
+				$term = get_term( $term_id, 'fanfiction_status' );
+				if ( $term && ! is_wp_error( $term ) ) {
+					continue;
+				}
+			}
+
+			// Try to recover by canonical slug.
+			$existing = get_term_by( 'slug', $slug, 'fanfiction_status' );
+			if ( $existing && ! is_wp_error( $existing ) ) {
+				$map[ $slug ] = (int) $existing->term_id;
+				continue;
+			}
+
+			// Create missing default term.
+			$created = wp_insert_term(
+				$label,
+				'fanfiction_status',
+				array(
+					'slug' => $slug,
+				)
+			);
+
+			if ( ! is_wp_error( $created ) && ! empty( $created['term_id'] ) ) {
+				$map[ $slug ] = (int) $created['term_id'];
+			}
+		}
+
+		update_option( 'fanfic_default_status_term_ids', $map );
 	}
 
 	/**

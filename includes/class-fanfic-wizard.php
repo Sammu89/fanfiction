@@ -850,11 +850,11 @@ private function render_choice_screen() {
 						<p class="description"><?php esc_html_e( 'Lets users choose warnings for story content, enabling the auto age-rating system.', 'fanfiction-manager' ); ?></p>
 						<div id="fanfic-wizard-warning-suboptions" style="margin-top: 10px; margin-left: 22px;">
 							<label style="display: block; margin-bottom: 8px;">
-								<input type="checkbox" disabled <?php checked( $allow_sexual, true ); ?>>
+								<input type="checkbox" id="fanfic_wizard_allow_sexual_content" name="fanfic_allow_sexual_content" value="1" <?php checked( $allow_sexual, true ); ?>>
 								<?php esc_html_e( 'Allow sexual content', 'fanfiction-manager' ); ?>
 							</label>
 							<label style="display: block;">
-								<input type="checkbox" disabled <?php checked( $allow_pornographic, true ); ?>>
+								<input type="checkbox" id="fanfic_wizard_allow_pornographic_content" name="fanfic_allow_pornographic_content" value="1" <?php checked( $allow_pornographic, true ); ?>>
 								<?php esc_html_e( 'Allow pornographic content', 'fanfiction-manager' ); ?>
 							</label>
 						</div>
@@ -880,6 +880,7 @@ private function render_choice_screen() {
 			function toggleWarningSubOptions() {
 				var warningsEnabled = $('#fanfic_wizard_enable_warnings').is(':checked');
 				$('#fanfic-wizard-warning-suboptions').toggle(warningsEnabled);
+				$('#fanfic_wizard_allow_sexual_content, #fanfic_wizard_allow_pornographic_content').prop('disabled', !warningsEnabled);
 			}
 
 			$('#fanfic_wizard_enable_warnings').on('change', toggleWarningSubOptions);
@@ -1275,14 +1276,15 @@ private function render_choice_screen() {
 		$enable_fandoms = isset( $_POST['fanfic_enable_fandom_classification'] ) && '1' === $_POST['fanfic_enable_fandom_classification'];
 		$enable_warnings = isset( $_POST['fanfic_enable_warnings'] ) && '1' === $_POST['fanfic_enable_warnings'];
 		$enable_languages = isset( $_POST['fanfic_enable_language_classification'] ) && '1' === $_POST['fanfic_enable_language_classification'];
+		$allow_sexual = $enable_warnings && isset( $_POST['fanfic_allow_sexual_content'] ) && '1' === $_POST['fanfic_allow_sexual_content'];
+		$allow_pornographic = $enable_warnings && isset( $_POST['fanfic_allow_pornographic_content'] ) && '1' === $_POST['fanfic_allow_pornographic_content'];
 
 		Fanfic_Settings::update_setting( 'enable_fandom_classification', $enable_fandoms );
 		Fanfic_Settings::update_setting( 'enable_warnings', $enable_warnings );
 		Fanfic_Settings::update_setting( 'enable_language_classification', $enable_languages );
 
-		// Restricted by default in wizard; admins can change later in settings.
-		Fanfic_Settings::update_setting( 'allow_sexual_content', false );
-		Fanfic_Settings::update_setting( 'allow_pornographic_content', false );
+		Fanfic_Settings::update_setting( 'allow_sexual_content', $allow_sexual );
+		Fanfic_Settings::update_setting( 'allow_pornographic_content', $allow_pornographic );
 	}
 
 	/**

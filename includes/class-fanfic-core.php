@@ -342,19 +342,26 @@ class Fanfic_Core {
 		$stored_version = Fanfic_Database_Setup::get_db_version();
 		$needs_setup    = version_compare( $stored_version, Fanfic_Database_Setup::DB_VERSION, '<' ) || ! Fanfic_Database_Setup::tables_exist();
 
-		if ( ! $needs_setup ) {
-			return;
+		if ( $needs_setup ) {
+			$result = Fanfic_Database_Setup::init();
+			if ( is_wp_error( $result ) ) {
+				error_log( 'Fanfiction Manager: Runtime database setup error - ' . $result->get_error_message() );
+				return;
+			}
 		}
 
-		$result = Fanfic_Database_Setup::init();
-		if ( is_wp_error( $result ) ) {
-			error_log( 'Fanfiction Manager: Runtime database setup error - ' . $result->get_error_message() );
-			return;
+		// Keep core classification datasets ready.
+		if ( class_exists( 'Fanfic_Fandoms' ) ) {
+			Fanfic_Fandoms::maybe_seed_fandoms();
 		}
-
-		// Seed warning definitions after ensuring tables exist.
 		if ( class_exists( 'Fanfic_Warnings' ) ) {
 			Fanfic_Warnings::maybe_seed_warnings();
+		}
+		if ( class_exists( 'Fanfic_Languages' ) ) {
+			Fanfic_Languages::maybe_seed_languages();
+		}
+		if ( taxonomy_exists( 'fanfiction_genre' ) && taxonomy_exists( 'fanfiction_status' ) && class_exists( 'Fanfic_Taxonomies' ) ) {
+			Fanfic_Taxonomies::ensure_default_terms();
 		}
 	}
 
@@ -1307,14 +1314,16 @@ class Fanfic_Core {
 		if ( is_wp_error( $db_result ) ) {
 			// Log error but don't halt activation
 			error_log( 'Fanfiction Manager: Database setup error - ' . $db_result->get_error_message() );
-		} elseif ( class_exists( 'Fanfic_Warnings' ) ) {
-			// Seed warning definitions immediately after table creation.
-			Fanfic_Warnings::maybe_seed_warnings();
-		}
-
-		// Seed fandoms catalogue from JSON on activation
-		if ( class_exists( 'Fanfic_Fandoms' ) && ! Fanfic_Fandoms::has_fandoms() ) {
-			Fanfic_Fandoms::import_from_json();
+		} else {
+			if ( class_exists( 'Fanfic_Fandoms' ) ) {
+				Fanfic_Fandoms::maybe_seed_fandoms();
+			}
+			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				Fanfic_Warnings::maybe_seed_warnings();
+			}
+			if ( class_exists( 'Fanfic_Languages' ) ) {
+				Fanfic_Languages::maybe_seed_languages();
+			}
 		}
 
 		// Also create legacy tables for backward compatibility

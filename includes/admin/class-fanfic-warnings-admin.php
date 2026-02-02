@@ -63,10 +63,18 @@ class Fanfic_Warnings_Admin {
 			return;
 		}
 
+		if ( ! self::tables_ready() && class_exists( 'Fanfic_Database_Setup' ) ) {
+			Fanfic_Database_Setup::init();
+		}
+
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			Fanfic_Warnings::maybe_seed_warnings();
+		}
+
 		if ( ! self::tables_ready() ) {
 			?>
 			<div class="notice error-message">
-				<p><?php esc_html_e( 'Warnings tables are missing. Please re-activate the plugin to create database tables.', 'fanfiction-manager' ); ?></p>
+				<p><?php esc_html_e( 'Warnings tables are unavailable. Please check plugin/database setup.', 'fanfiction-manager' ); ?></p>
 			</div>
 			<?php
 			return;
