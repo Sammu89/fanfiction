@@ -167,7 +167,7 @@ class Fanfic_Shortcodes_Forms {
 				<input type="hidden" name="fanfic_login_submit" value="1" />
 
 				<div class="fanfic-form-actions">
-					<button type="submit" class="fanfic-button fanfic-button-primary">
+					<button type="submit" class="fanfic-button">
 						<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 					</button>
 				</div>
@@ -326,7 +326,7 @@ class Fanfic_Shortcodes_Forms {
 				<input type="hidden" name="fanfic_register_submit" value="1" />
 
 				<div class="fanfic-form-actions">
-					<button type="submit" class="fanfic-button fanfic-button-primary">
+					<button type="submit" class="fanfic-button">
 						<?php esc_html_e( 'Register', 'fanfiction-manager' ); ?>
 					</button>
 				</div>
@@ -381,7 +381,7 @@ class Fanfic_Shortcodes_Forms {
 				<input type="hidden" name="fanfic_password_reset_submit" value="1" />
 
 				<div class="fanfic-form-actions">
-					<button type="submit" class="fanfic-button fanfic-button-primary">
+					<button type="submit" class="fanfic-button">
 						<?php esc_html_e( 'Reset Password', 'fanfiction-manager' ); ?>
 					</button>
 				</div>
@@ -946,7 +946,7 @@ class Fanfic_Shortcodes_Forms {
 				<input type="hidden" name="fanfic_report_submit" value="1" />
 
 				<div class="fanfic-form-actions">
-					<button type="submit" class="fanfic-button fanfic-button-primary">
+					<button type="submit" class="fanfic-button">
 						<?php esc_html_e( 'Submit Report', 'fanfiction-manager' ); ?>
 					</button>
 				</div>

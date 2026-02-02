@@ -143,7 +143,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 		<?php endif; ?>
 
 		<div class="fanfic-browse-actions">
-			<button type="submit" class="fanfic-button fanfic-button-primary">
+			<button type="submit" class="fanfic-button">
 				<?php esc_html_e( 'Apply filters', 'fanfiction-manager' ); ?>
 			</button>
 			<a class="fanfic-button" href="<?php echo esc_url( $base_url ); ?>">
@@ -206,7 +206,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 					<p><?php esc_html_e( 'No stories found matching your criteria.', 'fanfiction-manager' ); ?></p>
 					<?php if ( $has_filters ) : ?>
 						<p>
-							<a href="<?php echo esc_url( $base_url ); ?>" class="fanfic-button fanfic-button-primary">
+							<a href="<?php echo esc_url( $base_url ); ?>" class="fanfic-button">
 								<?php esc_html_e( 'View All Stories', 'fanfiction-manager' ); ?>
 							</a>
 						</p>

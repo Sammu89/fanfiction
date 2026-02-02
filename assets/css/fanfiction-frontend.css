@@ -281,7 +281,9 @@ a:focus {
 	max-width: 600px;
 }
 
-.fanfic-form-field {
+.fanfic-form-field,
+.fanfic-breadcrumb,
+.fanfic-notification-settings h2 {
 	margin-bottom: 20px;
 }
 
@@ -527,27 +529,27 @@ a.fanfic-button {
 /* --- Button Variants (Use modifier pattern) --- */
 
 /* Secondary */
-.fanfic-button.fanfic-button-secondary {
+.fanfic-button.secondary {
 	background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-hover) 100%);
 	color: var(--color-on-secondary);
 }
-.fanfic-button.fanfic-button-secondary:hover {
+.fanfic-button.secondary:hover {
 	background: linear-gradient(135deg, var(--color-secondary-hover) 0%, var(--color-secondary) 100%);
 }
-.fanfic-button.fanfic-button-secondary:active {
+.fanfic-button.secondary:active {
 	background: var(--color-secondary-hover);
 	opacity: 0.9;
 }
 
 /* Danger */
-.fanfic-button.fanfic-button-danger {
+.fanfic-button.danger {
 	background: linear-gradient(135deg, var(--color-error) 0%, hsl(355 75% 30%) 100%);
 	color: var(--color-on-secondary);
 }
-.fanfic-button.fanfic-button-danger:hover {
+.fanfic-button.danger:hover {
 	background: linear-gradient(135deg, hsl(355 75% 30%) 0%, var(--color-error) 100%);
 }
-.fanfic-button.fanfic-button-danger:active {
+.fanfic-button.danger:active {
 	background: hsl(355 75% 30%);
 	opacity: 0.9;
 }
@@ -716,7 +718,7 @@ a.fanfic-button {
 }
 
 /* --- Button Sizes (Only override size properties) --- */
-.fanfic-button.fanfic-button-small {
+.fanfic-button.small {
 	min-height: auto; /* Override for small buttons */
 	min-width: auto;
 	padding: 6px 12px;
@@ -776,10 +778,6 @@ a.fanfic-button {
 }
 
 /* Breadcrumb */
-.fanfic-breadcrumb {
-	margin-bottom: 20px;
-}
-
 .fanfic-breadcrumb-list {
 	list-style: none;
 	padding: 0;
@@ -801,15 +799,6 @@ a.fanfic-button {
 	margin: 0 8px;
 	color: var(--base-lighter);
 	font-weight: bold;
-}
-
-.fanfic-breadcrumb-item a {
-	color: var(--color-link);
-	text-decoration: none;
-}
-
-.fanfic-breadcrumb-item a:hover {
-	text-decoration: underline;
 }
 
 .fanfic-breadcrumb-active {
@@ -1102,13 +1091,10 @@ a.fanfic-button {
 }
 
 /* Comment List */
-.fanfic-comment-list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-}
-
-.fanfic-comment-list ol {
+.fanfic-comment-list,
+.fanfic-comment-list ol,
+.fanfic-notifications-list,
+.fanfic-widget-list {
 	list-style: none;
 	margin: 0;
 	padding: 0;
@@ -1261,15 +1247,15 @@ a.fanfic-button {
 	transition: background 0.2s ease;
 }
 
-.fanfic-comment-edit-button:hover {
+.fanfic-comment-edit-button:hover,
+.form-submit input[type="submit"]:hover,
+.fanfic-mark-all-read:hover,
+.fanfic-notification-save-button:hover,
+.fanfic-load-more-bookmarks:hover {
 	background: var(--color-link);
 }
 
 .fanfic-comment-delete-button {
-	background: var(--color-error);
-}
-
-.fanfic-comment-delete-button:hover {
 	background: var(--color-error);
 }
 
@@ -1396,29 +1382,12 @@ a.fanfic-button {
 	transition: background 0.2s ease;
 }
 
-.form-submit input[type="submit"]:hover {
-	background: var(--color-link);
-}
-
 .comment-notes,
 .logged-in-as,
 .must-log-in {
 	font-size: 14px;
 	color: var(--color-text-muted);
 	margin-bottom: 15px;
-}
-
-.comment-notes a,
-.logged-in-as a,
-.must-log-in a {
-	color: var(--color-link);
-	text-decoration: none;
-}
-
-.comment-notes a:hover,
-.logged-in-as a:hover,
-.must-log-in a:hover {
-	text-decoration: underline;
 }
 
 /* Comment Navigation */
@@ -1435,10 +1404,6 @@ a.fanfic-button {
 	color: var(--color-link);
 	text-decoration: none;
 	font-weight: 500;
-}
-
-.fanfic-comment-navigation a:hover {
-	text-decoration: underline;
 }
 
 /* No Comments Message */
@@ -1572,19 +1537,13 @@ a.fanfic-button {
 	color: var(--color-border);
 }
 
-.fanfic-star-half {
-	color: var(--color-warning);
-}
-
+.fanfic-star-half,
 .fanfic-star-full {
 	color: var(--color-warning);
 }
 
 /* Interactive ratings (legacy) */
-.fanfic-rating-interactive {
-	cursor: pointer;
-}
-
+.fanfic-rating-interactive,
 .fanfic-rating-interactive .fanfic-star {
 	cursor: pointer;
 }
@@ -1979,17 +1938,7 @@ a.fanfic-button {
 	font-size: 14px;
 }
 
-.fanfic-mark-all-read:hover {
-	background: var(--color-link);
-}
-
 /* Notification List */
-.fanfic-notifications-list {
-	list-style: none;
-	padding: 0;
-	margin: 0;
-}
-
 .fanfic-notification-item {
 	display: flex;
 	align-items: flex-start;
@@ -2028,10 +1977,6 @@ a.fanfic-button {
 .fanfic-notification-link {
 	text-decoration: none;
 	color: inherit;
-}
-
-.fanfic-notification-link:hover {
-	text-decoration: underline;
 }
 
 .fanfic-notification-text {
@@ -2103,10 +2048,6 @@ a.fanfic-button {
 	max-width: 600px;
 	margin: 0 auto;
 	padding: 20px;
-}
-
-.fanfic-notification-settings h2 {
-	margin-bottom: 20px;
 }
 
 .fanfic-notification-setting-group {
@@ -2196,10 +2137,6 @@ a.fanfic-button {
 	margin-top: 20px;
 }
 
-.fanfic-notification-save-button:hover {
-	background: var(--color-link);
-}
-
 /* Mobile Responsive */
 @media (max-width: 768px) {
 	.fanfic-user-notifications,
@@ -2272,12 +2209,6 @@ a.fanfic-button {
 }
 
 /* Widget List */
-.fanfic-widget-list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-}
-
 .fanfic-widget-item {
 	padding: 12px 0;
 	border-bottom: 1px solid var(--color-border);
@@ -2734,13 +2665,13 @@ a.fanfic-button {
 	box-shadow: 0 2px 8px rgba(0, 115, 170, 0.3);
 }
 
-.fanfic-edit-profile-form .fanfic-button-secondary {
+.fanfic-edit-profile-form .secondary {
 	background: var(--base-background-soft);
 	color: #495057;
 	border: 2px solid #dee2e6;
 }
 
-.fanfic-edit-profile-form .fanfic-button-secondary:hover {
+.fanfic-edit-profile-form .secondary:hover {
 	background: #e9ecef;
 	border-color: #adb5bd;
 	color: #212529;
@@ -2984,7 +2915,9 @@ a.fanfic-button {
 }
 
 /* Page content article */
-.fanfic-page-content {
+.fanfic-page-content,
+.fanfic-story,
+.fanfic-chapter {
 	background: white;
 	border: 1px solid var(--color-border);
 	border-radius: 12px;
@@ -3081,7 +3014,6 @@ a.fanfic-button {
 }
 
 /* Button styling with updated colors */
-.fanfic-button,
 .fanfic-button {
 	display: inline-block;
 	padding: 12px 24px;
@@ -3103,7 +3035,6 @@ a.fanfic-button {
 }
 
 /* Unify look/behavior for action buttons (anchors + buttons) */
-.fanfic-button,
 .fanfic-button {
 	text-decoration: none;
 }
@@ -3117,7 +3048,6 @@ a.fanfic-button {
 	justify-self: start;
 }
 
-.fanfic-button:hover,
 .fanfic-button:hover {
 	background: linear-gradient(135deg, var(--base-dark) 0%, var(--base-color) 100%);
 	transform: translateY(-2px);
@@ -3127,32 +3057,21 @@ a.fanfic-button {
 	text-decoration: none;
 }
 
-.fanfic-button:active,
 .fanfic-button:active {
 	transform: translateY(0);
 	box-shadow: 0 1px 4px rgba(123, 167, 188, 0.3);
 }
 
-.fanfic-button:focus,
 .fanfic-button:focus {
 	outline: 2px solid var(--accent-color);
 	outline-offset: 2px;
-}
-
-/* Button variants with pastel colors */
-.fanfic-button-primary {
-	background: linear-gradient(135deg, var(--base-color) 0%, var(--base-dark) 100%);
-}
-
-.fanfic-button-secondary {
-	background: linear-gradient(135deg, #adb5bd 0%, #adb5bd 100%);
 }
 
 .fanfic-button-success {
 	background: linear-gradient(135deg, var(--color-success) 0%, #2f7e38 100%);
 }
 
-.fanfic-button-danger {
+.danger {
 	background: linear-gradient(135deg, var(--color-error) 0%, #c62828 100%);
 }
 
@@ -3307,7 +3226,6 @@ a.fanfic-button {
 		padding: 10px;
 	}
 
-	.fanfic-button,
 	.fanfic-button {
 		width: 100%;
 		justify-content: center;
@@ -3346,7 +3264,6 @@ a.fanfic-button {
 		border-left-width: 6px;
 	}
 
-	.fanfic-button,
 	.fanfic-button {
 		border: 2px solid black;
 	}
@@ -3355,14 +3272,12 @@ a.fanfic-button {
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
 	.fanfic-button,
-	.fanfic-button,
 	.fanfic-dashboard-section,
 	.fanfic-popular-stories,
 	.fanfic-popular-authors {
 		transition: none;
 	}
 
-	.fanfic-button:hover,
 	.fanfic-button:hover,
 	.fanfic-popular-stories:hover,
 	.fanfic-popular-authors:hover {
@@ -3384,7 +3299,6 @@ a.fanfic-button {
 		border: 1px solid black;
 	}
 
-	.fanfic-button,
 	.fanfic-button {
 		border: 1px solid black;
 		background: none;
@@ -3428,14 +3342,6 @@ a.fanfic-button {
 	max-width: 1200px;
 	margin: 0 auto;
 	padding: 20px;
-}
-
-.fanfic-story {
-	background: white;
-	border: 1px solid var(--color-border);
-	border-radius: 12px;
-	padding: 40px;
-	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
 }
 
 .fanfic-story-header {
@@ -3549,14 +3455,6 @@ a.fanfic-button {
 	max-width: 900px;
 	margin: 0 auto;
 	padding: 20px;
-}
-
-.fanfic-chapter {
-	background: white;
-	border: 1px solid var(--color-border);
-	border-radius: 12px;
-	padding: 40px;
-	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
 }
 
 .fanfic-chapter-breadcrumb {
@@ -4042,10 +3940,7 @@ body.fanfiction-page .entry-content::after {
 }
 
 /* TinyMCE Editor - Inherit site font */
-#tinymce {
-	font-family: inherit !important;
-}
-
+#tinymce,
 #tinymce * {
 	font-family: inherit !important;
 }
@@ -4317,40 +4212,17 @@ body.fanfiction-page .entry-content::after {
 	border: 1px solid var(--color-border);
 }
 
-/* Button Base Styles */
-.fanfic-button {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	padding: 10px 20px;
-	font-size: 15px;
-	font-weight: 500;
-	border: 2px solid transparent;
-	border-radius: 6px;
-	background: white;
-	color: var(--color-text);
-	cursor: pointer;
-	transition: all 0.2s ease;
-	text-decoration: none;
-	position: relative;
-	overflow: hidden;
+/* Content actions buttons use the global .fanfic-button visual style. */
+.fanfic-content-actions .fanfic-button {
+	flex: 0 0 auto;
 }
 
-.fanfic-button:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.fanfic-button:active {
-	transform: translateY(0) scale(0.98);
-}
-
-.fanfic-button .fanfic-icon {
+.fanfic-content-actions .fanfic-button .fanfic-icon {
 	font-size: 18px;
 	line-height: 1;
 }
 
-.fanfic-button .fanfic-text {
+.fanfic-content-actions .fanfic-button .fanfic-text {
 	white-space: nowrap;
 }
 
@@ -4382,12 +4254,7 @@ body.fanfiction-page .entry-content::after {
 	border-color: var(--color-warning);
 }
 
-.fanfic-bookmark-button:hover {
-	background: var(--color-warning);
-	color: white;
-	border-color: var(--color-warning);
-}
-
+.fanfic-bookmark-button:hover,
 .fanfic-bookmark-button.bookmarked {
 	background: var(--color-warning);
 	color: white;
@@ -4406,12 +4273,7 @@ body.fanfiction-page .entry-content::after {
 	border-color: #e91e63;
 }
 
-.fanfic-like-button:hover {
-	background: #e91e63;
-	color: white;
-	border-color: #e91e63;
-}
-
+.fanfic-like-button:hover,
 .fanfic-like-button.liked {
 	background: #e91e63;
 	color: white;
@@ -4434,12 +4296,7 @@ body.fanfiction-page .entry-content::after {
 	border-color: #9b51e0;
 }
 
-.fanfic-read-list-button:hover {
-	background: #9b51e0;
-	color: white;
-	border-color: #9b51e0;
-}
-
+.fanfic-read-list-button:hover,
 .fanfic-read-list-button.in-read-list {
 	background: #9b51e0;
 	color: white;
@@ -4458,12 +4315,7 @@ body.fanfiction-page .entry-content::after {
 	border-color: var(--color-success);
 }
 
-.fanfic-mark-read-button:hover {
-	background: var(--color-success);
-	color: white;
-	border-color: var(--color-success);
-}
-
+.fanfic-mark-read-button:hover,
 .fanfic-mark-read-button.marked-read {
 	background: var(--color-success);
 	color: white;
@@ -4482,12 +4334,7 @@ body.fanfiction-page .entry-content::after {
 	border-color: #ff6f00;
 }
 
-.fanfic-subscribe-button:hover {
-	background: #ff6f00;
-	color: white;
-	border-color: #ff6f00;
-}
-
+.fanfic-subscribe-button:hover,
 .fanfic-subscribe-button.subscribed {
 	background: #ff6f00;
 	color: white;
@@ -4532,12 +4379,7 @@ body.fanfiction-page .entry-content::after {
 	border-color: var(--color-link);
 }
 
-.fanfic-follow-button:hover {
-	background: var(--color-link);
-	color: white;
-	border-color: var(--color-link);
-}
-
+.fanfic-follow-button:hover,
 .fanfic-follow-button.following {
 	background: var(--color-link);
 	color: white;
@@ -4812,34 +4654,8 @@ body.fanfiction-page .entry-content::after {
 	margin-top: 20px;
 }
 
-.fanfic-button-primary,
-.fanfic-button-secondary {
+.fanfic-modal-actions .fanfic-button {
 	flex: 1;
-	padding: 10px 20px;
-	font-size: 15px;
-	font-weight: 500;
-	border: none;
-	border-radius: 4px;
-	cursor: pointer;
-	transition: all 0.2s;
-}
-
-.fanfic-button-primary {
-	background: var(--color-link);
-	color: white;
-}
-
-.fanfic-button-primary:hover {
-	background: var(--color-link);
-}
-
-.fanfic-button-secondary {
-	background: var(--base-background-soft);
-	color: var(--color-text);
-}
-
-.fanfic-button-secondary:hover {
-	background: #dcdcde;
 }
 
 .fanfic-subscribe-message,
@@ -5213,13 +5029,25 @@ body.fanfiction-page .entry-content::after {
     font-weight: 600;
 }
 
-.fanfic-bookmark-item h4 a {
-    color: var(--color-link);
-    text-decoration: none;
+.fanfic-breadcrumb-item a,
+.comment-notes a,
+.logged-in-as a,
+.must-log-in a,
+.fanfic-bookmark-item h4 a,
+.fanfic-bookmark-last-chapter a {
+	color: var(--color-link);
+	text-decoration: none;
 }
 
-.fanfic-bookmark-item h4 a:hover {
-    text-decoration: underline;
+.fanfic-breadcrumb-item a:hover,
+.comment-notes a:hover,
+.logged-in-as a:hover,
+.must-log-in a:hover,
+.fanfic-comment-navigation a:hover,
+.fanfic-notification-link:hover,
+.fanfic-bookmark-item h4 a:hover,
+.fanfic-bookmark-last-chapter a:hover {
+	text-decoration: underline;
 }
 
 .fanfic-bookmark-meta {
@@ -5233,15 +5061,6 @@ body.fanfiction-page .entry-content::after {
     font-size: 12px;
     color: var(--color-text-muted);
     font-style: italic;
-}
-
-.fanfic-bookmark-last-chapter a {
-    color: var(--color-link);
-    text-decoration: none;
-}
-
-.fanfic-bookmark-last-chapter a:hover {
-    text-decoration: underline;
 }
 
 .fanfic-badge {
@@ -5275,10 +5094,6 @@ body.fanfiction-page .entry-content::after {
     font-size: 13px;
     font-weight: 600;
     transition: all 0.2s ease;
-}
-
-.fanfic-load-more-bookmarks:hover {
-    background: var(--color-link);
 }
 
 .fanfic-load-more-bookmarks:active {
@@ -5429,10 +5244,7 @@ body.fanfiction-page .entry-content::after {
 }
 
 /* Ensure parent button has position relative for absolute positioning */
-.fanfic-buttons {
-    position: relative;
-}
-
+.fanfic-buttons,
 .fanfic-buttons a,
 .fanfic-buttons button {
     position: relative;
@@ -5941,13 +5753,126 @@ body.fanfic-member-profile .wp-block-post-title {
 	.fanfic-image-dropzone {
 		min-height: 150px;
 	}
-	
+
 	.fanfic-dropzone-placeholder-icon {
 		font-size: 36px;
 	}
-	
+
 	.fanfic-dropzone-preview img {
 		max-height: 150px;
 	}
 }
 
+/* =========================================================
+   TAXONOMY DIRECTORY (Browse All Terms)
+   ========================================================= */
+
+/**
+ * Taxonomy directory container for "browse all" mode.
+ * Displays taxonomy terms in a grid layout with story counts.
+ */
+.fanfic-taxonomy-directory-header {
+	margin-bottom: 2rem;
+	padding-bottom: 1rem;
+	border-bottom: 2px solid var(--base-lighter);
+}
+
+.fanfic-taxonomy-directory-title {
+	font-size: 1.75rem;
+	font-weight: 600;
+	color: var(--color-text);
+	margin: 0 0 0.5rem 0;
+}
+
+.fanfic-taxonomy-directory-description {
+	font-size: 1rem;
+	color: var(--color-text-muted);
+	margin: 0;
+}
+
+.fanfic-taxonomy-directory {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 1rem;
+	margin-top: 1.5rem;
+}
+
+.fanfic-taxonomy-directory-item {
+	background: var(--base-background-soft);
+	border: 1px solid var(--base-lighter);
+	border-radius: 8px;
+	transition: all 0.2s ease;
+	overflow: hidden;
+}
+
+.fanfic-taxonomy-directory-item:hover {
+	border-color: var(--accent-light);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	transform: translateY(-2px);
+}
+
+.fanfic-taxonomy-directory-link {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 1rem 1.25rem;
+	text-decoration: none;
+	color: inherit;
+	gap: 1rem;
+}
+
+.fanfic-taxonomy-directory-link:hover {
+	text-decoration: none;
+}
+
+.fanfic-taxonomy-directory-name {
+	font-size: 1.125rem;
+	font-weight: 500;
+	color: var(--color-text);
+	flex: 1;
+	transition: color 0.2s ease;
+}
+
+.fanfic-taxonomy-directory-item:hover .fanfic-taxonomy-directory-name {
+	color: var(--accent-dark);
+}
+
+.fanfic-taxonomy-directory-count {
+	font-size: 0.875rem;
+	font-weight: 500;
+	color: var(--color-text-muted);
+	background: var(--base-lighter);
+	padding: 0.375rem 0.75rem;
+	border-radius: 12px;
+	white-space: nowrap;
+	transition: all 0.2s ease;
+}
+
+.fanfic-taxonomy-directory-item:hover .fanfic-taxonomy-directory-count {
+	background: var(--accent-light);
+	color: var(--color-white);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.fanfic-taxonomy-directory {
+		grid-template-columns: 1fr;
+	}
+
+	.fanfic-taxonomy-directory-title {
+		font-size: 1.5rem;
+	}
+
+	.fanfic-taxonomy-directory-link {
+		padding: 0.875rem 1rem;
+	}
+
+	.fanfic-taxonomy-directory-name {
+		font-size: 1rem;
+	}
+}
+
+/* Large number formatting (for fandoms with 100+ stories) */
+.fanfic-taxonomy-directory-count[data-count*="00"] {
+	font-weight: 600;
+}

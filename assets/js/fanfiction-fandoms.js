@@ -13,16 +13,16 @@
 		};
 	}
 
-	function init() {
+	function initFandomField(container) {
 		if (typeof fanficFandoms === 'undefined') {
 			return;
 		}
 
-		var searchInput = document.getElementById('fanfic_fandom_search');
-		var resultsBox = document.querySelector('.fanfic-fandom-results');
-		var selectedBox = document.querySelector('.fanfic-selected-fandoms');
+		var searchInput = container.querySelector('input[type="text"]:not([type="hidden"])');
+		var resultsBox = container.querySelector('.fanfic-fandom-results');
+		var selectedBox = container.querySelector('.fanfic-selected-fandoms');
 		var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
-		var maxFandoms = parseInt(fanficFandoms.maxFandoms, 10) || 5;
+		var maxFandoms = parseInt(container.getAttribute('data-max-fandoms'), 10) || 5;
 
 		if (!searchInput || !resultsBox || !selectedBox) {
 			return;
@@ -165,6 +165,14 @@
 				setOriginalMode(true);
 			}
 		}
+	}
+
+	function init() {
+		// Initialize all fandom fields on the page
+		var containers = document.querySelectorAll('.fanfic-fandoms-field');
+		containers.forEach(function(container) {
+			initFandomField(container);
+		});
 	}
 
 	document.addEventListener('DOMContentLoaded', init);

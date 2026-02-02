@@ -203,7 +203,7 @@ function fanfic_get_validation_error_heading( $type = 'story' ) {
 			<button type="button" id="publish-story-now" class="fanfic-button-primary">
 				<?php esc_html_e( 'Yes, Publish Story', 'fanfiction-manager' ); ?>
 			</button>
-			<button type="button" id="keep-as-draft" class="fanfic-button-secondary">
+			<button type="button" id="keep-as-draft" class="secondary">
 				<?php esc_html_e( 'No, Keep as Draft', 'fanfiction-manager' ); ?>
 			</button>
 		</div>

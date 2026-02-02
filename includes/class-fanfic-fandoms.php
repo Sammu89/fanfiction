@@ -360,6 +360,93 @@ class Fanfic_Fandoms {
 	}
 
 	/**
+	 * Get fandom ID by slug.
+	 *
+	 * @since 1.2.0
+	 * @param string $slug Fandom slug.
+	 * @return int|null Fandom ID or null if not found.
+	 */
+	public static function get_fandom_id_by_slug( $slug ) {
+		global $wpdb;
+		if ( ! self::tables_ready() ) {
+			return null;
+		}
+
+		$slug = sanitize_title( $slug );
+		if ( empty( $slug ) ) {
+			return null;
+		}
+
+		$table = self::get_fandoms_table();
+		$id = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM {$table} WHERE slug = %s AND is_active = 1 LIMIT 1",
+				$slug
+			)
+		);
+
+		return $id ? (int) $id : null;
+	}
+
+	/**
+	 * Get fandom slug by ID.
+	 *
+	 * @since 1.2.0
+	 * @param int $fandom_id Fandom ID.
+	 * @return string|null Fandom slug or null if not found.
+	 */
+	public static function get_fandom_slug_by_id( $fandom_id ) {
+		global $wpdb;
+		if ( ! self::tables_ready() ) {
+			return null;
+		}
+
+		$fandom_id = absint( $fandom_id );
+		if ( ! $fandom_id ) {
+			return null;
+		}
+
+		$table = self::get_fandoms_table();
+		$slug = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT slug FROM {$table} WHERE id = %d AND is_active = 1 LIMIT 1",
+				$fandom_id
+			)
+		);
+
+		return $slug ? $slug : null;
+	}
+
+	/**
+	 * Get fandom label (name) by ID.
+	 *
+	 * @since 1.2.0
+	 * @param int $fandom_id Fandom ID.
+	 * @return string|null Fandom name or null if not found.
+	 */
+	public static function get_fandom_label_by_id( $fandom_id ) {
+		global $wpdb;
+		if ( ! self::tables_ready() ) {
+			return null;
+		}
+
+		$fandom_id = absint( $fandom_id );
+		if ( ! $fandom_id ) {
+			return null;
+		}
+
+		$table = self::get_fandoms_table();
+		$name = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT name FROM {$table} WHERE id = %d AND is_active = 1 LIMIT 1",
+				$fandom_id
+			)
+		);
+
+		return $name ? $name : null;
+	}
+
+	/**
 	 * Save story fandom relations and original flag
 	 *
 	 * @since 1.0.0

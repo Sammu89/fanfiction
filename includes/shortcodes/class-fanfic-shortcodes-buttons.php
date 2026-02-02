@@ -833,10 +833,10 @@ class Fanfic_Shortcodes_Buttons {
 					</div>
 
 					<div class="form-actions">
-					<button type="submit" class="fanfic-button fanfic-button-primary">
+					<button type="submit" class="fanfic-button">
 							<?php esc_html_e( 'Subscribe', 'fanfiction-manager' ); ?>
 						</button>
-					<button type="button" class="fanfic-button fanfic-button-secondary fanfic-modal-close">
+					<button type="button" class="fanfic-button secondary fanfic-modal-close">
 							<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 						</button>
 					</div>

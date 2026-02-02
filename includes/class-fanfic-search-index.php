@@ -201,6 +201,247 @@ class Fanfic_Search_Index {
 	}
 
 	/**
+	 * Get story title
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Story title
+	 */
+	private static function get_story_title( $story_id ) {
+		$post = get_post( $story_id );
+		return $post ? $post->post_title : '';
+	}
+
+	/**
+	 * Get story slug
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Story slug
+	 */
+	private static function get_story_slug( $story_id ) {
+		$post = get_post( $story_id );
+		return $post ? $post->post_name : '';
+	}
+
+	/**
+	 * Get story summary
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Story summary
+	 */
+	private static function get_story_summary( $story_id ) {
+		$post = get_post( $story_id );
+		return $post ? $post->post_excerpt : '';
+	}
+
+	/**
+	 * Get story status
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Story post status
+	 */
+	private static function get_story_status( $story_id ) {
+		$post = get_post( $story_id );
+		return $post ? $post->post_status : 'publish';
+	}
+
+	/**
+	 * Get author ID
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return int Author ID
+	 */
+	private static function get_author_id( $story_id ) {
+		$post = get_post( $story_id );
+		return $post ? absint( $post->post_author ) : 0;
+	}
+
+	/**
+	 * Get published date
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string|null Published date
+	 */
+	private static function get_published_date( $story_id ) {
+		$post = get_post( $story_id );
+		return $post ? $post->post_date : null;
+	}
+
+	/**
+	 * Get updated date
+	 *
+	 * Only reflects significant content changes (10%+ edit to story summary or chapters).
+	 * Minor metadata changes (genre, fandom, tags) don't trigger update.
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string|null Content updated date
+	 */
+	private static function get_updated_date( $story_id ) {
+		// Use custom content update date if available
+		$content_updated = get_post_meta( $story_id, '_fanfic_content_updated_date', true );
+
+		if ( $content_updated ) {
+			return $content_updated;
+		}
+
+		// Fallback to post_modified for stories that haven't been updated yet
+		$post = get_post( $story_id );
+		return $post ? $post->post_modified : null;
+	}
+
+	/**
+	 * Get chapter count
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return int Chapter count
+	 */
+	private static function get_chapter_count( $story_id ) {
+		return absint( get_post_meta( $story_id, '_fanfic_chapter_count', true ) );
+	}
+
+	/**
+	 * Get word count
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return int Word count
+	 */
+	private static function get_word_count( $story_id ) {
+		return absint( get_post_meta( $story_id, '_fanfic_word_count', true ) );
+	}
+
+	/**
+	 * Get fandom slugs as comma-separated string
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Comma-separated fandom slugs
+	 */
+	private static function get_fandom_slugs( $story_id ) {
+		if ( class_exists( 'Fanfic_Fandoms' ) ) {
+			$fandoms = Fanfic_Fandoms::get_story_fandom_labels( $story_id );
+			if ( ! empty( $fandoms ) ) {
+				return implode( ',', array_column( $fandoms, 'slug' ) );
+			}
+		}
+		// Fallback to meta
+		$fandom = get_post_meta( $story_id, '_fanfic_fandom', true );
+		return is_string( $fandom ) ? $fandom : '';
+	}
+
+	/**
+	 * Get language slug
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Language slug
+	 */
+	private static function get_language_slug( $story_id ) {
+		if ( class_exists( 'Fanfic_Languages' ) ) {
+			$language = Fanfic_Languages::get_story_language( $story_id );
+			return $language && isset( $language['slug'] ) ? $language['slug'] : '';
+		}
+		return get_post_meta( $story_id, '_fanfic_language', true );
+	}
+
+	/**
+	 * Get warning slugs as comma-separated string
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Comma-separated warning slugs
+	 */
+	private static function get_warning_slugs( $story_id ) {
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			$warnings = Fanfic_Warnings::get_story_warnings( $story_id );
+			if ( ! empty( $warnings ) ) {
+				return implode( ',', array_column( $warnings, 'slug' ) );
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Get age rating
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Age rating
+	 */
+	private static function get_age_rating( $story_id ) {
+		return get_post_meta( $story_id, '_fanfic_age_rating', true );
+	}
+
+	/**
+	 * Get visible tags as comma-separated string
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Comma-separated visible tags
+	 */
+	private static function get_visible_tags_string( $story_id ) {
+		if ( function_exists( 'fanfic_get_visible_tags' ) ) {
+			$tags = fanfic_get_visible_tags( $story_id );
+			return is_array( $tags ) ? implode( ',', $tags ) : '';
+		}
+		return '';
+	}
+
+	/**
+	 * Get invisible tags as comma-separated string
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Comma-separated invisible tags
+	 */
+	private static function get_invisible_tags_string( $story_id ) {
+		if ( function_exists( 'fanfic_get_invisible_tags' ) ) {
+			$tags = fanfic_get_invisible_tags( $story_id );
+			return is_array( $tags ) ? implode( ',', $tags ) : '';
+		}
+		return '';
+	}
+
+	/**
+	 * Get genre names as comma-separated string
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Comma-separated genre names
+	 */
+	private static function get_genre_names( $story_id ) {
+		$terms = get_the_terms( $story_id, 'fanfiction_genre' );
+		if ( $terms && ! is_wp_error( $terms ) ) {
+			$names = wp_list_pluck( $terms, 'name' );
+			return implode( ',', $names );
+		}
+		return '';
+	}
+
+	/**
+	 * Get status name
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story post ID.
+	 * @return string Status name
+	 */
+	private static function get_status_name( $story_id ) {
+		$terms = get_the_terms( $story_id, 'fanfiction_status' );
+		if ( $terms && ! is_wp_error( $terms ) ) {
+			$term = reset( $terms );
+			return $term->name;
+		}
+		return '';
+	}
+
+	/**
 	 * Update search index for a story
 	 *
 	 * @since 1.2.0
@@ -215,38 +456,33 @@ class Fanfic_Search_Index {
 		global $wpdb;
 		$table = $wpdb->prefix . 'fanfic_story_search_index';
 
-		$indexed_text = self::build_index_text( $story_id );
-
-		// Check if entry exists
-		$exists = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT story_id FROM {$table} WHERE story_id = %d",
-				$story_id
-			)
+		// Build all data
+		$data = array(
+			'story_id'        => $story_id,
+			'indexed_text'    => self::build_index_text( $story_id ),
+			'story_title'     => self::get_story_title( $story_id ),
+			'story_slug'      => self::get_story_slug( $story_id ),
+			'story_summary'   => self::get_story_summary( $story_id ),
+			'story_status'    => self::get_story_status( $story_id ),
+			'author_id'       => self::get_author_id( $story_id ),
+			'published_date'  => self::get_published_date( $story_id ),
+			'updated_date'    => self::get_updated_date( $story_id ),
+			'chapter_count'   => self::get_chapter_count( $story_id ),
+			'word_count'      => self::get_word_count( $story_id ),
+			'fandom_slugs'    => self::get_fandom_slugs( $story_id ),
+			'language_slug'   => self::get_language_slug( $story_id ),
+			'warning_slugs'   => self::get_warning_slugs( $story_id ),
+			'age_rating'      => self::get_age_rating( $story_id ),
+			'visible_tags'    => self::get_visible_tags_string( $story_id ),
+			'invisible_tags'  => self::get_invisible_tags_string( $story_id ),
+			'genre_names'     => self::get_genre_names( $story_id ),
+			'status_name'     => self::get_status_name( $story_id ),
 		);
 
-		if ( $exists ) {
-			// Update existing
-			$result = $wpdb->update(
-				$table,
-				array( 'indexed_text' => $indexed_text ),
-				array( 'story_id' => $story_id ),
-				array( '%s' ),
-				array( '%d' )
-			);
-		} else {
-			// Insert new
-			$result = $wpdb->insert(
-				$table,
-				array(
-					'story_id'     => $story_id,
-					'indexed_text' => $indexed_text,
-				),
-				array( '%d', '%s' )
-			);
-		}
+		// Use REPLACE to insert or update
+		$wpdb->replace( $table, $data );
 
-		return $result !== false;
+		return true;
 	}
 
 	/**
@@ -287,6 +523,14 @@ class Fanfic_Search_Index {
 		// Skip revisions
 		if ( wp_is_post_revision( $post_id ) ) {
 			return;
+		}
+
+		// Check if story summary changed significantly
+		if ( $update ) {
+			self::check_story_content_change( $post_id, $post );
+		} else {
+			// New story - set initial content update date
+			update_post_meta( $post_id, '_fanfic_content_updated_date', current_time( 'mysql' ) );
 		}
 
 		// Update index
@@ -332,9 +576,17 @@ class Fanfic_Search_Index {
 
 		// Get parent story
 		$story_id = $post->post_parent;
-		if ( $story_id ) {
-			self::update_index( $story_id );
+		if ( ! $story_id ) {
+			return;
 		}
+
+		// Check if chapter content changed significantly
+		if ( $update ) {
+			self::check_chapter_content_change( $post_id, $post, $story_id );
+		}
+
+		// Update index
+		self::update_index( $story_id );
 	}
 
 	/**
@@ -552,5 +804,110 @@ class Fanfic_Search_Index {
 			'total_stories'   => $total_count,
 			'coverage'        => $total_count > 0 ? round( ( $indexed_count / $total_count ) * 100, 2 ) : 0,
 		);
+	}
+
+	/**
+	 * Check if story summary changed significantly (10%+ change)
+	 *
+	 * Updates _fanfic_content_updated_date meta if significant change detected.
+	 *
+	 * @since 1.5.0
+	 * @param int     $story_id Story post ID.
+	 * @param WP_Post $post     New post object.
+	 * @return void
+	 */
+	private static function check_story_content_change( $story_id, $post ) {
+		// Get old summary from database
+		$old_post = get_post( $story_id );
+		if ( ! $old_post ) {
+			return;
+		}
+
+		$old_summary = $old_post->post_excerpt;
+		$new_summary = $post->post_excerpt;
+
+		// Check if summary changed significantly
+		if ( self::is_content_significantly_changed( $old_summary, $new_summary ) ) {
+			update_post_meta( $story_id, '_fanfic_content_updated_date', current_time( 'mysql' ) );
+		}
+	}
+
+	/**
+	 * Check if chapter content changed significantly (10%+ change)
+	 *
+	 * Updates parent story's _fanfic_content_updated_date meta if significant change detected.
+	 *
+	 * @since 1.5.0
+	 * @param int     $chapter_id Chapter post ID.
+	 * @param WP_Post $post       New post object.
+	 * @param int     $story_id   Parent story ID.
+	 * @return void
+	 */
+	private static function check_chapter_content_change( $chapter_id, $post, $story_id ) {
+		// Get old chapter content from database
+		global $wpdb;
+		$old_content = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT post_content FROM {$wpdb->posts} WHERE ID = %d",
+				$chapter_id
+			)
+		);
+
+		if ( ! $old_content ) {
+			return;
+		}
+
+		$new_content = $post->post_content;
+
+		// Check if content changed significantly
+		if ( self::is_content_significantly_changed( $old_content, $new_content ) ) {
+			update_post_meta( $story_id, '_fanfic_content_updated_date', current_time( 'mysql' ) );
+		}
+	}
+
+	/**
+	 * Check if content changed by 10% or more
+	 *
+	 * Uses character count difference for speed on long texts.
+	 * Falls back to similar_text() for short texts (more accurate).
+	 *
+	 * @since 1.5.0
+	 * @param string $old_content Old content.
+	 * @param string $new_content New content.
+	 * @return bool True if content changed significantly.
+	 */
+	private static function is_content_significantly_changed( $old_content, $new_content ) {
+		// Normalize whitespace for comparison
+		$old_content = trim( preg_replace( '/\s+/', ' ', $old_content ) );
+		$new_content = trim( preg_replace( '/\s+/', ' ', $new_content ) );
+
+		// If either is empty, consider it a significant change
+		if ( empty( $old_content ) || empty( $new_content ) ) {
+			return true;
+		}
+
+		// If content is identical, no change
+		if ( $old_content === $new_content ) {
+			return false;
+		}
+
+		$old_len = strlen( $old_content );
+		$new_len = strlen( $new_content );
+
+		// For short texts (< 5000 chars), use similar_text for accuracy
+		if ( $old_len < 5000 && $new_len < 5000 ) {
+			similar_text( $old_content, $new_content, $percent );
+			// If similarity is less than 90%, it's a significant change
+			return $percent < 90;
+		}
+
+		// For long texts, use character count difference (much faster)
+		$max_len = max( $old_len, $new_len );
+		$diff    = abs( $old_len - $new_len );
+
+		// If difference is 10% or more, it's significant
+		$change_percent = ( $diff / $max_len ) * 100;
+
+		return $change_percent >= 10;
 	}
 }

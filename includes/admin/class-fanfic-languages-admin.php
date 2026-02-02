@@ -297,7 +297,7 @@ class Fanfic_Languages_Admin {
 						</p>
 
 						<div class="fanfic-admin-modal-actions">
-							<button type="button" class="button fanfic-button-danger fanfic-delete-language-btn"><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
+							<button type="button" class="button danger fanfic-delete-language-btn"><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
 							<button type="button" class="button fanfic-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
 							<button type="submit" class="button button-primary"><?php esc_html_e( 'Update', 'fanfiction-manager' ); ?></button>
 						</div>

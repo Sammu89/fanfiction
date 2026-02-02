@@ -83,7 +83,9 @@
 			return warnings.indexOf(value) !== -1;
 		}).prop('checked', true);
 
-		$form.find('input[name="fandom"]').val(fandoms.join(' '));
+		// Note: Selected fandoms are handled by PHP on page load via the autofill structure
+		// and don't need to be updated here (same as story form)
+
 		$form.find('select[name="age"]').val(age);
 		$form.find('select[name="sort"]').val(sort);
 	}
@@ -95,11 +97,15 @@
 		var warnings = $form.find('input[name="warning[]"]:checked').map(function() {
 			return $(this).val();
 		}).get();
-		var fandoms = $.trim($form.find('input[name="fandom"]').val() || '');
+
+		// Get fandom IDs from autofill (same as story form)
+		var fandomIds = $form.find('input[name="fanfic_story_fandoms[]"]').map(function() {
+			return $(this).val();
+		}).get();
+		var fandoms = fandomIds.length > 0 ? fandomIds.join(' ') : '';
+
 		var age = $form.find('select[name="age"]').val() || '';
 		var sort = $form.find('select[name="sort"]').val() || '';
-
-		fandoms = fandoms.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
 
 		var payload = {};
 		if (search) {

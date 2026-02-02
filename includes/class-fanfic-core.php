@@ -164,6 +164,9 @@ class Fanfic_Core {
 	 * Initialize hooks
 	 */
 	private function init_hooks() {
+		// Ensure database schema exists even if activation hook was skipped.
+		$this->maybe_initialize_database();
+
 		// Initialize post types
 		add_action( 'init', array( 'Fanfic_Post_Types', 'register' ) );
 
@@ -322,6 +325,37 @@ class Fanfic_Core {
 
 		// Enqueue frontend styles and scripts
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
+	}
+
+	/**
+	 * Ensure database tables exist during normal initialization.
+	 *
+	 * Handles environments where activation hooks did not fully run.
+	 *
+	 * @return void
+	 */
+	private function maybe_initialize_database() {
+		if ( ! class_exists( 'Fanfic_Database_Setup' ) ) {
+			return;
+		}
+
+		$stored_version = Fanfic_Database_Setup::get_db_version();
+		$needs_setup    = version_compare( $stored_version, Fanfic_Database_Setup::DB_VERSION, '<' ) || ! Fanfic_Database_Setup::tables_exist();
+
+		if ( ! $needs_setup ) {
+			return;
+		}
+
+		$result = Fanfic_Database_Setup::init();
+		if ( is_wp_error( $result ) ) {
+			error_log( 'Fanfiction Manager: Runtime database setup error - ' . $result->get_error_message() );
+			return;
+		}
+
+		// Seed warning definitions after ensuring tables exist.
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			Fanfic_Warnings::maybe_seed_warnings();
+		}
 	}
 
 	/**
@@ -1057,6 +1091,7 @@ class Fanfic_Core {
 		}
 
 		// Fandoms autocomplete for story form
+		// Note: Search bar enqueues its own script in the shortcode
 		if ( 'template-story-form.php' === $current_template && class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
 			wp_enqueue_script(
 				'fanfiction-fandoms',
@@ -1272,6 +1307,9 @@ class Fanfic_Core {
 		if ( is_wp_error( $db_result ) ) {
 			// Log error but don't halt activation
 			error_log( 'Fanfiction Manager: Database setup error - ' . $db_result->get_error_message() );
+		} elseif ( class_exists( 'Fanfic_Warnings' ) ) {
+			// Seed warning definitions immediately after table creation.
+			Fanfic_Warnings::maybe_seed_warnings();
 		}
 
 		// Seed fandoms catalogue from JSON on activation

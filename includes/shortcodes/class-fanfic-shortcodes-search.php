@@ -175,6 +175,30 @@ class Fanfic_Shortcodes_Search {
 	 * @return string Browse search bar HTML.
 	 */
 	public static function browse_search_bar() {
+		// Enqueue fandoms script if Fanfic_Fandoms is enabled
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			wp_enqueue_script(
+				'fanfiction-fandoms',
+				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-fandoms.js',
+				array(),
+				FANFIC_VERSION,
+				true
+			);
+
+			wp_localize_script(
+				'fanfiction-fandoms',
+				'fanficFandoms',
+				array(
+					'restUrl'    => esc_url_raw( rest_url( Fanfic_Fandoms::REST_NAMESPACE . '/fandoms/search' ) ),
+					'restNonce'  => wp_create_nonce( 'wp_rest' ),
+					'maxFandoms' => Fanfic_Fandoms::MAX_FANDOMS,
+					'strings'    => array(
+						'remove' => __( 'Remove fandom', 'fanfiction-manager' ),
+					),
+				)
+			);
+		}
+
 		$context = self::get_browse_context();
 
 		$open_wrapper = ! self::$browse_wrapper_open;
@@ -267,17 +291,47 @@ class Fanfic_Shortcodes_Search {
 				</div>
 			</div>
 
-			<div class="fanfic-browse-row">
-				<label for="fanfic-fandom-filter"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
-				<input
-					type="text"
-					id="fanfic-fandom-filter"
-					name="fandom"
-					value="<?php echo esc_attr( implode( ' ', (array) $context['params']['fandoms'] ) ); ?>"
-					placeholder="<?php esc_attr_e( 'fandom slug(s)', 'fanfiction-manager' ); ?>"
-				/>
-				<p class="description"><?php esc_html_e( 'Enter fandom slugs separated by spaces.', 'fanfiction-manager' ); ?></p>
-			</div>
+			<?php if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) : ?>
+				<?php
+				// Get current fandoms from URL parameters
+				$current_fandom_labels = array();
+				if ( ! empty( $context['params']['fandoms'] ) ) {
+					foreach ( (array) $context['params']['fandoms'] as $fandom_slug ) {
+						$fandom_id = Fanfic_Fandoms::get_fandom_id_by_slug( $fandom_slug );
+						if ( $fandom_id ) {
+							$fandom_label = Fanfic_Fandoms::get_fandom_label_by_id( $fandom_id );
+							if ( $fandom_label ) {
+								$current_fandom_labels[] = array(
+									'id'    => $fandom_id,
+									'label' => $fandom_label,
+								);
+							}
+						}
+					}
+				}
+				?>
+				<div class="fanfic-browse-row fanfic-fandoms-field" data-max-fandoms="<?php echo esc_attr( Fanfic_Fandoms::MAX_FANDOMS ); ?>">
+					<label for="fanfic-fandom-filter"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
+					<input
+						type="text"
+						id="fanfic-fandom-filter"
+						class="fanfic-input"
+						autocomplete="off"
+						placeholder="<?php esc_attr_e( 'Search fandoms...', 'fanfiction-manager' ); ?>"
+					/>
+					<div class="fanfic-fandom-results" role="listbox" aria-label="<?php esc_attr_e( 'Fandom search results', 'fanfiction-manager' ); ?>"></div>
+					<div class="fanfic-selected-fandoms" aria-live="polite">
+						<?php foreach ( $current_fandom_labels as $fandom ) : ?>
+							<span class="fanfic-selected-fandom" data-id="<?php echo esc_attr( $fandom['id'] ); ?>">
+								<?php echo esc_html( $fandom['label'] ); ?>
+								<button type="button" class="fanfic-remove-fandom" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
+								<input type="hidden" name="fanfic_story_fandoms[]" value="<?php echo esc_attr( $fandom['id'] ); ?>">
+							</span>
+						<?php endforeach; ?>
+					</div>
+					<p class="description"><?php esc_html_e( 'Select up to 5 fandoms. Search requires at least 2 characters.', 'fanfiction-manager' ); ?></p>
+				</div>
+			<?php endif; ?>
 
 			<?php if ( ! empty( $context['languages'] ) ) : ?>
 				<div class="fanfic-browse-row">
@@ -348,7 +402,7 @@ class Fanfic_Shortcodes_Search {
 			<?php endif; ?>
 
 			<div class="fanfic-browse-actions">
-				<button type="submit" class="fanfic-button fanfic-button-primary">
+				<button type="submit" class="fanfic-button">
 					<?php esc_html_e( 'Apply filters', 'fanfiction-manager' ); ?>
 				</button>
 				<a class="fanfic-button" href="<?php echo esc_url( $context['base_url'] ); ?>">
@@ -410,18 +464,8 @@ class Fanfic_Shortcodes_Search {
 			$opened_here = true;
 		}
 
-		$paged = absint( get_query_var( 'paged' ) );
-		if ( $paged < 1 ) {
-			$paged = absint( get_query_var( 'page' ) );
-		}
-		$paged = max( 1, $paged );
-		$per_page = (int) get_option( 'posts_per_page', 10 );
-
-		$browse_query = null;
-		if ( function_exists( 'fanfic_build_browse_query_args' ) ) {
-			$args = fanfic_build_browse_query_args( $context['params'], $paged, $per_page );
-			$browse_query = new WP_Query( $args );
-		}
+		// Check if we're in "browse all terms" mode.
+		$is_browse_all = function_exists( 'fanfic_is_browse_all_terms_mode' ) && fanfic_is_browse_all_terms_mode();
 
 		ob_start();
 
@@ -430,58 +474,77 @@ class Fanfic_Shortcodes_Search {
 			<div class="fanfic-archive fanfic-browse-page" data-fanfic-browse>
 			<?php
 		endif;
-		?>
 
-		<div class="fanfic-archive-content">
-			<div class="fanfic-browse-results" data-fanfic-browse-results>
-				<?php if ( $browse_query instanceof WP_Query && $browse_query->have_posts() ) : ?>
-					<div class="fanfic-story-grid">
-						<?php
-						while ( $browse_query->have_posts() ) :
-							$browse_query->the_post();
-							echo fanfic_get_story_card_html( get_the_ID() );
-						endwhile;
-						?>
-					</div>
+		if ( $is_browse_all ) :
+			// Display taxonomy terms directory.
+			echo self::render_browse_all_terms();
+		else :
+			// Display normal story results.
+			$paged = absint( get_query_var( 'paged' ) );
+			if ( $paged < 1 ) {
+				$paged = absint( get_query_var( 'page' ) );
+			}
+			$paged = max( 1, $paged );
+			$per_page = (int) get_option( 'posts_per_page', 10 );
 
-					<nav class="fanfic-pagination fanfic-browse-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-browse-pagination>
-						<?php
-						$pagination_base = function_exists( 'fanfic_build_browse_url' )
-							? fanfic_build_browse_url( $context['base_url'], $context['params'], array( 'paged' => null ) )
-							: $context['base_url'];
-						echo paginate_links( array(
-							'base'      => add_query_arg( 'paged', '%#%', $pagination_base ),
-							'format'    => '',
-							'current'   => max( 1, $paged ),
-							'total'     => max( 1, (int) $browse_query->max_num_pages ),
-							'prev_text' => esc_html__( '&laquo; Previous', 'fanfiction-manager' ),
-							'next_text' => esc_html__( 'Next &raquo;', 'fanfiction-manager' ),
-						) );
-						?>
-					</nav>
-				<?php else : ?>
-					<div class="fanfic-no-results">
-						<p><?php esc_html_e( 'No stories found matching your criteria.', 'fanfiction-manager' ); ?></p>
-						<?php if ( ! empty( $context['has_filters'] ) ) : ?>
-							<p>
-								<a href="<?php echo esc_url( $context['base_url'] ); ?>" class="fanfic-button fanfic-button-primary">
-									<?php esc_html_e( 'View All Stories', 'fanfiction-manager' ); ?>
-								</a>
-							</p>
-						<?php endif; ?>
-					</div>
-				<?php endif; ?>
+			$browse_query = null;
+			if ( function_exists( 'fanfic_build_browse_query_args' ) ) {
+				$args = fanfic_build_browse_query_args( $context['params'], $paged, $per_page );
+				$browse_query = new WP_Query( $args );
+			}
+			?>
+
+			<div class="fanfic-archive-content">
+				<div class="fanfic-browse-results" data-fanfic-browse-results>
+					<?php if ( $browse_query instanceof WP_Query && $browse_query->have_posts() ) : ?>
+						<div class="fanfic-story-grid">
+							<?php
+							while ( $browse_query->have_posts() ) :
+								$browse_query->the_post();
+								echo fanfic_get_story_card_html( get_the_ID() );
+							endwhile;
+							?>
+						</div>
+
+						<nav class="fanfic-pagination fanfic-browse-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-browse-pagination>
+							<?php
+							$pagination_base = function_exists( 'fanfic_build_browse_url' )
+								? fanfic_build_browse_url( $context['base_url'], $context['params'], array( 'paged' => null ) )
+								: $context['base_url'];
+							echo paginate_links( array(
+								'base'      => add_query_arg( 'paged', '%#%', $pagination_base ),
+								'format'    => '',
+								'current'   => max( 1, $paged ),
+								'total'     => max( 1, (int) $browse_query->max_num_pages ),
+								'prev_text' => esc_html__( '&laquo; Previous', 'fanfiction-manager' ),
+								'next_text' => esc_html__( 'Next &raquo;', 'fanfiction-manager' ),
+							) );
+							?>
+						</nav>
+					<?php else : ?>
+						<div class="fanfic-no-results">
+							<p><?php esc_html_e( 'No stories found matching your criteria.', 'fanfiction-manager' ); ?></p>
+							<?php if ( ! empty( $context['has_filters'] ) ) : ?>
+								<p>
+									<a href="<?php echo esc_url( $context['base_url'] ); ?>" class="fanfic-button">
+										<?php esc_html_e( 'View All Stories', 'fanfiction-manager' ); ?>
+									</a>
+								</p>
+							<?php endif; ?>
+						</div>
+					<?php endif; ?>
+				</div>
 			</div>
-		</div>
 
-		<div class="fanfic-browse-loading" data-fanfic-browse-loading aria-hidden="true">
-			<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
-		</div>
+			<div class="fanfic-browse-loading" data-fanfic-browse-loading aria-hidden="true">
+				<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
+			</div>
 
-		<?php
-		if ( $browse_query instanceof WP_Query ) {
-			wp_reset_postdata();
-		}
+			<?php
+			if ( $browse_query instanceof WP_Query ) {
+				wp_reset_postdata();
+			}
+		endif;
 
 		self::$browse_archive_rendered = true;
 
@@ -493,6 +556,91 @@ class Fanfic_Shortcodes_Search {
 			<?php
 		endif;
 
+		return ob_get_clean();
+	}
+
+	/**
+	 * Render the browse all terms directory.
+	 *
+	 * @since 1.2.0
+	 * @return string Browse all terms HTML.
+	 */
+	private static function render_browse_all_terms() {
+		if ( ! function_exists( 'fanfic_get_browse_all_taxonomy' ) || ! function_exists( 'fanfic_get_taxonomy_terms_with_counts' ) ) {
+			return '';
+		}
+
+		$taxonomy_config = fanfic_get_browse_all_taxonomy();
+		if ( empty( $taxonomy_config ) ) {
+			return '';
+		}
+
+		$terms = fanfic_get_taxonomy_terms_with_counts( $taxonomy_config );
+
+		ob_start();
+		?>
+		<div class="fanfic-archive-content">
+			<div class="fanfic-browse-results">
+				<header class="fanfic-taxonomy-directory-header">
+					<h2 class="fanfic-taxonomy-directory-title">
+						<?php
+						printf(
+							/* translators: %s: Taxonomy label (e.g., "Genres", "Fandoms") */
+							esc_html__( 'Browse by %s', 'fanfiction-manager' ),
+							esc_html( $taxonomy_config['label'] )
+						);
+						?>
+					</h2>
+					<p class="fanfic-taxonomy-directory-description">
+						<?php
+						printf(
+							/* translators: %d: Number of terms */
+							esc_html( _n(
+								'%d term with stories available.',
+								'%d terms with stories available.',
+								count( $terms ),
+								'fanfiction-manager'
+							) ),
+							count( $terms )
+						);
+						?>
+					</p>
+				</header>
+
+				<?php if ( ! empty( $terms ) ) : ?>
+					<div class="fanfic-taxonomy-directory">
+						<?php foreach ( $terms as $term ) : ?>
+							<div class="fanfic-taxonomy-directory-item">
+								<a href="<?php echo esc_url( $term['url'] ); ?>" class="fanfic-taxonomy-directory-link">
+									<span class="fanfic-taxonomy-directory-name">
+										<?php echo esc_html( $term['name'] ); ?>
+									</span>
+									<span class="fanfic-taxonomy-directory-count">
+										<?php
+										printf(
+											/* translators: %d: Number of stories */
+											esc_html( _n(
+												'%d story',
+												'%d stories',
+												$term['count'],
+												'fanfiction-manager'
+											) ),
+											$term['count']
+										);
+										?>
+									</span>
+								</a>
+							</div>
+						<?php endforeach; ?>
+					</div>
+				<?php else : ?>
+					<div class="fanfic-no-results">
+						<p><?php esc_html_e( 'No terms found with published stories.', 'fanfiction-manager' ); ?></p>
+					</div>
+				<?php endif; ?>
+			</div>
+		</div>
+		<?php
 		return ob_get_clean();
 	}
 
@@ -520,10 +668,26 @@ class Fanfic_Shortcodes_Search {
 			|| ! empty( $params['age'] )
 			|| ! empty( $params['sort'] );
 
-		$page_title = esc_html__( 'Browse Stories', 'fanfiction-manager' );
-		$page_description = $has_filters
-			? esc_html__( 'Browse stories matching your selected filters.', 'fanfiction-manager' )
-			: esc_html__( 'Browse all published fanfiction stories.', 'fanfiction-manager' );
+		// Check if we're in "browse all terms" mode.
+		$is_browse_all = function_exists( 'fanfic_is_browse_all_terms_mode' ) && fanfic_is_browse_all_terms_mode();
+		if ( $is_browse_all && function_exists( 'fanfic_get_browse_all_taxonomy' ) ) {
+			$taxonomy_config = fanfic_get_browse_all_taxonomy();
+			$page_title = sprintf(
+				/* translators: %s: Taxonomy label (e.g., "Genres", "Fandoms") */
+				esc_html__( 'Browse by %s', 'fanfiction-manager' ),
+				esc_html( $taxonomy_config['label'] )
+			);
+			$page_description = sprintf(
+				/* translators: %s: Taxonomy label */
+				esc_html__( 'Browse all %s that have published stories.', 'fanfiction-manager' ),
+				strtolower( esc_html( $taxonomy_config['label'] ) )
+			);
+		} else {
+			$page_title = esc_html__( 'Browse Stories', 'fanfiction-manager' );
+			$page_description = $has_filters
+				? esc_html__( 'Browse stories matching your selected filters.', 'fanfiction-manager' )
+				: esc_html__( 'Browse all published fanfiction stories.', 'fanfiction-manager' );
+		}
 
 		$genres = get_terms( array(
 			'taxonomy'   => 'fanfiction_genre',

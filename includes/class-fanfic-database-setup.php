@@ -407,9 +407,31 @@ class Fanfic_Database_Setup {
 			story_id bigint(20) UNSIGNED NOT NULL,
 			indexed_text longtext NOT NULL,
 			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			story_title varchar(500) DEFAULT '',
+			story_slug varchar(200) DEFAULT '',
+			story_summary text,
+			story_status varchar(20) DEFAULT 'publish',
+			author_id bigint(20) UNSIGNED DEFAULT 0,
+			published_date datetime DEFAULT NULL,
+			updated_date datetime DEFAULT NULL,
+			chapter_count int(11) DEFAULT 0,
+			word_count bigint(20) DEFAULT 0,
+			fandom_slugs text,
+			language_slug varchar(50) DEFAULT '',
+			warning_slugs varchar(500) DEFAULT '',
+			age_rating varchar(5) DEFAULT '',
+			visible_tags text,
+			invisible_tags text,
+			genre_names varchar(500) DEFAULT '',
+			status_name varchar(100) DEFAULT '',
 			PRIMARY KEY  (story_id),
 			KEY idx_updated (updated_at),
-			FULLTEXT KEY idx_search_fulltext (indexed_text)
+			KEY idx_author (author_id),
+			KEY idx_status (story_status),
+			KEY idx_language (language_slug),
+			KEY idx_age_rating (age_rating),
+			FULLTEXT KEY idx_search_fulltext (indexed_text),
+			FULLTEXT KEY idx_title_fulltext (story_title)
 		) $charset_collate;";
 
 		$result = dbDelta( $sql_search_index );
@@ -446,6 +468,53 @@ class Fanfic_Database_Setup {
 				implode( ', ', $errors )
 			);
 		}
+
+		return true;
+	}
+
+	/**
+	 * Migrate search index table to v2 with structured columns
+	 *
+	 * Adds metadata and taxonomy columns for faster filtering without joins.
+	 *
+	 * @since 1.5.0
+	 * @return bool True on success
+	 */
+	public static function migrate_search_index_v2() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_story_search_index';
+
+		// Check if migration is needed
+		$columns = $wpdb->get_col( "DESCRIBE {$table}", 0 );
+		if ( in_array( 'story_title', $columns, true ) ) {
+			return true; // Already migrated
+		}
+
+		// Add new columns one by one (safer than ALTER TABLE with multiple columns)
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN story_title varchar(500) DEFAULT '' AFTER indexed_text" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN story_slug varchar(200) DEFAULT '' AFTER story_title" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN story_summary text AFTER story_slug" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN story_status varchar(20) DEFAULT 'publish' AFTER story_summary" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN author_id bigint(20) UNSIGNED DEFAULT 0 AFTER story_status" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN published_date datetime DEFAULT NULL AFTER author_id" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN updated_date datetime DEFAULT NULL AFTER published_date" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN chapter_count int(11) DEFAULT 0 AFTER updated_date" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN word_count bigint(20) DEFAULT 0 AFTER chapter_count" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN fandom_slugs text AFTER word_count" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN language_slug varchar(50) DEFAULT '' AFTER fandom_slugs" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN warning_slugs varchar(500) DEFAULT '' AFTER language_slug" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN age_rating varchar(5) DEFAULT '' AFTER warning_slugs" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN visible_tags text AFTER age_rating" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN invisible_tags text AFTER visible_tags" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN genre_names varchar(500) DEFAULT '' AFTER invisible_tags" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN status_name varchar(100) DEFAULT '' AFTER genre_names" );
+
+		// Add indexes
+		$wpdb->query( "ALTER TABLE {$table} ADD KEY idx_author (author_id)" );
+		$wpdb->query( "ALTER TABLE {$table} ADD KEY idx_status (story_status)" );
+		$wpdb->query( "ALTER TABLE {$table} ADD KEY idx_language (language_slug)" );
+		$wpdb->query( "ALTER TABLE {$table} ADD KEY idx_age_rating (age_rating)" );
+		$wpdb->query( "ALTER TABLE {$table} ADD FULLTEXT KEY idx_title_fulltext (story_title)" );
 
 		return true;
 	}

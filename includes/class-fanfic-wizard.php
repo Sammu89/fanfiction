@@ -100,8 +100,8 @@ class Fanfic_Wizard {
 			),
 			4 => array(
 				'id'          => 'taxonomy_terms',
-				'title'       => __( 'Taxonomy Terms', 'fanfiction-manager' ),
-				'description' => __( 'Select default terms for Genre and Status', 'fanfiction-manager' ),
+				'title'       => __( 'Taxonomy and Classification', 'fanfiction-manager' ),
+				'description' => __( 'Configure how stories are organized', 'fanfiction-manager' ),
 			),
 			5 => array(
 				'id'          => 'complete',
@@ -783,75 +783,49 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function render_taxonomy_terms_step() {
-		// Get saved term selections
-		$selected_genres = get_option( 'fanfic_wizard_genre_terms', array(
-			'Romance', 'Adventure', 'Drama', 'Horror', 'Mystery', 'Sci-Fi', 'Fantasy', 'Comedy'
-		) );
-		$selected_statuses = get_option( 'fanfic_wizard_status_terms', array(
-			'Finished', 'Ongoing', 'On Hiatus', 'Abandoned'
-		) );
-
-		// Define available terms
-		$available_genres = array(
-			'Romance', 'Adventure', 'Drama', 'Horror', 'Mystery', 'Sci-Fi', 'Fantasy',
-			'Comedy', 'Thriller', 'Action', 'Angst', 'Fluff', 'Hurt/Comfort', 'Tragedy'
-		);
-		$available_statuses = array(
-			'Finished', 'Ongoing', 'On Hiatus', 'Abandoned'
-		);
 		$settings = get_option( Fanfic_Settings::OPTION_NAME, array() );
 		$enable_fandoms = isset( $settings['enable_fandom_classification'] ) ? (bool) $settings['enable_fandom_classification'] : true;
+		$enable_warnings = isset( $settings['enable_warnings'] ) ? (bool) $settings['enable_warnings'] : true;
+		$enable_languages = isset( $settings['enable_language_classification'] ) ? (bool) $settings['enable_language_classification'] : true;
+		$allow_sexual = isset( $settings['allow_sexual_content'] ) ? (bool) $settings['allow_sexual_content'] : false;
+		$allow_pornographic = isset( $settings['allow_pornographic_content'] ) ? (bool) $settings['allow_pornographic_content'] : false;
 		?>
 		<form id="fanfic-wizard-form-step-4" class="fanfic-wizard-form">
 			<?php wp_nonce_field( 'fanfic_wizard_step_4', 'fanfic_wizard_nonce_step_4' ); ?>
 
 			<div class="fanfic-wizard-taxonomy-info">
-				<p><?php esc_html_e( 'Select which default terms to create for your Genre and Status taxonomies. These are commonly used terms that will help authors categorize their stories.', 'fanfiction-manager' ); ?></p>
-				<p class="description"><?php esc_html_e( 'You can add, remove, or modify these terms later from the WordPress admin area.', 'fanfiction-manager' ); ?></p>
+				<h3 style="margin: 0 0 8px;"><?php esc_html_e( 'Taxonomy and Classification', 'fanfiction-manager' ); ?></h3>
+				<p><?php esc_html_e( 'Select the options that will help you organize your stories.', 'fanfiction-manager' ); ?></p>
+				<p class="description"><?php esc_html_e( 'You can individually manage each term later in the Taxonomy menu.', 'fanfiction-manager' ); ?></p>
 			</div>
 
 			<table class="form-table">
 				<tr>
 					<th scope="row">
-						<label><?php esc_html_e( 'Genre Terms', 'fanfiction-manager' ); ?></label>
-						<p class="description"><?php esc_html_e( '(Hierarchical, multiple selection)', 'fanfiction-manager' ); ?></p>
+						<label for="fanfic_wizard_enable_genres"><?php esc_html_e( 'Genre Terms', 'fanfiction-manager' ); ?></label>
 					</th>
 					<td>
-						<fieldset>
-							<legend class="screen-reader-text"><?php esc_html_e( 'Select Genre Terms', 'fanfiction-manager' ); ?></legend>
-							<p><button type="button" class="button button-small fanfic-select-all-genres"><?php esc_html_e( 'Select All', 'fanfiction-manager' ); ?></button> <button type="button" class="button button-small fanfic-deselect-all-genres"><?php esc_html_e( 'Deselect All', 'fanfiction-manager' ); ?></button></p>
-							<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fafafa;">
-								<?php foreach ( $available_genres as $genre ) : ?>
-									<label style="display: block; margin-bottom: 8px;">
-										<input type="checkbox" name="fanfic_genre_terms[]" value="<?php echo esc_attr( $genre ); ?>" <?php checked( in_array( $genre, $selected_genres, true ) ); ?> />
-										<?php echo esc_html( $genre ); ?>
-									</label>
-								<?php endforeach; ?>
-							</div>
-							<p class="description"><?php esc_html_e( 'Stories can be assigned multiple genres.', 'fanfiction-manager' ); ?></p>
-						</fieldset>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_enable_genres" checked disabled>
+							<?php esc_html_e( 'Enabled (mandatory)', 'fanfiction-manager' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Classifies stories by genre, such as Romance, Adventure, Drama, etc.', 'fanfiction-manager' ); ?></p>
 					</td>
 				</tr>
 
 				<tr>
 					<th scope="row">
-						<label><?php esc_html_e( 'Status Terms', 'fanfiction-manager' ); ?></label>
-						<p class="description"><?php esc_html_e( '(Required for story validation)', 'fanfiction-manager' ); ?></p>
+						<label for="fanfic_wizard_enable_status"><?php esc_html_e( 'Status Terms', 'fanfiction-manager' ); ?></label>
 					</th>
 					<td>
-						<fieldset>
-							<legend class="screen-reader-text"><?php esc_html_e( 'Select Status Terms', 'fanfiction-manager' ); ?></legend>
-							<p class="notice notice-info inline"><strong><?php esc_html_e( 'Recommended:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Keep all status terms selected. Stories must have a status assigned.', 'fanfiction-manager' ); ?></p>
-							<?php foreach ( $available_statuses as $status ) : ?>
-								<label style="display: block; margin-bottom: 8px;">
-									<input type="checkbox" name="fanfic_status_terms[]" value="<?php echo esc_attr( $status ); ?>" <?php checked( in_array( $status, $selected_statuses, true ) ); ?> />
-									<strong><?php echo esc_html( $status ); ?></strong>
-								</label>
-							<?php endforeach; ?>
-							<p class="description"><?php esc_html_e( 'Stories can only have one status at a time.', 'fanfiction-manager' ); ?></p>
-						</fieldset>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_enable_status" checked disabled>
+							<?php esc_html_e( 'Enabled (mandatory)', 'fanfiction-manager' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Lets users know if the story is ongoing, finished, on hiatus, etc.', 'fanfiction-manager' ); ?></p>
 					</td>
 				</tr>
+
 				<tr>
 					<th scope="row">
 						<label for="fanfic_wizard_enable_fandoms"><?php esc_html_e( 'Fandom Classification', 'fanfiction-manager' ); ?></label>
@@ -859,9 +833,43 @@ private function render_choice_screen() {
 					<td>
 						<label>
 							<input type="checkbox" id="fanfic_wizard_enable_fandoms" name="fanfic_enable_fandom_classification" value="1" <?php checked( $enable_fandoms, true ); ?>>
-							<?php esc_html_e( 'Enable fandom classification (recommended)', 'fanfiction-manager' ); ?>
+							<?php esc_html_e( 'Enabled', 'fanfiction-manager' ); ?>
 						</label>
-						<p class="description"><?php esc_html_e( 'Adds optional fandom tagging with fast search and custom tables.', 'fanfiction-manager' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Lets users choose from several pre-filled fandoms to classify their story.', 'fanfiction-manager' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="fanfic_wizard_enable_warnings"><?php esc_html_e( 'Warnings/Age System', 'fanfiction-manager' ); ?></label>
+					</th>
+					<td>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_enable_warnings" name="fanfic_enable_warnings" value="1" <?php checked( $enable_warnings, true ); ?>>
+							<?php esc_html_e( 'Enabled', 'fanfiction-manager' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Lets users choose warnings for story content, enabling the auto age-rating system.', 'fanfiction-manager' ); ?></p>
+						<div id="fanfic-wizard-warning-suboptions" style="margin-top: 10px; margin-left: 22px;">
+							<label style="display: block; margin-bottom: 8px;">
+								<input type="checkbox" disabled <?php checked( $allow_sexual, true ); ?>>
+								<?php esc_html_e( 'Allow sexual content', 'fanfiction-manager' ); ?>
+							</label>
+							<label style="display: block;">
+								<input type="checkbox" disabled <?php checked( $allow_pornographic, true ); ?>>
+								<?php esc_html_e( 'Allow pornographic content', 'fanfiction-manager' ); ?>
+							</label>
+						</div>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="fanfic_wizard_enable_languages"><?php esc_html_e( 'Languages', 'fanfiction-manager' ); ?></label>
+					</th>
+					<td>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_enable_languages" name="fanfic_enable_language_classification" value="1" <?php checked( $enable_languages, true ); ?>>
+							<?php esc_html_e( 'Enabled', 'fanfiction-manager' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Lets users choose story language and enables linking between versions of the same story in different languages.', 'fanfiction-manager' ); ?></p>
 					</td>
 				</tr>
 			</table>
@@ -869,14 +877,13 @@ private function render_choice_screen() {
 
 		<script type="text/javascript">
 		jQuery(document).ready(function($) {
-			$('.fanfic-select-all-genres').on('click', function(e) {
-				e.preventDefault();
-				$('input[name="fanfic_genre_terms[]"]').prop('checked', true);
-			});
-			$('.fanfic-deselect-all-genres').on('click', function(e) {
-				e.preventDefault();
-				$('input[name="fanfic_genre_terms[]"]').prop('checked', false);
-			});
+			function toggleWarningSubOptions() {
+				var warningsEnabled = $('#fanfic_wizard_enable_warnings').is(':checked');
+				$('#fanfic-wizard-warning-suboptions').toggle(warningsEnabled);
+			}
+
+			$('#fanfic_wizard_enable_warnings').on('change', toggleWarningSubOptions);
+			toggleWarningSubOptions();
 		});
 		</script>
 		<?php
@@ -1256,22 +1263,26 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function save_taxonomy_terms_step() {
-		// Save genre terms
-		$genre_terms = array();
-		if ( isset( $_POST['fanfic_genre_terms'] ) && is_array( $_POST['fanfic_genre_terms'] ) ) {
-			$genre_terms = array_map( 'sanitize_text_field', wp_unslash( $_POST['fanfic_genre_terms'] ) );
-		}
+		// Genre and Status are mandatory in this setup flow.
+		$genre_terms = array(
+			'Romance', 'Adventure', 'Drama', 'Horror', 'Mystery', 'Sci-Fi', 'Fantasy', 'Comedy',
+		);
 		update_option( 'fanfic_wizard_genre_terms', $genre_terms );
 
-		// Save status terms
-		$status_terms = array();
-		if ( isset( $_POST['fanfic_status_terms'] ) && is_array( $_POST['fanfic_status_terms'] ) ) {
-			$status_terms = array_map( 'sanitize_text_field', wp_unslash( $_POST['fanfic_status_terms'] ) );
-		}
+		$status_terms = array( 'Finished', 'Ongoing', 'On Hiatus', 'Abandoned' );
 		update_option( 'fanfic_wizard_status_terms', $status_terms );
 
 		$enable_fandoms = isset( $_POST['fanfic_enable_fandom_classification'] ) && '1' === $_POST['fanfic_enable_fandom_classification'];
+		$enable_warnings = isset( $_POST['fanfic_enable_warnings'] ) && '1' === $_POST['fanfic_enable_warnings'];
+		$enable_languages = isset( $_POST['fanfic_enable_language_classification'] ) && '1' === $_POST['fanfic_enable_language_classification'];
+
 		Fanfic_Settings::update_setting( 'enable_fandom_classification', $enable_fandoms );
+		Fanfic_Settings::update_setting( 'enable_warnings', $enable_warnings );
+		Fanfic_Settings::update_setting( 'enable_language_classification', $enable_languages );
+
+		// Restricted by default in wizard; admins can change later in settings.
+		Fanfic_Settings::update_setting( 'allow_sexual_content', false );
+		Fanfic_Settings::update_setting( 'allow_pornographic_content', false );
 	}
 
 	/**

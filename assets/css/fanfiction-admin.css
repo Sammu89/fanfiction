@@ -242,18 +242,18 @@ body.fanfic-admin-modal-open {
 }
 
 /* Button Styles */
-.fanfic-button-danger {
+.danger {
 	background-color: #dc3232 !important;
 	border-color: #dc3232 !important;
 	color: #fff !important;
 }
 
-.fanfic-button-danger:hover {
+.danger:hover {
 	background-color: #c62d2d !important;
 	border-color: #c62d2d !important;
 }
 
-.fanfic-button-danger:disabled {
+.danger:disabled {
 	background-color: #999 !important;
 	border-color: #999 !important;
 	opacity: 0.6;

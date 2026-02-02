@@ -2026,11 +2026,27 @@ function fanfic_get_browse_params( $source = null ) {
 		$search = sanitize_text_field( wp_unslash( $source['s'] ) );
 	}
 
+	// Handle fanfic_story_fandoms[] from autofill (IDs) or fandom from direct input (slugs)
+	$fandom_slugs = array();
+	if ( ! empty( $source['fanfic_story_fandoms'] ) && class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+		// Convert fandom IDs to slugs (from autofill)
+		$fandom_ids = is_array( $source['fanfic_story_fandoms'] ) ? $source['fanfic_story_fandoms'] : array( $source['fanfic_story_fandoms'] );
+		foreach ( $fandom_ids as $fandom_id ) {
+			$fandom_id = absint( $fandom_id );
+			if ( $fandom_id > 0 ) {
+				$slug = Fanfic_Fandoms::get_fandom_slug_by_id( $fandom_id );
+				if ( $slug ) {
+					$fandom_slugs[] = $slug;
+				}
+			}
+		}
+	}
+
 	$params = array(
 		'search'           => trim( $search ),
 		'genres'           => fanfic_parse_slug_list( $source['genre'] ?? '' ),
 		'statuses'         => fanfic_parse_slug_list( $source['status'] ?? '' ),
-		'fandoms'          => fanfic_parse_slug_list( $source['fandom'] ?? '' ),
+		'fandoms'          => $fandom_slugs,
 		'languages'        => fanfic_parse_slug_list( $source['language'] ?? '' ),
 		'exclude_warnings' => fanfic_parse_warning_exclusions( $source['warning'] ?? '' ),
 		'age'              => fanfic_normalize_age_filter( $source['age'] ?? '' ),
@@ -2662,4 +2678,330 @@ function fanfic_build_active_filters( $params, $base_url ) {
 	}
 
 	return $filters;
+}
+
+/**
+ * Check if the current browse request is in "browse all terms" mode.
+ *
+ * Detects if any taxonomy parameter is set to "all" (e.g., ?genre=all).
+ *
+ * @since 1.2.0
+ * @return bool True if browsing all terms of a taxonomy.
+ */
+function fanfic_is_browse_all_terms_mode() {
+	$taxonomy = fanfic_get_browse_all_taxonomy();
+	return ! empty( $taxonomy );
+}
+
+/**
+ * Get the taxonomy being browsed in "all terms" mode.
+ *
+ * Returns the taxonomy key and type when a parameter is set to "all".
+ *
+ * @since 1.2.0
+ * @return array|null Array with 'key', 'type', and 'label', or null if not in browse all mode.
+ */
+function fanfic_get_browse_all_taxonomy() {
+	$source = $_GET;
+
+	// Check built-in taxonomies.
+	$taxonomies = array(
+		'genre'    => array(
+			'type'  => 'wp_taxonomy',
+			'label' => __( 'Genres', 'fanfiction-manager' ),
+			'tax'   => 'fanfiction_genre',
+		),
+		'status'   => array(
+			'type'  => 'wp_taxonomy',
+			'label' => __( 'Statuses', 'fanfiction-manager' ),
+			'tax'   => 'fanfiction_status',
+		),
+		'fandom'   => array(
+			'type'  => 'light_taxonomy',
+			'label' => __( 'Fandoms', 'fanfiction-manager' ),
+		),
+		'language' => array(
+			'type'  => 'light_taxonomy',
+			'label' => __( 'Languages', 'fanfiction-manager' ),
+		),
+	);
+
+	foreach ( $taxonomies as $key => $config ) {
+		if ( isset( $source[ $key ] ) && 'all' === strtolower( trim( $source[ $key ] ) ) ) {
+			return array_merge( array( 'key' => $key ), $config );
+		}
+	}
+
+	// Check warnings.
+	if ( isset( $source['warning'] ) && 'all' === strtolower( trim( $source['warning'] ) ) ) {
+		return array(
+			'key'   => 'warning',
+			'type'  => 'warnings',
+			'label' => __( 'Warnings', 'fanfiction-manager' ),
+		);
+	}
+
+	// Check custom taxonomies.
+	if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+		$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+		foreach ( $custom_taxonomies as $taxonomy ) {
+			$slug = $taxonomy['slug'];
+			if ( isset( $source[ $slug ] ) && 'all' === strtolower( trim( $source[ $slug ] ) ) ) {
+				return array(
+					'key'   => $slug,
+					'type'  => 'custom_taxonomy',
+					'label' => $taxonomy['name'],
+					'id'    => $taxonomy['id'],
+				);
+			}
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Get taxonomy terms with story counts for browse all mode.
+ *
+ * Results are cached for 1 hour for performance.
+ *
+ * @since 1.2.0
+ * @param array $taxonomy_config Taxonomy configuration from fanfic_get_browse_all_taxonomy().
+ * @return array List of terms with 'name', 'slug', 'count', and 'url'.
+ */
+function fanfic_get_taxonomy_terms_with_counts( $taxonomy_config ) {
+	if ( empty( $taxonomy_config ) ) {
+		return array();
+	}
+
+	// Try to get from cache
+	$cache_key = '';
+	if ( class_exists( 'Fanfic_Cache' ) ) {
+		$cache_key = Fanfic_Cache::get_key( 'browse_all_terms', $taxonomy_config['key'] );
+		$cached = Fanfic_Cache::get( $cache_key, null, Fanfic_Cache::MEDIUM );
+		if ( false !== $cached && is_array( $cached ) ) {
+			return $cached;
+		}
+	}
+
+	$terms = array();
+	$base_url = function_exists( 'fanfic_get_page_url' ) ? fanfic_get_page_url( 'search' ) : '';
+	if ( empty( $base_url ) ) {
+		$base_url = home_url( '/' );
+	}
+
+	$type = $taxonomy_config['type'];
+	$key = $taxonomy_config['key'];
+
+	// Handle WordPress taxonomies.
+	if ( 'wp_taxonomy' === $type ) {
+		$wp_terms = get_terms( array(
+			'taxonomy'   => $taxonomy_config['tax'],
+			'hide_empty' => true,
+			'orderby'    => 'name',
+			'order'      => 'ASC',
+		) );
+
+		if ( ! is_wp_error( $wp_terms ) && ! empty( $wp_terms ) ) {
+			foreach ( $wp_terms as $term ) {
+				$terms[] = array(
+					'name'  => $term->name,
+					'slug'  => $term->slug,
+					'count' => $term->count,
+					'url'   => add_query_arg( $key, $term->slug, $base_url ),
+				);
+			}
+		}
+	}
+
+	// Handle light taxonomies (fandom, language).
+	if ( 'light_taxonomy' === $type ) {
+		$light_terms = fanfic_get_light_taxonomy_terms_with_counts( $key );
+		foreach ( $light_terms as $term ) {
+			$terms[] = array(
+				'name'  => $term['name'],
+				'slug'  => $term['slug'],
+				'count' => $term['count'],
+				'url'   => add_query_arg( $key, $term['slug'], $base_url ),
+			);
+		}
+	}
+
+	// Handle warnings.
+	if ( 'warnings' === $type && class_exists( 'Fanfic_Warnings' ) ) {
+		$all_warnings = Fanfic_Warnings::get_available_warnings();
+		foreach ( $all_warnings as $warning ) {
+			$count = fanfic_get_warning_story_count( $warning['slug'] );
+			if ( $count > 0 ) {
+				$terms[] = array(
+					'name'  => $warning['name'],
+					'slug'  => $warning['slug'],
+					'count' => $count,
+					'url'   => add_query_arg( 'warning', $warning['slug'], $base_url ),
+				);
+			}
+		}
+	}
+
+	// Handle custom taxonomies.
+	if ( 'custom_taxonomy' === $type && class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+		$custom_terms = Fanfic_Custom_Taxonomies::get_active_terms( $taxonomy_config['id'] );
+		foreach ( $custom_terms as $term ) {
+			$count = fanfic_get_custom_taxonomy_term_count( $taxonomy_config['id'], $term['slug'] );
+			if ( $count > 0 ) {
+				$terms[] = array(
+					'name'  => $term['name'],
+					'slug'  => $term['slug'],
+					'count' => $count,
+					'url'   => add_query_arg( $key, $term['slug'], $base_url ),
+				);
+			}
+		}
+	}
+
+	// Cache the results (1 hour cache)
+	if ( ! empty( $cache_key ) ) {
+		Fanfic_Cache::set( $cache_key, $terms, Fanfic_Cache::MEDIUM );
+	}
+
+	return $terms;
+}
+
+/**
+ * Get light taxonomy terms with counts (fandom, language).
+ *
+ * @since 1.2.0
+ * @param string $taxonomy_key Taxonomy key (fandom or language).
+ * @return array Terms with name, slug, and count.
+ */
+function fanfic_get_light_taxonomy_terms_with_counts( $taxonomy_key ) {
+	global $wpdb;
+
+	// Determine which column to query
+	$column = '';
+	if ( 'fandom' === $taxonomy_key ) {
+		$column = 'fandom_slugs';
+	} elseif ( 'language' === $taxonomy_key ) {
+		$column = 'language_slug';
+	} else {
+		return array();
+	}
+
+	$table = $wpdb->prefix . 'fanfic_story_search_index';
+
+	if ( 'language' === $taxonomy_key ) {
+		// Language is single-value
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$results = $wpdb->get_results(
+			"SELECT {$column} as slug, COUNT(*) as count
+			FROM {$table}
+			WHERE story_status = 'publish'
+			AND {$column} != ''
+			GROUP BY {$column}
+			ORDER BY {$column} ASC",
+			ARRAY_A
+		);
+	} else {
+		// Fandom is comma-separated (need to split)
+		// This uses a numbers table technique to split CSV
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$results = $wpdb->get_results(
+			"SELECT
+				TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(fandom_slugs, ',', numbers.n), ',', -1)) as slug,
+				COUNT(*) as count
+			FROM {$table}
+			CROSS JOIN (
+				SELECT 1 n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+				UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8
+				UNION ALL SELECT 9 UNION ALL SELECT 10
+			) numbers
+			WHERE story_status = 'publish'
+			AND fandom_slugs != ''
+			AND CHAR_LENGTH(fandom_slugs) - CHAR_LENGTH(REPLACE(fandom_slugs, ',', '')) >= numbers.n - 1
+			GROUP BY slug
+			HAVING slug != ''
+			ORDER BY slug ASC",
+			ARRAY_A
+		);
+	}
+
+	$terms = array();
+	foreach ( $results as $row ) {
+		$slug  = $row['slug'];
+		$count = absint( $row['count'] );
+
+		if ( $count > 0 ) {
+			// Get display name
+			$name = $slug;
+			if ( 'language' === $taxonomy_key && class_exists( 'Fanfic_Languages' ) ) {
+				$lang_data = Fanfic_Languages::get_language_by_slug( $slug );
+				if ( $lang_data ) {
+					$name = $lang_data['name'];
+				}
+			} else {
+				$name = ucwords( str_replace( array( '-', '_' ), ' ', $slug ) );
+			}
+
+			$terms[] = array(
+				'name'  => $name,
+				'slug'  => $slug,
+				'count' => $count,
+			);
+		}
+	}
+
+	return $terms;
+}
+
+/**
+ * Get story count for a warning.
+ *
+ * @since 1.2.0
+ * @param string $warning_slug Warning slug.
+ * @return int Story count.
+ */
+function fanfic_get_warning_story_count( $warning_slug ) {
+	global $wpdb;
+
+	$table = $wpdb->prefix . 'fanfic_story_search_index';
+
+	$count = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT COUNT(*)
+			FROM {$table}
+			WHERE story_status = 'publish'
+			AND FIND_IN_SET(%s, warning_slugs) > 0",
+			$warning_slug
+		)
+	);
+
+	return absint( $count );
+}
+
+/**
+ * Get story count for a custom taxonomy term.
+ *
+ * @since 1.2.0
+ * @param int    $taxonomy_id Custom taxonomy ID.
+ * @param string $term_slug   Term slug.
+ * @return int Story count.
+ */
+function fanfic_get_custom_taxonomy_term_count( $taxonomy_id, $term_slug ) {
+	global $wpdb;
+
+	$table_name = $wpdb->prefix . 'fanfic_story_custom_taxonomy';
+
+	$count = $wpdb->get_var( $wpdb->prepare(
+		"SELECT COUNT(DISTINCT sct.story_id)
+		FROM {$table_name} sct
+		INNER JOIN {$wpdb->posts} p ON sct.story_id = p.ID
+		WHERE sct.taxonomy_id = %d
+		AND sct.term_slug = %s
+		AND p.post_type = 'fanfiction_story'
+		AND p.post_status = 'publish'",
+		$taxonomy_id,
+		$term_slug
+	) );
+
+	return absint( $count );
 }

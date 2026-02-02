@@ -55,7 +55,9 @@ class Fanfic_Warnings {
 	 * @return void
 	 */
 	public static function maybe_seed_warnings() {
-		if ( ! Fanfic_Database_Setup::tables_exist() ) {
+		// Seed warnings as soon as the warnings table exists.
+		// Do not depend on every plugin table being present.
+		if ( ! self::tables_ready() ) {
 			return;
 		}
 
@@ -85,6 +87,10 @@ class Fanfic_Warnings {
 	 * @return bool
 	 */
 	private static function has_warnings() {
+		if ( ! self::tables_ready() ) {
+			return false;
+		}
+
 		global $wpdb;
 		$table = $wpdb->prefix . 'fanfic_warnings';
 		$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );

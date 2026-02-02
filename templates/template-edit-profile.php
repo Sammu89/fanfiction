@@ -18,7 +18,7 @@ if ( ! is_user_logged_in() ) {
 		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
 		<span class="fanfic-message-content">
 			<?php esc_html_e( 'Please log in to edit your profile.', 'fanfiction-manager' ); ?>
-			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary"><?php esc_html_e( 'Login', 'fanfiction-manager' ); ?></a>
+			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button"><?php esc_html_e( 'Login', 'fanfiction-manager' ); ?></a>
 		</span>
 	</div>
 	<?php
@@ -186,10 +186,10 @@ do_action( 'fanfic_profile_form_messages', $current_user );
 
 			<!-- Form Actions -->
 			<div class="fanfic-form-actions">
-				<button type="submit" class="fanfic-button fanfic-button-primary">
+				<button type="submit" class="fanfic-button">
 					<?php esc_html_e( 'Update Profile', 'fanfiction-manager' ); ?>
 				</button>
-				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button fanfic-button-secondary">
+				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button secondary">
 					<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 				</a>
 			</div>

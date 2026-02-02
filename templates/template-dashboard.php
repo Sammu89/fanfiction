@@ -26,7 +26,7 @@ if ( ! is_user_logged_in() ) {
 		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
 		<span class="fanfic-message-content">
 			<?php esc_html_e( 'You must be logged in to view this page.', 'fanfiction-manager' ); ?>
-			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button fanfic-button-primary">
+			<a href="<?php echo esc_url( wp_login_url( fanfic_get_current_url() ) ); ?>" class="fanfic-button">
 				<?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
 			</a>
 		</span>
@@ -273,27 +273,27 @@ if ( isset( $_GET['error'] ) ) {
 										</td>
 										<td class="fanfic-story-actions">
 											<?php if ( $is_blocked ) : ?>
-												<span class="fanfic-button fanfic-button-small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
+												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
 													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
 												</span>
-												<span class="fanfic-button fanfic-button-small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
+												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
 													<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 												</span>
-												<span class="fanfic-button fanfic-button-small fanfic-button-danger disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
+												<span class="fanfic-button small danger disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
 													<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 												</span>
 											<?php else : ?>
-												<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button fanfic-button-small">
+												<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button small">
 													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
 												</a>
-												<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button fanfic-button-small">
+												<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button small">
 													<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 												</a>
 												<form method="post" style="display: inline;" onsubmit="return confirm('<?php esc_attr_e( 'Are you sure you want to delete this story and all its chapters? This action cannot be undone.', 'fanfiction-manager' ); ?>');">
 													<?php wp_nonce_field( 'fanfic_delete_story_' . $story_id, 'fanfic_delete_story_nonce' ); ?>
 													<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
 													<input type="hidden" name="fanfic_delete_story_submit" value="1" />
-													<button type="submit" class="fanfic-button fanfic-button-small fanfic-button-danger">
+													<button type="submit" class="fanfic-button small danger">
 														<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 													</button>
 												</form>
@@ -323,7 +323,7 @@ if ( isset( $_GET['error'] ) ) {
 				<?php else : ?>
 					<div class="fanfic-empty-state">
 						<p><?php esc_html_e( 'You have not created any stories yet.', 'fanfiction-manager' ); ?></p>
-						<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button fanfic-button-primary">
+						<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button">
 							<?php esc_html_e( 'Create Your First Story', 'fanfiction-manager' ); ?>
 						</a>
 					</div>

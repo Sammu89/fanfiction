@@ -808,7 +808,7 @@ class Fanfic_Shortcodes_User {
 		$output .= '</div>';
 
 		$output .= '<p class="fanfic-submit-wrapper">';
-		$output .= '<input type="submit" name="fanfic_save_notification_settings" class="fanfic-button fanfic-button-primary" value="' . esc_attr__( 'Save Settings', 'fanfiction-manager' ) . '">';
+		$output .= '<input type="submit" name="fanfic_save_notification_settings" class="fanfic-button" value="' . esc_attr__( 'Save Settings', 'fanfiction-manager' ) . '">';
 		$output .= '</p>';
 
 		$output .= '</form>';
@@ -911,10 +911,10 @@ class Fanfic_Shortcodes_User {
 		$output = '<div class="fanfic-login-prompt">';
 		$output .= '<p>' . esc_html( $message ) . '</p>';
 		$output .= '<p>';
-		$output .= '<a href="' . esc_url( $login_url ) . '" class="fanfic-button fanfic-button-primary">' . esc_html__( 'Log In', 'fanfiction-manager' ) . '</a> ';
+		$output .= '<a href="' . esc_url( $login_url ) . '" class="fanfic-button">' . esc_html__( 'Log In', 'fanfiction-manager' ) . '</a> ';
 
 		if ( get_option( 'users_can_register' ) ) {
-			$output .= '<a href="' . esc_url( $register_url ) . '" class="fanfic-button fanfic-button-secondary">' . esc_html__( 'Register', 'fanfiction-manager' ) . '</a>';
+			$output .= '<a href="' . esc_url( $register_url ) . '" class="fanfic-button secondary">' . esc_html__( 'Register', 'fanfiction-manager' ) . '</a>';
 		}
 
 		$output .= '</p>';
@@ -1373,7 +1373,7 @@ class Fanfic_Shortcodes_User {
 			<?php wp_nonce_field( 'fanfic_ban_user_' . $target_user_id, 'fanfic_ban_nonce' ); ?>
 			<input type="hidden" name="fanfic_action" value="ban_user" />
 			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
-			<button type="submit" class="fanfic-button fanfic-button-secondary fanfic-ban-user-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to ban this user? Their content will be preserved.', 'fanfiction-manager' ) ); ?>')">
+			<button type="submit" class="fanfic-button secondary fanfic-ban-user-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to ban this user? Their content will be preserved.', 'fanfiction-manager' ) ); ?>')">
 				<?php echo esc_html( $atts['button_text'] ); ?>
 			</button>
 		</form>
@@ -1460,7 +1460,7 @@ class Fanfic_Shortcodes_User {
 			<?php wp_nonce_field( 'fanfic_promote_moderator_' . $target_user_id, 'fanfic_moderator_nonce' ); ?>
 			<input type="hidden" name="fanfic_action" value="promote_moderator" />
 			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
-			<button type="submit" class="fanfic-button fanfic-button-primary fanfic-promote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to promote this user to moderator?', 'fanfiction-manager' ) ); ?>')">
+			<button type="submit" class="fanfic-button fanfic-promote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to promote this user to moderator?', 'fanfiction-manager' ) ); ?>')">
 				<?php echo esc_html( $atts['button_text'] ); ?>
 			</button>
 		</form>
@@ -1552,7 +1552,7 @@ class Fanfic_Shortcodes_User {
 			<?php wp_nonce_field( 'fanfic_demote_moderator_' . $target_user_id, 'fanfic_demoderator_nonce' ); ?>
 			<input type="hidden" name="fanfic_action" value="demote_moderator" />
 			<input type="hidden" name="fanfic_user_id" value="<?php echo esc_attr( $target_user_id ); ?>" />
-			<button type="submit" class="fanfic-button fanfic-button-secondary fanfic-demote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to demote this moderator to author?', 'fanfiction-manager' ) ); ?>')">
+			<button type="submit" class="fanfic-button secondary fanfic-demote-moderator-button" onclick="return confirm('<?php echo esc_js( __( 'Are you sure you want to demote this moderator to author?', 'fanfiction-manager' ) ); ?>')">
 				<?php echo esc_html( $atts['button_text'] ); ?>
 			</button>
 		</form>

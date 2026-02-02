@@ -51,7 +51,7 @@ if ( empty( $main_page_url ) ) {
 			<strong class="fanfic-message-title"><?php esc_html_e( 'Error', 'fanfiction-manager' ); ?></strong>
 			<span class="fanfic-message-text"><?php echo esc_html( $error_message ); ?></span>
 			<span class="fanfic-message-actions">
-				<a href="<?php echo esc_url( $main_page_url ); ?>" class="fanfic-button fanfic-button-primary">
+				<a href="<?php echo esc_url( $main_page_url ); ?>" class="fanfic-button">
 					<?php esc_html_e( 'Go to Main Page', 'fanfiction-manager' ); ?>
 				</a>
 			</span>

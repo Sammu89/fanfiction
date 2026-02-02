@@ -137,7 +137,7 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 							<strong class="fanfic-message-title"><?php esc_html_e( 'Access Denied', 'fanfiction-manager' ); ?></strong>
 							<span class="fanfic-message-text"><?php esc_html_e( 'This chapter is part of a story that is currently in draft status and not publicly available.', 'fanfiction-manager' ); ?></span>
 							<span class="fanfic-message-actions">
-								<a href="<?php echo esc_url( home_url( '/fanfiction/' ) ); ?>" class="fanfic-button fanfic-button-primary">
+								<a href="<?php echo esc_url( home_url( '/fanfiction/' ) ); ?>" class="fanfic-button">
 									<?php esc_html_e( 'Back to Stories', 'fanfiction-manager' ); ?>
 								</a>
 							</span>

@@ -93,7 +93,7 @@ class Fanfic_Fandoms_Admin {
 					<button type="button" class="button fanfic-action-activate" disabled><?php esc_html_e( 'Activate', 'fanfiction-manager' ); ?></button>
 					<button type="button" class="button fanfic-action-deactivate" disabled><?php esc_html_e( 'Deactivate', 'fanfiction-manager' ); ?></button>
 					<button type="button" class="button fanfic-action-rename" disabled><?php esc_html_e( 'Rename', 'fanfiction-manager' ); ?></button>
-					<button type="button" class="button fanfic-button-danger fanfic-action-delete" disabled><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
+					<button type="button" class="button danger fanfic-action-delete" disabled><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
 				</div>
 
 				<?php if ( '' !== $search ) : ?>
@@ -275,7 +275,7 @@ class Fanfic_Fandoms_Admin {
 								<input type="checkbox" name="fandom_is_active" value="1">
 								<?php esc_html_e( 'Active', 'fanfiction-manager' ); ?>
 							</label>
-							<button type="submit" form="fanfic-fandom-delete-form" class="button fanfic-button-danger"><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
+							<button type="submit" form="fanfic-fandom-delete-form" class="button danger"><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
 						</div>
 						<div class="fanfic-admin-modal-actions">
 							<button type="button" class="button fanfic-fandoms-modal-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>

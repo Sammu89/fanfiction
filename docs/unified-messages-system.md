@@ -227,7 +227,7 @@ For access denied or error pages that don't use the container:
     <span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
     <span class="fanfic-message-content">
         <?php esc_html_e( 'You must be logged in.', 'fanfiction-manager' ); ?>
-        <a href="<?php echo esc_url( wp_login_url() ); ?>" class="fanfic-button fanfic-button-primary">
+        <a href="<?php echo esc_url( wp_login_url() ); ?>" class="fanfic-button">
             <?php esc_html_e( 'Log In', 'fanfiction-manager' ); ?>
         </a>
     </span>
@@ -246,7 +246,7 @@ For error pages, maintenance pages, and access denied screens, use the fullpage 
             <strong class="fanfic-message-title">Error</strong>
             <span class="fanfic-message-text">Something went wrong.</span>
             <span class="fanfic-message-actions">
-                <a href="/" class="fanfic-button fanfic-button-primary">Go Home</a>
+                <a href="/" class="fanfic-button">Go Home</a>
             </span>
         </span>
     </div>

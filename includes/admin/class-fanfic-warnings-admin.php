@@ -391,7 +391,7 @@ class Fanfic_Warnings_Admin {
 					</p>
 
 					<div class="fanfic-admin-modal-actions" style="display: flex; justify-content: space-between;">
-						<button type="button" class="button fanfic-button-danger" id="fanfic-delete-warning-btn">
+						<button type="button" class="button danger" id="fanfic-delete-warning-btn">
 							<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 						</button>
 						<div>
@@ -490,11 +490,11 @@ class Fanfic_Warnings_Admin {
 				padding-top: 15px;
 				border-top: 1px solid #ddd;
 			}
-			.fanfic-button-danger {
+			.danger {
 				color: #a00 !important;
 				border-color: #a00 !important;
 			}
-			.fanfic-button-danger:hover {
+			.danger:hover {
 				background: #a00 !important;
 				color: #fff !important;
 			}
