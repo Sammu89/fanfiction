@@ -194,6 +194,11 @@ class Fanfic_Core {
 			Fanfic_Wizard::get_instance(); // Initialize wizard singleton
 			Fanfic_Settings::init();
 
+			// Classification table health checks and rebuild handler.
+			add_action( 'init', array( 'Fanfic_Database_Setup', 'check_missing_classification_tables' ) );
+			add_action( 'admin_notices', array( 'Fanfic_Database_Setup', 'missing_classification_notice' ) );
+			add_action( 'admin_post_fanfic_rebuild_classification', array( 'Fanfic_Database_Setup', 'rebuild_classification_tables' ) );
+
 			// Add admin notices for activation issues
 			add_action( 'admin_notices', array( __CLASS__, 'show_activation_warnings' ) );
 			Fanfic_URL_Config::init();
@@ -339,27 +344,52 @@ class Fanfic_Core {
 			return;
 		}
 
+		// Classification tables (fandoms, warnings, languages) are created
+		// lazily by wizard step 1.  Keep skipping them while:
+		//   a) the activation transient is still alive, OR
+		//   b) we are actually serving the wizard page itself.
+		// Once either condition clears the fallback at the bottom will
+		// create the tables so nothing is left missing permanently.
+		$skip_classification = (bool) get_transient( 'fanfic_skip_classification' );
+		if ( ! $skip_classification ) {
+			$on_wizard_page      = is_admin()
+				&& isset( $_GET['page'] )
+				&& 'fanfic-setup-wizard' === $_GET['page'];
+			$skip_classification = $on_wizard_page
+				&& ! Fanfic_Database_Setup::classification_tables_exist();
+		}
+
 		$stored_version = Fanfic_Database_Setup::get_db_version();
-		$needs_setup    = version_compare( $stored_version, Fanfic_Database_Setup::DB_VERSION, '<' ) || ! Fanfic_Database_Setup::tables_exist();
+		$needs_setup    = version_compare( $stored_version, Fanfic_Database_Setup::DB_VERSION, '<' );
 
 		if ( $needs_setup ) {
-			$result = Fanfic_Database_Setup::init();
+			$result = Fanfic_Database_Setup::init( ! $skip_classification );
 			if ( is_wp_error( $result ) ) {
 				error_log( 'Fanfiction Manager: Runtime database setup error - ' . $result->get_error_message() );
 				return;
 			}
 		}
 
-		// Keep core classification datasets ready.
-		if ( class_exists( 'Fanfic_Fandoms' ) ) {
-			Fanfic_Fandoms::maybe_seed_fandoms();
+		// Fallback: if classification tables are still missing and we are
+		// no longer in a "skip" context (transient expired or user left the
+		// wizard), create them now so the site is fully functional.
+		if ( ! $skip_classification && ! Fanfic_Database_Setup::classification_tables_exist() ) {
+			Fanfic_Database_Setup::create_classification_tables();
 		}
-		if ( class_exists( 'Fanfic_Warnings' ) ) {
-			Fanfic_Warnings::maybe_seed_warnings();
+
+		// Seed classification datasets only when their tables actually exist.
+		if ( Fanfic_Database_Setup::classification_tables_exist() ) {
+			if ( class_exists( 'Fanfic_Fandoms' ) ) {
+				Fanfic_Fandoms::maybe_seed_fandoms();
+			}
+			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				Fanfic_Warnings::maybe_seed_warnings();
+			}
+			if ( class_exists( 'Fanfic_Languages' ) ) {
+				Fanfic_Languages::maybe_seed_languages();
+			}
 		}
-		if ( class_exists( 'Fanfic_Languages' ) ) {
-			Fanfic_Languages::maybe_seed_languages();
-		}
+
 		if ( taxonomy_exists( 'fanfiction_genre' ) && taxonomy_exists( 'fanfiction_status' ) && class_exists( 'Fanfic_Taxonomies' ) ) {
 			Fanfic_Taxonomies::ensure_default_terms();
 		}
@@ -1309,22 +1339,18 @@ class Fanfic_Core {
 			update_option( 'fanfic_theme_type', $theme_type );
 		}
 
-		// Create database tables using Database Setup class (Phase 1)
-		$db_result = Fanfic_Database_Setup::init();
+		// Create core database tables (Phase 1).
+		// Classification tables (fandoms, warnings, languages) are deferred to
+		// the setup wizard step 1 so activation completes faster.
+		$db_result = Fanfic_Database_Setup::init( false );
 		if ( is_wp_error( $db_result ) ) {
-			// Log error but don't halt activation
 			error_log( 'Fanfiction Manager: Database setup error - ' . $db_result->get_error_message() );
-		} else {
-			if ( class_exists( 'Fanfic_Fandoms' ) ) {
-				Fanfic_Fandoms::maybe_seed_fandoms();
-			}
-			if ( class_exists( 'Fanfic_Warnings' ) ) {
-				Fanfic_Warnings::maybe_seed_warnings();
-			}
-			if ( class_exists( 'Fanfic_Languages' ) ) {
-				Fanfic_Languages::maybe_seed_languages();
-			}
 		}
+
+		// Tell maybe_initialize_database() to keep skipping classification
+		// tables until the wizard step 1 AJAX creates them (or the transient
+		// expires and the fallback path takes over).
+		set_transient( 'fanfic_skip_classification', true, 300 );
 
 		// Also create legacy tables for backward compatibility
 		self::create_tables();
@@ -1335,9 +1361,6 @@ class Fanfic_Core {
 
 		// Create user roles and capabilities
 		Fanfic_Roles_Caps::create_roles();
-
-		// Always show wizard on activation (even if previously completed)
-		update_option( 'fanfic_show_wizard', true );
 
 		// Flush rewrite rules
 		flush_rewrite_rules();

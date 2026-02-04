@@ -252,7 +252,7 @@ class Fanfic_Languages_Admin {
 
 						<p>
 							<label for="fanfic-add-language-slug"><?php esc_html_e( 'Slug', 'fanfiction-manager' ); ?></label>
-							<input type="text" id="fanfic-add-language-slug" name="language_slug" class="regular-text" maxlength="10">
+							<input type="text" id="fanfic-add-language-slug" name="language_slug" class="regular-text" maxlength="191">
 							<span class="description"><?php esc_html_e( 'URL-friendly identifier (e.g., "en" for English). Leave blank to auto-generate.', 'fanfiction-manager' ); ?></span>
 						</p>
 
@@ -286,7 +286,7 @@ class Fanfic_Languages_Admin {
 
 						<p>
 							<label for="fanfic-edit-language-slug"><?php esc_html_e( 'Slug', 'fanfiction-manager' ); ?></label>
-							<input type="text" id="fanfic-edit-language-slug" name="language_slug" class="regular-text" maxlength="10">
+							<input type="text" id="fanfic-edit-language-slug" name="language_slug" class="regular-text" maxlength="191">
 						</p>
 
 						<p>

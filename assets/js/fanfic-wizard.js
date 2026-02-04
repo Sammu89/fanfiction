@@ -50,6 +50,90 @@
 			$('.fanfic-wizard-form input[required]').on('blur', function() {
 			FanficWizard.validateField.call(this);
 		});
+
+			// Toggle base slug field based on choice
+			$('input[name="fanfic_use_base_slug"]').on('change', this.toggleBaseSlugField.bind(this));
+			this.toggleBaseSlugField(); // Initial check
+		},
+
+		/**
+		 * Toggle the visibility of the base slug field
+		 */
+		toggleBaseSlugField: function() {
+			var useBaseSlug = $('input[name="fanfic_use_base_slug"]:checked').val() === '1';
+			var $baseSlugRow = $('#fanfic_base_slug').closest('tr');
+
+			if (useBaseSlug) {
+				$baseSlugRow.show();
+			} else {
+				$baseSlugRow.hide();
+			}
+			this.updateLiveUrlPreviews();
+		},
+
+		/**
+		 * Update all live URL previews
+		 */
+		updateLiveUrlPreviews: function() {
+			var useBaseSlug = $('input[name="fanfic_use_base_slug"]:checked').val() === '1';
+			var baseSlugInput = $('#fanfic_base_slug');
+			var baseSlug = useBaseSlug && baseSlugInput.length ? baseSlugInput.val().trim() : '';
+			
+			var storyPathInput = $('#fanfic_story_path_slug');
+			var storyPath = storyPathInput.length ? storyPathInput.val().trim() : '';
+			
+			var homeUrl = fanficWizard.homeUrl || (window.location.protocol + '//' + window.location.host);
+
+			var baseUrl = homeUrl + '/';
+			if (useBaseSlug && baseSlug) {
+				baseUrl += baseSlug + '/';
+			}
+
+			// Update base preview
+			$('#base-preview-code').html(homeUrl + '/<span class="fanfic-dynamic-slug">' + baseSlug + '</span>/');
+
+			// Update story path preview
+			var storyPathPreview = baseUrl + '<span class="fanfic-dynamic-slug">' + storyPath + '</span>/my-story-title/';
+			$('#story-path-preview-code').html(storyPathPreview);
+
+			// Update chapter previews
+			var prologueSlugInput = $('#fanfic_prologue_slug');
+			var prologueSlug = prologueSlugInput.length ? prologueSlugInput.val().trim() : '';
+			var chapterSlugInput = $('#fanfic_chapter_slug');
+			var chapterSlug = chapterSlugInput.length ? chapterSlugInput.val().trim() : '';
+			var epilogueSlugInput = $('#fanfic_epilogue_slug');
+			var epilogueSlug = epilogueSlugInput.length ? epilogueSlugInput.val().trim() : '';
+
+			$('#prologue-preview-code').html(baseUrl + storyPath + '/my-story-title/<span class="fanfic-dynamic-slug">' + prologueSlug + '</span>/');
+			$('#chapter-preview-code').html(baseUrl + storyPath + '/my-story-title/<span class="fanfic-dynamic-slug">' + chapterSlug + '</span>-1/');
+			$('#epilogue-preview-code').html(baseUrl + storyPath + '/my-story-title/<span class="fanfic-dynamic-slug">' + epilogueSlug + '</span>/');
+
+			// Update user/system previews
+			var dashboardSlugInput = $('#fanfic_dashboard_slug');
+			var dashboardSlug = dashboardSlugInput.length ? dashboardSlugInput.val().trim() : '';
+			var membersSlugInput = $('#fanfic_members_slug');
+			var membersSlug = membersSlugInput.length ? membersSlugInput.val().trim() : '';
+			var loginSlugInput = $('#fanfic_login_slug');
+			var loginSlug = loginSlugInput.length ? loginSlugInput.val().trim() : '';
+			var searchSlugInput = $('#fanfic_search_slug');
+			var searchSlug = searchSlugInput.length ? searchSlugInput.val().trim() : '';
+			var registerSlugInput = $('#fanfic_register_slug');
+			var registerSlug = registerSlugInput.length ? registerSlugInput.val().trim() : '';
+			var passwordResetSlugInput = $('#fanfic_password-reset_slug');
+			var passwordResetSlug = passwordResetSlugInput.length ? passwordResetSlugInput.val().trim() : '';
+			var errorSlugInput = $('#fanfic_error_slug');
+			var errorSlug = errorSlugInput.length ? errorSlugInput.val().trim() : '';
+			var maintenanceSlugInput = $('#fanfic_maintenance_slug');
+			var maintenanceSlug = maintenanceSlugInput.length ? maintenanceSlugInput.val().trim() : '';
+
+			$('#dashboard-preview-code').html(baseUrl + '<span class="fanfic-dynamic-slug">' + dashboardSlug + '</span>/');
+			$('#members-preview-code').html(baseUrl + '<span class="fanfic-dynamic-slug">' + membersSlug + '</span>/username/');
+			$('#login-preview-code').html(baseUrl + '<span class="fanfic-dynamic-slug">' + loginSlug + '</span>/');
+			$('#search-preview-code').html(baseUrl + '<span class="fanfic-dynamic-slug">' + searchSlug + '</span>/');
+			$('#register-preview-code').html(baseUrl + '<span class="fanfic-dynamic-slug">' + registerSlug + '</span>/');
+			$('#password-reset-preview-code').html(baseUrl + '<span class="fanfic-dynamic-slug">' + passwordResetSlug + '</span>/');
+			$('#error-preview-code').html(baseUrl + '<span class="fanfic-dynamic-slug">' + errorSlug + '</span>/');
+			$('#maintenance-preview-code').html(baseUrl + '<span class="fanfic-dynamic-slug">' + maintenanceSlug + '</span>/');
 		},
 
 		/**
@@ -66,20 +150,30 @@
 				return;
 			}
 
-			// Save current step data (only for steps that need saving)
-			if (currentStep === 1 || currentStep === 2 || currentStep === 3 || currentStep === 4) {
+			$button.prop('disabled', true).html('<span class="spinner is-active" style="float: none; margin: 0 8px 0 0;"></span>' + fanficWizard.strings.saving);
+
+			if (currentStep === 1) {
+				this.createClassificationTables(function() {
+					FanficWizard.saveStep(currentStep, function(response) {
+						if (response.success) {
+							window.location.href = response.data.next_url;
+						} else {
+							$button.prop('disabled', false).text('Next');
+						}
+					});
+				});
+			} else if (currentStep === 2 || currentStep === 3 || currentStep === 4) {
 				this.saveStep(currentStep, function(response) {
 					if (response.success) {
-						console.log('Fanfic Wizard: AJAX success - Navigating to:', response.data.next_url);
 						window.location.href = response.data.next_url;
+					} else {
+						$button.prop('disabled', false).text('Next');
 					}
 				});
 			} else {
 				// No saving needed, just navigate
 				var nextUrl = fanficWizard.admin_url + 'admin.php?page=fanfic-setup-wizard&step=' + (currentStep + 1);
-				// Preserve force parameter if present
 				nextUrl += FanficWizard.getForceParameter();
-				console.log("Fanfic Wizard: Building next URL", nextUrl);
 				window.location.href = nextUrl;
 			}
 		},
@@ -229,11 +323,7 @@
 			var urlParams = new URLSearchParams(window.location.search);
 			if (urlParams.get('force') === 'true') {
 				formData += '&force=true';
-				console.log('Fanfic Wizard: Including force=true in AJAX request for step', step);
 			}
-
-			// Show loading
-			$('.fanfic-wizard-next').prop('disabled', true).html('<span class="spinner is-active" style="float: none; margin: 0 8px 0 0;"></span>' + fanficWizard.strings.saving);
 
 			$.ajax({
 				url: fanficWizard.ajax_url,
@@ -245,12 +335,12 @@
 						callback(response);
 					} else {
 						FanficWizard.showMessage('error', response.data.message || fanficWizard.strings.error);
-						$('.fanfic-wizard-next').prop('disabled', false).text('Next');
+						callback(response);
 					}
 				},
 				error: function() {
 					FanficWizard.showMessage('error', fanficWizard.strings.error);
-					$('.fanfic-wizard-next').prop('disabled', false).text('Next');
+					callback({ success: false });
 				}
 			});
 		},
@@ -305,6 +395,33 @@
 				var pathKey = $input.attr('name').match(/\[([a-z]+)\]/)[1];
 				if (path) {
 					$('.fanfic-path-preview[data-path="' + pathKey + '"]').text(path);
+				}
+			});
+		},
+
+		/**
+		 * Create classification tables via AJAX.
+		 */
+		createClassificationTables: function(callback) {
+			$.ajax({
+				url: fanficWizard.ajax_url,
+				type: 'POST',
+				dataType: 'json',
+				data: {
+					action: 'fanfic_wizard_create_tables',
+					nonce: fanficWizard.nonce
+				},
+				success: function(response) {
+					if (response.success) {
+						callback();
+					} else {
+						FanficWizard.showMessage('error', response.data.message || fanficWizard.strings.error);
+						$('.fanfic-wizard-next').prop('disabled', false).text('Next');
+					}
+				},
+				error: function() {
+					FanficWizard.showMessage('error', fanficWizard.strings.error);
+					$('.fanfic-wizard-next').prop('disabled', false).text('Next');
 				}
 			});
 		},
@@ -367,9 +484,7 @@
 		 */
 		getForceParameter: function() {
 			var urlParams = new URLSearchParams(window.location.search);
-			var hasForce = urlParams.get('force') === 'true';
-			console.log('Fanfic Wizard: Checking force parameter - Found:', hasForce);
-			if (hasForce) {
+			if (urlParams.get('force') === 'true') {
 				return '&force=true';
 			}
 			return '';

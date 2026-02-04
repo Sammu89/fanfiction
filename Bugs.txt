@@ -1,0 +1,4 @@
+- Ver o problema do /username/ desaparecer no url preview dos membros quando mudamos o slug
+- Ter certeza que a nos settings a pagina o Url Settings segue o mesmo do wizard (são diferentes)
+- Dizer ao botão que apaga as fics de apagar as paginas criadas pelo plugin e as historias
+- Reservar no sistema de urls as paginas dinâmicas (se o user tentar criar uma pagina que já esta reservada numa pagina dinâmica, o wordprss deve saber que esse url esta reservado)

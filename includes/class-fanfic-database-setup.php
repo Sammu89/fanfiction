@@ -65,8 +65,8 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @return bool|WP_Error True on success, WP_Error on failure.
 	 */
-	public static function init() {
-		$result = self::create_tables();
+	public static function init( $include_classification = true ) {
+		$result = self::create_tables( $include_classification );
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
@@ -87,7 +87,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @return bool|WP_Error True on success, WP_Error on failure.
 	 */
-	public static function create_tables() {
+	public static function create_tables( $include_classification = true ) {
 		global $wpdb;
 
 		// Require upgrade.php for dbDelta function
@@ -236,6 +236,11 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create notifications table';
 		}
 
+		// 8-13. Classification tables (fandoms, warnings, languages).
+		// Skipped on activation when $include_classification is false;
+		// the setup wizard creates them on demand in step 1.
+		if ( $include_classification ) {
+
 		// 8. Fandoms Table
 		$table_fandoms = $prefix . 'fanfic_fandoms';
 		$sql_fandoms   = "CREATE TABLE IF NOT EXISTS {$table_fandoms} (
@@ -313,7 +318,7 @@ class Fanfic_Database_Setup {
 		$table_languages = $prefix . 'fanfic_languages';
 		$sql_languages   = "CREATE TABLE IF NOT EXISTS {$table_languages} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			slug varchar(10) NOT NULL,
+			slug varchar(191) NOT NULL,
 			name varchar(255) NOT NULL,
 			native_name varchar(255) DEFAULT NULL,
 			is_active tinyint(1) NOT NULL DEFAULT 1,
@@ -342,6 +347,8 @@ class Fanfic_Database_Setup {
 		if ( empty( $result ) || ! self::verify_table_exists( $table_story_languages ) ) {
 			$errors[] = 'Failed to create story_languages table';
 		}
+
+		} // end if ( $include_classification )
 
 		// 14. Custom Taxonomies Table
 		$table_custom_taxonomies = $prefix . 'fanfic_custom_taxonomies';
@@ -470,6 +477,318 @@ class Fanfic_Database_Setup {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Create only the classification tables (fandoms, warnings, languages).
+	 *
+	 * Called by the setup wizard step 1 AJAX handler so that these tables
+	 * (and their seed data) are ready before the user clicks Next.
+	 *
+	 * @since 1.0.0
+	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 */
+	public static function create_classification_tables() {
+		global $wpdb;
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset_collate = $wpdb->get_charset_collate();
+		$prefix          = $wpdb->prefix;
+		$errors          = array();
+
+		// 1. Fandoms Table
+		$table_fandoms = $prefix . 'fanfic_fandoms';
+		$sql_fandoms   = "CREATE TABLE IF NOT EXISTS {$table_fandoms} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			slug varchar(191) NOT NULL,
+			name varchar(255) NOT NULL,
+			category varchar(191) NOT NULL,
+			is_active tinyint(1) NOT NULL DEFAULT 1,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_slug (slug),
+			KEY idx_active (is_active),
+			KEY idx_category (category),
+			KEY idx_name (name),
+			FULLTEXT KEY idx_name_fulltext (name)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_fandoms );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_fandoms ) ) {
+			$errors[] = 'Failed to create fandoms table';
+		}
+
+		// 2. Story-Fandom Relations Table
+		$table_story_fandoms = $prefix . 'fanfic_story_fandoms';
+		$sql_story_fandoms   = "CREATE TABLE IF NOT EXISTS {$table_story_fandoms} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			fandom_id bigint(20) UNSIGNED NOT NULL,
+			UNIQUE KEY unique_story_fandom (story_id, fandom_id),
+			KEY idx_story (story_id),
+			KEY idx_fandom_story (fandom_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_fandoms );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_fandoms ) ) {
+			$errors[] = 'Failed to create story_fandoms table';
+		}
+
+		// 3. Warnings Table
+		$table_warnings = $prefix . 'fanfic_warnings';
+		$sql_warnings   = "CREATE TABLE IF NOT EXISTS {$table_warnings} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			slug varchar(191) NOT NULL,
+			name varchar(255) NOT NULL,
+			min_age enum('PG','13+','16+','18+') NOT NULL DEFAULT 'PG',
+			description text NOT NULL,
+			is_sexual tinyint(1) NOT NULL DEFAULT 0,
+			is_pornographic tinyint(1) NOT NULL DEFAULT 0,
+			enabled tinyint(1) NOT NULL DEFAULT 1,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_slug (slug),
+			KEY idx_enabled (enabled),
+			KEY idx_min_age (min_age)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_warnings );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_warnings ) ) {
+			$errors[] = 'Failed to create warnings table';
+		}
+
+		// 4. Story-Warning Relations Table
+		$table_story_warnings = $prefix . 'fanfic_story_warnings';
+		$sql_story_warnings   = "CREATE TABLE IF NOT EXISTS {$table_story_warnings} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			warning_id bigint(20) UNSIGNED NOT NULL,
+			UNIQUE KEY unique_story_warning (story_id, warning_id),
+			KEY idx_story (story_id),
+			KEY idx_warning_story (warning_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_warnings );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_warnings ) ) {
+			$errors[] = 'Failed to create story_warnings table';
+		}
+
+		// 5. Languages Table
+		$table_languages = $prefix . 'fanfic_languages';
+		$sql_languages   = "CREATE TABLE IF NOT EXISTS {$table_languages} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			slug varchar(191) NOT NULL,
+			name varchar(255) NOT NULL,
+			native_name varchar(255) DEFAULT NULL,
+			is_active tinyint(1) NOT NULL DEFAULT 1,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_slug (slug),
+			KEY idx_active (is_active),
+			KEY idx_name (name)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_languages );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_languages ) ) {
+			$errors[] = 'Failed to create languages table';
+		}
+
+		// 6. Story-Language Relations Table
+		$table_story_languages = $prefix . 'fanfic_story_languages';
+		$sql_story_languages   = "CREATE TABLE IF NOT EXISTS {$table_story_languages} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			language_id bigint(20) UNSIGNED NOT NULL,
+			UNIQUE KEY unique_story_language (story_id, language_id),
+			KEY idx_story (story_id),
+			KEY idx_language_story (language_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_languages );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_languages ) ) {
+			$errors[] = 'Failed to create story_languages table';
+		}
+
+		if ( ! empty( $errors ) ) {
+			return new WP_Error(
+				'classification_tables_failed',
+				implode( ', ', $errors )
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Check whether all six classification tables exist.
+	 *
+	 * @since 1.0.0
+	 * @return bool
+	 */
+	public static function classification_tables_exist() {
+		global $wpdb;
+
+		$prefix = $wpdb->prefix;
+		$tables = array(
+			$prefix . 'fanfic_fandoms',
+			$prefix . 'fanfic_story_fandoms',
+			$prefix . 'fanfic_warnings',
+			$prefix . 'fanfic_story_warnings',
+			$prefix . 'fanfic_languages',
+			$prefix . 'fanfic_story_languages',
+		);
+
+		foreach ( $tables as $table ) {
+			if ( ! self::verify_table_exists( $table ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Track missing classification tables for admin notice.
+	 *
+	 * Sets a transient when any classification table is missing so we can
+	 * surface a rebuild prompt in the admin UI.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function check_missing_classification_tables() {
+		// Only run in admin for users who can fix issues.
+		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		// Skip while the setup wizard is running or classification creation is paused.
+		if ( isset( $_GET['page'] ) && 'fanfic-setup-wizard' === $_GET['page'] ) {
+			return;
+		}
+
+		if ( get_transient( 'fanfic_skip_classification' ) ) {
+			return;
+		}
+
+		if ( self::classification_tables_exist() ) {
+			delete_transient( 'fanfic_missing_classification_tables' );
+			return;
+		}
+
+		set_transient( 'fanfic_missing_classification_tables', true, MINUTE_IN_SECONDS * 10 );
+	}
+
+	/**
+	 * Display admin notice for missing classification tables.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function missing_classification_notice() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		// Don't show during wizard run or while classification is intentionally skipped.
+		if ( isset( $_GET['page'] ) && 'fanfic-setup-wizard' === $_GET['page'] ) {
+			return;
+		}
+
+		if ( get_transient( 'fanfic_skip_classification' ) ) {
+			return;
+		}
+
+		// Show rebuild result messages if present.
+		$rebuild_result = get_transient( 'fanfic_classification_rebuild_result' );
+		if ( is_array( $rebuild_result ) && ! empty( $rebuild_result['message'] ) && ! empty( $rebuild_result['status'] ) ) {
+			delete_transient( 'fanfic_classification_rebuild_result' );
+			$notice_class = ( 'success' === $rebuild_result['status'] ) ? 'notice notice-success is-dismissible' : 'notice error-message is-dismissible';
+			?>
+			<div class="<?php echo esc_attr( $notice_class ); ?>">
+				<p>
+					<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
+					<?php echo esc_html( $rebuild_result['message'] ); ?>
+				</p>
+			</div>
+			<?php
+		}
+
+		if ( ! get_transient( 'fanfic_missing_classification_tables' ) ) {
+			return;
+		}
+
+		$rebuild_url = admin_url( 'admin-post.php?action=fanfic_rebuild_classification' );
+		$rebuild_url = wp_nonce_url( $rebuild_url, 'fanfic_rebuild_classification' );
+		?>
+		<div class="notice error-message is-dismissible">
+			<p>
+				<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
+				<?php esc_html_e( 'Some data is missing on database. Click the button to rebuild.', 'fanfiction-manager' ); ?>
+			</p>
+			<p>
+				<a href="<?php echo esc_url( $rebuild_url ); ?>" class="button button-primary">
+					<?php esc_html_e( 'Rebuild classification tables', 'fanfiction-manager' ); ?>
+				</a>
+			</p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Handle rebuild request for missing classification tables.
+	 *
+	 * Recreates classification tables and seeds default data.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function rebuild_classification_tables() {
+		// Verify nonce
+		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'fanfic_rebuild_classification' ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'fanfiction-manager' ) );
+		}
+
+		// Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to perform this action.', 'fanfiction-manager' ) );
+		}
+
+		$result = self::create_classification_tables();
+		$notice = array(
+			'status'  => 'success',
+			'message' => __( 'Classification tables rebuilt successfully.', 'fanfiction-manager' ),
+		);
+
+		if ( is_wp_error( $result ) ) {
+			$notice = array(
+				'status'  => 'error',
+				'message' => $result->get_error_message(),
+			);
+		} elseif ( ! self::classification_tables_exist() ) {
+			$notice = array(
+				'status'  => 'error',
+				'message' => __( 'Classification tables are still missing after the rebuild attempt.', 'fanfiction-manager' ),
+			);
+		} else {
+			// Seed default datasets and taxonomy terms.
+			if ( class_exists( 'Fanfic_Fandoms' ) ) {
+				Fanfic_Fandoms::maybe_seed_fandoms();
+			}
+			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				Fanfic_Warnings::maybe_seed_warnings();
+			}
+			if ( class_exists( 'Fanfic_Languages' ) ) {
+				Fanfic_Languages::maybe_seed_languages();
+			}
+			if ( class_exists( 'Fanfic_Taxonomies' ) && taxonomy_exists( 'fanfiction_genre' ) && taxonomy_exists( 'fanfiction_status' ) ) {
+				Fanfic_Taxonomies::ensure_default_terms();
+			}
+
+			delete_transient( 'fanfic_missing_classification_tables' );
+			delete_transient( 'fanfic_skip_classification' );
+		}
+
+		set_transient( 'fanfic_classification_rebuild_result', $notice, MINUTE_IN_SECONDS * 5 );
+
+		$redirect = wp_get_referer() ? wp_get_referer() : admin_url( 'admin.php?page=fanfiction-settings' );
+		wp_safe_redirect( $redirect );
+		exit;
 	}
 
 	/**

@@ -357,12 +357,10 @@ class Fanfic_Templates {
 			<div class="notice notice-warning is-dismissible">
 				<p>
 					<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
-					<?php esc_html_e( 'Please run the setup wizard to configure the plugin and create system pages.', 'fanfiction-manager' ); ?>
-				</p>
-				<p>
+					<?php esc_html_e( 'Please run the setup wizard to configure and activate the plugin. ', 'fanfiction-manager' ); ?>
 					<a href="<?php echo esc_url( $wizard_url ); ?>" class="button button-primary">
 						<?php esc_html_e( 'Run Setup Wizard', 'fanfiction-manager' ); ?>
-					</a>
+					</a>	
 				</p>
 			</div>
 			<?php

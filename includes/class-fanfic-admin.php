@@ -51,6 +51,11 @@ class Fanfic_Admin {
 			return;
 		}
 
+		// Hide the admin menu until the setup wizard is completed.
+		if ( ! Fanfic_Wizard::is_completed() ) {
+			return;
+		}
+
 		// Add top-level menu
 		add_menu_page(
 			__( 'Fanfiction', 'fanfiction-manager' ),

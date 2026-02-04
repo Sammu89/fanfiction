@@ -85,8 +85,10 @@ class Fanfic_Wizard {
 		$this->steps = array(
 			1 => array(
 				'id'          => 'welcome',
-				'title'       => __( 'Welcome', 'fanfiction-manager' ),
-				'description' => __( 'Welcome to Fanfiction Manager setup wizard', 'fanfiction-manager' ),
+				'title'       => __( 'Welcome to Fanfiction Manager!', 'fanfiction-manager' ),
+				'description' => __( 'This wizard will help you set up your fanfiction platform in just a few steps.
+
+', 'fanfiction-manager' ),
 			),
 			2 => array(
 				'id'          => 'url_settings',
@@ -124,9 +126,6 @@ class Fanfic_Wizard {
 		// Add admin menu for wizard
 		add_action( 'admin_menu', array( $this, 'add_wizard_menu' ) );
 
-		// Handle skip action before any output
-		add_action( 'admin_init', array( $this, 'handle_skip_action' ), 9 );
-
 		// Check if wizard should be shown
 		add_action( 'admin_init', array( $this, 'check_wizard_redirect' ), 10 );
 
@@ -139,6 +138,7 @@ class Fanfic_Wizard {
 		// AJAX handlers
 		add_action( 'wp_ajax_fanfic_wizard_save_step', array( $this, 'ajax_save_step' ) );
 		add_action( 'wp_ajax_fanfic_wizard_complete', array( $this, 'ajax_complete_wizard' ) );
+		add_action( 'wp_ajax_fanfic_wizard_create_tables', array( $this, 'ajax_create_classification_tables' ) );
 
 		// Enqueue wizard assets
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_wizard_assets' ) );
@@ -171,23 +171,6 @@ class Fanfic_Wizard {
 		if ( isset( $_GET['page'] ) && 'fanfic-setup-wizard' === $_GET['page'] ) {
 			global $title;
 			$title = __( 'Setup Wizard', 'fanfiction-manager' );
-		}
-	}
-
-	/**
-	 * Handle skip action from wizard choice screen
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public function handle_skip_action() {
-		if ( isset( $_GET['page'], $_GET['action'] ) && 'fanfic-setup-wizard' === $_GET['page'] && 'skip' === $_GET['action'] ) {
-			// Prevent wizard from showing on next load
-			delete_option( 'fanfic_show_wizard' );
-
-			// Redirect to settings page
-			wp_safe_redirect( admin_url( 'admin.php?page=fanfiction-settings' ) );
-			exit;
 		}
 	}
 
@@ -259,19 +242,6 @@ class Fanfic_Wizard {
 			return;
 		}
 
-		// Check if we should show the wizard
-		$show_wizard = get_option( 'fanfic_show_wizard', false );
-
-		// Redirect if wizard flag is set (regardless of completion status)
-		// The wizard page will handle showing choice screen if already completed
-		if ( $show_wizard && current_user_can( 'manage_options' ) ) {
-			// Delete the show_wizard flag to prevent infinite redirects
-			delete_option( 'fanfic_show_wizard' );
-
-			// Redirect to wizard
-			wp_safe_redirect( admin_url( 'admin.php?page=fanfic-setup-wizard' ) );
-			exit;
-		}
 	}
 
 	/**
@@ -309,17 +279,22 @@ class Fanfic_Wizard {
 			'fanfic-wizard',
 			'fanficWizard',
 			array(
-				'ajax_url'         => admin_url( 'admin-ajax.php' ),
-				'admin_url'        => admin_url(),
-				'nonce'            => wp_create_nonce( 'fanfic_wizard_nonce' ),
-				'current_step'     => $this->get_current_step(),
-				'total_steps'      => $this->total_steps,
-				'strings'          => array(
-					'error'          => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
-					'saving'         => __( 'Saving...', 'fanfiction-manager' ),
-					'completing'     => __( 'Completing setup...', 'fanfiction-manager' ),
-					'success'        => __( 'Settings saved successfully!', 'fanfiction-manager' ),
-					'complete_setup' => __( 'Complete Setup', 'fanfiction-manager' ),
+				'ajax_url'                    => admin_url( 'admin-ajax.php' ),
+				'admin_url'                   => admin_url(),
+				'home_url'                    => home_url(),
+				'nonce'                       => wp_create_nonce( 'fanfic_wizard_nonce' ),
+				'current_step'                => $this->get_current_step(),
+				'total_steps'                 => $this->total_steps,
+				'classification_tables_ready' => Fanfic_Database_Setup::classification_tables_exist(),
+				'strings'                     => array(
+					'error'           => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
+					'saving'          => __( 'Saving...', 'fanfiction-manager' ),
+					'completing'      => __( 'Completing setup...', 'fanfiction-manager' ),
+					'success'         => __( 'Settings saved successfully!', 'fanfiction-manager' ),
+					'complete_setup'  => __( 'Complete Setup', 'fanfiction-manager' ),
+					'creating_tables' => __( 'Creating tables...', 'fanfiction-manager' ),
+					'tables_ready'    => __( 'Tables ready!', 'fanfiction-manager' ),
+					'retry'           => __( 'Retry', 'fanfiction-manager' ),
 				),
 			)
 		);
@@ -485,17 +460,17 @@ class Fanfic_Wizard {
  * @since 1.0.0
  * @return void
  */
-private function render_choice_screen() {
+	private function render_choice_screen() {
 	?>
 	<div class="wrap fanfic-wizard-wrap">
 		<h1><?php esc_html_e( 'Setup Wizard', 'fanfiction-manager' ); ?></h1>
-		<div class="fanfic-wizard-choice" style="max-width: 600px; margin: 40px auto; text-align: center;">
+			<div class="fanfic-wizard-choice" style="max-width: 600px; margin: 40px auto; text-align: center;">
 			<div class="fanfic-wizard-choice-icon"><span class="dashicons dashicons-admin-tools" style="font-size: 80px; width: 80px; height: 80px; color: #2271b1;"></span></div>
 			<h2><?php esc_html_e( 'Wizard Already Completed', 'fanfiction-manager' ); ?></h2>
 			<p style="font-size: 16px;"><?php esc_html_e( 'The setup wizard has already been completed and all required pages exist.', 'fanfiction-manager' ); ?></p>
-			<p style="font-size: 16px;"><?php esc_html_e( 'Would you like to run the wizard again or skip to the plugin settings?', 'fanfiction-manager' ); ?></p>
+			<p style="font-size: 16px;"><?php esc_html_e( 'Would you like to run the wizard again or go to the plugin settings?', 'fanfiction-manager' ); ?></p>
 			<div class="notice notice-warning inline" style="margin: 20px 0; text-align: left;"><p><strong><?php esc_html_e( 'Warning:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Running the wizard again is not recommended. If you change URL settings, 301 redirects will be created from old URLs to new ones.', 'fanfiction-manager' ); ?></p></div>
-			<div class="fanfic-wizard-choice-buttons" style="margin-top: 30px;"><a href="<?php echo esc_url( admin_url( 'admin.php?page=fanfic-setup-wizard&action=skip' ) ); ?>" class="button button-primary button-hero"><?php esc_html_e( 'Skip to Settings', 'fanfiction-manager' ); ?></a> <a href="<?php echo esc_url( admin_url( 'admin.php?page=fanfic-setup-wizard&force=true&step=1' ) ); ?>" class="button button-secondary button-hero"><?php esc_html_e( 'Run Wizard Again', 'fanfiction-manager' ); ?></a></div>
+			<div class="fanfic-wizard-choice-buttons" style="margin-top: 30px;"><a href="<?php echo esc_url( admin_url( 'admin.php?page=fanfiction-settings' ) ); ?>" class="button button-primary button-hero"><?php esc_html_e( 'Go to Settings', 'fanfiction-manager' ); ?></a> <a href="<?php echo esc_url( admin_url( 'admin.php?page=fanfic-setup-wizard&force=true&step=1' ) ); ?>" class="button button-secondary button-hero"><?php esc_html_e( 'Run Wizard Again', 'fanfiction-manager' ); ?></a></div>
 		</div>
 	</div>
 	<?php
@@ -549,21 +524,52 @@ private function render_choice_screen() {
 		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
 		?>
 		<form id="fanfic-wizard-form-step-1" class="fanfic-wizard-form">
+
 			<div class="fanfic-wizard-welcome">
 				<div class="fanfic-wizard-welcome-icon">
 					<span class="dashicons dashicons-book-alt" style="font-size: 80px; width: 80px; height: 80px;"></span>
 				</div>
-				<h3><?php esc_html_e( 'Welcome to Fanfiction Manager!', 'fanfiction-manager' ); ?></h3>
-				<p><?php esc_html_e( 'This wizard will help you set up your fanfiction platform in just a few steps.', 'fanfiction-manager' ); ?></p>
-				<p><?php esc_html_e( 'We will configure:', 'fanfiction-manager' ); ?></p>
-				<ul style="list-style: disc; margin-left: 2em;">
-					<li><?php esc_html_e( 'Base URL slug for your fanfiction pages', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Story subdirectory to avoid conflicts with system pages', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Secondary path customization (dashboard, members)', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'User roles (moderators and administrators)', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Default taxonomy terms (Genre and Status)', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'System pages creation', 'fanfiction-manager' ); ?></li>
-				</ul>
+
+<!-- Main Page Display Mode -->
+<div style="margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; background: #f9f9f9;">
+	<h3 style="margin-top: 0;"><?php esc_html_e( 'Homepage', 'fanfiction-manager' ); ?></h3>
+	<p class="description">
+		<?php esc_html_e( 'Choose whether your homepage shows the story archive or a custom homepage.', 'fanfiction-manager' ); ?>
+	</p>
+
+	<div style="margin-top: 15px; display: flex; gap: 20px;">
+		<label style="flex: 1; display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+			<input
+				type="radio"
+				name="fanfic_main_page_mode"
+				value="custom_homepage"
+				<?php checked( $main_page_mode, 'custom_homepage' ); ?>
+				style="margin-right: 10px;"
+			>
+			<strong><?php esc_html_e( 'Custom Homepage', 'fanfiction-manager' ); ?></strong>
+			<br>
+			<span class="description" style="margin-left: 24px;">
+				<?php esc_html_e( 'The page "Fanfiction" on WordPress pages is going to be the homepage.', 'fanfiction-manager' ); ?>
+			</span>
+		</label>
+
+		<label style="flex: 1; display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+			<input
+				type="radio"
+				name="fanfic_main_page_mode"
+				value="stories_homepage"
+				<?php checked( $main_page_mode, 'stories_homepage' ); ?>
+				style="margin-right: 10px;"
+			>
+			<strong><?php esc_html_e( 'Stories archive as Homepage', 'fanfiction-manager' ); ?></strong>
+			<br>
+			<span class="description" style="margin-left: 24px;">
+				<?php esc_html_e( 'The homepage of the site will be the story listing page.', 'fanfiction-manager' ); ?>
+			</span>
+		</label>
+	</div>
+</div>
+
 
 				<!-- Statistical Data Notice -->
 				<div class="notice notice-info inline" style="margin: 20px 0;">
@@ -571,91 +577,6 @@ private function render_choice_screen() {
 						<strong><?php esc_html_e( 'Anonymous Usage Statistics:', 'fanfiction-manager' ); ?></strong>
 						<?php esc_html_e( 'This plugin collects anonymous statistical data to help improve and maintain the plugin. This includes basic usage metrics such as plugin version, WordPress version, and feature usage. No personal or sensitive information is collected.', 'fanfiction-manager' ); ?>
 					</p>
-				</div>
-
-				<!-- Base Slug Choice -->
-				<div style="margin-top: 30px; padding: 20px; border: 1px solid #ddd; background: #f9f9f9;">
-					<h4 style="margin-top: 0;"><?php esc_html_e( 'Main URL Strategy', 'fanfiction-manager' ); ?></h4>
-					<p class="description">
-						<?php esc_html_e( 'Choose how you want your plugin URLs to be structured.', 'fanfiction-manager' ); ?>
-					</p>
-
-					<div style="margin-top: 15px;">
-						<?php $use_base_slug = get_option( 'fanfic_use_base_slug', true ); ?>
-						<label style="display: block; margin-bottom: 15px; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
-							<input
-								type="radio"
-								name="fanfic_use_base_slug"
-								value="1"
-								<?php checked( $use_base_slug, true ); ?>
-								style="margin-right: 10px;"
-							>
-							<strong><?php esc_html_e( 'WordPress URL with Base Slug (Recommended)', 'fanfiction-manager' ); ?></strong>
-							<br>
-							<span class="description" style="margin-left: 24px;">
-								<?php esc_html_e( 'URLs like: yoursite.com/fanfiction/...', 'fanfiction-manager' ); ?>
-								<br>
-								<?php esc_html_e( 'Isolates plugin from main WordPress pages and logic, avoiding URL conflicts.', 'fanfiction-manager' ); ?>
-							</span>
-						</label>
-
-						<label style="display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
-							<input
-								type="radio"
-								name="fanfic_use_base_slug"
-								value="0"
-								<?php checked( $use_base_slug, false ); ?>
-								style="margin-right: 10px;"
-							>
-							<strong><?php esc_html_e( 'WordPress Main URL Root', 'fanfiction-manager' ); ?></strong>
-							<br>
-							<span class="description" style="margin-left: 24px;">
-								<?php esc_html_e( 'URLs like: yoursite.com/...', 'fanfiction-manager' ); ?>
-								<br>
-								<?php esc_html_e( 'Overwrites WordPress main homepage settings and might conflict with other plugins.', 'fanfiction-manager' ); ?>
-							</span>
-						</label>
-					</div>
-				</div>
-
-				<!-- Main Page Display Mode -->
-				<div style="margin-top: 30px; padding: 20px; border: 1px solid #ddd; background: #f9f9f9;">
-					<h4 style="margin-top: 0;"><?php esc_html_e( 'How do you want your site organized?', 'fanfiction-manager' ); ?></h4>
-					<p class="description">
-						<?php esc_html_e( 'Choose whether your homepage shows the story archive directly or allows for custom content.', 'fanfiction-manager' ); ?>
-					</p>
-
-					<div style="margin-top: 15px;">
-						<label style="display: block; margin-bottom: 15px; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
-							<input
-								type="radio"
-								name="fanfic_main_page_mode"
-								value="stories_homepage"
-								<?php checked( $main_page_mode, 'stories_homepage' ); ?>
-								style="margin-right: 10px;"
-							>
-							<strong><?php esc_html_e( 'Stories Archive as Homepage', 'fanfiction-manager' ); ?></strong>
-							<br>
-							<span class="description" style="margin-left: 24px;">
-								<?php esc_html_e( 'Your main page displays the story archive directly', 'fanfiction-manager' ); ?>
-							</span>
-						</label>
-
-						<label style="display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
-							<input
-								type="radio"
-								name="fanfic_main_page_mode"
-								value="custom_homepage"
-								<?php checked( $main_page_mode, 'custom_homepage' ); ?>
-								style="margin-right: 10px;"
-							>
-							<strong><?php esc_html_e( 'Custom Homepage', 'fanfiction-manager' ); ?></strong>
-							<br>
-							<span class="description" style="margin-left: 24px;">
-								<?php esc_html_e( 'Create a custom homepage with separate archive page', 'fanfiction-manager' ); ?>
-							</span>
-						</label>
-					</div>
 				</div>
 
 				<p style="margin-top: 20px;"><strong><?php esc_html_e( 'By clicking "Next", you accept the collection of anonymous usage statistics and agree to proceed with the setup process.', 'fanfiction-manager' ); ?></strong></p>
@@ -674,8 +595,54 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function render_url_settings_step() {
+		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+		$use_base_slug = get_option( 'fanfic_use_base_slug', true );
 		?>
 		<form id="fanfic-wizard-form-step-2" class="fanfic-wizard-form">
+			<div class="fanfic-wizard-columns">
+
+				<div class="fanfic-wizard-column">
+					<!-- Base Slug Choice -->
+					<div style="margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; background: #f9f9f9; height: 100%;">
+						<h3 style="margin-top: 0;"><?php esc_html_e( 'URL construction settings', 'fanfiction-manager' ); ?></h4>
+						<p class="description">
+							<?php esc_html_e( 'Choose how you want your URLs to be structured.', 'fanfiction-manager' ); ?>
+						</p>
+
+						<div style="margin-top: 15px;">
+							<label style="display: block; margin-bottom: 15px; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+								<input
+									type="radio"
+									name="fanfic_use_base_slug"
+									value="0"
+									<?php checked( $use_base_slug, false ); ?>
+									style="margin-right: 10px;"
+								>
+								<strong><?php esc_html_e( 'Don\'t use a base slug', 'fanfiction-manager' ); ?></strong>
+								<br>
+								<span class="description" style="margin-left: 24px;">
+									<?php esc_html_e( 'The fanfic pages are created on the root of the main url, and it Overwrites WordPress main homepage settings.', 'fanfiction-manager' ); ?>
+								</span>
+							</label>
+							
+							<label style="display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+								<input
+									type="radio"
+									name="fanfic_use_base_slug"
+									value="1"
+									<?php checked( $use_base_slug, true ); ?>
+									style="margin-right: 10px;"
+								>
+								<strong><?php esc_html_e( 'Use a base slug', 'fanfiction-manager' ); ?></strong>
+								<br>
+								<span class="description" style="margin-left: 24px;">
+									<?php esc_html_e( 'A base slug is used to Isolate plugin from main WordPress other pages.', 'fanfiction-manager' ); ?>
+								</span>
+							</label>
+						</div>
+					</div>
+				</div>
+			</div>
 			<?php
 			// Use the same form fields from URL Config class
 			// This ensures consistency between wizard and settings page
@@ -957,6 +924,53 @@ private function render_choice_screen() {
 	}
 
 	/**
+	 * AJAX handler – create classification tables on wizard step 1.
+	 *
+	 * Creates the fandoms / warnings / languages tables and seeds their
+	 * default data so they are ready before the user clicks Next.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public function ajax_create_classification_tables() {
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'fanfic_wizard_nonce' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) ) );
+		}
+
+		// If tables already exist, nothing to do – return success immediately.
+		if ( Fanfic_Database_Setup::classification_tables_exist() ) {
+			wp_send_json_success( array( 'message' => __( 'Tables ready.', 'fanfiction-manager' ) ) );
+		}
+
+		$result = Fanfic_Database_Setup::create_classification_tables();
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		// Seed default data into the freshly created tables.
+		if ( class_exists( 'Fanfic_Fandoms' ) ) {
+			Fanfic_Fandoms::maybe_seed_fandoms();
+		}
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			Fanfic_Warnings::maybe_seed_warnings();
+		}
+		if ( class_exists( 'Fanfic_Languages' ) ) {
+			Fanfic_Languages::maybe_seed_languages();
+		}
+
+		// Drop the activation-time transient so subsequent page loads no
+		// longer skip classification in maybe_initialize_database().
+		delete_transient( 'fanfic_skip_classification' );
+
+		wp_send_json_success( array( 'message' => __( 'Tables created successfully.', 'fanfiction-manager' ) ) );
+	}
+
+	/**
 	 * AJAX handler for saving wizard steps
 	 *
 	 * @since 1.0.0
@@ -1021,12 +1035,6 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function save_welcome_step() {
-		// Save base slug choice
-		if ( isset( $_POST['fanfic_use_base_slug'] ) ) {
-			$use_base_slug = '1' === $_POST['fanfic_use_base_slug'];
-			update_option( 'fanfic_use_base_slug', $use_base_slug );
-		}
-
 		// Save main page mode
 		if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
 			$main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
@@ -1045,6 +1053,12 @@ private function render_choice_screen() {
 	 * @return void
 	 */
 	private function save_url_settings_step() {
+		// Save base slug choice
+		if ( isset( $_POST['fanfic_use_base_slug'] ) ) {
+			$use_base_slug = '1' === $_POST['fanfic_use_base_slug'];
+			update_option( 'fanfic_use_base_slug', $use_base_slug );
+		}
+
 		// 1. Validate and save base slug
 		if ( isset( $_POST['fanfic_base_slug'] ) ) {
 			$base_slug = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
@@ -1604,6 +1618,5 @@ private function render_choice_screen() {
 	 */
 	public static function reset() {
 		delete_option( 'fanfic_wizard_completed' );
-		update_option( 'fanfic_show_wizard', true );
 	}
 }

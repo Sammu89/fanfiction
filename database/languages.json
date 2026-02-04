@@ -103,9 +103,5 @@
 
 { "slug": "huttese", "name": "Huttese", "native_name": "Huttese" },
 { "slug": "aurebesh", "name": "Aurebesh", "native_name": "Aurebesh" },
-{ "slug": "nv", "name": "Naʼvi", "native_name": "Naʼvi" },
-
-
-
-
+{ "slug": "nv", "name": "Naʼvi", "native_name": "Naʼvi" }
 ]

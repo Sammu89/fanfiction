@@ -63,6 +63,7 @@ class Fanfic_Settings {
 		add_action( 'admin_post_fanfic_save_custom_css', array( __CLASS__, 'save_custom_css' ) );
 		add_action( 'admin_post_fanfic_run_cron_now', array( __CLASS__, 'run_cron_now' ) );
 		add_action( 'admin_post_fanfic_run_demotion_now', array( __CLASS__, 'run_demotion_now' ) );
+		add_action( 'admin_post_fanfic_delete_data', array( __CLASS__, 'handle_delete_data' ) );
 
 		// AJAX handlers for email templates
 		add_action( 'wp_ajax_fanfic_preview_email_template', array( __CLASS__, 'ajax_preview_email_template' ) );
@@ -1464,6 +1465,19 @@ class Fanfic_Settings {
 							<p class="description">
 								<?php esc_html_e( 'Re-run the initial setup wizard to reconfigure base settings, paths, and user roles. This will not delete existing pages or content.', 'fanfiction-manager' ); ?>
 							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">
+							<label><?php esc_html_e( 'Delete Data', 'fanfiction-manager' ); ?></label>
+						</th>
+						<td>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display: inline;">
+								<input type="hidden" name="action" value="fanfic_delete_data">
+								<?php wp_nonce_field( 'fanfic_delete_data_nonce', 'fanfic_delete_data_nonce' ); ?>
+								<?php submit_button( __( 'Delete Data', 'fanfiction-manager' ), 'delete', 'submit', false, array( 'onclick' => "return confirm('" . __( 'Are you sure you want to delete all fanfiction data? This cannot be undone.', 'fanfiction-manager' ) . "')" ) ); ?>
+							</form>
+							<p class="description"><?php esc_html_e( 'Deletes all fanfic tables related data (except user and user fanfic roles), that will effectivly reset the plugin and prompt to the wizard.', 'fanfiction-manager' ); ?></p>
 						</td>
 					</tr>
 				</tbody>
@@ -3002,6 +3016,39 @@ class Fanfic_Settings {
 				admin_url( 'admin.php' )
 			)
 		);
+		exit;
+	}
+
+	/**
+	 * Handle delete data request
+	 *
+	 * @since 1.0.0
+	 */
+	public static function handle_delete_data() {
+		if ( ! isset( $_POST['fanfic_delete_data_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_delete_data_nonce'], 'fanfic_delete_data_nonce' ) ) {
+			wp_die( 'Security check failed.' );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'You do not have sufficient permissions to access this page.' );
+		}
+
+		global $wpdb;
+
+		// Drop all tables with "fanfic" in the name
+		$tables = $wpdb->get_col( "SHOW TABLES LIKE '{$wpdb->prefix}fanfic%'" );
+		foreach ( $tables as $table ) {
+			$wpdb->query( "DROP TABLE IF EXISTS $table" );
+		}
+
+		// Delete all options with "fanfic" in the name
+		$options = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE 'fanfic%'" );
+		foreach ( $options as $option ) {
+			delete_option( $option );
+		}
+
+		// Redirect to the wizard
+		wp_safe_redirect( admin_url( 'admin.php?page=fanfic-setup-wizard' ) );
 		exit;
 	}
 }
