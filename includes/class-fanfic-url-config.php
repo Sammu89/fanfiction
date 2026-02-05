@@ -179,10 +179,9 @@ class Fanfic_URL_Config {
      * @param bool $in_wizard Whether this is being rendered in the wizard context.
      * @return void
      */
-    public static function render_form_fields( $in_wizard = false ) {
+    public static function render_form_fields( $in_wizard = false, $wizard_control_base_slug = false ) {
         $current_slugs      = self::get_current_slugs();
-        $page_slugs         = get_option( 'fanfic_system_page_slugs', array() );
-        $page_ids           = get_option( 'fanfic_system_page_ids', array() );
+        $page_slugs         = get_option( 'fanfic_system_page_ids', array() ); // Corrected to fetch system page IDs
         $use_base_slug      = get_option( 'fanfic_use_base_slug', true );
 		$members_slug  = get_option( self::OPTION_MEMBERS_SLUG, 'members' );
 
@@ -193,6 +192,12 @@ class Fanfic_URL_Config {
         } else {
             wp_nonce_field( 'fanfic_save_url_config', 'fanfic_url_config_nonce' );
             echo '<input type="hidden" name="action" value="fanfic_save_url_config">';
+        }
+
+        // Determine base URL path for previews
+        $base_url_for_preview = esc_html( home_url( '/' ) );
+        if ( $use_base_slug ) {
+            $base_url_for_preview .= esc_html( $current_slugs['base'] ) . '/';
         }
         ?>
 
@@ -210,40 +215,42 @@ class Fanfic_URL_Config {
                     <div class="fanfic-section-content">
                         <table class="form-table" role="presentation">
                             <tbody>
-                                <?php if ( $use_base_slug ) : ?>
-                                <!-- Base Slug -->
-                                <tr>
-                                    <th scope="row">
-                                        <label for="fanfic_base_slug">
-                                            <?php echo esc_html__( 'Base Slug', 'fanfiction-manager' ); ?>
-                                            <span class="fanfic-required">*</span>
-                                        </label>
-                                    </th>
-                                    <td>
-                                        <input
-                                            type="text"
-                                            id="fanfic_base_slug"
-                                            name="fanfic_base_slug"
-                                            value="<?php echo esc_attr( $current_slugs['base'] ); ?>"
-                                            class="regular-text fanfic-slug-input"
-                                            pattern="[a-z0-9\-]+"
-                                            maxlength="50"
-                                            required
-                                            data-slug-type="base"
-                                        >
-                                        <p class="description">
-                                            <?php echo esc_html__( 'The root path for all fanfiction content. Used in all URLs.', 'fanfiction-manager' ); ?>
-                                        </p>
-                                        <p class="description">
-                                            <code id="base-preview-code"><?php echo esc_html( home_url( '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slugs['base'] ); ?></span>/</code>
-                                        </p>
-                                        <div class="fanfic-slug-validation" id="base-slug-validation"></div>
-                                    </td>
-                                </tr>
-                                <?php else : ?>
-                                <!-- Hidden input to maintain empty base slug -->
-                                <input type="hidden" name="fanfic_base_slug" value="">
-                                <?php endif; ?>
+                                <?php if ( ! $wizard_control_base_slug ) : ?>
+                                    <?php if ( $use_base_slug ) : ?>
+                                    <!-- Base Slug -->
+                                    <tr>
+                                        <th scope="row">
+                                            <label for="fanfic_base_slug">
+                                                <?php echo esc_html__( 'Base Slug', 'fanfiction-manager' ); ?>
+                                                <span class="fanfic-required">*</span>
+                                            </label>
+                                        </th>
+                                        <td>
+                                            <input
+                                                type="text"
+                                                id="fanfic_base_slug"
+                                                name="fanfic_base_slug"
+                                                value="<?php echo esc_attr( $current_slugs['base'] ); ?>"
+                                                class="regular-text fanfic-slug-input"
+                                                pattern="[a-z0-9\-]+"
+                                                maxlength="50"
+                                                required
+                                                data-slug-type="base"
+                                            >
+                                            <p class="description">
+                                                <?php echo esc_html__( 'The root path for all fanfiction content. Used in all URLs.', 'fanfiction-manager' ); ?>
+                                            </p>
+                                            <p class="description">
+                                                <code id="base-preview-code"><?php echo esc_html( home_url( '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slugs['base'] ); ?></span>/</code>
+                                            </p>
+                                            <div class="fanfic-slug-validation" id="base-slug-validation"></div>
+                                        </td>
+                                    </tr>
+                                    <?php else : ?>
+                                    <!-- Hidden input to maintain empty base slug -->
+                                    <input type="hidden" name="fanfic_base_slug" value="">
+                                    <?php endif; ?>
+                                <?php endif; // End if ( ! $wizard_control_base_slug ) ?>
 
                                 <!-- Stories Slug -->
                                 <tr>
@@ -266,10 +273,10 @@ class Fanfic_URL_Config {
                                             data-slug-type="story_path"
                                         >
                                         <p class="description">
-                                            <?php echo esc_html__( 'The subdirectory where individual stories are placed. Used in all story URLs.', 'fanfiction-manager' ); ?>
+                                            <?php esc_html_e( 'The subdirectory where individual stories are placed. Used in all story URLs.', 'fanfiction-manager' ); ?>
                                         </p>
                                         <p class="description">
-                                            <code id="story-path-preview-code"><?php echo esc_html( home_url( '/' . $current_slugs['base'] . '/' ) ); ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slugs['story_path'] ); ?></span>/my-story-title/</code>
+                                            <code id="story-path-preview-code"><?php echo $base_url_for_preview; ?><span class="fanfic-dynamic-slug"><?php echo esc_html( $current_slugs['story_path'] ); ?></span>/my-story-title/</code>
                                         </p>
                                         <div class="fanfic-slug-validation" id="story-path-validation"></div>
                                     </td>
@@ -1580,4 +1587,227 @@ foreach ( $definitions as $key => $def ) {
         }
     }
 
+    public static function save_wizard_url_settings() {
+        // This function is called via AJAX from the wizard.
+        // Nonce is verified in the AJAX handler in the wizard class.
+
+        // Save base slug choice
+        if ( isset( $_POST['fanfic_use_base_slug'] ) ) {
+            $use_base_slug = '1' === $_POST['fanfic_use_base_slug'];
+            update_option( 'fanfic_use_base_slug', $use_base_slug );
+        }
+
+        // --- The rest of this is the validation logic from the original wizard save function ---
+
+        // 1. Validate and save base slug
+        if ( isset( $_POST['fanfic_base_slug'] ) ) {
+            $base_slug = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
+            // Only require base slug if the mode is enabled.
+            if ( ! empty($_POST['fanfic_use_base_slug']) && empty($base_slug) ) {
+                 wp_send_json_error( array( 'message' => __( 'Base Slug cannot be empty when it is enabled.', 'fanfiction-manager' ) ) );
+            }
+            $validation = Fanfic_URL_Schema::validate_slug( $base_slug, array( 'base' ) );
+
+            if ( is_wp_error( $validation ) ) {
+                wp_send_json_error( array( 'message' => __( 'Base Slug: ', 'fanfiction-manager' ) . $validation->get_error_message() ) );
+            }
+            update_option( 'fanfic_base_slug', $base_slug );
+        }
+
+        // 2. Validate and save story path
+        if ( isset( $_POST['fanfic_story_path'] ) ) {
+            $story_path = sanitize_title( wp_unslash( $_POST['fanfic_story_path'] ) );
+            $validation = Fanfic_URL_Schema::validate_slug( $story_path, array( 'story_path' ) );
+
+            if ( is_wp_error( $validation ) ) {
+                wp_send_json_error( array( 'message' => __( 'Story Path: ', 'fanfiction-manager' ) . $validation->get_error_message() ) );
+            }
+            update_option( 'fanfic_story_path', $story_path );
+        }
+    }
+
+    public static function render_url_mode_selection( $in_wizard = false ) {
+        $use_base_slug = get_option( 'fanfic_use_base_slug', true );
+        ?>
+        <div class="fanfic-config-section">
+            <div class="fanfic-section-header">
+                <h3><?php esc_html_e( 'URL Strategy Mode', 'fanfiction-manager' ); ?></h3>
+                <p class="description">
+                    <?php esc_html_e( 'Choose the fundamental structure for your fanfiction URLs.', 'fanfiction-manager' ); ?>
+                </p>
+            </div>
+            <div class="fanfic-section-content">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php esc_html_e( 'URL Mode', 'fanfiction-manager' ); ?></th>
+                        <td>
+                            <label style="display: block; margin-bottom: 15px;">
+                                <input type="radio" name="fanfic_use_base_slug" value="1" <?php checked( $use_base_slug, true ); ?>>
+                                <strong><?php esc_html_e( 'Use a Base Slug (Recommended)', 'fanfiction-manager' ); ?></strong>
+                                <br>
+                                <span class="description" style="margin-left: 24px;">
+                                    <?php esc_html_e( 'Isolates plugin pages under a common path like /fanfiction/...', 'fanfiction-manager' ); ?>
+                                </span>
+                            </label>
+
+                            <label style="display: block;">
+                                <input type="radio" name="fanfic_use_base_slug" value="0" <?php checked( $use_base_slug, false ); ?>>
+                                <strong><?php esc_html_e( 'Use Root URLs', 'fanfiction-manager' ); ?></strong>
+                                <br>
+                                <span class="description" style="margin-left: 24px;">
+                                    <?php esc_html_e( 'Plugin pages live at the site root, like /login/. This may conflict with other pages.', 'fanfiction-manager' ); ?>
+                                </span>
+                            </label>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <?php
+    }
+
+    public static function render_homepage_settings( $in_wizard = false ) {
+        $main_page_mode     = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+        $homepage_source    = get_option( 'fanfic_homepage_source', 'fanfiction_page' );
+        $homepage_source_id = (int) get_option( 'fanfic_homepage_source_id', 0 );
+
+        // Determine currently selected dropdown value
+        $selected_value = 'fanfiction_page';
+        if ( 'wordpress_archive' === $homepage_source ) {
+            $selected_value = 'wordpress_archive';
+        } elseif ( 'existing_page' === $homepage_source && $homepage_source_id > 0 ) {
+            $selected_value = 'page:' . $homepage_source_id;
+        }
+
+        // Query existing pages for dropdown (exclude plugin-managed pages)
+        $system_page_ids = array_values( get_option( 'fanfic_system_page_ids', array() ) );
+        $pages           = get_posts(
+            array(
+				'post_type'      => 'page',
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'menu_order',
+				'order'          => 'ASC',
+				'exclude'        => $system_page_ids,
+            )
+        );
+        ?>
+		<div class="fanfic-wizard-welcome">
+			<?php if ( $in_wizard ) : ?>
+			<div class="fanfic-wizard-welcome-icon">
+				<span class="dashicons dashicons-book-alt" style="font-size: 80px; width: 80px; height: 80px;"></span>
+			</div>
+			<?php endif; ?>
+
+			<div style="margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; background: #f9f9f9;">
+				<h3 style="margin-top: 0;"><?php esc_html_e( 'Homepage', 'fanfiction-manager' ); ?></h3>
+				<p class="description">
+					<?php esc_html_e( 'Choose whether your homepage shows the story archive or a custom homepage.', 'fanfiction-manager' ); ?>
+				</p>
+
+				<div style="margin-top: 15px; display: flex; gap: 20px;">
+					<label style="flex: 1; display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+						<input
+							type="radio"
+							name="fanfic_main_page_mode"
+							value="custom_homepage"
+							<?php checked( $main_page_mode, 'custom_homepage' ); ?>
+							style="margin-right: 10px;"
+						>
+						<strong><?php esc_html_e( 'A Custom Page', 'fanfiction-manager' ); ?></strong>
+						<br>
+						<span class="description" style="margin-left: 24px;">
+							<?php esc_html_e( 'Select a specific page to act as the homepage.', 'fanfiction-manager' ); ?>
+						</span>
+						<div id="fanfic-homepage-source-wrapper" style="margin-left: 24px; margin-top: 10px; margin-bottom: 15px;">
+							<label for="fanfic_homepage_source_select" style="font-weight: bold; margin-bottom: 5px; display: block;">
+								<?php esc_html_e( 'Homepage Source:', 'fanfiction-manager' ); ?>
+							</label>
+							<select id="fanfic_homepage_source_select" name="fanfic_homepage_source_select" style="margin-top: 8px; min-width: 300px;">
+								<option value="fanfiction_page" <?php selected( $selected_value, 'fanfiction_page' ); ?>>
+									<?php esc_html_e( 'Fanfiction Homepage (default)', 'fanfiction-manager' ); ?>
+								</option>
+								<option value="wordpress_archive" <?php selected( $selected_value, 'wordpress_archive' ); ?>>
+									<?php esc_html_e( 'WordPress Post Archive (Native)', 'fanfiction-manager' ); ?>
+								</option>
+								<?php if ( ! empty( $pages ) ) : ?>
+								<optgroup label="<?php esc_attr_e( 'Existing Page', 'fanfiction-manager' ); ?>">
+									<?php foreach ( $pages as $page ) : ?>
+									<option value="page:<?php echo esc_attr( $page->ID ); ?>" <?php selected( $selected_value, 'page:' . $page->ID ); ?>>
+										<?php echo esc_html( $page->post_title ); ?>
+									</option>
+									<?php endforeach; ?>
+								</optgroup>
+								<?php endif; ?>
+							</select>
+						</div>
+					</label>
+
+					<label style="flex: 1; display: block; padding: 15px; border: 2px solid #ddd; background: #fff; cursor: pointer;">
+						<input
+							type="radio"
+							name="fanfic_main_page_mode"
+							value="stories_homepage"
+							<?php checked( $main_page_mode, 'stories_homepage' ); ?>
+							style="margin-right: 10px;"
+						>
+						<strong><?php esc_html_e( 'Stories Archive', 'fanfiction-manager' ); ?></strong>
+						<br>
+						<span class="description" style="margin-left: 24px;">
+							<?php esc_html_e( 'The homepage will directly display the story listing archive.', 'fanfiction-manager' ); ?>
+						</span>
+					</label>
+				</div>
+			</div>
+		</div>
+
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            function toggleHomepageSource() {
+                var mode = $('input[name="fanfic_main_page_mode"]:checked').val();
+                $('#fanfic-homepage-source-wrapper').toggle( mode === 'custom_homepage' );
+                // Disable the select when not in custom mode so its value isn't submitted
+                $('#fanfic_homepage_source_select').prop('disabled', mode !== 'custom_homepage');
+            }
+            $('input[name="fanfic_main_page_mode"]').on('change', toggleHomepageSource);
+            toggleHomepageSource();
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * Save homepage settings from POST data.
+     *
+     * @since 1.0.0
+     */
+    public static function save_homepage_settings() {
+        if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
+            $main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
+            if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
+                update_option( 'fanfic_main_page_mode', $main_page_mode );
+            }
+        }
+
+        // Only save the source if custom homepage mode is active
+        if ( isset( $_POST['fanfic_main_page_mode'] ) && 'custom_homepage' === $_POST['fanfic_main_page_mode'] ) {
+            if ( isset( $_POST['fanfic_homepage_source_select'] ) ) {
+                $source = sanitize_text_field( wp_unslash( $_POST['fanfic_homepage_source_select'] ) );
+                if ( 'fanfiction_page' === $source ) {
+                    update_option( 'fanfic_homepage_source', 'fanfiction_page' );
+                    update_option( 'fanfic_homepage_source_id', 0 );
+                } elseif ( 'wordpress_archive' === $source ) {
+                    update_option( 'fanfic_homepage_source', 'wordpress_archive' );
+                    update_option( 'fanfic_homepage_source_id', 0 );
+                } elseif ( preg_match( '/^page:(\d+)$/', $source, $matches ) ) {
+                    $post_id   = (int) $matches[1];
+                    $post      = get_post( $post_id );
+                    if ( $post && 'publish' === $post->post_status && 'page' === $post->post_type ) {
+                        update_option( 'fanfic_homepage_source', 'existing_page' );
+                        update_option( 'fanfic_homepage_source_id', $post_id );
+                    }
+                }
+            }
+        }
+    }
 } // Class closing brace - THIS WAS MISSING

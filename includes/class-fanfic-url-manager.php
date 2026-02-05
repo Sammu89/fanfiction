@@ -109,6 +109,8 @@ class Fanfic_URL_Manager {
 	 * @return array All slug data.
 	 */
 	private function load_all_slugs() {
+		$use_base_slug = get_option( 'fanfic_use_base_slug', true );
+
 		$chapter_defaults = array(
 			'chapter'  => 'chapter',
 			'prologue' => 'prologue',
@@ -122,7 +124,9 @@ class Fanfic_URL_Manager {
 		);
 
 		return array(
-			'base'       => $this->sanitize_slug( get_option( 'fanfic_base_slug', self::DEFAULT_BASE_SLUG ) ),
+			// Base is empty when base slug mode is off — rewrite rules and URL builders
+			// use array_filter / prefix helpers to omit it automatically.
+			'base'       => $use_base_slug ? $this->sanitize_slug( get_option( 'fanfic_base_slug', self::DEFAULT_BASE_SLUG ) ) : '',
 			'story_path' => $this->sanitize_slug( get_option( 'fanfic_story_path', 'stories' ) ),
 			'chapters'   => wp_parse_args( get_option( 'fanfic_chapter_slugs', array() ), $chapter_defaults ),
 			'dynamic'    => $dynamic_slugs,
@@ -146,34 +150,36 @@ class Fanfic_URL_Manager {
 	 * Register story and chapter rewrite rules
 	 */
 	private function register_story_rules() {
-		$base         = $this->slugs['base'];
-		$story_path   = $this->slugs['story_path'];
+		$base          = $this->slugs['base'];
+		$story_path    = $this->slugs['story_path'];
 		$chapter_slugs = $this->slugs['chapters'];
+		// When base slug is off, $base is '' — prefix becomes '' so rules start at root.
+		$prefix = empty( $base ) ? '' : $base . '/';
 
-		// Prologue: /fanfiction/stories/{story-slug}/prologue/
+		// Prologue: /[base/]stories/{story-slug}/prologue/
 		add_rewrite_rule(
-			'^' . $base . '/' . $story_path . '/([^/]+)/' . $chapter_slugs['prologue'] . '/?$',
+			'^' . $prefix . $story_path . '/([^/]+)/' . $chapter_slugs['prologue'] . '/?$',
 			'index.php?fanfiction_chapter=$matches[1]&chapter_type=prologue',
 			'top'
 		);
 
-		// Epilogue: /fanfiction/stories/{story-slug}/epilogue/
+		// Epilogue: /[base/]stories/{story-slug}/epilogue/
 		add_rewrite_rule(
-			'^' . $base . '/' . $story_path . '/([^/]+)/' . $chapter_slugs['epilogue'] . '/?$',
+			'^' . $prefix . $story_path . '/([^/]+)/' . $chapter_slugs['epilogue'] . '/?$',
 			'index.php?fanfiction_chapter=$matches[1]&chapter_type=epilogue',
 			'top'
 		);
 
-		// Chapter: /fanfiction/stories/{story-slug}/chapter-{number}/
+		// Chapter: /[base/]stories/{story-slug}/chapter-{number}/
 		add_rewrite_rule(
-			'^' . $base . '/' . $story_path . '/([^/]+)/' . $chapter_slugs['chapter'] . '-([0-9]+)/?$',
+			'^' . $prefix . $story_path . '/([^/]+)/' . $chapter_slugs['chapter'] . '-([0-9]+)/?$',
 			'index.php?fanfiction_chapter=$matches[1]&chapter_number=$matches[2]',
 			'top'
 		);
 
-		// Story: /fanfiction/stories/{story-slug}/
+		// Story: /[base/]stories/{story-slug}/
 		add_rewrite_rule(
-			'^' . $base . '/' . $story_path . '/([^/]+)/?$',
+			'^' . $prefix . $story_path . '/([^/]+)/?$',
 			'index.php?fanfiction_story=$matches[1]&post_type=fanfiction_story',
 			'top'
 		);
@@ -183,27 +189,28 @@ class Fanfic_URL_Manager {
 	 * Register dynamic page rewrite rules
 	 */
 	private function register_dynamic_page_rules() {
-		$base  = $this->slugs['base'];
-		$slugs = $this->slugs['dynamic'];
+		$base   = $this->slugs['base'];
+		$slugs  = $this->slugs['dynamic'];
+		$prefix = empty( $base ) ? '' : $base . '/';
 
-		// Dashboard: /fanfiction/dashboard/
+		// Dashboard: /[base/]dashboard/
 		if ( isset( $slugs['dashboard'] ) ) {
 			add_rewrite_rule(
-				'^' . $base . '/' . $slugs['dashboard'] . '/?$',
+				'^' . $prefix . $slugs['dashboard'] . '/?$',
 				'index.php?fanfic_page=dashboard',
 				'top'
 			);
 		}
 
-		// Members: /fanfiction/members/ or /fanfiction/members/username/
+		// Members: /[base/]members/ or /[base/]members/username/
 		if ( isset( $slugs['members'] ) ) {
 			add_rewrite_rule(
-				'^' . $base . '/' . $slugs['members'] . '/([^/]+)/?$',
+				'^' . $prefix . $slugs['members'] . '/([^/]+)/?$',
 				'index.php?fanfic_page=members&member_name=$matches[1]',
 				'top'
 			);
 			add_rewrite_rule(
-				'^' . $base . '/' . $slugs['members'] . '/?$',
+				'^' . $prefix . $slugs['members'] . '/?$',
 				'index.php?fanfic_page=members',
 				'top'
 			);
@@ -466,9 +473,10 @@ class Fanfic_URL_Manager {
 			if ( empty( $slug ) ) {
 				$slug = 'story-' . $post->ID;
 			}
-			$permalink = str_replace(
+			$base_prefix = empty( $this->slugs['base'] ) ? '' : $this->slugs['base'] . '/';
+			$permalink   = str_replace(
 				'%fanfiction_story%',
-				$this->slugs['base'] . '/' . $this->slugs['story_path'] . '/' . $slug,
+				$base_prefix . $this->slugs['story_path'] . '/' . $slug,
 				$permalink
 			);
 		}

@@ -1,4 +1,95 @@
-- Ver o problema do /username/ desaparecer no url preview dos membros quando mudamos o slug
+
 - Ter certeza que a nos settings a pagina o Url Settings segue o mesmo do wizard (são diferentes)
-- Dizer ao botão que apaga as fics de apagar as paginas criadas pelo plugin e as historias
 - Reservar no sistema de urls as paginas dinâmicas (se o user tentar criar uma pagina que já esta reservada numa pagina dinâmica, o wordprss deve saber que esse url esta reservado)
+
+-  What You Want (Authoritative Behavior)
+
+  1. No Base Slug + Custom Homepage (Fanfic page or existing WP page)
+
+  - WordPress native front-page behavior (show_on_front=page, page_on_front={id}).
+  - Plugin system pages (login/register/search/error/...) must be root-level (post_parent=0).
+  - URLs should be like /login/, /register/, etc. (not nested).
+
+  2. No Base Slug + Native WP Post Archive
+
+  - WordPress native (show_on_front=posts, page_on_front=0).
+  - Plugin system pages still root-level (post_parent=0).
+
+  3. No Base Slug + Stories Homepage (plugin archive page)
+
+  - WordPress native front-page behavior (show_on_front=page, page_on_front={id of browse stories plugin page})
+  - Still no base slug nesting: system pages remain root-level (post_parent=0).
+
+  4. Base Slug ON + Fanfic Homepage
+
+  - Main fanfic page slug must match base slug (e.g. /fanfiction/).
+  - System pages become children of that main page.
+  - Nested URLs natural under base slug.
+
+  5. Base Slug ON + Stories Homepage
+
+  - /{base-slug}/ renders story archive (template override).
+  - System pages are children of main page.
+
+  6. Base Slug ON + Existing WP Page
+
+  - Base slug URL acts as the plugin main entry.
+  - System pages are children of main page.
+
+  7. Base Slug ON + Native WP Post Archive
+
+  - Post archive should be rendered under /{base-slug}/ (not /).
+  - Implemented via special template routing for this combo.
+  - System pages still child-parent under base-slug main page.
+
+  ———
+
+  Switching Rules (must always hold)
+
+  - Toggle Base Slug ON => reattach physical system pages as children of main page.
+  - Toggle Base Slug OFF => detach physical system pages to root (post_parent=0).
+  - Rebuild pages + rewrite flush must keep URLs consistent after each switch.
+
+  ———
+
+  Canonical / No-duplicate URL rules
+
+  - If same content can appear at / and a direct slug URL, redirect slug to canonical.
+  - In stories-homepage mode, archive/search duplicate URL should redirect to canonical main URL.
+
+  ———
+
+  Current Bug You’re Seeing
+
+  - Even when No Base Slug is selected, plugin still creates/keeps system pages as children of fanfic homepage.
+  - Result: nested URLs remain, root-level goal fails.
+  - This is the key defect to fix.
+
+  ———
+
+ fanfic_use_base_slug is incorrectly set to 1 (true) when it should be 0 (false). This isn't a problem with
+  create_system_pages reading the value, but with the value being saved incorrectly in the first place. The saving logic in save_url_settings_step appears
+  correct, suggesting the POST data itself is wrong. render_url_settings_step calls Fanfic_URL_Config::render_form_fields(true), which might be outputting a
+  conflicting field. I need to examine includes/class-fanfic-url-config.php to verify.
+
+✦ The debug log is clear: fanfic_use_base_slug is 1 when it should be 0. The root cause is the value being saved incorrectly, not the page creation logic
+  that reads it. Refactoring create_system_pages is pointless if it's acting on bad data. The problem lies in the saving process on Step 2 of the wizard.
+
+ The conflict mabe arises from the wizard's render_url_settings_step and the included Fanfic_URL_Config::render_form_fields
+  both having logic for the base slug.
+
+ When you selected "No Base Slug" in Step 2, the system was incorrectly saving the
+  setting as if you had chosen to *use* a base slug.
+
+  This happened because the code was accidentally creating two identical sets of "Yes/No" radio buttons in the form. The browser was always submitting the
+  value from the first set, ignoring your actual choice.
+
+  My plan was to fix this by creating a single, central function that generates those settings. That's why I started by moving the Step 1 homepage options
+  into the Fanfic_URL_Config class first.
+
+The logic is that, when we chose the homepage option, we save that in some sort of variable, and then when user choses with or without base slug and   │
+  │   the page names, we take that information AND the information of step 2, to build everything. Because for the whole system to work, we need to know
+  │
+  │   whats the base slug (or not) and the desired homepage, at the same time. This 2 step is just cosmetic to guide the user, but the final architecture
+  │
+  │   bust be done with all the info already on hand.

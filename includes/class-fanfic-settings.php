@@ -1477,7 +1477,7 @@ class Fanfic_Settings {
 								<?php wp_nonce_field( 'fanfic_delete_data_nonce', 'fanfic_delete_data_nonce' ); ?>
 								<?php submit_button( __( 'Delete Data', 'fanfiction-manager' ), 'delete', 'submit', false, array( 'onclick' => "return confirm('" . __( 'Are you sure you want to delete all fanfiction data? This cannot be undone.', 'fanfiction-manager' ) . "')" ) ); ?>
 							</form>
-							<p class="description"><?php esc_html_e( 'Deletes all fanfic tables related data (except user and user fanfic roles), that will effectivly reset the plugin and prompt to the wizard.', 'fanfiction-manager' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Deletes all fanfiction stories, chapters, plugin-created pages, and fanfic tables/options (except users and roles), then resets the plugin to the setup wizard.', 'fanfiction-manager' ); ?></p>
 						</td>
 					</tr>
 				</tbody>
@@ -3020,32 +3020,202 @@ class Fanfic_Settings {
 	}
 
 	/**
+	 * Delete all posts for a specific post type.
+	 *
+	 * @since 1.0.0
+	 * @param string $post_type Post type slug.
+	 * @return void
+	 */
+	private static function delete_posts_by_type( $post_type ) {
+		$max_loops = 10000;
+		$loop      = 0;
+
+		do {
+			$loop++;
+			$post_ids = get_posts( array(
+				'post_type'              => $post_type,
+				'post_status'            => 'any',
+				'fields'                 => 'ids',
+				'posts_per_page'         => 200,
+				'orderby'                => 'ID',
+				'order'                  => 'ASC',
+				'no_found_rows'          => true,
+				'suppress_filters'       => true,
+				'update_post_meta_cache' => false,
+				'update_post_term_cache' => false,
+			) );
+
+			if ( empty( $post_ids ) ) {
+				break;
+			}
+
+			$deleted_count = 0;
+			foreach ( $post_ids as $post_id ) {
+				$deleted = wp_delete_post( absint( $post_id ), true );
+				if ( $deleted ) {
+					$deleted_count++;
+				}
+			}
+
+			// Prevent infinite loops if hooks block deletion for some posts.
+			if ( 0 === $deleted_count ) {
+				self::hard_delete_posts_by_ids( $post_ids );
+			}
+		} while ( $loop < $max_loops );
+	}
+
+	/**
+	 * Hard delete posts and core relations by IDs.
+	 *
+	 * Fallback used only when wp_delete_post() is unable to remove a batch.
+	 *
+	 * @since 1.0.0
+	 * @param array<int> $post_ids Post IDs.
+	 * @return void
+	 */
+	private static function hard_delete_posts_by_ids( $post_ids ) {
+		global $wpdb;
+
+		$post_ids = array_values( array_filter( array_map( 'absint', (array) $post_ids ) ) );
+		if ( empty( $post_ids ) ) {
+			return;
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->postmeta} WHERE post_id IN ($placeholders)",
+				$post_ids
+			)
+		);
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->term_relationships} WHERE object_id IN ($placeholders)",
+				$post_ids
+			)
+		);
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->commentmeta} WHERE comment_id IN (
+					SELECT comment_ID FROM {$wpdb->comments} WHERE comment_post_ID IN ($placeholders)
+				)",
+				$post_ids
+			)
+		);
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->comments} WHERE comment_post_ID IN ($placeholders)",
+				$post_ids
+			)
+		);
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->posts} WHERE ID IN ($placeholders)",
+				$post_ids
+			)
+		);
+	}
+
+	/**
+	 * Log delete-data progress with memory usage for debugging.
+	 *
+	 * @since 1.0.0
+	 * @param string $step Progress step label.
+	 * @return void
+	 */
+	private static function log_delete_data_progress( $step ) {
+		if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+			error_log(
+				sprintf(
+					'Fanfic Delete Data: %s | mem=%dMB peak=%dMB',
+					$step,
+					(int) round( memory_get_usage( true ) / 1048576 ),
+					(int) round( memory_get_peak_usage( true ) / 1048576 )
+				)
+			);
+		}
+	}
+
+	/**
 	 * Handle delete data request
 	 *
 	 * @since 1.0.0
 	 */
 	public static function handle_delete_data() {
-		if ( ! isset( $_POST['fanfic_delete_data_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_delete_data_nonce'], 'fanfic_delete_data_nonce' ) ) {
-			wp_die( 'Security check failed.' );
+		$nonce = isset( $_POST['fanfic_delete_data_nonce'] )
+			? sanitize_text_field( wp_unslash( $_POST['fanfic_delete_data_nonce'] ) )
+			: '';
+
+		if ( ! wp_verify_nonce( $nonce, 'fanfic_delete_data_nonce' ) ) {
+			wp_die( __( 'Security check failed.', 'fanfiction-manager' ) );
 		}
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( 'You do not have sufficient permissions to access this page.' );
+			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
 		}
+
+		self::log_delete_data_progress( 'start' );
+
+		// Delete all fanfiction content posts first so cleanup hooks can run while tables still exist.
+		self::delete_posts_by_type( 'fanfiction_chapter' );
+		self::log_delete_data_progress( 'chapters_deleted' );
+		self::delete_posts_by_type( 'fanfiction_story' );
+		self::log_delete_data_progress( 'stories_deleted' );
+
+		// Delete system pages by their saved IDs.
+		$system_page_ids = get_option( 'fanfic_system_page_ids', array() );
+		foreach ( (array) $system_page_ids as $page_id ) {
+			wp_delete_post( absint( $page_id ), true );
+		}
+		self::log_delete_data_progress( 'system_pages_deleted' );
 
 		global $wpdb;
 
-		// Drop all tables with "fanfic" in the name
-		$tables = $wpdb->get_col( "SHOW TABLES LIKE '{$wpdb->prefix}fanfic%'" );
-		foreach ( $tables as $table ) {
-			$wpdb->query( "DROP TABLE IF EXISTS $table" );
-		}
+		// Drop known plugin tables directly (avoid loading large result sets in memory).
+		$table_names = array(
+			'fanfic_moderation_log',
+			'fanfic_story_search_index',
+			'fanfic_story_custom_terms',
+			'fanfic_custom_terms',
+			'fanfic_custom_taxonomies',
+			'fanfic_story_languages',
+			'fanfic_languages',
+			'fanfic_story_warnings',
+			'fanfic_warnings',
+			'fanfic_notifications',
+			'fanfic_email_subscriptions',
+			'fanfic_follows',
+			'fanfic_bookmarks',
+			'fanfic_reading_progress',
+			'fanfic_likes',
+			'fanfic_ratings',
+			'fanfic_story_fandoms',
+			'fanfic_fandoms',
+			// Legacy tables kept for backwards compatibility.
+			'fanfic_reports',
+			'fanfic_read_lists',
+			'fanfic_subscriptions',
+		);
 
-		// Delete all options with "fanfic" in the name
-		$options = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE 'fanfic%'" );
-		foreach ( $options as $option ) {
-			delete_option( $option );
+		foreach ( $table_names as $table_name ) {
+			$wpdb->query( "DROP TABLE IF EXISTS `{$wpdb->prefix}{$table_name}`" );
 		}
+		self::log_delete_data_progress( 'tables_dropped' );
+
+		// Delete all options with "fanfic" in the name in one query (memory-safe).
+		$options_like = $wpdb->esc_like( 'fanfic' ) . '%';
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+				$options_like
+			)
+		);
+		self::log_delete_data_progress( 'options_deleted' );
 
 		// Redirect to the wizard
 		wp_safe_redirect( admin_url( 'admin.php?page=fanfic-setup-wizard' ) );
