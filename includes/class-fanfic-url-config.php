@@ -1517,9 +1517,10 @@ foreach ( $definitions as $key => $def ) {
             wp_die( 'Security check failed.', 'Security Error', array( 'response' => 403 ) );
         }
 
-        // Get the new mode
-        $new_use_base_slug = isset( $_POST['fanfic_use_base_slug'] ) && '1' === $_POST['fanfic_use_base_slug'];
-        $old_use_base_slug = get_option( 'fanfic_use_base_slug', true );
+        // Get the new mode as int 0/1 (see save_wizard_url_settings for why
+        // booleans must not be used here).
+        $new_use_base_slug = ( isset( $_POST['fanfic_use_base_slug'] ) && '1' === $_POST['fanfic_use_base_slug'] ) ? 1 : 0;
+        $old_use_base_slug = (int) get_option( 'fanfic_use_base_slug', 1 );
 
         // Only proceed if mode is actually changing
         if ( $new_use_base_slug !== $old_use_base_slug ) {
@@ -1591,10 +1592,14 @@ foreach ( $definitions as $key => $def ) {
         // This function is called via AJAX from the wizard.
         // Nonce is verified in the AJAX handler in the wizard class.
 
-        // Save base slug choice
+        // Save base slug choice.
+        // Must store as int 0/1, not bool. WordPress update_option compares the
+        // incoming value to get_option() (which returns false when the option does
+        // not yet exist) with ===.  Saving boolean false on a fresh install would
+        // match that default and silently skip the write; the option would never
+        // be created, causing get_option( …, true ) to always return the default.
         if ( isset( $_POST['fanfic_use_base_slug'] ) ) {
-            $use_base_slug = '1' === $_POST['fanfic_use_base_slug'];
-            update_option( 'fanfic_use_base_slug', $use_base_slug );
+            update_option( 'fanfic_use_base_slug', '1' === $_POST['fanfic_use_base_slug'] ? 1 : 0 );
         }
 
         // --- The rest of this is the validation logic from the original wizard save function ---

@@ -61,12 +61,17 @@
 		 */
 		toggleBaseSlugField: function() {
 			var useBaseSlug = $('input[name="fanfic_use_base_slug"]:checked').val() === '1';
-			var $baseSlugRow = $('#fanfic_base_slug').closest('tr');
+			var $baseSlugInput = $('#fanfic_base_slug');
+			var $baseSlugRow = $baseSlugInput.closest('tr');
 
 			if (useBaseSlug) {
 				$baseSlugRow.show();
+				$baseSlugInput.prop('disabled', false);
 			} else {
 				$baseSlugRow.hide();
+				// Disable, not just hide: disabled inputs are excluded from
+				// serialize() and from required-field validation.
+				$baseSlugInput.prop('disabled', true);
 			}
 			this.updateLiveUrlPreviews();
 		},
