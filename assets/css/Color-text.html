@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fanfiction Frontend – Color & Button Preview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Real frontend CSS -->
+<link rel="stylesheet" href="fanfiction-frontend.css">
+
+<style>
+/* =========================================================
+   Preview-only layout helpers (NO COLORS HERE)
+   ========================================================= */
+
+body {
+	margin: 0;
+	font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+	line-height: 1.6;
+}
+
+main {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 3rem 2rem;
+}
+
+section {
+	margin-bottom: 3.5rem;
+}
+
+h1 {
+	font-size: 2.2rem;
+	margin-bottom: 1rem;
+}
+
+h2 {
+	font-size: 1.4rem;
+	margin-bottom: 1.25rem;
+}
+
+p {
+	max-width: 70ch;
+}
+
+.card {
+	padding: 1.5rem;
+	border-radius: 8px;
+}
+
+/* =========================================================
+   Color Swatches
+   ========================================================= */
+
+.color-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 1rem;
+}
+
+.color-card {
+	border-radius: 6px;
+	overflow: hidden;
+	font-size: 13px;
+}
+
+.color-preview {
+	height: 64px;
+}
+
+.color-label {
+	padding: 8px 10px;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 12px;
+	word-break: break-all;
+}
+
+/* =========================================================
+   Buttons
+   ========================================================= */
+
+.button-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	align-items: center;
+}
+
+
+/* =========================================================
+   Core color rows
+   ========================================================= */
+.color-rows {
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+.color-row {
+	display: grid;
+	gap: 1rem;
+}
+
+/* Two items per row */
+.color-row.two {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Full-width single item */
+.color-row.full {
+	grid-template-columns: 1fr;
+}
+
+/* Three items per row (accents) */
+.color-row.three {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+</style>
+</head>
+
+<body>
+<main>
+
+	<section>
+		<h1>Fanfiction Frontend – Design Token Preview</h1>
+		<p>
+			This page visualises the actual CSS variables exposed by
+			<code>fanfiction-frontend.css</code> and shows how they are consumed
+			by real UI components.
+		</p>
+	</section>
+
+	<!-- ===================================================== -->
+<!-- CORE COLOR TOKENS -->
+<!-- ===================================================== -->
+<section class="card" style="background-color: var(--background-soft); border: 2px solid var(--color-border)">
+	<h2>Core Color Tokens</h2>
+
+	<div class="color-rows">
+
+		<!-- Row 1: Lightest & Light -->
+		<div class="color-row two">
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--base-lighter);"></div>
+				<div class="color-label">--base-lighter</div>
+			</div>
+
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--base-light);"></div>
+				<div class="color-label">--base-light</div>
+			</div>
+		</div>
+
+		<!-- Row 2: Base color (full width) -->
+		<div class="color-row full">
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--base-color); height: 96px;"></div>
+				<div class="color-label">--base-color</div>
+			</div>
+		</div>
+
+		<!-- Row 3: Dark & Darker -->
+		<div class="color-row two">
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--base-dark);"></div>
+				<div class="color-label">--base-dark</div>
+			</div>
+
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--base-darker);"></div>
+				<div class="color-label">--base-darker</div>
+			</div>
+		</div>
+
+		<!-- Row 4: Accent colors -->
+		<div class="color-row three">
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--accent-color);"></div>
+				<div class="color-label">--accent-color</div>
+			</div>
+
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--accent-light);"></div>
+				<div class="color-label">--accent-light</div>
+			</div>
+
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--accent-dark);"></div>
+				<div class="color-label">--accent-dark</div>
+			</div>
+		</div>
+
+	</div>
+</section>
+
+	
+	
+
+
+	
+	
+	
+	<!-- ===================================================== -->
+<!-- TEXT, LINKS & UTILITY COLORS -->
+<!-- ===================================================== -->
+<section class="card">
+	<h2>Text, Links & Utility Tokens</h2>
+
+	<!-- Swatches -->
+	<div class="color-grid">
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--color-text);"></div>
+			<div class="color-label">--color-text</div>
+		</div>
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--color-text-muted);"></div>
+			<div class="color-label">--color-text-muted</div>
+		</div>
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--color-disabled-bg);"></div>
+			<div class="color-label">--color-disabled-bg</div>
+		</div>
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--color-disabled-text);"></div>
+			<div class="color-label">--color-disabled-text</div>
+		</div>
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--color-border);"></div>
+			<div class="color-label">--color-border</div>
+		</div>
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--accent-dark);"></div>
+			<div class="color-label">--color-link</div>
+		</div>
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--color-link-hover);"></div>
+			<div class="color-label">--color-link-hover</div>
+		</div>
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--color-link-visited);"></div>
+			<div class="color-label">--color-link-visited</div>
+		</div>
+
+		<div class="color-card">
+			<div class="color-preview" style="background: var(--color-button-text);"></div>
+			<div class="color-label">--color-button-text</div>
+		</div>
+
+	</div>
+
+	<!-- Contextual Preview -->
+	<div style="margin-top: 2rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: 6px;">
+		<p style="color: var(--color-text); margin-top: 0;">
+			This is primary body text using <code>--color-text</code>.
+		</p>
+
+		<p style="color: var(--color-text-muted);">
+			This is muted text using <code>--color-text-muted</code>, suitable for metadata or footnotes.
+		</p>
+
+		<p style="font-size: 1.4em; font-weight: 400">
+			<a href="#" style="color: var(--accent-dark);">
+				Normal link
+			</a>
+			&nbsp;|&nbsp;
+			<a href="#" style="color: var(--color-link-hover);">
+				Hover state
+			</a>
+			&nbsp;|&nbsp;
+			<a href="#" style="color: var(--color-link-visited);">
+				Visited link
+			</a>
+		</p>
+
+		<p style="background: var(--color-disabled-bg); color: var(--color-disabled-text); padding: 0.5rem; border-radius: 4px;">
+			Disabled content preview (background + text)
+		</p>
+	</div>
+</section>
+
+<!-- ===================================================== -->
+	<!-- BUTTON PREVIEW -->
+	<!-- ===================================================== -->
+	<section class="card" style="background-color: var(--background)">
+		<h2>Buttons (Real Components)</h2>
+
+		<h3>Button elements</h3>
+		<div class="button-row">
+			<button class="fanfic-button">Primary</button>
+			<button class="fanfic-button secondary">Secondary</button>
+			<button class="fanfic-button success">Success</button>
+			<button class="fanfic-button danger">Danger</button>
+			<button class="fanfic-button" disabled>Disabled</button>
+		</div>
+
+		<br>
+
+		<h3>Anchor elements</h3>
+		<div class="button-row">
+			<a href="#" class="fanfic-button">Primary Link</a>
+			<a href="#" class="fanfic-button secondary">Secondary Link</a>
+			<a href="#" class="fanfic-button success">Success Link</a>
+			<a href="#" class="fanfic-button danger">Danger Link</a>
+			<a href="#" class="fanfic-button disabled" aria-disabled="true">Disabled Link</a>
+		</div>
+	</section>
+<!-- ===================================================== -->
+	<!-- Fixed COLOR TOKENS -->
+	<!-- ===================================================== -->
+	<section class="card" style="background-color: var(--background-soft); border: 2px dashed var(--color-border)">
+		<h2>Fixed Color Tokens</h2>
+		<div class="color-grid">
+		
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--color-success);"></div>
+				<div class="color-label">--color-success</div>
+			</div>
+
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--color-error);"></div>
+				<div class="color-label">--color-error</div>
+			</div>
+			
+				<div class="color-card">
+				<div class="color-preview" style="background: var(--color-warning);"></div>
+				<div class="color-label">--color-warning</div>
+			</div>
+
+			<div class="color-card">
+				<div class="color-preview" style="background: var(--color-info);"></div>
+				<div class="color-label">--color-info</div>
+			</div>
+
+
+		<div class="color-card">
+				<div class="color-preview" style="background: var(--color-teal);"></div>
+				<div class="color-label">--color-teal</div>
+			</div>
+		
+
+
+		</div>
+	</section>
+
+</main>
+</body>
+</html>

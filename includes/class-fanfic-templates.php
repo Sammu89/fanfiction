@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Template Loader Class
  *
@@ -39,10 +39,12 @@ class Fanfic_Templates {
 		add_action( 'admin_notices', array( __CLASS__, 'missing_pages_notice' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'missing_shortcodes_notice' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'homepage_changed_notice' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'slug_conflict_notice' ) );
 		add_action( 'admin_post_fanfic_rebuild_pages', array( __CLASS__, 'rebuild_pages' ) );
 		add_action( 'admin_post_fanfic_fix_page_shortcodes', array( __CLASS__, 'fix_page_shortcodes' ) );
 		add_action( 'admin_post_fanfic_fix_homepage', array( __CLASS__, 'fix_homepage_settings' ) );
 		add_filter( 'wp_nav_menu_objects', array( __CLASS__, 'filter_menu_items_by_login_status' ), 10, 2 );
+		add_filter( 'wp_insert_post_data', array( __CLASS__, 'reserve_plugin_urls' ), 10, 2 );
 	}
 
 	/**
@@ -700,6 +702,22 @@ class Fanfic_Templates {
 	 * @return array Array with success status, created/existing/failed pages, and summary message.
 	 */
 	public static function create_system_pages( $base_slug = 'fanfiction' ) {
+		// Increase memory limit temporarily for page creation
+		$original_memory_limit = ini_get( 'memory_limit' );
+		if ( (int) $original_memory_limit < 512 ) {
+			@ini_set( 'memory_limit', '512M' );
+		}
+
+		// Clear any existing caches before starting
+		wp_cache_flush();
+
+		// Log memory at start
+		error_log( sprintf(
+			'Fanfic Templates: Starting page creation | mem=%dMB peak=%dMB',
+			(int) round( memory_get_usage( true ) / 1048576 ),
+			(int) round( memory_get_peak_usage( true ) / 1048576 )
+		) );
+
 		$page_ids = get_option( 'fanfic_system_page_ids', array() );
 
 		// Initialize result tracking array
@@ -726,73 +744,55 @@ class Fanfic_Templates {
 		// Scenario 3: No base slug + stories as homepage
 		// Scenario 4: No base slug + custom homepage
 
-		$main_page_slug = $use_base_slug ? $base_slug : '';
-
-		// Check for slug conflicts and append -ff if needed
-		if ( ! empty( $main_page_slug ) ) {
-			$main_page_slug = self::resolve_slug_conflict( $main_page_slug );
-		}
-
-		// Create main page based on mode
-		$main_page_id = false;
+		// ALWAYS create main page - determine slug based on scenario
+		$main_page_slug = '';
+		$main_page_content = '';
 
 		if ( $use_base_slug ) {
-			// Scenarios 1 & 2: With base slug, create a parent page
+			// Scenarios 1 & 2: With base slug, main page slug = base slug
+			$main_page_slug = $base_slug;
+
+			// Check for slug conflicts and append -ff if needed
+			$main_page_slug = self::resolve_slug_conflict( $main_page_slug );
+
+			// Content depends on mode
 			if ( $main_page_mode === 'stories_homepage' ) {
 				// Scenario 1: Base slug + stories as homepage
-				$main_page_id = self::create_or_update_page(
-					'main',
-					__( 'Fanfiction', 'fanfiction-manager' ),
-					'',
-					'<!-- wp:paragraph --><p>' . __( 'Loading stories...', 'fanfiction-manager' ) . '</p><!-- /wp:paragraph -->',
-					$main_page_slug,
-					0,
-					$result
-				);
+				$main_page_content = '<!-- wp:paragraph --><p>' . __( 'Loading stories...', 'fanfiction-manager' ) . '</p><!-- /wp:paragraph -->';
 			} else {
 				// Scenario 2: Base slug + custom homepage
-				$main_page_id = self::create_or_update_page(
-					'main',
-					__( 'Fanfiction', 'fanfiction-manager' ),
-					'',
-					self::get_default_template_content( 'main' ),
-					$main_page_slug,
-					0,
-					$result
-				);
+				$main_page_content = self::get_default_template_content( 'main' );
 			}
 		} else {
-			// Scenarios 3 & 4: No base slug, pages are created at root level
-			if ( $main_page_mode === 'stories_homepage' ) {
-				// Scenario 3: No base slug + stories as homepage
-				// Set WordPress front page to show posts (story archive will be shown via template override)
-				update_option( 'show_on_front', 'posts' );
-				update_option( 'fanfic_homepage_mode', 'scenario_3' );
-			} else {
-				// Scenario 4: No base slug + custom homepage
-				// Create a homepage and set it as WordPress front page
-				$homepage_slug = self::resolve_slug_conflict( 'fanfiction-home' );
-				$main_page_id = self::create_or_update_page(
-					'main',
-					__( 'Fanfiction', 'fanfiction-manager' ),
-					'',
-					self::get_default_template_content( 'main' ),
-					$homepage_slug,
-					0,
-					$result
-				);
-
-				// Set this page as WordPress front page
-				if ( false !== $main_page_id ) {
-					update_option( 'show_on_front', 'page' );
-					update_option( 'page_on_front', $main_page_id );
-					update_option( 'fanfic_homepage_mode', 'scenario_4' );
-				}
-			}
+			// Scenarios 3 & 4: No base slug
+			// ALWAYS create main page but use different slug to avoid conflicts
+			$main_page_slug = self::resolve_slug_conflict( 'fanfiction-home' );
+			$main_page_content = self::get_default_template_content( 'main' );
 		}
 
+		// Always create the main page
+		$main_page_id = self::create_or_update_page(
+			'main',
+			__( 'Fanfiction', 'fanfiction-manager' ),
+			'',
+			$main_page_content,
+			$main_page_slug,
+			0, // Always root level
+			$result
+		);
+
+		// Store main page ID
 		if ( false !== $main_page_id ) {
 			$page_ids['main'] = $main_page_id;
+
+			// Cleanup memory after main page creation
+			self::cleanup_memory_during_page_creation();
+
+			error_log( sprintf(
+				'Fanfic Templates: Main page created | mem=%dMB peak=%dMB',
+				(int) round( memory_get_usage( true ) / 1048576 ),
+				(int) round( memory_get_peak_usage( true ) / 1048576 )
+			) );
 		}
 
 		$search_slug = isset( $custom_slugs['search'] ) && ! empty( $custom_slugs['search'] )
@@ -849,6 +849,7 @@ class Fanfic_Templates {
 		$parent_id = $use_base_slug ? $main_page_id : 0;
 
 		// Create child pages (only for non-dynamic pages)
+		$page_count = 0;
 		foreach ( $pages as $key => $page_data ) {
 			// Check if this page should be dynamic
 			if ( in_array( $key, $dynamic_pages, true ) ) {
@@ -875,7 +876,28 @@ class Fanfic_Templates {
 			if ( false !== $page_id ) {
 				$page_ids[ $key ] = $page_id;
 			}
+
+			$page_count++;
+
+			// Cleanup memory after every 3 pages
+			if ( $page_count % 3 === 0 ) {
+				self::cleanup_memory_during_page_creation();
+
+				error_log( sprintf(
+					'Fanfic Templates: Created %d pages | mem=%dMB peak=%dMB',
+					$page_count,
+					(int) round( memory_get_usage( true ) / 1048576 ),
+					(int) round( memory_get_peak_usage( true ) / 1048576 )
+				) );
+			}
 		}
+
+		// Log after all pages created
+		error_log( sprintf(
+			'Fanfic Templates: All pages created, saving page IDs | mem=%dMB peak=%dMB',
+			(int) round( memory_get_usage( true ) / 1048576 ),
+			(int) round( memory_get_peak_usage( true ) / 1048576 )
+		) );
 
 		// Save dynamic page slugs separately
 		if ( ! empty( $dynamic_slugs ) ) {
@@ -885,10 +907,32 @@ class Fanfic_Templates {
 		// Save page IDs
 		update_option( 'fanfic_system_page_ids', $page_ids );
 
+		error_log( sprintf(
+			'Fanfic Templates: Page IDs saved | mem=%dMB peak=%dMB',
+			(int) round( memory_get_usage( true ) / 1048576 ),
+			(int) round( memory_get_peak_usage( true ) / 1048576 )
+		) );
+
+		// Sync homepage settings using helper
+		if ( class_exists( 'Fanfic_Homepage_State' ) ) {
+			Fanfic_Homepage_State::sync_homepage_settings();
+		}
+
 		// Flush rewrite rules
+		error_log( sprintf(
+			'Fanfic Templates: Flushing rewrite rules | mem=%dMB peak=%dMB',
+			(int) round( memory_get_usage( true ) / 1048576 ),
+			(int) round( memory_get_peak_usage( true ) / 1048576 )
+		) );
 		flush_rewrite_rules();
+		error_log( sprintf(
+			'Fanfic Templates: Rewrite rules flushed | mem=%dMB peak=%dMB',
+			(int) round( memory_get_usage( true ) / 1048576 ),
+			(int) round( memory_get_peak_usage( true ) / 1048576 )
+		) );
 
 		// Validate only physical WordPress pages (not dynamic pages)
+		// Main page should ALWAYS exist now
 		$required_pages = array(
 			'main',
 			'login',
@@ -976,6 +1020,20 @@ class Fanfic_Templates {
 			);
 		}
 
+		// Final cleanup
+		self::cleanup_memory_during_page_creation();
+
+		// Restore original memory limit
+		if ( isset( $original_memory_limit ) ) {
+			@ini_set( 'memory_limit', $original_memory_limit );
+		}
+
+		error_log( sprintf(
+			'Fanfic Templates: Page creation complete | mem=%dMB peak=%dMB',
+			(int) round( memory_get_usage( true ) / 1048576 ),
+			(int) round( memory_get_peak_usage( true ) / 1048576 )
+		) );
+
 		return array(
 			'success'  => $success,
 			'created'  => $result['created'],
@@ -983,6 +1041,26 @@ class Fanfic_Templates {
 			'failed'   => $result['failed'],
 			'message'  => $message,
 		);
+	}
+
+	/**
+	 * Cleanup memory during page creation
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private static function cleanup_memory_during_page_creation() {
+		// Clear object cache
+		wp_cache_flush();
+
+		// Clear wpdb queries log
+		global $wpdb;
+		$wpdb->queries = array();
+
+		// Force garbage collection
+		if ( function_exists( 'gc_collect_cycles' ) ) {
+			gc_collect_cycles();
+		}
 	}
 
 	/**
@@ -1035,40 +1113,15 @@ class Fanfic_Templates {
 			return;
 		}
 
-		// Only check in no-base-slug scenarios
-		$use_base_slug = get_option( 'fanfic_use_base_slug', true );
-		if ( $use_base_slug ) {
-			delete_transient( 'fanfic_homepage_changed' );
-			return;
-		}
+		// Use helper to check sync status
+		if ( class_exists( 'Fanfic_Homepage_State' ) ) {
+			$in_sync = Fanfic_Homepage_State::is_wp_front_page_in_sync();
 
-		// Get the scenario mode
-		$homepage_mode = get_option( 'fanfic_homepage_mode', '' );
-		$show_on_front = get_option( 'show_on_front' );
-		$page_on_front = get_option( 'page_on_front' );
-
-		$homepage_changed = false;
-
-		// Scenario 3: Should show posts
-		if ( 'scenario_3' === $homepage_mode && 'posts' !== $show_on_front ) {
-			$homepage_changed = true;
-		}
-
-		// Scenario 4: Should show our main page
-		if ( 'scenario_4' === $homepage_mode ) {
-			$page_ids = get_option( 'fanfic_system_page_ids', array() );
-			$expected_page_id = isset( $page_ids['main'] ) ? $page_ids['main'] : 0;
-
-			if ( 'page' !== $show_on_front || $page_on_front != $expected_page_id ) {
-				$homepage_changed = true;
+			if ( ! $in_sync ) {
+				set_transient( 'fanfic_homepage_changed', true, DAY_IN_SECONDS );
+			} else {
+				delete_transient( 'fanfic_homepage_changed' );
 			}
-		}
-
-		// Store result in transient
-		if ( $homepage_changed ) {
-			set_transient( 'fanfic_homepage_changed', true, DAY_IN_SECONDS );
-		} else {
-			delete_transient( 'fanfic_homepage_changed' );
 		}
 	}
 
@@ -1095,9 +1148,9 @@ class Fanfic_Templates {
 			return;
 		}
 
-		// Get the scenario mode for appropriate messaging
-		$homepage_mode = get_option( 'fanfic_homepage_mode', '' );
+		// Get current state for messaging
 		$use_base_slug = get_option( 'fanfic_use_base_slug', true );
+		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
 
 		// Build fix URL
 		$fix_url = admin_url( 'admin-post.php?action=fanfic_fix_homepage' );
@@ -1108,9 +1161,9 @@ class Fanfic_Templates {
 			<p>
 				<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
 				<?php
-				if ( 'scenario_3' === $homepage_mode ) {
+				if ( 'stories_homepage' === $main_page_mode ) {
 					esc_html_e( 'Your WordPress homepage settings have been changed. The plugin is configured to use "Main URL Root" mode with stories as the homepage.', 'fanfiction-manager' );
-				} elseif ( 'scenario_4' === $homepage_mode ) {
+				} elseif ( 'custom_homepage' === $main_page_mode ) {
 					esc_html_e( 'Your WordPress homepage settings have been changed. The plugin is configured to use "Main URL Root" mode with a custom homepage.', 'fanfiction-manager' );
 				} else {
 					esc_html_e( 'Your WordPress homepage settings have been changed and may affect the plugin functionality.', 'fanfiction-manager' );
@@ -1149,19 +1202,9 @@ class Fanfic_Templates {
 			wp_die( esc_html__( 'You do not have sufficient permissions to perform this action.', 'fanfiction-manager' ) );
 		}
 
-		// Get the scenario mode
-		$homepage_mode = get_option( 'fanfic_homepage_mode', '' );
-
-		if ( 'scenario_3' === $homepage_mode ) {
-			// Scenario 3: Set to show posts
-			update_option( 'show_on_front', 'posts' );
-		} elseif ( 'scenario_4' === $homepage_mode ) {
-			// Scenario 4: Set to show our main page
-			$page_ids = get_option( 'fanfic_system_page_ids', array() );
-			if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
-				update_option( 'show_on_front', 'page' );
-				update_option( 'page_on_front', $page_ids['main'] );
-			}
+		// Use helper to sync homepage settings
+		if ( class_exists( 'Fanfic_Homepage_State' ) ) {
+			Fanfic_Homepage_State::sync_homepage_settings();
 		}
 
 		// Clear the transient
@@ -1186,18 +1229,35 @@ class Fanfic_Templates {
 	 * @return int|WP_Error Menu ID on success, WP_Error on failure.
 	 */
 	public static function create_fanfiction_menu( $page_ids ) {
+		error_log( sprintf( 'Fanfic Templates: Starting menu creation | mem=%dMB peak=%dMB', (int) round( memory_get_usage( true ) / 1048576 ), (int) round( memory_get_peak_usage( true ) / 1048576 ) ) );
 		$menu_name = 'Fanfiction Automatic Menu';
+		$menu_id = null;
 
-		// Delete existing menu if it exists
+		// Check if the menu exists.
 		$existing_menu = wp_get_nav_menu_object( $menu_name );
+
 		if ( $existing_menu ) {
-			wp_delete_nav_menu( $existing_menu->term_id );
+			error_log( 'Fanfic Templates: Found existing menu. Clearing items instead of deleting menu.' );
+			$menu_id = $existing_menu->term_id;
+
+			// Get all items from the menu
+			$menu_items = wp_get_nav_menu_items( $menu_id );
+			if ( ! empty( $menu_items ) ) {
+				foreach ( (array) $menu_items as $menu_item ) {
+					wp_delete_post( $menu_item->ID, true );
+				}
+				error_log( 'Fanfic Templates: Cleared all items from existing menu.' );
+			}
+		} else {
+			// Create new menu if it doesn't exist.
+			error_log( 'Fanfic Templates: Menu not found. Creating new menu...' );
+			$menu_id = wp_create_nav_menu( $menu_name );
+			error_log( 'Fanfic Templates: New menu created with ID: ' . ( is_wp_error( $menu_id ) ? $menu_id->get_error_message() : $menu_id ) );
 		}
 
-		// Create new menu
-		$menu_id = wp_create_nav_menu( $menu_name );
 
-		if ( is_wp_error( $menu_id ) ) {
+		if ( is_wp_error( $menu_id ) || ! $menu_id ) {
+			error_log( 'Fanfic Templates: Failed to create or find menu. Aborting menu creation.' );
 			return $menu_id;
 		}
 
@@ -1275,6 +1335,7 @@ class Fanfic_Templates {
 			'menu-item-classes' => 'fanfic-menu-logout menu-item-logged-in',
 		) );
 
+		error_log( sprintf( 'Fanfic Templates: Menu creation complete | mem=%dMB peak=%dMB', (int) round( memory_get_usage( true ) / 1048576 ), (int) round( memory_get_peak_usage( true ) / 1048576 ) ) );
 		return $menu_id;
 	}
 
@@ -1367,6 +1428,11 @@ class Fanfic_Templates {
 				// Perform update if needed
 				if ( $needs_update ) {
 					wp_update_post( $update_data );
+					error_log( "[Fanfic Pages] Updated page '{$key}': title='{$title}', slug='{$post_name}', ID={$page_ids[$key]}, parent={$parent_id}" );
+				} else {
+					if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+						error_log( "[Fanfic Pages] Page '{$key}' already exists (no update needed): ID={$page_ids[$key]}" );
+					}
 				}
 
 				// Page exists (or was updated), add to existing array
@@ -1404,8 +1470,12 @@ class Fanfic_Templates {
 					'message' => $page_id->get_error_message(),
 				);
 			}
+			error_log( "[Fanfic Pages] FAILED to create page '{$key}': title='{$title}', slug='{$post_name}', error=" . $page_id->get_error_message() );
 			return false;
 		}
+
+		// Log successful creation
+		error_log( "[Fanfic Pages] Created page '{$key}': title='{$title}', slug='{$post_name}', ID={$page_id}, parent={$parent_id}" );
 
 		// Assign the appropriate template based on theme type
 		if ( class_exists( 'Fanfic_Page_Template' ) ) {
@@ -1417,6 +1487,9 @@ class Fanfic_Templates {
 		if ( is_array( $result ) ) {
 			$result['created'][] = $key;
 		}
+
+		// Clear any post caches for this specific page
+		clean_post_cache( $page_id );
 
 		return $page_id;
 	}
@@ -1478,4 +1551,137 @@ class Fanfic_Templates {
 
 		return isset( $templates[ $page_slug ] ) ? $templates[ $page_slug ] : '';
 	}
+
+	/**
+	 * Get all reserved slugs based on current configuration.
+	 *
+	 * Returns an array of slugs that cannot be used by regular WordPress pages.
+	 * Only applies in no-base-slug mode.
+	 *
+	 * @since 1.0.0
+	 * @return array Array of reserved slugs.
+	 */
+	public static function get_reserved_slugs() {
+		$reserved = array();
+
+		// Get base slug setting
+		$use_base_slug = get_option( 'fanfic_use_base_slug', true );
+
+		// Only reserve slugs when NOT using base slug
+		if ( ! $use_base_slug ) {
+			// Add system page slugs
+			$page_slugs = get_option( 'fanfic_system_page_slugs', array() );
+			$reserved = array_merge( $reserved, array_values( $page_slugs ) );
+
+			// Add dynamic page slugs from URL Manager
+			if ( class_exists( 'Fanfic_URL_Manager' ) ) {
+				$dynamic_slugs = Fanfic_URL_Manager::get_instance()->get_slugs();
+				$reserved = array_merge( $reserved, array_values( $dynamic_slugs ) );
+			}
+
+			// Add story path
+			$story_path = get_option( 'fanfic_story_path', 'stories' );
+			$reserved[] = $story_path;
+
+			// Add members slug
+			$members_slug = get_option( 'fanfic_members_slug', 'members' );
+			$reserved[] = $members_slug;
+
+			// Add base slug (in case it's defined but not used)
+			$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
+			if ( ! empty( $base_slug ) ) {
+				$reserved[] = $base_slug;
+			}
+		}
+
+		return array_unique( array_filter( $reserved ) );
+	}
+
+	/**
+	 * Prevent reserved slugs from being used by regular WordPress pages.
+	 *
+	 * Hooks into wp_insert_post_data to modify slug if it conflicts with plugin slugs.
+	 * Only applies in no-base-slug mode.
+	 *
+	 * @since 1.0.0
+	 * @param array $data    An array of slashed, sanitized, and processed post data.
+	 * @param array $postarr An array of sanitized (and slashed) but otherwise unmodified post data.
+	 * @return array Modified post data.
+	 */
+	public static function reserve_plugin_urls( $data, $postarr ) {
+		// Skip if not a page
+		if ( $data['post_type'] !== 'page' ) {
+			return $data;
+		}
+
+		// Skip if it's one of our system pages
+		$our_page_ids = get_option( 'fanfic_system_page_ids', array() );
+		if ( isset( $postarr['ID'] ) && in_array( $postarr['ID'], $our_page_ids, true ) ) {
+			return $data;
+		}
+
+		// Only apply in no-base-slug mode
+		$use_base_slug = get_option( 'fanfic_use_base_slug', true );
+		if ( $use_base_slug ) {
+			return $data;
+		}
+
+		// Get reserved slugs
+		$reserved_slugs = self::get_reserved_slugs();
+
+		// Check if slug is reserved
+		if ( in_array( $data['post_name'], $reserved_slugs, true ) ) {
+			// Append -page to avoid conflict
+			$original_slug = $data['post_name'];
+			$data['post_name'] .= '-page';
+
+			// Set admin notice
+			set_transient( 'fanfic_slug_conflict', array(
+				'original' => $original_slug,
+				'modified' => $data['post_name'],
+			), 30 );
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Display admin notice when a slug conflict was resolved.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function slug_conflict_notice() {
+		// Only show to users who can edit pages
+		if ( ! current_user_can( 'edit_pages' ) ) {
+			return;
+		}
+
+		$conflict = get_transient( 'fanfic_slug_conflict' );
+		if ( ! $conflict ) {
+			return;
+		}
+
+		?>
+		<div class="notice notice-warning is-dismissible">
+			<p>
+				<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
+				<?php
+				printf(
+					/* translators: 1: original slug, 2: modified slug */
+					esc_html__( 'The page slug "%1$s" is reserved by the Fanfiction Manager plugin. Your page has been created with the slug "%2$s" instead.', 'fanfiction-manager' ),
+					esc_html( $conflict['original'] ),
+					esc_html( $conflict['modified'] )
+				);
+				?>
+			</p>
+			<p>
+				<?php esc_html_e( 'To use custom slugs without conflicts, enable "Base Slug" mode in the plugin URL settings.', 'fanfiction-manager' ); ?>
+			</p>
+		</div>
+		<?php
+
+		delete_transient( 'fanfic_slug_conflict' );
+	}
 }
+

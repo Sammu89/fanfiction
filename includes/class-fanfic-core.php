@@ -40,14 +40,10 @@ class Fanfic_Core {
 	 * Constructor
 	 */
 	private function __construct() {
-		error_log( '=== FANFIC PLUGIN INITIALIZING ===' );
 		$this->load_dependencies();
-
 		// Load text domain immediately before any hooks (WordPress 6.7+ compatibility)
 		$this->load_textdomain();
-
 		$this->init_hooks();
-		error_log( '=== FANFIC PLUGIN INITIALIZED ===' );
 	}
 
 	/**

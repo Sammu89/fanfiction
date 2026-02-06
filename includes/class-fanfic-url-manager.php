@@ -1092,7 +1092,17 @@ class Fanfic_URL_Manager {
 	 * @return bool Whether update was successful.
 	 */
 	public function update_slugs( $slugs ) {
-		$result = update_option( 'fanfic_dynamic_page_slugs', $slugs );
+		// Save to individual options (matching load pattern in load_all_slugs() lines 120-124)
+		$result = true;
+
+		if ( isset( $slugs['dashboard'] ) ) {
+			$result = update_option( 'fanfic_dashboard_slug', $slugs['dashboard'] ) && $result;
+		}
+
+		if ( isset( $slugs['members'] ) ) {
+			$result = update_option( 'fanfic_members_slug', $slugs['members'] ) && $result;
+		}
+
 		if ( $result ) {
 			$this->flush_cache();
 		}

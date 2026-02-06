@@ -300,7 +300,7 @@ jQuery(document).ready(function($) {
 		}
 
 		// Get current tab with validation
-		$allowed_tabs = array( 'general', 'url-name', 'stats-status' );
+		$allowed_tabs = array( 'general', 'url-name', 'stats-status', 'homepage-diagnostics' );
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general';
 		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'general';
 
@@ -321,6 +321,9 @@ jQuery(document).ready(function($) {
 				<a href="?page=fanfiction-settings&tab=stats-status" class="nav-tab <?php echo $current_tab === 'stats-status' ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Stats and Status', 'fanfiction-manager' ); ?>
 				</a>
+				<a href="?page=fanfiction-settings&tab=homepage-diagnostics" class="nav-tab <?php echo $current_tab === 'homepage-diagnostics' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Homepage Diagnostics', 'fanfiction-manager' ); ?>
+				</a>
 			</nav>
 
 			<div class="tab-content">
@@ -331,6 +334,9 @@ jQuery(document).ready(function($) {
 						break;
 					case 'stats-status':
 						Fanfic_Settings::render_dashboard_tab();
+						break;
+					case 'homepage-diagnostics':
+						Fanfic_Settings::render_homepage_diagnostics_tab();
 						break;
 					case 'general':
 					default:

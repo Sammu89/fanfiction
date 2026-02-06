@@ -64,6 +64,7 @@ class Fanfic_Settings {
 		add_action( 'admin_post_fanfic_run_cron_now', array( __CLASS__, 'run_cron_now' ) );
 		add_action( 'admin_post_fanfic_run_demotion_now', array( __CLASS__, 'run_demotion_now' ) );
 		add_action( 'admin_post_fanfic_delete_data', array( __CLASS__, 'handle_delete_data' ) );
+		add_action( 'admin_post_fanfic_sync_homepage_settings', array( __CLASS__, 'sync_homepage_settings' ) );
 
 		// AJAX handlers for email templates
 		add_action( 'wp_ajax_fanfic_preview_email_template', array( __CLASS__, 'ajax_preview_email_template' ) );
@@ -1095,6 +1096,224 @@ class Fanfic_Settings {
 			<div class="fanfic-chart-placeholder">
 				<h3><?php esc_html_e( 'Activity Chart', 'fanfiction-manager' ); ?></h3>
 				<p><?php esc_html_e( 'Chart visualization will be implemented in a future version.', 'fanfiction-manager' ); ?></p>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render Homepage Diagnostics tab
+	 *
+	 * Displays comprehensive diagnostic information about homepage configuration
+	 * and synchronization status between plugin settings and WordPress front page settings.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function render_homepage_diagnostics_tab() {
+		// Get current state
+		$state = Fanfic_Homepage_State::get_current_state();
+
+		// Resolve expected target
+		$target = Fanfic_Homepage_State::resolve_wp_front_page_target( $state );
+
+		// Get actual WordPress settings
+		$current_show_on_front = get_option( 'show_on_front', 'posts' );
+		$current_page_on_front = (int) get_option( 'page_on_front', 0 );
+
+		// Get page title if set
+		$page_title = '';
+		if ( $current_page_on_front > 0 ) {
+			$page = get_post( $current_page_on_front );
+			if ( $page ) {
+				$page_title = $page->post_title;
+			}
+		}
+
+		// Check sync status
+		$in_sync = Fanfic_Homepage_State::is_wp_front_page_in_sync( $state );
+
+		// Build explanation for expected values
+		$explanation = '';
+		if ( $state['use_base_slug'] == 1 ) {
+			$explanation = __( 'Base slug is enabled. WordPress homepage is independent of fanfiction plugin.', 'fanfiction-manager' );
+		} else {
+			if ( 'stories_homepage' === $state['main_page_mode'] || 'stories' === $state['homepage_source'] ) {
+				$explanation = __( 'Stories are set as homepage. WordPress will show posts archive.', 'fanfiction-manager' );
+			} elseif ( 'existing_page' === $state['homepage_source'] && $state['homepage_source_id'] > 0 ) {
+				$existing_page = get_post( $state['homepage_source_id'] );
+				$existing_page_title = $existing_page ? $existing_page->post_title : __( 'Unknown', 'fanfiction-manager' );
+				$explanation = sprintf(
+					/* translators: %s: page title */
+					__( 'Existing page "%s" is set as homepage.', 'fanfiction-manager' ),
+					$existing_page_title
+				);
+			} elseif ( 'wordpress_archive' === $state['homepage_source'] ) {
+				$explanation = __( 'WordPress posts archive is set as homepage.', 'fanfiction-manager' );
+			} elseif ( 'fanfiction_page' === $state['homepage_source'] && $state['main_page_id'] > 0 ) {
+				$main_page = get_post( $state['main_page_id'] );
+				$main_page_title = $main_page ? $main_page->post_title : __( 'Unknown', 'fanfiction-manager' );
+				$explanation = sprintf(
+					/* translators: %s: page title */
+					__( 'Fanfiction main page "%s" is set as homepage.', 'fanfiction-manager' ),
+					$main_page_title
+				);
+			} else {
+				$explanation = __( 'Configuration unclear or incomplete.', 'fanfiction-manager' );
+			}
+		}
+
+		// Determine differences if not in sync
+		$differences = array();
+		if ( ! $in_sync && $target !== null ) {
+			if ( $current_show_on_front !== $target['show_on_front'] ) {
+				$differences[] = sprintf(
+					/* translators: 1: current value, 2: expected value */
+					__( 'show_on_front: current = "%1$s", expected = "%2$s"', 'fanfiction-manager' ),
+					$current_show_on_front,
+					$target['show_on_front']
+				);
+			}
+			if ( $current_page_on_front !== $target['page_on_front'] ) {
+				$differences[] = sprintf(
+					/* translators: 1: current value, 2: expected value */
+					__( 'page_on_front: current = %1$d, expected = %2$d', 'fanfiction-manager' ),
+					$current_page_on_front,
+					$target['page_on_front']
+				);
+			}
+		}
+		?>
+		<div class="fanfiction-settings-tab fanfiction-homepage-diagnostics-tab">
+			<h2><?php esc_html_e( 'Homepage Diagnostics', 'fanfiction-manager' ); ?></h2>
+			<p class="description">
+				<?php esc_html_e( 'This page shows detailed information about your homepage configuration and the synchronization status between plugin settings and WordPress front page settings.', 'fanfiction-manager' ); ?>
+			</p>
+
+			<!-- Stored Intent Section -->
+			<div class="fanfic-diagnostics-section" style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; background: #f9f9f9;">
+				<h3 style="margin-top: 0;"><?php esc_html_e( 'Stored Intent (Plugin Options)', 'fanfiction-manager' ); ?></h3>
+				<table class="widefat striped">
+					<tbody>
+						<tr>
+							<th style="width: 30%;"><?php esc_html_e( 'fanfic_use_base_slug', 'fanfiction-manager' ); ?></th>
+							<td><code><?php echo $state['use_base_slug'] == 1 ? 'on (1)' : 'off (0)'; ?></code></td>
+						</tr>
+						<tr>
+							<th><?php esc_html_e( 'fanfic_main_page_mode', 'fanfiction-manager' ); ?></th>
+							<td><code><?php echo esc_html( $state['main_page_mode'] ); ?></code></td>
+						</tr>
+						<tr>
+							<th><?php esc_html_e( 'fanfic_homepage_source', 'fanfiction-manager' ); ?></th>
+							<td><code><?php echo esc_html( $state['homepage_source'] ); ?></code></td>
+						</tr>
+						<tr>
+							<th><?php esc_html_e( 'fanfic_homepage_source_id', 'fanfiction-manager' ); ?></th>
+							<td><code><?php echo esc_html( $state['homepage_source_id'] ); ?></code></td>
+						</tr>
+						<tr>
+							<th><?php esc_html_e( 'fanfic_system_page_ids[\'main\']', 'fanfiction-manager' ); ?></th>
+							<td><code><?php echo esc_html( $state['main_page_id'] ); ?></code></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Resolved Expected Section -->
+			<div class="fanfic-diagnostics-section" style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; background: #f9f9f9;">
+				<h3 style="margin-top: 0;"><?php esc_html_e( 'Resolved Expected (What WordPress Should Be)', 'fanfiction-manager' ); ?></h3>
+				<?php if ( $target === null ) : ?>
+					<p style="padding: 10px; background: #e8f4f8; border-left: 4px solid #00a0d2;">
+						<strong><?php esc_html_e( 'Independent Mode:', 'fanfiction-manager' ); ?></strong>
+						<?php esc_html_e( 'WordPress homepage is independent (base slug is enabled).', 'fanfiction-manager' ); ?>
+					</p>
+				<?php else : ?>
+					<table class="widefat striped">
+						<tbody>
+							<tr>
+								<th style="width: 30%;"><?php esc_html_e( 'Expected show_on_front', 'fanfiction-manager' ); ?></th>
+								<td><code><?php echo esc_html( $target['show_on_front'] ); ?></code></td>
+							</tr>
+							<tr>
+								<th><?php esc_html_e( 'Expected page_on_front', 'fanfiction-manager' ); ?></th>
+								<td><code><?php echo esc_html( $target['page_on_front'] ); ?></code></td>
+							</tr>
+							<tr>
+								<th><?php esc_html_e( 'Explanation', 'fanfiction-manager' ); ?></th>
+								<td><?php echo esc_html( $explanation ); ?></td>
+							</tr>
+						</tbody>
+					</table>
+				<?php endif; ?>
+			</div>
+
+			<!-- Actual WordPress Settings Section -->
+			<div class="fanfic-diagnostics-section" style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; background: #f9f9f9;">
+				<h3 style="margin-top: 0;"><?php esc_html_e( 'Actual WordPress Settings', 'fanfiction-manager' ); ?></h3>
+				<table class="widefat striped">
+					<tbody>
+						<tr>
+							<th style="width: 30%;"><?php esc_html_e( 'Current show_on_front', 'fanfiction-manager' ); ?></th>
+							<td><code><?php echo esc_html( $current_show_on_front ); ?></code></td>
+						</tr>
+						<tr>
+							<th><?php esc_html_e( 'Current page_on_front', 'fanfiction-manager' ); ?></th>
+							<td><code><?php echo esc_html( $current_page_on_front ); ?></code></td>
+						</tr>
+						<?php if ( $page_title ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Page Title', 'fanfiction-manager' ); ?></th>
+								<td><?php echo esc_html( $page_title ); ?></td>
+							</tr>
+						<?php endif; ?>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Sync Status Section -->
+			<div class="fanfic-diagnostics-section" style="margin-top: 20px; padding: 15px; border: 1px solid <?php echo $in_sync ? '#46b450' : '#dc3232'; ?>; background: <?php echo $in_sync ? '#ecf7ed' : '#f9e9e9'; ?>;">
+				<h3 style="margin-top: 0; color: <?php echo $in_sync ? '#46b450' : '#dc3232'; ?>;">
+					<?php esc_html_e( 'Synchronization Status', 'fanfiction-manager' ); ?>
+				</h3>
+
+				<?php if ( $in_sync ) : ?>
+					<p style="font-size: 16px; margin: 10px 0;">
+						<span class="dashicons dashicons-yes-alt" style="color: #46b450; font-size: 20px; vertical-align: middle;"></span>
+						<strong style="color: #46b450;"><?php esc_html_e( 'IN SYNC', 'fanfiction-manager' ); ?></strong>
+					</p>
+					<p><?php esc_html_e( 'WordPress front page settings match the expected configuration from plugin settings.', 'fanfiction-manager' ); ?></p>
+				<?php else : ?>
+					<p style="font-size: 16px; margin: 10px 0;">
+						<span class="dashicons dashicons-warning" style="color: #dc3232; font-size: 20px; vertical-align: middle;"></span>
+						<strong style="color: #dc3232;"><?php esc_html_e( 'MISMATCH', 'fanfiction-manager' ); ?></strong>
+					</p>
+					<p><?php esc_html_e( 'WordPress front page settings do not match the expected configuration from plugin settings.', 'fanfiction-manager' ); ?></p>
+
+					<?php if ( ! empty( $differences ) ) : ?>
+						<div style="margin-top: 15px;">
+							<h4><?php esc_html_e( 'Differences:', 'fanfiction-manager' ); ?></h4>
+							<ul style="list-style: disc; margin-left: 20px;">
+								<?php foreach ( $differences as $difference ) : ?>
+									<li><code><?php echo esc_html( $difference ); ?></code></li>
+								<?php endforeach; ?>
+							</ul>
+						</div>
+					<?php endif; ?>
+
+					<div style="margin-top: 15px;">
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display: inline;">
+							<input type="hidden" name="action" value="fanfic_sync_homepage_settings">
+							<?php wp_nonce_field( 'fanfic_sync_homepage_settings_nonce', 'fanfic_sync_nonce' ); ?>
+							<button type="submit" class="button button-primary">
+								<span class="dashicons dashicons-update" style="vertical-align: middle;"></span>
+								<?php esc_html_e( 'Sync Homepage Settings', 'fanfiction-manager' ); ?>
+							</button>
+						</form>
+						<p class="description" style="margin-top: 5px;">
+							<?php esc_html_e( 'Click this button to synchronize WordPress front page settings with the plugin configuration.', 'fanfiction-manager' ); ?>
+						</p>
+					</div>
+				<?php endif; ?>
 			</div>
 		</div>
 		<?php
@@ -2437,6 +2656,24 @@ class Fanfic_Settings {
 			<?php
 		}
 
+		// Success message for homepage settings synced
+		if ( isset( $_GET['synced'] ) && '1' === $_GET['synced'] ) {
+			?>
+			<div class="notice notice-success is-dismissible">
+				<p><?php esc_html_e( 'Homepage settings synchronized successfully.', 'fanfiction-manager' ); ?></p>
+			</div>
+			<?php
+		}
+
+		// Error message for homepage settings sync failure
+		if ( isset( $_GET['sync_failed'] ) && '1' === $_GET['sync_failed'] ) {
+			?>
+			<div class="notice notice-error is-dismissible">
+				<p><?php esc_html_e( 'Failed to synchronize homepage settings. Please check the error log for details.', 'fanfiction-manager' ); ?></p>
+			</div>
+			<?php
+		}
+
 		// Success message for page shortcode fixed
 		if ( isset( $_GET['shortcode_fixed'] ) && '1' === $_GET['shortcode_fixed'] ) {
 			$fixed_page = isset( $_GET['fixed_page'] ) ? sanitize_text_field( wp_unslash( $_GET['fixed_page'] ) ) : '';
@@ -3027,8 +3264,9 @@ class Fanfic_Settings {
 	 * @return void
 	 */
 	private static function delete_posts_by_type( $post_type ) {
-		$max_loops = 10000;
-		$loop      = 0;
+		$max_loops     = 10000;
+		$loop          = 0;
+		$total_deleted = 0;
 
 		do {
 			$loop++;
@@ -3036,7 +3274,7 @@ class Fanfic_Settings {
 				'post_type'              => $post_type,
 				'post_status'            => 'any',
 				'fields'                 => 'ids',
-				'posts_per_page'         => 200,
+				'posts_per_page'         => 50, // Reduced from 200 to 50 for memory efficiency.
 				'orderby'                => 'ID',
 				'order'                  => 'ASC',
 				'no_found_rows'          => true,
@@ -3049,17 +3287,16 @@ class Fanfic_Settings {
 				break;
 			}
 
-			$deleted_count = 0;
-			foreach ( $post_ids as $post_id ) {
-				$deleted = wp_delete_post( absint( $post_id ), true );
-				if ( $deleted ) {
-					$deleted_count++;
-				}
-			}
+			// Use direct SQL deletion for better memory efficiency.
+			self::hard_delete_posts_by_ids( $post_ids );
+			$total_deleted += count( $post_ids );
 
-			// Prevent infinite loops if hooks block deletion for some posts.
-			if ( 0 === $deleted_count ) {
-				self::hard_delete_posts_by_ids( $post_ids );
+			// Clean up memory after each batch.
+			self::cleanup_memory();
+
+			// Log progress every 10 batches.
+			if ( 0 === $loop % 10 ) {
+				self::log_delete_data_progress( sprintf( '%s: %d posts deleted', $post_type, $total_deleted ) );
 			}
 		} while ( $loop < $max_loops );
 	}
@@ -3078,6 +3315,15 @@ class Fanfic_Settings {
 
 		$post_ids = array_values( array_filter( array_map( 'absint', (array) $post_ids ) ) );
 		if ( empty( $post_ids ) ) {
+			return;
+		}
+
+		// Process in smaller chunks if the array is very large.
+		if ( count( $post_ids ) > 100 ) {
+			$chunks = array_chunk( $post_ids, 100 );
+			foreach ( $chunks as $chunk ) {
+				self::hard_delete_posts_by_ids( $chunk );
+			}
 			return;
 		}
 
@@ -3119,6 +3365,29 @@ class Fanfic_Settings {
 				$post_ids
 			)
 		);
+
+		// Clean up memory after SQL operations.
+		self::cleanup_memory();
+	}
+
+	/**
+	 * Clean up memory between operations.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private static function cleanup_memory() {
+		// Clear object cache.
+		wp_cache_flush();
+
+		// Clear wpdb queries log.
+		global $wpdb;
+		$wpdb->queries = array();
+
+		// Force garbage collection.
+		if ( function_exists( 'gc_collect_cycles' ) ) {
+			gc_collect_cycles();
+		}
 	}
 
 	/**
@@ -3146,6 +3415,77 @@ class Fanfic_Settings {
 	 *
 	 * @since 1.0.0
 	 */
+	/**
+	 * Handle homepage settings sync request
+	 *
+	 * Synchronizes WordPress front page settings with plugin homepage configuration.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function sync_homepage_settings() {
+		// Verify nonce
+		$nonce = isset( $_POST['fanfic_sync_nonce'] )
+			? sanitize_text_field( wp_unslash( $_POST['fanfic_sync_nonce'] ) )
+			: '';
+
+		if ( ! wp_verify_nonce( $nonce, 'fanfic_sync_homepage_settings_nonce' ) ) {
+			wp_die( __( 'Security check failed.', 'fanfiction-manager' ) );
+		}
+
+		// Check capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
+		}
+
+		// Log sync attempt
+		error_log( '[Fanfic Homepage] Manual sync requested by admin' );
+
+		// Perform sync using homepage state helper
+		if ( class_exists( 'Fanfic_Homepage_State' ) ) {
+			$result = Fanfic_Homepage_State::sync_homepage_settings();
+
+			if ( $result ) {
+				// Success - redirect back with success message
+				wp_safe_redirect(
+					add_query_arg(
+						array(
+							'page'    => 'fanfiction-settings',
+							'tab'     => 'homepage-diagnostics',
+							'synced'  => '1',
+						),
+						admin_url( 'admin.php' )
+					)
+				);
+			} else {
+				// Failure - redirect back with error message
+				wp_safe_redirect(
+					add_query_arg(
+						array(
+							'page'        => 'fanfiction-settings',
+							'tab'         => 'homepage-diagnostics',
+							'sync_failed' => '1',
+						),
+						admin_url( 'admin.php' )
+					)
+				);
+			}
+		} else {
+			// Class not found - redirect back with error
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'        => 'fanfiction-settings',
+						'tab'         => 'homepage-diagnostics',
+						'sync_failed' => '1',
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+		}
+		exit;
+	}
+
 	public static function handle_delete_data() {
 		$nonce = isset( $_POST['fanfic_delete_data_nonce'] )
 			? sanitize_text_field( wp_unslash( $_POST['fanfic_delete_data_nonce'] ) )
@@ -3159,24 +3499,59 @@ class Fanfic_Settings {
 			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
 		}
 
+		// Temporarily increase memory limit for deletion.
+		$original_memory_limit = ini_get( 'memory_limit' );
+		if ( (int) $original_memory_limit < 512 ) {
+			@ini_set( 'memory_limit', '512M' );
+		}
+
+		// Disable timeout.
+		@set_time_limit( 0 );
+
 		self::log_delete_data_progress( 'start' );
 
 		// Delete all fanfiction content posts first so cleanup hooks can run while tables still exist.
+		self::log_delete_data_progress( 'deleting_chapters_start' );
 		self::delete_posts_by_type( 'fanfiction_chapter' );
 		self::log_delete_data_progress( 'chapters_deleted' );
+
+		self::log_delete_data_progress( 'deleting_stories_start' );
 		self::delete_posts_by_type( 'fanfiction_story' );
 		self::log_delete_data_progress( 'stories_deleted' );
 
 		// Delete system pages by their saved IDs.
+		self::log_delete_data_progress( 'deleting_system_pages' );
 		$system_page_ids = get_option( 'fanfic_system_page_ids', array() );
 		foreach ( (array) $system_page_ids as $page_id ) {
 			wp_delete_post( absint( $page_id ), true );
 		}
+		self::cleanup_memory();
 		self::log_delete_data_progress( 'system_pages_deleted' );
+
+		// Explicitly delete the navigation menu and its items.
+		self::log_delete_data_progress( 'deleting_nav_menu' );
+		$menu_name = 'Fanfiction Automatic Menu';
+		$menu = wp_get_nav_menu_object( $menu_name );
+
+		if ( $menu ) {
+			// Get the full menu item objects, as 'fields' => 'ids' is buggy in wp_get_nav_menu_items.
+			$menu_items = wp_get_nav_menu_items( $menu->term_id );
+			if ( ! empty( $menu_items ) ) {
+				// Pluck just the IDs from the objects.
+				$menu_item_ids = wp_list_pluck( $menu_items, 'ID' );
+				// Use the efficient hard delete function to remove menu item posts in bulk.
+				self::hard_delete_posts_by_ids( $menu_item_ids );
+			}
+			// Now that the items are gone, it's safe and fast to delete the menu term.
+			wp_delete_nav_menu( $menu->term_id );
+		}
+		self::cleanup_memory();
+		self::log_delete_data_progress( 'nav_menu_deleted' );
 
 		global $wpdb;
 
 		// Drop known plugin tables directly (avoid loading large result sets in memory).
+		self::log_delete_data_progress( 'dropping_tables' );
 		$table_names = array(
 			'fanfic_moderation_log',
 			'fanfic_story_search_index',
@@ -3205,9 +3580,11 @@ class Fanfic_Settings {
 		foreach ( $table_names as $table_name ) {
 			$wpdb->query( "DROP TABLE IF EXISTS `{$wpdb->prefix}{$table_name}`" );
 		}
+		self::cleanup_memory();
 		self::log_delete_data_progress( 'tables_dropped' );
 
 		// Delete all options with "fanfic" in the name in one query (memory-safe).
+		self::log_delete_data_progress( 'deleting_options' );
 		$options_like = $wpdb->esc_like( 'fanfic' ) . '%';
 		$wpdb->query(
 			$wpdb->prepare(
@@ -3215,7 +3592,13 @@ class Fanfic_Settings {
 				$options_like
 			)
 		);
+		self::cleanup_memory();
 		self::log_delete_data_progress( 'options_deleted' );
+
+		// Restore original memory limit if it completes.
+		@ini_set( 'memory_limit', $original_memory_limit );
+
+		self::log_delete_data_progress( 'completed' );
 
 		// Redirect to the wizard
 		wp_safe_redirect( admin_url( 'admin.php?page=fanfic-setup-wizard' ) );

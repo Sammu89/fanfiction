@@ -189,14 +189,13 @@
 	handleComplete: function(e) {
 		e.preventDefault();
 
-		var $button = $(e.currentTarget);
+		var $button = $('.fanfic-wizard-complete');
 
-		// Disable button and show loading
+		// Disable button and show loading state
 		$button.prop('disabled', true);
 		$button.html('<span class="spinner is-active" style="float: none; margin: 0 8px 0 0;"></span>' + fanficWizard.strings.completing);
 
-		// Show progress status
-		$('#fanfic-wizard-completion-status').show();
+		console.log('Starting wizard completion AJAX request');
 
 		// Send AJAX request to complete wizard
 		$.ajax({
@@ -209,22 +208,64 @@
 				create_samples: $('#fanfic_create_samples').is(':checked') ? '1' : '0'
 			},
 			success: function(response) {
+				console.log('AJAX response received:', response);
+
 				if (response.success) {
+					console.log('Wizard completed successfully, redirecting to:', response.data.redirect_url);
 					// Redirect immediately on success
 					window.location.href = response.data.redirect_url;
 				} else {
-					// Show error message only on failure
-					FanficWizard.showMessage('error', response.data.message || fanficWizard.strings.error);
+					console.error('Wizard completion failed:', response.data);
+
+					// Build detailed error message
+					var errorMsg = response.data.message || fanficWizard.strings.error;
+
+					if (response.data.details && response.data.details.length > 0) {
+						errorMsg += '<ul style="margin-top: 10px; list-style: disc; margin-left: 20px;">';
+						response.data.details.forEach(function(detail) {
+							errorMsg += '<li>' + detail + '</li>';
+						});
+						errorMsg += '</ul>';
+					}
+
+					// Show error message
+					FanficWizard.showMessage('error', errorMsg);
 					$button.prop('disabled', false);
 					$button.text(fanficWizard.strings.complete_setup || 'Complete Setup');
-					$('#fanfic-wizard-completion-status').hide();
 				}
 			},
-			error: function() {
-				FanficWizard.showMessage('error', fanficWizard.strings.error);
+			error: function(jqXHR, textStatus, errorThrown) {
+				console.error('AJAX request failed:', {
+					status: jqXHR.status,
+					statusText: jqXHR.statusText,
+					textStatus: textStatus,
+					errorThrown: errorThrown,
+					responseText: jqXHR.responseText
+				});
+
+				var errorMsg = fanficWizard.strings.error;
+
+				// Try to parse response for more details
+				if (jqXHR.responseText) {
+					try {
+						var response = JSON.parse(jqXHR.responseText);
+						if (response.data && response.data.message) {
+							errorMsg = response.data.message;
+						}
+					} catch (e) {
+						// If response is HTML (PHP error), show first 500 chars
+						if (jqXHR.responseText.indexOf('<!DOCTYPE') === 0 || jqXHR.responseText.indexOf('<br') === 0) {
+							errorMsg += '<br><br><strong>Server Response:</strong><pre style="max-height: 300px; overflow: auto; background: #f0f0f0; padding: 10px; margin-top: 10px;">' +
+									   jqXHR.responseText.substring(0, 500) + '...</pre>';
+						}
+					}
+				}
+
+				errorMsg += '<br><br><strong>Please check the WordPress debug log at:</strong><br><code>wp-content/debug.log</code>';
+
+				FanficWizard.showMessage('error', errorMsg);
 				$button.prop('disabled', false);
 				$button.text(fanficWizard.strings.complete_setup || 'Complete Setup');
-				$('#fanfic-wizard-completion-status').hide();
 			}
 		});
 	},

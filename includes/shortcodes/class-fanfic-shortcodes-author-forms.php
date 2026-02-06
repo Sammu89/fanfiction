@@ -43,9 +43,13 @@ class Fanfic_Shortcodes_Author_Forms {
 		require_once plugin_dir_path( __FILE__ ) . '../helpers/class-fanfic-form-helpers.php';
 
 		// Register all handlers
+		error_log( 'Registering Fanfic_Story_Handler...' );
 		Fanfic_Story_Handler::register();
+		error_log( 'Registering Fanfic_Chapter_Handler...' );
 		Fanfic_Chapter_Handler::register();
+		error_log( 'Registering Fanfic_Profile_Handler...' );
 		Fanfic_Profile_Handler::register();
+		error_log( 'All author form handlers registered.' );
 	}
 
 }

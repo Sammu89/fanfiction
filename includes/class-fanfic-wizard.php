@@ -323,9 +323,12 @@ class Fanfic_Wizard {
 	private function all_pages_exist() {
 		$page_ids = get_option( 'fanfic_system_page_ids', array() );
 
+		$use_base_slug  = get_option( 'fanfic_use_base_slug', true );
+		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+		$require_main   = ! ( ! $use_base_slug && 'stories_homepage' === $main_page_mode );
+
 		// Only check physical WordPress pages (not dynamic pages)
 		$required_pages = array(
-			'main',
 			'login',
 			'register',
 			'password-reset',
@@ -333,15 +336,28 @@ class Fanfic_Wizard {
 			'error',
 			'maintenance',
 		);
+		if ( $require_main ) {
+			array_unshift( $required_pages, 'main' );
+		}
+
+		error_log( 'Fanfic Wizard: Checking pages exist - required: ' . wp_json_encode( $required_pages ) );
+		error_log( 'Fanfic Wizard: Page IDs from option: ' . wp_json_encode( $page_ids ) );
 
 		// Check if all required pages exist and are published
 		foreach ( $required_pages as $page_key ) {
 			if ( empty( $page_ids[ $page_key ] ) ) {
+				error_log( 'Fanfic Wizard: Missing page ID for: ' . $page_key );
 				return false;
 			}
 
 			$page = get_post( $page_ids[ $page_key ] );
 			if ( ! $page || 'publish' !== $page->post_status ) {
+				error_log( 'Fanfic Wizard: Page check failed for: ' . $page_key . ' (ID: ' . $page_ids[ $page_key ] . ')' );
+				if ( $page ) {
+					error_log( 'Fanfic Wizard: Page status: ' . $page->post_status );
+				} else {
+					error_log( 'Fanfic Wizard: Page does not exist' );
+				}
 				return false;
 			}
 		}
@@ -349,12 +365,18 @@ class Fanfic_Wizard {
 		// Also verify dynamic page slugs are configured
 		$dynamic_slugs = Fanfic_URL_Manager::get_instance()->get_slugs();
 		$dynamic_pages = Fanfic_URL_Manager::get_instance()->get_dynamic_pages();
+
+		error_log( 'Fanfic Wizard: Checking dynamic pages: ' . wp_json_encode( $dynamic_pages ) );
+		error_log( 'Fanfic Wizard: Dynamic slugs: ' . wp_json_encode( $dynamic_slugs ) );
+
 		foreach ( $dynamic_pages as $page_key ) {
 			if ( empty( $dynamic_slugs[ $page_key ] ) ) {
+				error_log( 'Fanfic Wizard: Missing dynamic slug for: ' . $page_key );
 				return false;
 			}
 		}
 
+		error_log( 'Fanfic Wizard: All pages exist check passed' );
 		return true;
 	}
 
@@ -772,6 +794,237 @@ class Fanfic_Wizard {
 	}
 
 	/**
+	 * Render configuration synthesis table
+	 *
+	 * Shows a summary of all configuration settings from the wizard draft.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private function render_configuration_synthesis() {
+		// Get draft data
+		$draft = get_option( 'fanfic_wizard_draft', array() );
+		$step_1 = isset( $draft['step_1'] ) ? $draft['step_1'] : array();
+		$step_2 = isset( $draft['step_2'] ) ? $draft['step_2'] : array();
+		$step_4 = isset( $draft['step_4'] ) ? $draft['step_4'] : array();
+
+		// Get saved role data (step 3 saves directly)
+		$moderators = get_option( 'fanfic_wizard_moderators', array() );
+		$admins = get_option( 'fanfic_wizard_admins', array() );
+		?>
+		<div class="fanfic-wizard-synthesis" style="margin: 20px 0; padding: 15px; border: 2px solid #2271b1; background: #f0f6fc; border-radius: 4px;">
+			<h4 style="margin-top: 0; color: #2271b1;">
+				<span class="dashicons dashicons-visibility" style="font-size: 20px; width: 20px; height: 20px; vertical-align: text-bottom;"></span>
+				<?php esc_html_e( 'Configuration Summary', 'fanfiction-manager' ); ?>
+			</h4>
+			<p class="description" style="margin-bottom: 15px;">
+				<?php esc_html_e( 'Please review your configuration carefully before proceeding.', 'fanfiction-manager' ); ?>
+			</p>
+
+			<table class="widefat" style="background: white;">
+				<thead>
+					<tr>
+						<th style="width: 30%;"><?php esc_html_e( 'Setting', 'fanfiction-manager' ); ?></th>
+						<th><?php esc_html_e( 'Value', 'fanfiction-manager' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<!-- Step 1: Homepage Settings -->
+					<tr>
+						<td colspan="2" style="background: #f9f9f9; font-weight: bold;">
+							<?php esc_html_e( 'Homepage Settings', 'fanfiction-manager' ); ?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Base Slug Mode', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							$use_base_slug = isset( $step_1['use_base_slug'] ) ? $step_1['use_base_slug'] : 1;
+							echo $use_base_slug ? esc_html__( 'Enabled', 'fanfiction-manager' ) : esc_html__( 'Disabled', 'fanfiction-manager' );
+							?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Main Page Mode', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							$main_page_mode = isset( $step_1['main_page_mode'] ) ? $step_1['main_page_mode'] : 'custom_homepage';
+							if ( 'stories_homepage' === $main_page_mode ) {
+								esc_html_e( 'Stories as Homepage', 'fanfiction-manager' );
+							} else {
+								esc_html_e( 'Custom Homepage', 'fanfiction-manager' );
+							}
+							?>
+						</td>
+					</tr>
+					<?php if ( 'custom_homepage' === $main_page_mode ) : ?>
+						<tr>
+							<td><?php esc_html_e( 'Homepage Source', 'fanfiction-manager' ); ?></td>
+							<td>
+								<?php
+								$homepage_source = isset( $step_1['homepage_source'] ) ? $step_1['homepage_source'] : 'fanfiction_page';
+								switch ( $homepage_source ) {
+									case 'stories':
+										esc_html_e( 'Stories Archive', 'fanfiction-manager' );
+										break;
+									case 'fanfiction_page':
+										esc_html_e( 'Fanfiction Custom Page', 'fanfiction-manager' );
+										break;
+									case 'existing_page':
+										$page_id = isset( $step_1['homepage_source_id'] ) ? $step_1['homepage_source_id'] : 0;
+										if ( $page_id > 0 ) {
+											$page = get_post( $page_id );
+											printf( esc_html__( 'Existing Page: %s', 'fanfiction-manager' ), $page ? esc_html( $page->post_title ) : esc_html__( 'Unknown', 'fanfiction-manager' ) );
+										} else {
+											esc_html_e( 'Existing Page (Not Selected)', 'fanfiction-manager' );
+										}
+										break;
+									case 'wordpress_archive':
+										esc_html_e( 'WordPress Posts Archive', 'fanfiction-manager' );
+										break;
+									default:
+										echo esc_html( $homepage_source );
+								}
+								?>
+							</td>
+						</tr>
+					<?php endif; ?>
+					<?php if ( ! $use_base_slug ) : ?>
+						<tr>
+							<td><?php esc_html_e( 'Expected WordPress Settings', 'fanfiction-manager' ); ?></td>
+							<td>
+								<?php
+								// Resolve expected WP homepage settings
+								$expected_state = array(
+									'use_base_slug'      => $use_base_slug,
+									'main_page_mode'     => $main_page_mode,
+									'homepage_source'    => isset( $step_1['homepage_source'] ) ? $step_1['homepage_source'] : 'fanfiction_page',
+									'homepage_source_id' => isset( $step_1['homepage_source_id'] ) ? $step_1['homepage_source_id'] : 0,
+									'main_page_id'       => 0, // Will be set after page creation
+								);
+
+								if ( class_exists( 'Fanfic_Homepage_State' ) ) {
+									$target = Fanfic_Homepage_State::resolve_wp_front_page_target( $expected_state );
+									if ( $target ) {
+										printf(
+											'<code>show_on_front = %s</code>, <code>page_on_front = %d</code>',
+											esc_html( $target['show_on_front'] ),
+											(int) $target['page_on_front']
+										);
+									} else {
+										esc_html_e( 'Not applicable (Base Slug Mode enabled)', 'fanfiction-manager' );
+									}
+								} else {
+									esc_html_e( 'Unable to resolve (Homepage State class not loaded)', 'fanfiction-manager' );
+								}
+								?>
+							</td>
+						</tr>
+					<?php endif; ?>
+
+					<!-- Step 2: URL Settings -->
+					<tr>
+						<td colspan="2" style="background: #f9f9f9; font-weight: bold;">
+							<?php esc_html_e( 'URL Settings', 'fanfiction-manager' ); ?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Base Slug', 'fanfiction-manager' ); ?></td>
+						<td><code><?php echo esc_html( isset( $step_2['base_slug'] ) ? $step_2['base_slug'] : 'fanfiction' ); ?></code></td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Story Path', 'fanfiction-manager' ); ?></td>
+						<td><code><?php echo esc_html( isset( $step_2['story_path'] ) ? $step_2['story_path'] : 'story' ); ?></code></td>
+					</tr>
+
+					<!-- Step 4: Feature Toggles -->
+					<tr>
+						<td colspan="2" style="background: #f9f9f9; font-weight: bold;">
+							<?php esc_html_e( 'Feature Toggles', 'fanfiction-manager' ); ?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Fandom Classification', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							echo isset( $step_4['enable_fandoms'] ) && $step_4['enable_fandoms']
+								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
+								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
+							?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Warnings/Age System', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							echo isset( $step_4['enable_warnings'] ) && $step_4['enable_warnings']
+								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
+								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
+							?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Language Classification', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							echo isset( $step_4['enable_languages'] ) && $step_4['enable_languages']
+								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
+								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
+							?>
+						</td>
+					</tr>
+
+					<!-- Step 3: User Roles -->
+					<tr>
+						<td colspan="2" style="background: #f9f9f9; font-weight: bold;">
+							<?php esc_html_e( 'User Roles', 'fanfiction-manager' ); ?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Moderators', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							if ( ! empty( $moderators ) ) {
+								$mod_names = array();
+								foreach ( $moderators as $user_id ) {
+									$user = get_user_by( 'id', $user_id );
+									if ( $user ) {
+										$mod_names[] = esc_html( $user->display_name );
+									}
+								}
+								echo implode( ', ', $mod_names );
+							} else {
+								esc_html_e( 'None', 'fanfiction-manager' );
+							}
+							?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Administrators', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							if ( ! empty( $admins ) ) {
+								$admin_names = array();
+								foreach ( $admins as $user_id ) {
+									$user = get_user_by( 'id', $user_id );
+									if ( $user ) {
+										$admin_names[] = esc_html( $user->display_name );
+									}
+								}
+								echo implode( ', ', $admin_names );
+							} else {
+								esc_html_e( 'None', 'fanfiction-manager' );
+							}
+							?>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Render complete step
 	 *
 	 * @since 1.0.0
@@ -800,6 +1053,12 @@ class Fanfic_Wizard {
 					<span class="dashicons dashicons-admin-tools" style="font-size: 80px; width: 80px; height: 80px;"></span>
 				</div>
 				<h3><?php esc_html_e( 'Ready to Complete Setup', 'fanfiction-manager' ); ?></h3>
+
+				<?php
+				// Display configuration synthesis
+				$this->render_configuration_synthesis();
+				?>
+
 				<p><?php esc_html_e( 'Click the "Complete Setup" button below to:', 'fanfiction-manager' ); ?></p>
 				<ul style="list-style: disc; margin-left: 2em;">
 					<li><?php esc_html_e( 'Save all your configuration settings', 'fanfiction-manager' ); ?></li>
@@ -829,11 +1088,6 @@ class Fanfic_Wizard {
 				</div>
 			</div>
 
-			<div id="fanfic-wizard-completion-status" style="display: none; margin-top: 20px;">
-				<div class="fanfic-wizard-progress-text">
-					<p><span class="spinner is-active" style="float: none; margin: 0 10px 0 0;"></span><?php esc_html_e( 'Setting up your fanfiction platform...', 'fanfiction-manager' ); ?></p>
-				</div>
-			</div>
 		<?php endif;
 	}
 
@@ -943,29 +1197,140 @@ class Fanfic_Wizard {
 	/**
 	 * Save welcome step data
 	 *
-	 * Saves the main page mode and base slug choice from step 1.
+	 * Saves the main page mode and base slug choice from step 1 to draft.
 	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	private function save_welcome_step() {
-		if ( class_exists( 'Fanfic_URL_Config' ) ) {
-			Fanfic_URL_Config::save_homepage_settings();
+		error_log( '[Fanfic Wizard Step 1] Starting save_welcome_step' );
+		error_log( '[Fanfic Wizard Step 1] POST data: ' . wp_json_encode( $_POST ) );
+
+		// Get draft
+		$draft = get_option( 'fanfic_wizard_draft', array() );
+
+		// Collect step 1 data
+		$step_data = array();
+
+		// Main page mode
+		if ( isset( $_POST['fanfic_main_page_mode'] ) ) {
+			$main_page_mode = sanitize_text_field( wp_unslash( $_POST['fanfic_main_page_mode'] ) );
+			if ( in_array( $main_page_mode, array( 'stories_homepage', 'custom_homepage' ), true ) ) {
+				$step_data['main_page_mode'] = $main_page_mode;
+			}
 		}
+
+		// Base slug enabled
+		if ( isset( $_POST['fanfic_use_base_slug'] ) ) {
+			$step_data['use_base_slug'] = '1' === $_POST['fanfic_use_base_slug'] ? 1 : 0;
+		}
+
+		// Homepage source (for custom_homepage mode)
+		// The form uses fanfic_homepage_source_select
+		if ( isset( $_POST['fanfic_main_page_mode'] ) && 'custom_homepage' === $_POST['fanfic_main_page_mode'] ) {
+			if ( isset( $_POST['fanfic_homepage_source_select'] ) ) {
+				$source = sanitize_text_field( wp_unslash( $_POST['fanfic_homepage_source_select'] ) );
+				if ( 'fanfiction_page' === $source ) {
+					$step_data['homepage_source'] = 'fanfiction_page';
+					$step_data['homepage_source_id'] = 0;
+				} elseif ( 'wordpress_archive' === $source ) {
+					$step_data['homepage_source'] = 'wordpress_archive';
+					$step_data['homepage_source_id'] = 0;
+				} elseif ( preg_match( '/^page:(\d+)$/', $source, $matches ) ) {
+					$post_id = (int) $matches[1];
+					$post = get_post( $post_id );
+					if ( $post && 'publish' === $post->post_status && 'page' === $post->post_type ) {
+						$step_data['homepage_source'] = 'existing_page';
+						$step_data['homepage_source_id'] = $post_id;
+					}
+				}
+			}
+		} elseif ( isset( $_POST['fanfic_main_page_mode'] ) && 'stories_homepage' === $_POST['fanfic_main_page_mode'] ) {
+			// If stories_homepage, set source to stories
+			$step_data['homepage_source'] = 'stories';
+			$step_data['homepage_source_id'] = 0;
+		}
+
+		error_log( '[Fanfic Wizard Step 1] Collected step data: ' . wp_json_encode( $step_data ) );
+
+		// Save to draft
+		$draft['step_1'] = $step_data;
+		update_option( 'fanfic_wizard_draft', $draft );
+
+		error_log( '[Fanfic Wizard Step 1] Saved to draft. Full draft: ' . wp_json_encode( $draft ) );
 	}
 
 	/**
 	 * Save URL settings step data
 	 *
-	 * Refactored to use Fanfic_URL_Schema for validation and consistency.
+	 * Saves all URL slug configuration from step 2 to draft.
 	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	private function save_url_settings_step() {
-		if ( class_exists( 'Fanfic_URL_Config' ) ) {
-			Fanfic_URL_Config::save_wizard_url_settings();
+		error_log( '[Fanfic Wizard Step 2] Starting save_url_settings_step' );
+		error_log( '[Fanfic Wizard Step 2] POST data: ' . wp_json_encode( $_POST ) );
+
+		// Get draft
+		$draft = get_option( 'fanfic_wizard_draft', array() );
+
+		// Collect step 2 data
+		$step_data = array();
+
+		// Base slug
+		if ( isset( $_POST['fanfic_base_slug'] ) ) {
+			$step_data['base_slug'] = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
 		}
+
+		// Story path
+		if ( isset( $_POST['fanfic_story_path'] ) ) {
+			$step_data['story_path'] = sanitize_title( wp_unslash( $_POST['fanfic_story_path'] ) );
+		}
+
+		// Chapter slugs
+		$chapter_slugs = array();
+		if ( isset( $_POST['fanfic_chapter_slug_prologue'] ) ) {
+			$chapter_slugs['prologue'] = sanitize_title( wp_unslash( $_POST['fanfic_chapter_slug_prologue'] ) );
+		}
+		if ( isset( $_POST['fanfic_chapter_slug_chapter'] ) ) {
+			$chapter_slugs['chapter'] = sanitize_title( wp_unslash( $_POST['fanfic_chapter_slug_chapter'] ) );
+		}
+		if ( isset( $_POST['fanfic_chapter_slug_epilogue'] ) ) {
+			$chapter_slugs['epilogue'] = sanitize_title( wp_unslash( $_POST['fanfic_chapter_slug_epilogue'] ) );
+		}
+		if ( ! empty( $chapter_slugs ) ) {
+			$step_data['chapter_slugs'] = $chapter_slugs;
+		}
+
+		// System page slugs
+		$system_page_slugs = array();
+		$system_page_keys = array( 'login', 'register', 'password-reset', 'search', 'error', 'maintenance' );
+		foreach ( $system_page_keys as $key ) {
+			$post_key = 'fanfic_page_slug_' . str_replace( '-', '_', $key );
+			if ( isset( $_POST[ $post_key ] ) ) {
+				$system_page_slugs[ $key ] = sanitize_title( wp_unslash( $_POST[ $post_key ] ) );
+			}
+		}
+		if ( ! empty( $system_page_slugs ) ) {
+			$step_data['system_page_slugs'] = $system_page_slugs;
+		}
+
+		// Dynamic page slugs
+		if ( isset( $_POST['fanfic_dashboard_slug'] ) ) {
+			$step_data['dashboard_slug'] = sanitize_title( wp_unslash( $_POST['fanfic_dashboard_slug'] ) );
+		}
+		if ( isset( $_POST['fanfic_members_slug'] ) ) {
+			$step_data['members_slug'] = sanitize_title( wp_unslash( $_POST['fanfic_members_slug'] ) );
+		}
+
+		error_log( '[Fanfic Wizard Step 2] Collected step data: ' . wp_json_encode( $step_data ) );
+
+		// Save to draft
+		$draft['step_2'] = $step_data;
+		update_option( 'fanfic_wizard_draft', $draft );
+
+		error_log( '[Fanfic Wizard Step 2] Saved to draft. Full draft: ' . wp_json_encode( $draft ) );
 	}
 
 	/**
@@ -1004,6 +1369,8 @@ class Fanfic_Wizard {
 	 * @return void
 	 */
 	private function save_user_roles_step() {
+		error_log( '[Fanfic Wizard] Step 3: Saving user roles' );
+
 		// Save moderators
 		$moderators = array();
 		if ( isset( $_POST['fanfic_moderators'] ) && is_array( $_POST['fanfic_moderators'] ) ) {
@@ -1017,40 +1384,54 @@ class Fanfic_Wizard {
 			$admins = array_map( 'absint', wp_unslash( $_POST['fanfic_admins'] ) );
 		}
 		update_option( 'fanfic_wizard_admins', $admins );
+
+		error_log( '[Fanfic Wizard] Step 3: Saved moderators=' . wp_json_encode( $moderators ) . ', admins=' . wp_json_encode( $admins ) );
 	}
 
 	/**
 	 * Save taxonomy terms step data
 	 *
+	 * Saves taxonomy configuration from step 4 to draft.
+	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	private function save_taxonomy_terms_step() {
-		// Genre and Status are mandatory in this setup flow.
-		$genre_terms = array(
+		error_log( '[Fanfic Wizard Step 4] Starting save_taxonomy_terms_step' );
+		error_log( '[Fanfic Wizard Step 4] POST data: ' . wp_json_encode( $_POST ) );
+
+		// Get draft
+		$draft = get_option( 'fanfic_wizard_draft', array() );
+
+		// Collect step 4 data
+		$step_data = array();
+
+		// Genre and Status are mandatory
+		$step_data['genre_terms'] = array(
 			'Romance', 'Adventure', 'Drama', 'Horror', 'Mystery', 'Sci-Fi', 'Fantasy', 'Comedy',
 		);
-		update_option( 'fanfic_wizard_genre_terms', $genre_terms );
+		$step_data['status_terms'] = array( 'Finished', 'Ongoing', 'On Hiatus', 'Abandoned' );
 
-		$status_terms = array( 'Finished', 'Ongoing', 'On Hiatus', 'Abandoned' );
-		update_option( 'fanfic_wizard_status_terms', $status_terms );
+		// Feature toggles
+		$step_data['enable_fandoms'] = isset( $_POST['fanfic_enable_fandom_classification'] ) && '1' === $_POST['fanfic_enable_fandom_classification'];
+		$step_data['enable_warnings'] = isset( $_POST['fanfic_enable_warnings'] ) && '1' === $_POST['fanfic_enable_warnings'];
+		$step_data['enable_languages'] = isset( $_POST['fanfic_enable_language_classification'] ) && '1' === $_POST['fanfic_enable_language_classification'];
+		$step_data['allow_sexual'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_sexual_content'] ) && '1' === $_POST['fanfic_allow_sexual_content'];
+		$step_data['allow_pornographic'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_pornographic_content'] ) && '1' === $_POST['fanfic_allow_pornographic_content'];
 
-		$enable_fandoms = isset( $_POST['fanfic_enable_fandom_classification'] ) && '1' === $_POST['fanfic_enable_fandom_classification'];
-		$enable_warnings = isset( $_POST['fanfic_enable_warnings'] ) && '1' === $_POST['fanfic_enable_warnings'];
-		$enable_languages = isset( $_POST['fanfic_enable_language_classification'] ) && '1' === $_POST['fanfic_enable_language_classification'];
-		$allow_sexual = $enable_warnings && isset( $_POST['fanfic_allow_sexual_content'] ) && '1' === $_POST['fanfic_allow_sexual_content'];
-		$allow_pornographic = $enable_warnings && isset( $_POST['fanfic_allow_pornographic_content'] ) && '1' === $_POST['fanfic_allow_pornographic_content'];
+		error_log( '[Fanfic Wizard Step 4] Collected step data: ' . wp_json_encode( $step_data ) );
 
-		Fanfic_Settings::update_setting( 'enable_fandom_classification', $enable_fandoms );
-		Fanfic_Settings::update_setting( 'enable_warnings', $enable_warnings );
-		Fanfic_Settings::update_setting( 'enable_language_classification', $enable_languages );
+		// Save to draft
+		$draft['step_4'] = $step_data;
+		update_option( 'fanfic_wizard_draft', $draft );
 
-		Fanfic_Settings::update_setting( 'allow_sexual_content', $allow_sexual );
-		Fanfic_Settings::update_setting( 'allow_pornographic_content', $allow_pornographic );
+		error_log( '[Fanfic Wizard Step 4] Saved to draft. Full draft: ' . wp_json_encode( $draft ) );
 	}
 
 	/**
 	 * AJAX handler for completing the wizard
+	 *
+	 * Commits draft configuration, creates pages, and validates setup.
 	 *
 	 * @since 1.0.0
 	 * @return void
@@ -1066,79 +1447,452 @@ class Fanfic_Wizard {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) ) );
 		}
 
-		// Get saved settings
-		$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
+		// Wrap everything in try-catch for debugging
+		try {
+			error_log( '[Fanfic Wizard Complete] ========== STARTING WIZARD COMPLETION ==========' );
+			error_log( sprintf(
+				'[Fanfic Wizard Complete] Memory: %dMB used, %dMB peak',
+				(int) round( memory_get_usage( true ) / 1048576 ),
+				(int) round( memory_get_peak_usage( true ) / 1048576 )
+			) );
 
-		// Create system pages with error handling
-		$page_result = Fanfic_Templates::create_system_pages( $base_slug );
+			// Read draft
+			error_log( '[Fanfic Wizard Complete] Reading draft configuration' );
+			$draft = get_option( 'fanfic_wizard_draft', array() );
+			error_log( '[Fanfic Wizard Complete] Draft contents: ' . wp_json_encode( $draft ) );
 
-		// Check if page creation was successful
-		if ( ! $page_result['success'] ) {
-			// Build detailed error message
-			$error_details = array();
-			if ( ! empty( $page_result['failed'] ) ) {
-				foreach ( $page_result['failed'] as $failed_page ) {
-					$error_details[] = sprintf(
-						/* translators: 1: page title, 2: error message */
-						__( '%1$s: %2$s', 'fanfiction-manager' ),
-						$failed_page['title'],
-						$failed_page['message']
-					);
-				}
+			if ( empty( $draft ) ) {
+				error_log( '[Fanfic Wizard Complete] WARNING: Draft is empty!' );
 			}
 
+			// Commit draft to options
+			error_log( '[Fanfic Wizard Complete] ========== COMMITTING DRAFT TO OPTIONS ==========' );
+			$this->commit_draft( $draft );
+
+			// Sync homepage settings AFTER committing options
+			error_log( '[Fanfic Wizard Complete] ========== SYNCING HOMEPAGE SETTINGS ==========' );
+			if ( class_exists( 'Fanfic_Homepage_State' ) ) {
+				Fanfic_Homepage_State::sync_homepage_settings();
+			} else {
+				error_log( '[Fanfic Wizard Complete] WARNING: Fanfic_Homepage_State class not found!' );
+			}
+
+			// Create system pages
+			error_log( '[Fanfic Wizard Complete] ========== CREATING SYSTEM PAGES ==========' );
+			$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
+			error_log( '[Fanfic Wizard Complete] Using base slug: ' . $base_slug );
+
+			$page_result = Fanfic_Templates::create_system_pages( $base_slug );
+			error_log( sprintf(
+				'[Fanfic Wizard Complete] Page creation result - success: %s',
+				$page_result['success'] ? 'YES' : 'NO'
+			) );
+
+			if ( ! empty( $page_result['created'] ) ) {
+				error_log( '[Fanfic Wizard Complete] Pages created: ' . wp_json_encode( $page_result['created'] ) );
+			}
+			if ( ! empty( $page_result['failed'] ) ) {
+				error_log( '[Fanfic Wizard Complete] Pages failed: ' . wp_json_encode( $page_result['failed'] ) );
+			}
+
+			// Check if page creation was successful
+			if ( ! $page_result['success'] ) {
+				$error_details = array();
+				if ( ! empty( $page_result['failed'] ) ) {
+					foreach ( $page_result['failed'] as $failed_page ) {
+						$error_details[] = sprintf(
+							/* translators: 1: page title, 2: error message */
+							__( '%1$s: %2$s', 'fanfiction-manager' ),
+							$failed_page['title'],
+							$failed_page['message']
+						);
+					}
+				}
+
+				error_log( '[Fanfic Wizard Complete] ERROR: Page creation failed - ' . wp_json_encode( $error_details ) );
+
+				wp_send_json_error( array(
+					'message' => $page_result['message'],
+					'details' => $error_details,
+				) );
+			}
+
+			// Sync homepage settings AGAIN after pages are created
+			error_log( '[Fanfic Wizard Complete] ========== SYNCING HOMEPAGE SETTINGS (POST-PAGES) ==========' );
+			if ( class_exists( 'Fanfic_Homepage_State' ) ) {
+				Fanfic_Homepage_State::sync_homepage_settings();
+			}
+
+			// Create taxonomy terms
+			error_log( '[Fanfic Wizard Complete] ========== CREATING TAXONOMY TERMS ==========' );
+			$this->create_taxonomy_terms();
+
+			// Assign user roles
+			error_log( '[Fanfic Wizard Complete] ========== ASSIGNING USER ROLES ==========' );
+			$this->assign_user_roles();
+
+			// Create sample stories if requested
+			if ( isset( $_POST['create_samples'] ) && '1' === $_POST['create_samples'] ) {
+				error_log( '[Fanfic Wizard Complete] ========== CREATING SAMPLE STORIES ==========' );
+				$this->create_sample_stories();
+			} else {
+				error_log( '[Fanfic Wizard Complete] Skipping sample stories (not requested)' );
+			}
+
+			// Flush rewrite rules
+			error_log( '[Fanfic Wizard Complete] ========== FLUSHING REWRITE RULES ==========' );
+			$this->flush_rewrite_rules();
+
+			// ========== VERIFICATION GATES ==========
+			error_log( '[Fanfic Wizard Complete] ========== RUNNING VERIFICATION GATES ==========' );
+
+			$gates_passed = true;
+			$gate_errors = array();
+
+			// Gate 1: Base slug persisted correctly
+			error_log( '[Fanfic Wizard Complete] Gate 1: Verifying base slug persistence' );
+			$expected_base_slug = isset( $draft['step_2']['base_slug'] ) ? $draft['step_2']['base_slug'] : 'fanfiction';
+			$actual_base_slug = get_option( 'fanfic_base_slug', '' );
+			error_log( sprintf(
+				'[Fanfic Wizard Complete] Gate 1: Expected=%s, Actual=%s',
+				$expected_base_slug,
+				$actual_base_slug
+			) );
+			if ( $expected_base_slug !== $actual_base_slug ) {
+				$gates_passed = false;
+				$gate_errors[] = sprintf(
+					__( 'Base slug mismatch: expected "%s", got "%s"', 'fanfiction-manager' ),
+					$expected_base_slug,
+					$actual_base_slug
+				);
+				error_log( '[Fanfic Wizard Complete] Gate 1: FAILED' );
+			} else {
+				error_log( '[Fanfic Wizard Complete] Gate 1: PASSED' );
+			}
+
+			// Gate 2: Homepage settings match expected
+			error_log( '[Fanfic Wizard Complete] Gate 2: Verifying homepage settings' );
+			if ( class_exists( 'Fanfic_Homepage_State' ) ) {
+				$is_in_sync = Fanfic_Homepage_State::is_wp_front_page_in_sync();
+				$state = Fanfic_Homepage_State::get_current_state();
+				$target = Fanfic_Homepage_State::resolve_wp_front_page_target( $state );
+
+				error_log( '[Fanfic Wizard Complete] Gate 2: Current state: ' . wp_json_encode( $state ) );
+				error_log( '[Fanfic Wizard Complete] Gate 2: Expected target: ' . wp_json_encode( $target ) );
+				error_log( sprintf(
+					'[Fanfic Wizard Complete] Gate 2: WP show_on_front=%s, page_on_front=%d',
+					get_option( 'show_on_front' ),
+					(int) get_option( 'page_on_front' )
+				) );
+				error_log( sprintf(
+					'[Fanfic Wizard Complete] Gate 2: In sync? %s',
+					$is_in_sync ? 'YES' : 'NO'
+				) );
+
+				if ( ! $is_in_sync && $state['use_base_slug'] == 0 ) {
+					$gates_passed = false;
+					$gate_errors[] = __( 'Homepage settings do not match expected configuration', 'fanfiction-manager' );
+					error_log( '[Fanfic Wizard Complete] Gate 2: FAILED (settings out of sync)' );
+				} else {
+					error_log( '[Fanfic Wizard Complete] Gate 2: PASSED' );
+				}
+			} else {
+				error_log( '[Fanfic Wizard Complete] Gate 2: SKIPPED (Homepage State class not available)' );
+			}
+
+			// Gate 3: All required pages exist
+			error_log( '[Fanfic Wizard Complete] Gate 3: Verifying all pages exist' );
+			if ( ! $this->all_pages_exist() ) {
+				$gates_passed = false;
+				$gate_errors[] = __( 'Some required pages are missing or not published', 'fanfiction-manager' );
+				error_log( '[Fanfic Wizard Complete] Gate 3: FAILED (missing pages)' );
+
+				// Log detailed page status
+				$page_ids = get_option( 'fanfic_system_page_ids', array() );
+				foreach ( $page_ids as $key => $id ) {
+					$page = get_post( $id );
+					if ( $page ) {
+						error_log( sprintf(
+							'[Fanfic Wizard Complete] Gate 3: Page %s (ID %d) status: %s',
+							$key,
+							$id,
+							$page->post_status
+						) );
+					} else {
+						error_log( sprintf(
+							'[Fanfic Wizard Complete] Gate 3: Page %s (ID %d) NOT FOUND',
+							$key,
+							$id
+						) );
+					}
+				}
+			} else {
+				error_log( '[Fanfic Wizard Complete] Gate 3: PASSED' );
+			}
+
+			// Check if all gates passed
+			if ( ! $gates_passed ) {
+				error_log( '[Fanfic Wizard Complete] ========== VERIFICATION FAILED ==========' );
+				error_log( '[Fanfic Wizard Complete] Gate errors: ' . wp_json_encode( $gate_errors ) );
+
+				wp_send_json_error( array(
+					'message' => __( 'Setup verification failed. Please review the configuration.', 'fanfiction-manager' ),
+					'details' => $gate_errors,
+				) );
+			}
+
+			error_log( '[Fanfic Wizard Complete] ========== ALL GATES PASSED ==========' );
+
+			// Mark wizard as completed
+			error_log( '[Fanfic Wizard Complete] Marking wizard as completed' );
+			update_option( 'fanfic_wizard_completed', true );
+			delete_option( 'fanfic_show_wizard' );
+
+			// Clean up temporary wizard data
+			delete_option( 'fanfic_wizard_moderators' );
+			delete_option( 'fanfic_wizard_admins' );
+
+			// Delete draft on success
+			error_log( '[Fanfic Wizard Complete] Deleting wizard draft' );
+			delete_option( 'fanfic_wizard_draft' );
+
+			// Log completion timestamp
+			$completion_time = current_time( 'mysql' );
+			error_log( '[Fanfic Wizard Complete] Completion timestamp: ' . $completion_time );
+			update_option( 'fanfic_wizard_completed_at', $completion_time );
+
+			error_log( '[Fanfic Wizard Complete] ========== WIZARD COMPLETION SUCCESS ==========' );
+			error_log( sprintf(
+				'[Fanfic Wizard Complete] Final memory: %dMB used, %dMB peak',
+				(int) round( memory_get_usage( true ) / 1048576 ),
+				(int) round( memory_get_peak_usage( true ) / 1048576 )
+			) );
+
+			wp_send_json_success( array(
+				'message'      => __( 'Setup completed successfully! Redirecting...', 'fanfiction-manager' ),
+				'redirect_url' => admin_url( 'admin.php?page=fanfiction-settings&tab=general' ),
+			) );
+
+		} catch ( Exception $e ) {
+			error_log( '[Fanfic Wizard Complete] ========== EXCEPTION CAUGHT ==========' );
+			error_log( '[Fanfic Wizard Complete] ERROR: ' . $e->getMessage() );
+			error_log( '[Fanfic Wizard Complete] FILE: ' . $e->getFile() . ' on line ' . $e->getLine() );
+			error_log( '[Fanfic Wizard Complete] TRACE: ' . $e->getTraceAsString() );
+
 			wp_send_json_error( array(
-				'message' => $page_result['message'],
-				'details' => $error_details,
+				'message' => sprintf(
+					/* translators: %s: error message */
+					__( 'Wizard completion failed: %s', 'fanfiction-manager' ),
+					$e->getMessage()
+				),
+				'details' => array(
+					__( 'Check the WordPress debug log for more details.', 'fanfiction-manager' ),
+					$e->getFile() . ' on line ' . $e->getLine(),
+				),
 			) );
 		}
+	}
 
-		// Create taxonomy terms
-		$this->create_taxonomy_terms();
+	/**
+	 * Commit draft configuration to WordPress options
+	 *
+	 * Writes all draft data atomically to their respective options.
+	 *
+	 * @since 1.0.0
+	 * @param array $draft Draft data from fanfic_wizard_draft option.
+	 * @return void
+	 */
+	private function commit_draft( $draft ) {
+		error_log( '[Fanfic Wizard Commit] Starting draft commit' );
 
-		// Assign user roles
-		$this->assign_user_roles();
+		// Commit Step 1: Homepage settings
+		if ( isset( $draft['step_1'] ) ) {
+			error_log( '[Fanfic Wizard Commit] Committing Step 1 (Homepage Settings)' );
+			$step_1 = $draft['step_1'];
 
-		// Create sample stories if requested
-		if ( isset( $_POST['create_samples'] ) && '1' === $_POST['create_samples'] ) {
-			$this->create_sample_stories();
+			if ( isset( $step_1['main_page_mode'] ) ) {
+				$old = get_option( 'fanfic_main_page_mode', '' );
+				update_option( 'fanfic_main_page_mode', $step_1['main_page_mode'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_main_page_mode: %s → %s',
+					$old,
+					$step_1['main_page_mode']
+				) );
+			}
+
+			if ( isset( $step_1['use_base_slug'] ) ) {
+				$old = get_option( 'fanfic_use_base_slug', '' );
+				update_option( 'fanfic_use_base_slug', $step_1['use_base_slug'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_use_base_slug: %s → %s',
+					$old,
+					$step_1['use_base_slug']
+				) );
+			}
+
+			if ( isset( $step_1['homepage_source'] ) ) {
+				$old = get_option( 'fanfic_homepage_source', '' );
+				update_option( 'fanfic_homepage_source', $step_1['homepage_source'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_homepage_source: %s → %s',
+					$old,
+					$step_1['homepage_source']
+				) );
+			}
+
+			if ( isset( $step_1['homepage_source_id'] ) ) {
+				$old = get_option( 'fanfic_homepage_source_id', '' );
+				update_option( 'fanfic_homepage_source_id', $step_1['homepage_source_id'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_homepage_source_id: %s → %s',
+					$old,
+					$step_1['homepage_source_id']
+				) );
+			}
 		}
 
-		// Flush rewrite rules using shared helper method
-		$this->flush_rewrite_rules();
+		// Commit Step 2: URL settings
+		if ( isset( $draft['step_2'] ) ) {
+			error_log( '[Fanfic Wizard Commit] Committing Step 2 (URL Settings)' );
+			$step_2 = $draft['step_2'];
 
-		// Double-check that all pages exist using existing validation method
-		if ( ! $this->all_pages_exist() ) {
-			wp_send_json_error( array(
-				'message' => __( 'Page validation failed. Some required pages are missing or not published.', 'fanfiction-manager' ),
-				'details' => array( __( 'Please check the Pages section in WordPress admin.', 'fanfiction-manager' ) ),
-			) );
+			if ( isset( $step_2['base_slug'] ) ) {
+				$old = get_option( 'fanfic_base_slug', '' );
+				update_option( 'fanfic_base_slug', $step_2['base_slug'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_base_slug: %s → %s',
+					$old,
+					$step_2['base_slug']
+				) );
+			}
+
+			if ( isset( $step_2['story_path'] ) ) {
+				$old = get_option( 'fanfic_story_path', '' );
+				update_option( 'fanfic_story_path', $step_2['story_path'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_story_path: %s → %s',
+					$old,
+					$step_2['story_path']
+				) );
+			}
+
+			if ( isset( $step_2['chapter_slugs'] ) ) {
+				$old = get_option( 'fanfic_chapter_slugs', array() );
+				update_option( 'fanfic_chapter_slugs', $step_2['chapter_slugs'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_chapter_slugs: %s → %s',
+					wp_json_encode( $old ),
+					wp_json_encode( $step_2['chapter_slugs'] )
+				) );
+			}
+
+			if ( isset( $step_2['system_page_slugs'] ) ) {
+				$old = get_option( 'fanfic_system_page_slugs', array() );
+				update_option( 'fanfic_system_page_slugs', $step_2['system_page_slugs'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_system_page_slugs: %s → %s',
+					wp_json_encode( $old ),
+					wp_json_encode( $step_2['system_page_slugs'] )
+				) );
+			}
+
+			if ( isset( $step_2['dashboard_slug'] ) ) {
+				$old = get_option( 'fanfic_dashboard_slug', '' );
+				update_option( 'fanfic_dashboard_slug', $step_2['dashboard_slug'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_dashboard_slug: %s → %s',
+					$old,
+					$step_2['dashboard_slug']
+				) );
+			}
+
+			if ( isset( $step_2['members_slug'] ) ) {
+				$old = get_option( 'fanfic_members_slug', '' );
+				update_option( 'fanfic_members_slug', $step_2['members_slug'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_members_slug: %s → %s',
+					$old,
+					$step_2['members_slug']
+				) );
+			}
 		}
 
-		// Mark wizard as completed
-		update_option( 'fanfic_wizard_completed', true );
-		delete_option( 'fanfic_show_wizard' );
+		// Commit Step 4: Taxonomy settings
+		if ( isset( $draft['step_4'] ) ) {
+			error_log( '[Fanfic Wizard Commit] Committing Step 4 (Taxonomy Settings)' );
+			$step_4 = $draft['step_4'];
 
-		// Clean up temporary wizard data
-		delete_option( 'fanfic_wizard_moderators' );
-		delete_option( 'fanfic_wizard_admins' );
+			// Store taxonomy terms for later creation
+			if ( isset( $step_4['genre_terms'] ) ) {
+				update_option( 'fanfic_wizard_genre_terms', $step_4['genre_terms'] );
+				error_log( '[Fanfic Wizard Commit] Stored genre terms: ' . wp_json_encode( $step_4['genre_terms'] ) );
+			}
 
-		wp_send_json_success( array(
-			'message'      => __( 'Setup completed successfully! Redirecting...', 'fanfiction-manager' ),
-			'redirect_url' => admin_url( 'admin.php?page=fanfiction-settings&tab=general' ),
-		) );
+			if ( isset( $step_4['status_terms'] ) ) {
+				update_option( 'fanfic_wizard_status_terms', $step_4['status_terms'] );
+				error_log( '[Fanfic Wizard Commit] Stored status terms: ' . wp_json_encode( $step_4['status_terms'] ) );
+			}
+
+			// Feature toggles
+			if ( isset( $step_4['enable_fandoms'] ) ) {
+				Fanfic_Settings::update_setting( 'enable_fandom_classification', $step_4['enable_fandoms'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] enable_fandom_classification → %s',
+					$step_4['enable_fandoms'] ? 'true' : 'false'
+				) );
+			}
+
+			if ( isset( $step_4['enable_warnings'] ) ) {
+				Fanfic_Settings::update_setting( 'enable_warnings', $step_4['enable_warnings'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] enable_warnings → %s',
+					$step_4['enable_warnings'] ? 'true' : 'false'
+				) );
+			}
+
+			if ( isset( $step_4['enable_languages'] ) ) {
+				Fanfic_Settings::update_setting( 'enable_language_classification', $step_4['enable_languages'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] enable_language_classification → %s',
+					$step_4['enable_languages'] ? 'true' : 'false'
+				) );
+			}
+
+			if ( isset( $step_4['allow_sexual'] ) ) {
+				Fanfic_Settings::update_setting( 'allow_sexual_content', $step_4['allow_sexual'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] allow_sexual_content → %s',
+					$step_4['allow_sexual'] ? 'true' : 'false'
+				) );
+			}
+
+			if ( isset( $step_4['allow_pornographic'] ) ) {
+				Fanfic_Settings::update_setting( 'allow_pornographic_content', $step_4['allow_pornographic'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] allow_pornographic_content → %s',
+					$step_4['allow_pornographic'] ? 'true' : 'false'
+				) );
+			}
+		}
+
+		error_log( '[Fanfic Wizard Commit] Draft commit completed' );
 	}
 
 	/**
 	 * Create taxonomy terms based on wizard selections
 	 *
+	 * Uses committed draft data to create taxonomy terms.
+	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	private function create_taxonomy_terms() {
-		// Get selected terms
+		// Get selected terms (from committed draft)
 		$genre_terms = get_option( 'fanfic_wizard_genre_terms', array() );
 		$status_terms = get_option( 'fanfic_wizard_status_terms', array() );
+
+		error_log( '[Fanfic Wizard Taxonomy] Creating genre terms: ' . wp_json_encode( $genre_terms ) );
+		error_log( '[Fanfic Wizard Taxonomy] Creating status terms: ' . wp_json_encode( $status_terms ) );
 
 		// Create genre terms
 		if ( ! empty( $genre_terms ) && is_array( $genre_terms ) ) {
@@ -1147,7 +1901,14 @@ class Fanfic_Wizard {
 					// Check if term already exists
 					$existing_term = term_exists( $term, 'fanfiction_genre' );
 					if ( ! $existing_term ) {
-						wp_insert_term( $term, 'fanfiction_genre' );
+						$result = wp_insert_term( $term, 'fanfiction_genre' );
+						if ( is_wp_error( $result ) ) {
+							error_log( '[Fanfic Wizard Taxonomy] Failed to create genre term "' . $term . '": ' . $result->get_error_message() );
+						} else {
+							error_log( '[Fanfic Wizard Taxonomy] Created genre term "' . $term . '" (ID: ' . $result['term_id'] . ')' );
+						}
+					} else {
+						error_log( '[Fanfic Wizard Taxonomy] Genre term "' . $term . '" already exists' );
 					}
 				}
 			}
@@ -1160,7 +1921,14 @@ class Fanfic_Wizard {
 					// Check if term already exists
 					$existing_term = term_exists( $term, 'fanfiction_status' );
 					if ( ! $existing_term ) {
-						wp_insert_term( $term, 'fanfiction_status' );
+						$result = wp_insert_term( $term, 'fanfiction_status' );
+						if ( is_wp_error( $result ) ) {
+							error_log( '[Fanfic Wizard Taxonomy] Failed to create status term "' . $term . '": ' . $result->get_error_message() );
+						} else {
+							error_log( '[Fanfic Wizard Taxonomy] Created status term "' . $term . '" (ID: ' . $result['term_id'] . ')' );
+						}
+					} else {
+						error_log( '[Fanfic Wizard Taxonomy] Status term "' . $term . '" already exists' );
 					}
 				}
 			}
@@ -1169,6 +1937,8 @@ class Fanfic_Wizard {
 		// Clean up temporary wizard data
 		delete_option( 'fanfic_wizard_genre_terms' );
 		delete_option( 'fanfic_wizard_status_terms' );
+
+		error_log( '[Fanfic Wizard Taxonomy] Taxonomy term creation completed' );
 	}
 
 	/**
@@ -1182,11 +1952,23 @@ class Fanfic_Wizard {
 		$moderators = get_option( 'fanfic_wizard_moderators', array() );
 		$admins = get_option( 'fanfic_wizard_admins', array() );
 
+		error_log( '[Fanfic Wizard Roles] Moderators to assign: ' . wp_json_encode( $moderators ) );
+		error_log( '[Fanfic Wizard Roles] Admins to assign: ' . wp_json_encode( $admins ) );
+
 		// Assign moderator role
 		foreach ( $moderators as $user_id ) {
 			$user = get_user_by( 'id', $user_id );
 			if ( $user && ! in_array( $user_id, $admins, true ) ) { // Don't assign moderator if also admin
 				$user->add_role( 'fanfiction_moderator' );
+				error_log( sprintf(
+					'[Fanfic Wizard Roles] Added moderator role to user %d (%s)',
+					$user_id,
+					$user->user_login
+				) );
+			} elseif ( ! $user ) {
+				error_log( '[Fanfic Wizard Roles] User ID ' . $user_id . ' not found' );
+			} elseif ( in_array( $user_id, $admins, true ) ) {
+				error_log( '[Fanfic Wizard Roles] Skipping moderator role for user ' . $user_id . ' (is admin)' );
 			}
 		}
 
@@ -1197,8 +1979,17 @@ class Fanfic_Wizard {
 				// Add fanfiction capabilities to their existing role
 				$user->add_cap( 'manage_fanfiction' );
 				$user->add_cap( 'moderate_fanfiction' );
+				error_log( sprintf(
+					'[Fanfic Wizard Roles] Added admin capabilities to user %d (%s)',
+					$user_id,
+					$user->user_login
+				) );
+			} else {
+				error_log( '[Fanfic Wizard Roles] User ID ' . $user_id . ' not found' );
 			}
 		}
+
+		error_log( '[Fanfic Wizard Roles] User role assignment completed' );
 	}
 
 	/**
@@ -1210,7 +2001,9 @@ class Fanfic_Wizard {
 	 * @return void
 	 */
 	private function create_sample_stories() {
+		error_log( '[Fanfic Wizard Samples] Starting sample story creation' );
 		$current_user_id = get_current_user_id();
+		error_log( '[Fanfic Wizard Samples] Current user ID: ' . $current_user_id );
 
 		// Get random genre and status terms
 		$genre_terms = get_terms( array(
@@ -1223,8 +2016,11 @@ class Fanfic_Wizard {
 		) );
 
 		if ( empty( $status_terms ) || is_wp_error( $status_terms ) ) {
+			error_log( '[Fanfic Wizard Samples] No status terms available, aborting sample creation' );
 			return; // No status terms available
 		}
+
+		error_log( '[Fanfic Wizard Samples] Found ' . count( $genre_terms ) . ' genre terms and ' . count( $status_terms ) . ' status terms' );
 
 		// Pick random status terms
 		$random_status_1 = $status_terms[ array_rand( $status_terms ) ];
@@ -1248,6 +2044,7 @@ class Fanfic_Wizard {
 		$story2_intro = "Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio. Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.\n\nDumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.\n\nDumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio. Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.";
 
 		// ===== STORY 1: Lorem Ipsum (Draft) =====
+		error_log( '[Fanfic Wizard Samples] Creating Story 1: Lorem Ipsum (Draft)' );
 		$story1_id = wp_insert_post( array(
 			'post_title'   => 'Lorem Ipsum',
 			'post_content' => $lorem_intro,
@@ -1257,6 +2054,7 @@ class Fanfic_Wizard {
 		) );
 
 		if ( ! is_wp_error( $story1_id ) && $story1_id > 0 ) {
+			error_log( '[Fanfic Wizard Samples] Story 1 created with ID: ' . $story1_id );
 			// Set status taxonomy
 			wp_set_object_terms( $story1_id, $random_status_1->term_id, 'fanfiction_status', false );
 
@@ -1298,6 +2096,7 @@ class Fanfic_Wizard {
 		}
 
 		// ===== STORY 2: De finibus bonorum et malorum (Published) =====
+		error_log( '[Fanfic Wizard Samples] Creating Story 2: De finibus bonorum et malorum (Published)' );
 		$story2_id = wp_insert_post( array(
 			'post_title'   => 'De finibus bonorum et malorum',
 			'post_content' => $story2_intro,
@@ -1307,6 +2106,7 @@ class Fanfic_Wizard {
 		) );
 
 		if ( ! is_wp_error( $story2_id ) && $story2_id > 0 ) {
+			error_log( '[Fanfic Wizard Samples] Story 2 created with ID: ' . $story2_id );
 			// Set status taxonomy
 			wp_set_object_terms( $story2_id, $random_status_2->term_id, 'fanfiction_status', false );
 
@@ -1346,6 +2146,8 @@ class Fanfic_Wizard {
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_number', 1 );
 			}
 		}
+
+		error_log( '[Fanfic Wizard Samples] Sample story creation completed' );
 	}
 
 	/**
