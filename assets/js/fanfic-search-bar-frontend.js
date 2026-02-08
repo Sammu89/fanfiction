@@ -13,10 +13,10 @@
         taxonomyOrder: [
             { key: 'match_all', label: 'Match all filters', type: 'toggle' },
             { key: 'language', label: 'Language', type: 'multi-select' },
-            { key: 'status', label: 'Status', type: 'select' },
+            { key: 'status', label: 'Status', type: 'multi-select' },
             { key: 'fandoms', label: 'Fandom', type: 'custom', selector: '[name="fanfic_story_fandoms[]"]' },
             { key: 'genres', label: 'Genre', type: 'multi-select' },
-            { key: 'age', label: 'Age', type: 'select' },
+            { key: 'age', label: 'Age', type: 'multi-select' },
             { key: 'warnings_include', label: 'Including', type: 'warnings', mode: 'include' },
             { key: 'warnings_exclude', label: 'Excluding', type: 'warnings', mode: 'exclude' },
         ],
@@ -27,10 +27,13 @@
         getCurrentFilters: function() {
             var filters = {};
 
-            // Status select
-            var statusVal = $('#fanfic-status-filter').val();
-            if (statusVal) {
-                filters.status = statusVal;
+            // Status multi-select
+            var statuses = [];
+            $('input[name="status[]"]:checked').each(function() {
+                statuses.push($(this).closest('label').text().trim());
+            });
+            if (statuses.length) {
+                filters.status = statuses;
             }
 
             // Match all toggle
@@ -47,10 +50,13 @@
                 filters.genres = genres;
             }
 
-            // Age select
-            var ageVal = $('#fanfic-age-filter').val();
-            if (ageVal) {
-                filters.age = ageVal;
+            // Age multi-select
+            var ages = [];
+            $('input[name="age[]"]:checked').each(function() {
+                ages.push($(this).closest('label').text().trim());
+            });
+            if (ages.length) {
+                filters.age = ages;
             }
 
             // Languages multi-select
@@ -137,14 +143,12 @@
                 pillHtml += '<span class="fanfic-pill-label">' + label + ':</span>';
                 pillHtml += '<ul class="fanfic-pill-values">';
 
-                values.forEach(function(value, index) {
-                    var isLast = index === values.length - 1;
+                values.forEach(function(value) {
+                    // Capitalize first letter of value for better aesthetics
+                    var displayValue = value.charAt(0).toUpperCase() + value.slice(1);
                     pillHtml += '<li class="fanfic-pill-value" data-value="' + self.escapeAttr(value) + '">';
-                    pillHtml += '<span class="fanfic-pill-value-text">' + self.escapeHtml(value) + '</span>';
+                    pillHtml += '<span class="fanfic-pill-value-text">' + self.escapeHtml(displayValue) + '</span>';
                     pillHtml += '<button type="button" class="fanfic-pill-value-remove" aria-label="Remove ' + self.escapeAttr(value) + '">&times;</button>';
-                    if (!isLast) {
-                        pillHtml += '<span class="fanfic-pill-value-separator">,</span>';
-                    }
                     pillHtml += '</li>';
                 });
 
@@ -223,7 +227,11 @@
                     break;
 
                 case 'status':
-                    $('#fanfic-status-filter').val('').trigger('change');
+                    $('input[name="status[]"]').each(function() {
+                        if ($(this).closest('label').text().trim() === valueText) {
+                            $(this).prop('checked', false).trigger('change');
+                        }
+                    });
                     break;
 
                 case 'genres':
@@ -235,7 +243,11 @@
                     break;
 
                 case 'age':
-                    $('#fanfic-age-filter').val('').trigger('change');
+                    $('input[name="age[]"]').each(function() {
+                        if ($(this).closest('label').text().trim() === valueText) {
+                            $(this).prop('checked', false).trigger('change');
+                        }
+                    });
                     break;
 
                 case 'fandoms':

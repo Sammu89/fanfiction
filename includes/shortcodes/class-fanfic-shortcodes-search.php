@@ -156,17 +156,22 @@ class Fanfic_Shortcodes_Search {
 				</div>
 
 				<div class="fanfic-status-filter-wrapper">
-					<label for="fanfic-status-filter" class="screen-reader-text"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
-					<select id="fanfic-status-filter" name="status">
-						<option value=""><?php esc_html_e( 'All Statuses', 'fanfiction-manager' ); ?></option>
-						<?php if ( ! empty( $context['statuses'] ) && ! is_wp_error( $context['statuses'] ) ) : ?>
-							<?php foreach ( $context['statuses'] as $status ) : ?>
-								<option value="<?php echo esc_attr( $status->slug ); ?>" <?php selected( ( $context['params']['statuses'][0] ?? '' ), $status->slug ); ?>>
-									<?php echo esc_html( $status->name ); ?>
-								</option>
-							<?php endforeach; ?>
-						<?php endif; ?>
-					</select>
+					<label><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
+					<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Status', 'fanfiction-manager' ); ?>">
+						<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
+							<?php esc_html_e( 'Select Status', 'fanfiction-manager' ); ?>
+						</button>
+						<div class="multi-select__dropdown">
+							<?php if ( ! empty( $context['statuses'] ) && ! is_wp_error( $context['statuses'] ) ) : ?>
+								<?php foreach ( $context['statuses'] as $status ) : ?>
+									<label>
+										<input type="checkbox" name="status[]" value="<?php echo esc_attr( $status->slug ); ?>" <?php in_array( $status->slug, (array) ( $context['params']['statuses'] ?? [] ) ) ? checked( true ) : ''; ?> />
+										<?php echo esc_html( $status->name ); ?>
+									</label>
+								<?php endforeach; ?>
+							<?php endif; ?>
+						</div>
+					</div>
 				</div>
 
 				<div class="fanfic-sort-filter-wrapper">
@@ -215,15 +220,30 @@ class Fanfic_Shortcodes_Search {
 					</div>
 
 					<div class="fanfic-browse-column">
-						<label for="fanfic-age-filter"><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
-						<select id="fanfic-age-filter" name="age">
-							<option value=""><?php esc_html_e( 'Any age', 'fanfiction-manager' ); ?></option>
-							<option value="PG" <?php selected( 'PG', $context['params']['age'] ?? '' ); ?>><?php esc_html_e( 'PG', 'fanfiction-manager' ); ?></option>
-							<option value="13" <?php selected( '13', $context['params']['age'] ?? '' ); ?>><?php esc_html_e( '13+', 'fanfiction-manager' ); ?></option>
-							<option value="16" <?php selected( '16', $context['params']['age'] ?? '' ); ?>><?php esc_html_e( '16+', 'fanfiction-manager' ); ?></option>
-							<option value="18" <?php selected( '18', $context['params']['age'] ?? '' ); ?>><?php esc_html_e( '18+', 'fanfiction-manager' ); ?></option>
-						</select>
-					</div>
+						<label><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
+						<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Age Rating', 'fanfiction-manager' ); ?>">
+							<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
+								<?php esc_html_e( 'Select Age Rating', 'fanfiction-manager' ); ?>
+							</button>
+							<div class="multi-select__dropdown">
+								<label>
+									<input type="checkbox" name="age[]" value="PG" <?php in_array( 'PG', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
+									<?php esc_html_e( 'PG', 'fanfiction-manager' ); ?>
+								</label>
+								<label>
+									<input type="checkbox" name="age[]" value="13" <?php in_array( '13', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
+									<?php esc_html_e( '13+', 'fanfiction-manager' ); ?>
+								</label>
+								<label>
+									<input type="checkbox" name="age[]" value="16" <?php in_array( '16', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
+									<?php esc_html_e( '16+', 'fanfiction-manager' ); ?>
+								</label>
+								<label>
+									<input type="checkbox" name="age[]" value="18" <?php in_array( '18', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
+									<?php esc_html_e( '18+', 'fanfiction-manager' ); ?>
+								</label>
+							</div>
+						</div>
 
 					<?php if ( ! empty( $context['languages'] ) ) : ?>
 						<div class="fanfic-browse-column">

@@ -152,13 +152,6 @@
     transform: scale(0.95);
 }
 
-/* Separator between values in pill (comma) */
-.fanfic-pill-value-separator {
-    color: white;
-    margin: 0 2px;
-    font-size: 0.95em;
-}
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .fanfic-pills-container {
