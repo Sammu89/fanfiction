@@ -9,8 +9,11 @@
         enforceMatchAllFilters: function() {
             var taxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
 
+            console.log('Match All: Enforcing single-select for taxonomies:', taxonomies);
+
             var self = this;
             taxonomies.forEach(function(taxName) {
+                console.log('Processing taxonomy:', taxName);
                 self.enforceSingleSelectForTaxonomy(taxName);
             });
         },
@@ -20,15 +23,24 @@
          */
         enforceSingleSelectForTaxonomy: function(taxName) {
             var checkboxes = this.getCheckboxesForTaxonomy(taxName);
-            if (checkboxes.length === 0) return;
+            console.log('Checkboxes found for ' + taxName + ':', checkboxes.length);
+
+            if (checkboxes.length === 0) {
+                console.log('No checkboxes found for ' + taxName);
+                return;
+            }
 
             var checked = checkboxes.filter(':checked');
+            console.log('Checked for ' + taxName + ':', checked.length);
+
             if (checked.length <= 1) {
+                console.log(taxName + ' already single or empty');
                 return; // Already single or empty
             }
 
             // Keep only the last checked one
             var lastCheckedElement = checked.last()[0]; // Get DOM element
+            console.log('Unchecking all but last for ' + taxName);
 
             // Uncheck all except the last one
             checkboxes.each(function() {
