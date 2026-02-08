@@ -1,6 +1,6 @@
 /* CSS for fanfic-search-bar.css */
 
-.fanfic-browse-form {
+.fanfic-stories-form {
     background-color: #f9f9f9;
     border: 1px solid #ddd;
     padding: 15px;
@@ -71,30 +71,30 @@
     margin-top: 15px;
 }
 
-.fanfic-browse-row {
+.fanfic-stories-row {
     margin-bottom: 15px;
 }
 
-.fanfic-browse-columns {
+.fanfic-stories-columns {
     display: flex;
     flex-wrap: wrap;
     gap: 20px;
 }
 
-.fanfic-browse-column {
+.fanfic-stories-column {
     flex: 1; /* Each column takes equal space */
     min-width: 200px; /* Minimum width for columns before wrapping */
 }
 
-.fanfic-browse-row label {
+.fanfic-stories-row label {
     display: block;
     margin-bottom: 5px;
     font-weight: bold;
 }
 
 /* Advanced filters input styling - global select styling inherited from fanfiction-frontend.css */
-.fanfic-browse-row input[type="text"].fanfic-input,
-.fanfic-browse-row select:not([multiple]) {
+.fanfic-stories-row input[type="text"].fanfic-input,
+.fanfic-stories-row select:not([multiple]) {
     width: 100%;
     padding: 8px;
     border: 1px solid #ccc;
@@ -229,7 +229,7 @@ input:checked + .fanfic-slider:before {
     line-height: 22px !important;
 }
 
-.fanfic-browse-warning-list label {
+.fanfic-stories-warning-list label {
     display: inline-block;
     margin-right: 15px;
     font-weight: normal; /* Override bold from general label style */
@@ -270,11 +270,11 @@ input:checked + .fanfic-slider:before {
         width: 100%;
     }
 
-    .fanfic-browse-columns {
+    .fanfic-stories-columns {
         flex-direction: column;
     }
 
-    .fanfic-browse-column {
+    .fanfic-stories-column {
         min-width: unset;
         width: 100%;
     }

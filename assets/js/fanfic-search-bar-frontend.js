@@ -253,7 +253,7 @@
         // Configuration
         config: {
             containerSelector: '[data-fanfic-active-filters]',
-            formSelector: '.fanfic-browse-form',
+            formSelector: '.fanfic-stories-form',
         },
 
         // Taxonomy order (determines pill order)
@@ -653,12 +653,12 @@
         var $toggleIcon = $advancedSearchToggle.find('.dashicons');
         var $clearFiltersButton = $('#fanfic-clear-filters-button');
         var $searchInput = $('#fanfic-search-input');
-        var $searchForm = $('.fanfic-browse-form');
+        var $searchForm = $('.fanfic-stories-form');
         var $ageFilter = $('#fanfic-age-filter');
         var $warningsModeRadios = $('input[name="warnings_mode"]');
         var $warningsMultiSelect = $('.fanfic-warnings-multiselect');
         var $smartToggleCheckbox = $('#fanfic-match-all-filters');
-        var $smartToggleLabel = $smartToggleCheckbox.closest('.fanfic-browse-row').find('.fanfic-toggle-label');
+        var $smartToggleLabel = $smartToggleCheckbox.closest('.fanfic-stories-row').find('.fanfic-toggle-label');
 
         // Get single-select taxonomy list from PHP localization
         var singleSelectTaxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
