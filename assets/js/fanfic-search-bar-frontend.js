@@ -93,11 +93,44 @@
         },
 
         /**
+         * Attach change listeners to checkboxes to enforce single-select when match_all is ON
+         */
+        attachSingleSelectEnforcement: function() {
+            var self = this;
+            var taxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
+
+            taxonomies.forEach(function(taxName) {
+                var checkboxes = self.getCheckboxesForTaxonomy(taxName);
+
+                checkboxes.off('change.smartfilter').on('change.smartfilter', function() {
+                    // Only enforce if match_all is currently ON
+                    if ($('#fanfic-match-all-filters').is(':checked')) {
+                        // If this checkbox is being checked
+                        if ($(this).is(':checked')) {
+                            // Uncheck all others in this taxonomy
+                            checkboxes.not(this).prop('checked', false).trigger('change');
+                        }
+
+                        // Update dropdown label
+                        self.updateAllMultiSelectLabels();
+                    }
+                });
+            });
+        },
+
+        /**
          * Disable match_all_filters restrictions - allow multi-select again
          */
         disableMatchAllFilters: function() {
-            // No action needed here - just remove the restriction
-            // Checkboxes are already enabled, just allow multiple selections
+            // Remove single-select enforcement listeners when match_all is OFF
+            var taxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
+
+            var self = this;
+            taxonomies.forEach(function(taxName) {
+                var checkboxes = self.getCheckboxesForTaxonomy(taxName);
+                // Remove the .smartfilter event namespace
+                checkboxes.off('change.smartfilter');
+            });
         }
     };
 
@@ -649,6 +682,8 @@
                 $smartToggleLabel.addClass('is-active');
                 // Enforce single-select for single-select taxonomies
                 SmartFilterManager.enforceMatchAllFilters();
+                // Attach listeners to prevent multiple selections going forward
+                SmartFilterManager.attachSingleSelectEnforcement();
             } else {
                 $smartToggleLabel.removeClass('is-active');
                 // Re-enable multi-select for all checkboxes
