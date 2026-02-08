@@ -423,7 +423,12 @@
 
                 // Generate pill for this taxonomy
                 var pillHtml = '<li class="fanfic-pill" data-taxonomy="' + key + '">';
-                pillHtml += '<span class="fanfic-pill-label">' + label + ':</span>';
+
+                // For toggle types, don't show the label since the value IS the label
+                if (taxConfig.type !== 'toggle') {
+                    pillHtml += '<span class="fanfic-pill-label">' + label + ':</span>';
+                }
+
                 pillHtml += '<ul class="fanfic-pill-values">';
 
                 values.forEach(function(value) {
