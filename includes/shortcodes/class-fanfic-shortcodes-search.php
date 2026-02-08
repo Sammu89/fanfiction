@@ -156,22 +156,22 @@ class Fanfic_Shortcodes_Search {
 				</div>
 
 				<div class="fanfic-status-filter-wrapper">
-					<label><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
-					<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Status', 'fanfiction-manager' ); ?>">
-						<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-							<?php esc_html_e( 'Select Status', 'fanfiction-manager' ); ?>
-						</button>
-						<div class="multi-select__dropdown">
-							<?php if ( ! empty( $context['statuses'] ) && ! is_wp_error( $context['statuses'] ) ) : ?>
-								<?php foreach ( $context['statuses'] as $status ) : ?>
-									<label>
-										<input type="checkbox" name="status[]" value="<?php echo esc_attr( $status->slug ); ?>" <?php in_array( $status->slug, (array) ( $context['params']['statuses'] ?? [] ) ) ? checked( true ) : ''; ?> />
-										<?php echo esc_html( $status->name ); ?>
-									</label>
-								<?php endforeach; ?>
-							<?php endif; ?>
-						</div>
+					<label class="screen-reader-text"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
+				<div class="multi-select" data-placeholder="<?php esc_attr_e( 'All Statuses', 'fanfiction-manager' ); ?>">
+					<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
+						<?php esc_html_e( 'All Statuses', 'fanfiction-manager' ); ?>
+					</button>
+					<div class="multi-select__dropdown">
+						<?php if ( ! empty( $context['statuses'] ) && ! is_wp_error( $context['statuses'] ) ) : ?>
+							<?php foreach ( $context['statuses'] as $status ) : ?>
+								<label>
+									<input type="checkbox" name="status[]" value="<?php echo esc_attr( $status->slug ); ?>" <?php in_array( $status->slug, (array) ( $context['params']['statuses'] ?? [] ) ) ? checked( true ) : ''; ?> />
+									<?php echo esc_html( $status->name ); ?>
+								</label>
+							<?php endforeach; ?>
+						<?php endif; ?>
 					</div>
+				</div>
 				</div>
 
 				<div class="fanfic-sort-filter-wrapper">
@@ -244,6 +244,7 @@ class Fanfic_Shortcodes_Search {
 								</label>
 							</div>
 						</div>
+					</div>
 
 					<?php if ( ! empty( $context['languages'] ) ) : ?>
 						<div class="fanfic-browse-column">
