@@ -28,13 +28,29 @@
     min-width: 200px; /* Allow input to grow but have a minimum width */
 }
 
+/* Uniform dropdown styling - both native and custom */
 .fanfic-basic-search-row input[type="text"],
 .fanfic-basic-search-row select {
     width: 100%;
     padding: 8px;
+    padding-right: 32px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    box-sizing: border-box;
+    font-family: system-ui, sans-serif;
+    font-size: 1em;
+    background: #fff;
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 12px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+/* Arrow for native select in top row */
+.fanfic-basic-search-row select {
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23666" d="M6 9L1 4h10z"/></svg>');
 }
 
 .fanfic-basic-search-row .fanfic-button {
@@ -91,14 +107,32 @@
     font-weight: bold;
 }
 
-.fanfic-browse-row select[multiple],
-.fanfic-browse-row input[type="text"].fanfic-input,
-.fanfic-browse-row select:not([multiple]) {
+/* Uniform dropdown styling for advanced filters */
+.fanfic-browse-row input[type="text"].fanfic-input {
     width: 100%;
     padding: 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
     box-sizing: border-box;
+}
+
+.fanfic-browse-row select:not([multiple]) {
+    width: 100%;
+    padding: 8px;
+    padding-right: 32px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-family: system-ui, sans-serif;
+    font-size: 1em;
+    background: #fff;
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 12px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23666" d="M6 9L1 4h10z"/></svg>');
 }
 
 /* Custom Multi-select dropdown styles */
@@ -125,13 +159,16 @@
 }
 
 .multi-select__trigger::after {
-  content: '▼';
+  content: '';
   position: absolute;
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 0.75em;
-  color: #666;
+  width: 12px;
+  height: 12px;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23666" d="M6 9L1 4h10z"/></svg>');
+  background-repeat: no-repeat;
+  background-size: contain;
   pointer-events: none;
 }
 
