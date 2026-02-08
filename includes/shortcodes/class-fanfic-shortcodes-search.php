@@ -142,7 +142,7 @@ class Fanfic_Shortcodes_Search {
 			<?php endif; ?>
 		</header>
 
-		<form class="fanfic-browse-form" method="get" action="<?php echo esc_url( $context['base_url'] ); ?>" data-fanfic-browse-form>
+		<form class="fanfic-stories-form" method="get" action="<?php echo esc_url( $context['base_url'] ); ?>" data-fanfic-stories-form>
 			<div class="fanfic-basic-search-row">
 				<div class="fanfic-search-input-wrapper">
 					<label for="fanfic-search-input" class="screen-reader-text"><?php esc_html_e( 'Search stories', 'fanfiction-manager' ); ?></label>
@@ -194,8 +194,8 @@ class Fanfic_Shortcodes_Search {
 
 			<!-- Common Filters (Always Visible) -->
 			<div class="fanfic-common-filters">
-				<div class="fanfic-browse-row fanfic-browse-columns">
-					<div class="fanfic-browse-column">
+				<div class="fanfic-stories-row fanfic-stories-columns">
+					<div class="fanfic-stories-column">
 						<label for="fanfic-genre-filter"><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
 						<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Genres', 'fanfiction-manager' ); ?>">
 							<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
@@ -219,7 +219,7 @@ class Fanfic_Shortcodes_Search {
 						</div>
 					</div>
 
-					<div class="fanfic-browse-column">
+					<div class="fanfic-stories-column">
 						<label><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
 						<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Age Rating', 'fanfiction-manager' ); ?>">
 							<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
@@ -247,7 +247,7 @@ class Fanfic_Shortcodes_Search {
 					</div>
 
 					<?php if ( ! empty( $context['languages'] ) ) : ?>
-						<div class="fanfic-browse-column">
+						<div class="fanfic-stories-column">
 							<label for="fanfic-language-filter"><?php esc_html_e( 'Language', 'fanfiction-manager' ); ?></label>
 							<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Languages', 'fanfiction-manager' ); ?>">
 								<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
@@ -283,7 +283,7 @@ class Fanfic_Shortcodes_Search {
 			</div>
 
 			<div class="fanfic-advanced-search-filters" style="display: none;">
-				<div class="fanfic-browse-row fanfic-smart-toggle-wrapper">
+				<div class="fanfic-stories-row fanfic-smart-toggle-wrapper">
 					<label class="fanfic-toggle-label" for="fanfic-match-all-filters">
 						<?php esc_html_e( 'Match ALL selected filters', 'fanfiction-manager' ); ?>
 					<span class="fanfic-toggle-subtext">
@@ -324,7 +324,7 @@ class Fanfic_Shortcodes_Search {
 						}
 					}
 					?>
-					<div class="fanfic-browse-row fanfic-fandoms-field" data-max-fandoms="<?php echo esc_attr( Fanfic_Fandoms::MAX_FANDOMS ); ?>">
+					<div class="fanfic-stories-row fanfic-fandoms-field" data-max-fandoms="<?php echo esc_attr( Fanfic_Fandoms::MAX_FANDOMS ); ?>">
 						<label for="fanfic-fandom-filter"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
 						<input
 							type="text"
@@ -353,7 +353,7 @@ class Fanfic_Shortcodes_Search {
 							<?php
 							$custom_params = isset( $context['params']['custom'][ $custom_taxonomy['slug'] ] ) ? (array) $context['params']['custom'][ $custom_taxonomy['slug'] ] : array();
 							?>
-							<div class="fanfic-browse-row">
+							<div class="fanfic-stories-row">
 								<label><?php echo esc_html( $custom_taxonomy['name'] ); ?></label>
 								<?php if ( 'single' === $custom_taxonomy['selection_type'] ) : ?>
 									<select id="fanfic-<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>-filter" name="<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>">
@@ -390,8 +390,8 @@ class Fanfic_Shortcodes_Search {
 				<?php endif; ?>
 
 				<?php if ( ! empty( $context['warnings'] ) ) : ?>
-					<div class="fanfic-browse-row fanfic-browse-warnings">
-						<label class="fanfic-browse-label"><?php esc_html_e( 'Warnings', 'fanfiction-manager' ); ?></label>
+					<div class="fanfic-stories-row fanfic-stories-warnings">
+						<label class="fanfic-stories-label"><?php esc_html_e( 'Warnings', 'fanfiction-manager' ); ?></label>
 
 						<div class="fanfic-warnings-mode">
 							<label>
@@ -426,7 +426,7 @@ class Fanfic_Shortcodes_Search {
 				<?php endif; ?>
 			</div>
 
-			<div class="fanfic-browse-actions fanfic-advanced-actions" style="display: none;">
+			<div class="fanfic-stories-actions fanfic-advanced-actions" style="display: none;">
 			</div>
 		</form>
 
@@ -526,7 +526,7 @@ class Fanfic_Shortcodes_Search {
 			?>
 
 			<div class="fanfic-archive-content">
-				<div class="fanfic-stories-results" data-fanfic-browse-results>
+				<div class="fanfic-stories-results" data-fanfic-stories-results>
 					<?php if ( $stories_query instanceof WP_Query && $stories_query->have_posts() ) : ?>
 						<div class="fanfic-story-grid">
 							<?php
@@ -537,7 +537,7 @@ class Fanfic_Shortcodes_Search {
 							?>
 						</div>
 
-						<nav class="fanfic-pagination fanfic-browse-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-browse-pagination>
+						<nav class="fanfic-pagination fanfic-stories-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-stories-pagination>
 							<?php
 							$pagination_base = function_exists( 'fanfic_build_stories_url' )
 								? fanfic_build_stories_url( $context['base_url'], $context['params'], array( 'paged' => null ) )
@@ -567,7 +567,7 @@ class Fanfic_Shortcodes_Search {
 				</div>
 			</div>
 
-			<div class="fanfic-browse-loading" data-fanfic-browse-loading aria-hidden="true">
+			<div class="fanfic-stories-loading" data-fanfic-stories-loading aria-hidden="true">
 				<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
 			</div>
 
