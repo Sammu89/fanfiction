@@ -16,6 +16,30 @@
                 console.log('Processing taxonomy:', taxName);
                 self.enforceSingleSelectForTaxonomy(taxName);
             });
+
+            // Update all multi-select dropdown labels to reflect the new single values
+            this.updateAllMultiSelectLabels();
+        },
+
+        /**
+         * Update all multi-select dropdown labels
+         */
+        updateAllMultiSelectLabels: function() {
+            document.querySelectorAll('.multi-select').forEach(function(select) {
+                var trigger = select.querySelector('.multi-select__trigger');
+                var checkboxes = select.querySelectorAll('input[type="checkbox"]');
+                var placeholder = select.dataset.placeholder || 'Select';
+
+                var checked = Array.from(checkboxes).filter(function(cb) { return cb.checked; });
+
+                if (checked.length === 0) {
+                    trigger.textContent = placeholder;
+                } else if (checked.length <= 2) {
+                    trigger.textContent = checked.map(function(cb) { return cb.parentNode.textContent.trim(); }).join(', ');
+                } else {
+                    trigger.textContent = checked.length + ' selected';
+                }
+            });
         },
 
         /**
