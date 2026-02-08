@@ -28,8 +28,14 @@
             }
 
             // Keep only the last checked one
-            var lastChecked = checked.last();
-            checkboxes.not(lastChecked).prop('checked', false).trigger('change');
+            var lastCheckedElement = checked.last()[0]; // Get DOM element
+
+            // Uncheck all except the last one
+            checkboxes.each(function() {
+                if (this !== lastCheckedElement && this.checked) {
+                    $(this).prop('checked', false).trigger('change');
+                }
+            });
         },
 
         /**
