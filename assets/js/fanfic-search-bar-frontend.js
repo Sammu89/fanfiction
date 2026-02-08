@@ -118,7 +118,17 @@
                 }
 
                 // Skip if no values
-                if (!values || values.length === 0) {
+                if (!values) {
+                    return;
+                }
+
+                // Normalize values to always be an array (for single-select fields like status, age)
+                if (!Array.isArray(values)) {
+                    values = [values];
+                }
+
+                // Skip if empty array
+                if (values.length === 0) {
                     return;
                 }
 
