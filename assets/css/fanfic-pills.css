@@ -153,14 +153,10 @@
 }
 
 /* Separator between values in pill (comma) */
-.fanfic-pill-value:not(:last-child)::after {
-    content: ',';
-    margin-left: 2px;
-}
-
-/* Remove after last child - no comma */
-.fanfic-pill-value:last-child::after {
-    content: '';
+.fanfic-pill-value-separator {
+    color: white;
+    margin: 0 2px;
+    font-size: 0.95em;
 }
 
 /* Responsive adjustments */

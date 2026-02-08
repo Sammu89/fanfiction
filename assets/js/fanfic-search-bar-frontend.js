@@ -127,10 +127,14 @@
                 pillHtml += '<span class="fanfic-pill-label">' + label + ':</span>';
                 pillHtml += '<ul class="fanfic-pill-values">';
 
-                values.forEach(function(value) {
+                values.forEach(function(value, index) {
+                    var isLast = index === values.length - 1;
                     pillHtml += '<li class="fanfic-pill-value" data-value="' + self.escapeAttr(value) + '">';
                     pillHtml += '<span class="fanfic-pill-value-text">' + self.escapeHtml(value) + '</span>';
                     pillHtml += '<button type="button" class="fanfic-pill-value-remove" aria-label="Remove ' + self.escapeAttr(value) + '">&times;</button>';
+                    if (!isLast) {
+                        pillHtml += '<span class="fanfic-pill-value-separator">,</span>';
+                    }
                     pillHtml += '</li>';
                 });
 
@@ -252,8 +256,33 @@
                     });
             }
 
+            // Refresh all multi-select dropdown labels to reflect current state
+            this.updateMultiSelectLabels();
+
             // Update pills after removal
             this.updatePills();
+        },
+
+        /**
+         * Update all multi-select dropdown labels
+         * Called after removing values to ensure dropdowns show correct count
+         */
+        updateMultiSelectLabels: function() {
+            document.querySelectorAll('.multi-select').forEach(function(select) {
+                var trigger = select.querySelector('.multi-select__trigger');
+                var checkboxes = select.querySelectorAll('input[type="checkbox"]');
+                var placeholder = select.dataset.placeholder || 'Select';
+
+                var checked = Array.from(checkboxes).filter(function(cb) { return cb.checked; });
+
+                if (checked.length === 0) {
+                    trigger.textContent = placeholder;
+                } else if (checked.length <= 2) {
+                    trigger.textContent = checked.map(function(cb) { return cb.parentNode.textContent.trim(); }).join(', ');
+                } else {
+                    trigger.textContent = checked.length + ' selected';
+                }
+            });
         },
 
         /**
