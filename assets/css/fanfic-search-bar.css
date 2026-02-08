@@ -111,6 +111,7 @@
 .multi-select__trigger {
   width: 100%;
   padding: 8px;
+  padding-right: 32px;
   border: 1px solid #ccc;
   background: #fff;
   cursor: pointer;
@@ -120,6 +121,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  position: relative;
+}
+
+.multi-select__trigger::after {
+  content: '▼';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.75em;
+  color: #666;
+  pointer-events: none;
 }
 
 .multi-select__dropdown {
