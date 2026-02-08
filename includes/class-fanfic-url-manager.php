@@ -872,10 +872,6 @@ class Fanfic_URL_Manager {
 				'title'    => __( 'Dashboard', 'fanfiction-manager' ),
 				'template' => 'dashboard',
 			),
-			'search' => array(
-				'title'    => __( 'Browse', 'fanfiction-manager' ),
-				'template' => 'search-page',
-			),
 			'members' => array(
 				'title'    => __( 'Members', 'fanfiction-manager' ),
 				'template' => 'user-list',

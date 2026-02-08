@@ -45,6 +45,7 @@ class Fanfic_Homepage_State {
             'homepage_source'    => get_option( 'fanfic_homepage_source', 'fanfiction_page' ),
             'homepage_source_id' => (int) get_option( 'fanfic_homepage_source_id', 0 ),
             'main_page_id'       => isset( $page_ids['main'] ) ? (int) $page_ids['main'] : 0,
+            'stories_page_id'    => isset( $page_ids['stories'] ) ? (int) $page_ids['stories'] : 0,
         );
 
         self::log_debug( 'Current state retrieved', $state );
@@ -71,13 +72,13 @@ class Fanfic_Homepage_State {
         // use_base_slug=0, determine target based on main_page_mode and homepage_source
         $target = null;
 
-        if ( 'stories_homepage' === $state['main_page_mode'] || 'stories' === $state['homepage_source'] ) {
-            // Stories as homepage
+        if ( 'stories_homepage' === $state['main_page_mode'] && $state['stories_page_id'] > 0 ) {
+            // Stories archive as homepage — use the plugin's stories page (user-customizable) as static front page
             $target = array(
-                'show_on_front' => 'posts',
-                'page_on_front' => 0,
+                'show_on_front' => 'page',
+                'page_on_front' => $state['stories_page_id'],
             );
-            self::log_debug( "main_page_mode='stories_homepage' OR homepage_source='stories', setting show_on_front to 'posts'" );
+            self::log_debug( "main_page_mode='stories_homepage', setting page_on_front to stories_page_id {$state['stories_page_id']}" );
         } elseif ( 'existing_page' === $state['homepage_source'] && $state['homepage_source_id'] > 0 ) {
             // Existing page as homepage
             $target = array(

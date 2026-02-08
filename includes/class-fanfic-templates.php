@@ -70,6 +70,14 @@ class Fanfic_Templates {
 			}
 		}
 
+		// Check if this is the story post type archive (e.g., /fanfiction/stories/)
+		if ( is_post_type_archive( 'fanfiction_story' ) ) {
+			$custom_template = self::locate_template( 'template-story-archive.php' );
+			if ( $custom_template ) {
+				return $custom_template;
+			}
+		}
+
 		// Check if this is the error page - use template-error.php instead of shortcode
 		$page_ids = get_option( 'fanfic_system_page_ids', array() );
 		if ( is_page() && isset( $page_ids['error'] ) && is_page( $page_ids['error'] ) ) {
@@ -161,9 +169,6 @@ class Fanfic_Templates {
 					break;
 				case 'dashboard':
 					$fanfic_content_template = 'template-dashboard.php';
-					break;
-				case 'search':
-					$fanfic_content_template = 'template-story-archive.php';
 					break;
 				// Add other cases as needed
 			}
@@ -294,7 +299,7 @@ class Fanfic_Templates {
 			'login',
 			'register',
 			'password-reset',
-			'search',
+			'stories',
 			'error',
 			'maintenance',
 		);
@@ -460,7 +465,7 @@ class Fanfic_Templates {
 			'login'          => array( 'fanfic-login-form' ),
 			'register'       => array( 'fanfic-register-form' ),
 			'password-reset' => array( 'fanfic-password-reset-form' ),
-			'search'         => array( 'fanfic-search-bar', 'fanfic-story-archive' ),
+			'stories'        => array( 'fanfic-search-bar', 'fanfic-story-archive' ),
 			// 'dashboard' page no longer uses shortcodes - it loads template-dashboard.php directly
 			// 'members' page no longer uses shortcodes - it loads template-user-list.php directly
 			// 'error' page no longer uses shortcodes - it loads template-error.php directly
@@ -738,35 +743,40 @@ class Fanfic_Templates {
 		$use_base_slug  = get_option( 'fanfic_use_base_slug', true );
 		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
 
-		// Determine which scenario we're in (1-4)
-		// Scenario 1: Base slug + stories as homepage
-		// Scenario 2: Base slug + custom homepage
-		// Scenario 3: No base slug + stories as homepage
-		// Scenario 4: No base slug + custom homepage
-
-		// ALWAYS create main page - determine slug based on scenario
+		// ALWAYS create main page - determine slug and content based on settings
 		$main_page_slug = '';
 		$main_page_content = '';
 
+		// Resolve main page content based on mode and source
+		$homepage_source    = get_option( 'fanfic_homepage_source', 'fanfiction_page' );
+		$homepage_source_id = (int) get_option( 'fanfic_homepage_source_id', 0 );
+
 		if ( $use_base_slug ) {
-			// Scenarios 1 & 2: With base slug, main page slug = base slug
-			$main_page_slug = $base_slug;
-
-			// Check for slug conflicts and append -ff if needed
-			$main_page_slug = self::resolve_slug_conflict( $main_page_slug );
-
-			// Content depends on mode
-			if ( $main_page_mode === 'stories_homepage' ) {
-				// Scenario 1: Base slug + stories as homepage
-				$main_page_content = '<!-- wp:paragraph --><p>' . __( 'Loading stories...', 'fanfiction-manager' ) . '</p><!-- /wp:paragraph -->';
-			} else {
-				// Scenario 2: Base slug + custom homepage
-				$main_page_content = self::get_default_template_content( 'main' );
-			}
+			// With base slug: main page lives at /base_slug/
+			$main_page_slug = self::resolve_slug_conflict( $base_slug );
 		} else {
-			// Scenarios 3 & 4: No base slug
-			// ALWAYS create main page but use different slug to avoid conflicts
+			// No base slug: main page used as WP front page
 			$main_page_slug = self::resolve_slug_conflict( 'fanfiction-home' );
+		}
+
+		// Determine main page content
+		if ( 'stories_homepage' === $main_page_mode && ! $use_base_slug ) {
+			// No base slug + stories archive: the stories page itself becomes the WP front page,
+			// so the main page just gets default welcome content (lives at /fanfiction-home/).
+			$main_page_content = self::get_default_template_content( 'main' );
+		} elseif ( 'stories_homepage' === $main_page_mode && $use_base_slug ) {
+			// Base slug + stories archive: main page at /base_slug/ shows the stories archive.
+			// The actual stories page also exists at /base_slug/stories/ and can be customized.
+			$main_page_content = self::get_default_template_content( 'stories' );
+		} elseif ( 'existing_page' === $homepage_source && $homepage_source_id > 0 ) {
+			// Use existing page content
+			$existing_page = get_post( $homepage_source_id );
+			$main_page_content = $existing_page ? $existing_page->post_content : self::get_default_template_content( 'main' );
+		} elseif ( 'wordpress_archive' === $homepage_source ) {
+			// WordPress post archive
+			$main_page_content = '<!-- wp:latest-posts {"postsToShow":10,"displayPostContent":true,"excerptLength":55} /-->';
+		} else {
+			// Fanfiction homepage (default)
 			$main_page_content = self::get_default_template_content( 'main' );
 		}
 
@@ -795,10 +805,6 @@ class Fanfic_Templates {
 			) );
 		}
 
-		$search_slug = isset( $custom_slugs['search'] ) && ! empty( $custom_slugs['search'] )
-			? $custom_slugs['search']
-			: 'browse';
-
 		// Define all system pages with custom slugs
 		$pages = array(
 			'login'           => array(
@@ -816,15 +822,20 @@ class Fanfic_Templates {
 				'slug'     => isset( $custom_slugs['password-reset'] ) ? $custom_slugs['password-reset'] : 'password-reset',
 				'template' => 'password-reset',
 			),
+			'stories'         => array(
+				'title'    => __( 'Stories', 'fanfiction-manager' ),
+				'slug'     => isset( $custom_slugs['story_path'] ) ? $custom_slugs['story_path'] : 'stories',
+				'template' => 'stories',
+			),
+			'search'          => array(
+				'title'    => __( 'Search', 'fanfiction-manager' ),
+				'slug'     => isset( $custom_slugs['search'] ) ? $custom_slugs['search'] : 'search',
+				'template' => 'search',
+			),
 			'dashboard'       => array(
 				'title'    => __( 'Dashboard', 'fanfiction-manager' ),
 				'slug'     => isset( $custom_slugs['dashboard'] ) ? $custom_slugs['dashboard'] : 'dashboard',
 				'template' => 'dashboard',
-			),
-			'search'          => array(
-				'title'    => __( 'Browse', 'fanfiction-manager' ),
-				'slug'     => $search_slug,
-				'template' => 'search',
 			),
 			'members'         => array(
 				'title'    => __( 'Members', 'fanfiction-manager' ),
@@ -938,7 +949,7 @@ class Fanfic_Templates {
 			'login',
 			'register',
 			'password-reset',
-			'search',
+			'stories',
 			'error',
 			'maintenance',
 		);
@@ -1242,11 +1253,20 @@ class Fanfic_Templates {
 
 			// Get all items from the menu
 			$menu_items = wp_get_nav_menu_items( $menu_id );
+			$item_count = is_array( $menu_items ) ? count( $menu_items ) : 0;
+			error_log( sprintf( 'Fanfic Templates: Menu has %d items to clear | mem=%dMB', $item_count, (int) round( memory_get_usage( true ) / 1048576 ) ) );
+
 			if ( ! empty( $menu_items ) ) {
+				$deleted = 0;
 				foreach ( (array) $menu_items as $menu_item ) {
 					wp_delete_post( $menu_item->ID, true );
+					$deleted++;
+					// Log every 10 items to track progress
+					if ( $deleted % 10 === 0 ) {
+						error_log( sprintf( 'Fanfic Templates: Deleted %d/%d menu items | mem=%dMB', $deleted, $item_count, (int) round( memory_get_usage( true ) / 1048576 ) ) );
+					}
 				}
-				error_log( 'Fanfic Templates: Cleared all items from existing menu.' );
+				error_log( sprintf( 'Fanfic Templates: Cleared all %d items from existing menu. | mem=%dMB', $deleted, (int) round( memory_get_usage( true ) / 1048576 ) ) );
 			}
 		} else {
 			// Create new menu if it doesn't exist.
@@ -1262,12 +1282,15 @@ class Fanfic_Templates {
 		}
 
 		// Get URL Manager instance for dynamic URLs
+		error_log( sprintf( 'Fanfic Templates: Getting URL Manager | mem=%dMB', (int) round( memory_get_usage( true ) / 1048576 ) ) );
 		$url_manager = Fanfic_URL_Manager::get_instance();
+		error_log( sprintf( 'Fanfic Templates: URL Manager ready | mem=%dMB', (int) round( memory_get_usage( true ) / 1048576 ) ) );
 
 		// Menu item position counter
 		$position = 0;
 
 		// 1. HOME (always visible)
+		error_log( 'Fanfic Templates: Adding menu item 1 - Home' );
 		wp_update_nav_menu_item( $menu_id, 0, array(
 			'menu-item-title'   => __( 'Home', 'fanfiction-manager' ),
 			'menu-item-url'     => home_url( '/' ),
@@ -1275,9 +1298,12 @@ class Fanfic_Templates {
 			'menu-item-position' => ++$position,
 			'menu-item-classes' => 'fanfic-menu-home',
 		) );
+		error_log( sprintf( 'Fanfic Templates: Added Home | mem=%dMB', (int) round( memory_get_usage( true ) / 1048576 ) ) );
 
 		// 2. DASHBOARD (logged in only)
+		error_log( 'Fanfic Templates: Getting dashboard URL' );
 		$dashboard_url = $url_manager->get_page_url( 'dashboard' );
+		error_log( sprintf( 'Fanfic Templates: Dashboard URL: %s | mem=%dMB', $dashboard_url ?: '(empty)', (int) round( memory_get_usage( true ) / 1048576 ) ) );
 		if ( ! empty( $dashboard_url ) ) {
 			wp_update_nav_menu_item( $menu_id, 0, array(
 				'menu-item-title'   => __( 'Dashboard', 'fanfiction-manager' ),
@@ -1541,9 +1567,11 @@ class Fanfic_Templates {
 			'login'          => '<!-- wp:paragraph --><p>[fanfic-login-form]</p><!-- /wp:paragraph -->',
 			'register'       => '<!-- wp:paragraph --><p>[fanfic-register-form]</p><!-- /wp:paragraph -->',
 			'password-reset' => '<!-- wp:paragraph --><p>[fanfic-password-reset-form]</p><!-- /wp:paragraph -->',
-			'dashboard'      => '', // Template file handles all content directly
-			'search'         => '<!-- wp:shortcode -->[fanfic-search-bar]<!-- /wp:shortcode -->' . "\n"
+			'stories'        => '<!-- wp:shortcode -->[fanfic-search-bar]<!-- /wp:shortcode -->' . "\n"
 				. '<!-- wp:shortcode -->[fanfic-story-archive]<!-- /wp:shortcode -->',
+			'search'         => '<!-- wp:shortcode -->[fanfic-search-bar]<!-- /wp:shortcode -->' . "\n"
+				. '<!-- wp:shortcode -->[fanfic-search-results]<!-- /wp:shortcode -->',
+			'dashboard'      => '', // Template file handles all content directly
 			'members'        => '', // Template file handles all content directly
 			'error'          => '', // Template file handles all content directly
 			'maintenance'    => '', // Template file handles all content directly

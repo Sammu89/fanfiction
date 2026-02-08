@@ -32,11 +32,6 @@
 			// Complete button click (use button selector to avoid triggering on div clicks)
 			$('button.fanfic-wizard-complete').on('click', this.handleComplete.bind(this));
 
-			// Prevent checkbox from triggering any parent events
-			$('#fanfic_create_samples').on('click', function(e) {
-				e.stopPropagation();
-			});
-
 			// Live preview updates for base slug
 			$('#fanfic_base_slug').on('input', this.updateBaseSlugPreview.bind(this));
 
@@ -188,34 +183,47 @@
 		 */
 	handleComplete: function(e) {
 		e.preventDefault();
+		this._retryCount = 0;
+		this._doComplete();
+	},
 
-		var $button = $('.fanfic-wizard-complete');
+	/**
+	 * Execute the completion AJAX request with auto-retry on failure.
+	 */
+	_doComplete: function() {
+		var self = this;
+		var $button = $('button.fanfic-wizard-complete');
 
 		// Disable button and show loading state
 		$button.prop('disabled', true);
 		$button.html('<span class="spinner is-active" style="float: none; margin: 0 8px 0 0;"></span>' + fanficWizard.strings.completing);
 
-		console.log('Starting wizard completion AJAX request');
+		console.log('Wizard completion AJAX request (attempt ' + (self._retryCount + 1) + ')');
 
-		// Send AJAX request to complete wizard
 		$.ajax({
 			url: fanficWizard.ajax_url,
 			type: 'POST',
 			dataType: 'json',
 			data: {
 				action: 'fanfic_wizard_complete',
-				nonce: fanficWizard.nonce,
-				create_samples: $('#fanfic_create_samples').is(':checked') ? '1' : '0'
+				nonce: fanficWizard.nonce
 			},
 			success: function(response) {
 				console.log('AJAX response received:', response);
 
 				if (response.success) {
 					console.log('Wizard completed successfully, redirecting to:', response.data.redirect_url);
-					// Redirect immediately on success
 					window.location.href = response.data.redirect_url;
 				} else {
 					console.error('Wizard completion failed:', response.data);
+
+					// Auto-retry once on failure
+					if (self._retryCount < 1) {
+						self._retryCount++;
+						console.log('Auto-retrying in 1 second...');
+						setTimeout(function() { self._doComplete(); }, 1000);
+						return;
+					}
 
 					// Build detailed error message
 					var errorMsg = response.data.message || fanficWizard.strings.error;
@@ -228,7 +236,6 @@
 						errorMsg += '</ul>';
 					}
 
-					// Show error message
 					FanficWizard.showMessage('error', errorMsg);
 					$button.prop('disabled', false);
 					$button.text(fanficWizard.strings.complete_setup || 'Complete Setup');
@@ -242,6 +249,14 @@
 					errorThrown: errorThrown,
 					responseText: jqXHR.responseText
 				});
+
+				// Auto-retry once on failure
+				if (self._retryCount < 1) {
+					self._retryCount++;
+					console.log('Auto-retrying in 1 second...');
+					setTimeout(function() { self._doComplete(); }, 1000);
+					return;
+				}
 
 				var errorMsg = fanficWizard.strings.error;
 

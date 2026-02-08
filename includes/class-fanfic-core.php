@@ -129,6 +129,9 @@ class Fanfic_Core {
 		// Load Settings class (needed by cron jobs in all contexts)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-settings.php';
 
+		// Load Homepage State helper (used by Settings and other classes)
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-homepage-state.php';
+
 		// Load URL Schema (shared by admin and frontend)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-schema.php';
 
@@ -319,7 +322,7 @@ class Fanfic_Core {
 		// Handle chapter_number and chapter_type query vars
 		add_action( 'template_redirect', array( $this, 'handle_chapter_query_vars' ) );
 		add_action( 'template_redirect', array( $this, 'handle_blocked_story_access' ), 12 );
-		add_action( 'template_redirect', array( $this, 'redirect_browse_archives' ), 5 );
+		add_action( 'template_redirect', array( $this, 'redirect_story_archives' ), 5 );
 
 		// Display suspension notice to banned users on frontend
 		add_action( 'wp_footer', array( $this, 'display_suspension_notice' ) );
@@ -620,7 +623,7 @@ class Fanfic_Core {
 			return;
 		}
 
-		$params = function_exists( 'fanfic_get_browse_params' ) ? fanfic_get_browse_params() : array();
+		$params = function_exists( 'fanfic_get_stories_params' ) ? fanfic_get_stories_params() : array();
 		$paged = (int) $query->get( 'paged' );
 		$paged = $paged > 0 ? $paged : max( 1, (int) get_query_var( 'paged' ) );
 		$per_page = (int) $query->get( 'posts_per_page' );
@@ -628,8 +631,8 @@ class Fanfic_Core {
 			$per_page = (int) get_option( 'posts_per_page', 10 );
 		}
 
-		if ( function_exists( 'fanfic_build_browse_query_args' ) ) {
-			$args = fanfic_build_browse_query_args( $params, $paged, $per_page );
+		if ( function_exists( 'fanfic_build_stories_query_args' ) ) {
+			$args = fanfic_build_stories_query_args( $params, $paged, $per_page );
 
 			// Preserve existing tax query (taxonomy archives) and merge with URL filters
 			$existing_tax_query = (array) $query->get( 'tax_query', array() );
@@ -1059,25 +1062,22 @@ class Fanfic_Core {
 			);
 		}
 
-		// Browse/search enhancements (Phase 5)
-		$browse_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-browse.js';
-		$page_ids = get_option( 'fanfic_system_page_ids', array() );
-		$is_browse_page = is_page() && isset( $page_ids['search'] ) && is_page( $page_ids['search'] );
-		$is_browse_context = is_post_type_archive( 'fanfiction_story' ) ||
-			'search' === get_query_var( 'fanfic_page' ) ||
-			$is_browse_page;
+		// Stories archive enhancements (Phase 5)
+		$stories_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-stories.js';
+		$is_stories_context = is_post_type_archive( 'fanfiction_story' ) ||
+			'stories' === get_query_var( 'fanfic_page' );
 
-		if ( $is_browse_context && file_exists( $browse_js_file ) ) {
+		if ( $is_stories_context && file_exists( $stories_js_file ) ) {
 			wp_enqueue_script(
-				'fanfiction-browse',
-				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-browse.js',
+				'fanfiction-stories',
+				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-stories.js',
 				array( 'jquery' ),
 				FANFIC_VERSION,
 				true
 			);
 
 			wp_localize_script(
-				'fanfiction-browse',
+				'fanfiction-stories',
 				'fanficBrowse',
 				array(
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
@@ -1211,12 +1211,12 @@ class Fanfic_Core {
 	}
 
 	/**
-	 * Redirect story archives and taxonomy archives to the unified browse page.
+	 * Redirect story archives and taxonomy archives to the unified stories page.
 	 *
 	 * @since 1.2.0
 	 * @return void
 	 */
-	public function redirect_browse_archives() {
+	public function redirect_story_archives() {
 		if ( is_admin() || wp_doing_ajax() ) {
 			return;
 		}
@@ -1226,7 +1226,7 @@ class Fanfic_Core {
 			return;
 		}
 
-		// Avoid redirecting the browse page itself.
+		// Avoid redirecting the stories page itself.
 		if ( get_query_var( 'fanfic_page' ) ) {
 			return;
 		}
@@ -1235,8 +1235,8 @@ class Fanfic_Core {
 			return;
 		}
 
-		$browse_url = fanfic_get_page_url( 'search' );
-		if ( empty( $browse_url ) ) {
+		$stories_url = fanfic_get_page_url( 'stories' );
+		if ( empty( $stories_url ) ) {
 			return;
 		}
 
@@ -1275,7 +1275,7 @@ class Fanfic_Core {
 			$args = array_merge( $args, $sanitized );
 		}
 
-		$target = add_query_arg( $args, $browse_url );
+		$target = add_query_arg( $args, $stories_url );
 		wp_safe_redirect( $target, 301 );
 		exit;
 	}

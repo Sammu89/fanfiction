@@ -24,12 +24,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Chapter_Handler {
 
 	/**
+	 * Registration flag to prevent duplicate registration
+	 *
+	 * @since 1.0.0
+	 * @var bool
+	 */
+	private static $registered = false;
+
+	/**
 	 * Register chapter handlers
 	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	public static function register() {
+		// Prevent duplicate registration
+		if ( self::$registered ) {
+			return;
+		}
+		self::$registered = true;
+
 		// Register form submission handlers
 		add_action( 'template_redirect', array( __CLASS__, 'handle_create_chapter_submission' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_chapter_submission' ) );

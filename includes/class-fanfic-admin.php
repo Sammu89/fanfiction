@@ -269,7 +269,7 @@ jQuery(document).ready(function($) {
 		?>
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><?php echo esc_html( get_admin_page_title() ); ?></h1>
-			<a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=fanfiction_story' ) ); ?>" class="page-title-action"><?php esc_html_e( 'Add Story', 'fanfiction-manager' ); ?></a>
+			<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="page-title-action"><?php esc_html_e( 'Add Story', 'fanfiction-manager' ); ?></a>
 
 			<hr class="wp-header-end">
 

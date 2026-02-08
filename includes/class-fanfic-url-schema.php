@@ -168,16 +168,6 @@ class Fanfic_URL_Schema {
                 'group'            => 'dynamic',
             ),
 
-            'search' => array(
-                'type'             => 'system',
-                'default'          => __( 'browse', 'fanfiction-manager' ),
-                'label'            => __( 'Browse Page', 'fanfiction-manager' ),
-                'description'      => __( 'URL for the browse page.', 'fanfiction-manager' ),
-                'preview_template' => '{home}{base}/{search}/',
-                'option_key'       => 'fanfic_system_page_slugs',
-                'group'            => 'system',
-            ),
-
             'error' => array(
                 'type'             => 'system',
                 'default'          => __( 'error', 'fanfiction-manager' ),

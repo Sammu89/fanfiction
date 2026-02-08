@@ -2,7 +2,7 @@
 /**
  * Universal Browse Template for Fanfiction Stories
  *
- * Uses WordPress native query and browse filters.
+ * Uses WordPress native query and stories filters.
  *
  * @package FanfictionManager
  * @subpackage Templates
@@ -15,7 +15,7 @@ $base_url = function_exists( 'fanfic_get_page_url' ) ? fanfic_get_page_url( 'sea
 if ( empty( $base_url ) ) {
 	$base_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' );
 }
-$params = function_exists( 'fanfic_get_browse_params' ) ? fanfic_get_browse_params() : array();
+$params = function_exists( 'fanfic_get_stories_params' ) ? fanfic_get_stories_params() : array();
 
 $has_filters = ! empty( $params['search'] ) || ! empty( $params['genres'] ) || ! empty( $params['statuses'] ) || ! empty( $params['fandoms'] ) || ! empty( $params['exclude_warnings'] ) || ! empty( $params['age'] ) || ! empty( $params['sort'] );
 
@@ -39,7 +39,7 @@ $warnings = class_exists( 'Fanfic_Warnings' ) ? Fanfic_Warnings::get_available_w
 $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_build_active_filters( $params, $base_url ) : array();
 ?>
 
-<div class="fanfic-archive fanfic-browse-page" data-fanfic-browse>
+<div class="fanfic-archive fanfic-stories-page" data-fanfic-stories>
 	<header class="fanfic-archive-header">
 		<h1 class="fanfic-title fanfic-archive-title"><?php echo esc_html( $page_title ); ?></h1>
 
@@ -50,8 +50,8 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 		<?php endif; ?>
 	</header>
 
-	<form class="fanfic-browse-form" method="get" action="<?php echo esc_url( $base_url ); ?>" data-fanfic-browse-form>
-		<div class="fanfic-browse-row">
+	<form class="fanfic-stories-form" method="get" action="<?php echo esc_url( $base_url ); ?>" data-fanfic-stories-form>
+		<div class="fanfic-stories-row">
 			<label for="fanfic-search-input"><?php esc_html_e( 'Search stories', 'fanfiction-manager' ); ?></label>
 			<input
 				type="text"
@@ -62,8 +62,8 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 			/>
 		</div>
 
-		<div class="fanfic-browse-row fanfic-browse-columns">
-			<div class="fanfic-browse-column">
+		<div class="fanfic-stories-row fanfic-stories-columns">
+			<div class="fanfic-stories-column">
 				<label for="fanfic-genre-filter"><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
 				<select id="fanfic-genre-filter" name="genre[]" multiple>
 					<?php if ( ! empty( $genres ) && ! is_wp_error( $genres ) ) : ?>
@@ -76,7 +76,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 				</select>
 			</div>
 
-			<div class="fanfic-browse-column">
+			<div class="fanfic-stories-column">
 				<label for="fanfic-status-filter"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
 				<select id="fanfic-status-filter" name="status[]" multiple>
 					<?php if ( ! empty( $statuses ) && ! is_wp_error( $statuses ) ) : ?>
@@ -89,7 +89,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 				</select>
 			</div>
 
-			<div class="fanfic-browse-column">
+			<div class="fanfic-stories-column">
 				<label for="fanfic-age-filter"><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
 				<select id="fanfic-age-filter" name="age">
 					<option value=""><?php esc_html_e( 'Any age', 'fanfiction-manager' ); ?></option>
@@ -100,7 +100,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 				</select>
 			</div>
 
-			<div class="fanfic-browse-column">
+			<div class="fanfic-stories-column">
 				<label for="fanfic-sort-filter"><?php esc_html_e( 'Sort by', 'fanfiction-manager' ); ?></label>
 				<select id="fanfic-sort-filter" name="sort">
 					<option value=""><?php esc_html_e( 'Relevance / Updated', 'fanfiction-manager' ); ?></option>
@@ -111,7 +111,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 			</div>
 		</div>
 
-		<div class="fanfic-browse-row">
+		<div class="fanfic-stories-row">
 			<label for="fanfic-fandom-filter"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
 			<input
 				type="text"
@@ -124,9 +124,9 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 		</div>
 
 		<?php if ( ! empty( $warnings ) ) : ?>
-			<div class="fanfic-browse-row fanfic-browse-warnings">
-				<span class="fanfic-browse-label"><?php esc_html_e( 'Exclude warnings', 'fanfiction-manager' ); ?></span>
-				<div class="fanfic-browse-warning-list">
+			<div class="fanfic-stories-row fanfic-stories-warnings">
+				<span class="fanfic-stories-label"><?php esc_html_e( 'Exclude warnings', 'fanfiction-manager' ); ?></span>
+				<div class="fanfic-stories-warning-list">
 					<?php foreach ( $warnings as $warning ) : ?>
 						<label>
 							<input
@@ -142,7 +142,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 			</div>
 		<?php endif; ?>
 
-		<div class="fanfic-browse-actions">
+		<div class="fanfic-stories-actions">
 			<button type="submit" class="fanfic-button">
 				<?php esc_html_e( 'Apply filters', 'fanfiction-manager' ); ?>
 			</button>
@@ -174,7 +174,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 	</div>
 
 	<div class="fanfic-archive-content">
-		<div class="fanfic-browse-results" data-fanfic-browse-results>
+		<div class="fanfic-stories-results" data-fanfic-stories-results>
 			<?php if ( have_posts() ) : ?>
 				<div class="fanfic-story-grid">
 					<?php
@@ -185,10 +185,10 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 					?>
 				</div>
 
-				<nav class="fanfic-pagination fanfic-browse-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-browse-pagination>
+				<nav class="fanfic-pagination fanfic-stories-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-stories-pagination>
 					<?php
 					global $wp_query;
-					$pagination_base = fanfic_build_browse_url( $base_url, $params, array( 'paged' => null ) );
+					$pagination_base = fanfic_build_stories_url( $base_url, $params, array( 'paged' => null ) );
 					echo paginate_links( array(
 						'base'      => add_query_arg( 'paged', '%#%', $pagination_base ),
 						'format'    => '',
@@ -217,7 +217,7 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 		</div>
 	</div>
 
-	<div class="fanfic-browse-loading" data-fanfic-browse-loading aria-hidden="true">
+	<div class="fanfic-stories-loading" data-fanfic-stories-loading aria-hidden="true">
 		<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
 	</div>
 </div>

@@ -1,7 +1,7 @@
 (function($) {
 	'use strict';
 
-	if ( typeof window.fanficBrowse === 'undefined' ) {
+	if ( typeof window.fanficStories === 'undefined' ) {
 		return;
 	}
 
@@ -48,7 +48,7 @@
 	}
 
 	function setLoading($context, isLoading) {
-		var $loader = $context.find('[data-fanfic-browse-loading]');
+		var $loader = $context.find('[data-fanfic-stories-loading]');
 		if (!$loader.length) {
 			return;
 		}
@@ -137,47 +137,47 @@
 	}
 
 	function fetchResults($context, url, payload, pushState) {
-		if ($context.data('fanficBrowseLoading')) {
+		if ($context.data('fanficStoriesLoading')) {
 			return;
 		}
 
-		$context.data('fanficBrowseLoading', true);
+		$context.data('fanficStoriesLoading', true);
 		setLoading($context, true);
 
-		var baseUrl = $context.find('form[data-fanfic-browse-form]').attr('action') || window.location.pathname;
+		var baseUrl = $context.find('form[data-fanfic-stories-form]').attr('action') || window.location.pathname;
 		var ajaxData = $.extend({}, payload, {
-			action: window.fanficBrowse.action,
-			nonce: window.fanficBrowse.nonce,
+			action: window.fanficStories.action,
+			nonce: window.fanficStories.nonce,
 			base_url: baseUrl
 		});
 
-		$.post(window.fanficBrowse.ajaxUrl, ajaxData)
+		$.post(window.fanficStories.ajaxUrl, ajaxData)
 			.done(function(response) {
 				if (!response || !response.success || !response.data) {
 					return;
 				}
 
 				var data = response.data;
-				$context.find('[data-fanfic-browse-results]').html(data.html || '');
-				$context.find('[data-fanfic-browse-pagination]').html(data.pagination || '');
+				$context.find('[data-fanfic-stories-results]').html(data.html || '');
+				$context.find('[data-fanfic-stories-pagination]').html(data.pagination || '');
 
 				if (typeof data.active_filters !== 'undefined') {
 					$context.find('[data-fanfic-active-filters]').html(data.active_filters || '');
 				}
 
 				if (data.count_label) {
-					$context.find('.fanfic-browse-title').text(data.count_label);
+					$context.find('.fanfic-stories-title').text(data.count_label);
 				}
 
 				if (pushState) {
-					window.history.pushState({ fanficBrowse: true }, '', url);
+					window.history.pushState({ fanficStories: true }, '', url);
 				}
 			})
 			.fail(function() {
 				window.location.href = url;
 			})
 			.always(function() {
-				$context.data('fanficBrowseLoading', false);
+				$context.data('fanficStoriesLoading', false);
 				setLoading($context, false);
 			});
 	}
@@ -185,7 +185,7 @@
 	function handleFormSubmit(e) {
 		e.preventDefault();
 		var $form = $(this);
-		var $context = $form.closest('[data-fanfic-browse]');
+		var $context = $form.closest('[data-fanfic-stories]');
 		var baseUrl = $form.attr('action') || window.location.pathname;
 		var payload = buildFormPayload($form, 1);
 		var url = buildUrl(baseUrl, payload);
@@ -196,8 +196,8 @@
 	function handlePaginationClick(e) {
 		e.preventDefault();
 		var $link = $(this);
-		var $context = $link.closest('[data-fanfic-browse]');
-		var $form = $context.find('form[data-fanfic-browse-form]');
+		var $context = $link.closest('[data-fanfic-stories]');
+		var $form = $context.find('form[data-fanfic-stories-form]');
 		var pageMatch = ($link.attr('href') || '').match(/[?&]paged=(\d+)/);
 		var page = pageMatch ? parseInt(pageMatch[1], 10) : 1;
 		var payload = buildFormPayload($form, page);
@@ -206,8 +206,8 @@
 		fetchResults($context, url, payload, true);
 	}
 
-	function attachBrowse($context) {
-		var $form = $context.find('form[data-fanfic-browse-form]');
+	function attachStories($context) {
+		var $form = $context.find('form[data-fanfic-stories-form]');
 		if (!$form.length) {
 			return;
 		}
@@ -225,18 +225,18 @@
 			}, 500);
 		});
 
-		$context.on('click', '[data-fanfic-browse-pagination] a', handlePaginationClick);
+		$context.on('click', '[data-fanfic-stories-pagination] a', handlePaginationClick);
 	}
 
 	$(document).ready(function() {
-		$('[data-fanfic-browse]').each(function() {
-			attachBrowse($(this));
+		$('[data-fanfic-stories]').each(function() {
+			attachStories($(this));
 		});
 
 		window.addEventListener('popstate', function() {
-			$('[data-fanfic-browse]').each(function() {
+			$('[data-fanfic-stories]').each(function() {
 				var $context = $(this);
-				var $form = $context.find('form[data-fanfic-browse-form]');
+				var $form = $context.find('form[data-fanfic-stories-form]');
 				if (!$form.length) {
 					return;
 				}

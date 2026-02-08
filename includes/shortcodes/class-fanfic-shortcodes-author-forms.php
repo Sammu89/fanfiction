@@ -24,6 +24,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Shortcodes_Author_Forms {
 
 	/**
+	 * Registration flag to prevent duplicate registration
+	 *
+	 * @since 1.0.0
+	 * @var bool
+	 */
+	private static $registered = false;
+
+	/**
 	 * Register author forms shortcodes and handlers
 	 *
 	 * Loads and registers all specialized handler classes for different domains.
@@ -32,7 +40,11 @@ class Fanfic_Shortcodes_Author_Forms {
 	 * @return void
 	 */
 	public static function register() {
-		error_log( 'Fanfic_Shortcodes_Author_Forms::register() called' );
+		// Prevent duplicate registration
+		if ( self::$registered ) {
+			return;
+		}
+		self::$registered = true;
 
 		// Load handler classes
 		require_once plugin_dir_path( __FILE__ ) . '../handlers/class-fanfic-story-handler.php';
@@ -43,13 +55,9 @@ class Fanfic_Shortcodes_Author_Forms {
 		require_once plugin_dir_path( __FILE__ ) . '../helpers/class-fanfic-form-helpers.php';
 
 		// Register all handlers
-		error_log( 'Registering Fanfic_Story_Handler...' );
 		Fanfic_Story_Handler::register();
-		error_log( 'Registering Fanfic_Chapter_Handler...' );
 		Fanfic_Chapter_Handler::register();
-		error_log( 'Registering Fanfic_Profile_Handler...' );
 		Fanfic_Profile_Handler::register();
-		error_log( 'All author form handlers registered.' );
 	}
 
 }

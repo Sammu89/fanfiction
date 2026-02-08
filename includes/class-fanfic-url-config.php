@@ -383,10 +383,6 @@ $definitions = array(
 		'label'   => __( 'Login', 'fanfiction-manager' ),
 		'default' => 'login',
 	),
-	'search' => array(
-		'label'   => __( 'Browse Page', 'fanfiction-manager' ),
-		'default' => 'browse',
-	),
 	'register' => array(
 		'label'   => __( 'Register', 'fanfiction-manager' ),
 		'default' => 'register',
@@ -1673,19 +1669,19 @@ foreach ( $definitions as $key => $def ) {
                         <td>
                             <label style="display: block; margin-bottom: 15px;">
                                 <input type="radio" name="fanfic_use_base_slug" value="1" <?php checked( $use_base_slug, true ); ?>>
-                                <strong><?php esc_html_e( 'Use a Base Slug (Recommended)', 'fanfiction-manager' ); ?></strong>
+                                <strong><?php esc_html_e( 'Use a Base Slug', 'fanfiction-manager' ); ?></strong>
                                 <br>
                                 <span class="description" style="margin-left: 24px;">
-                                    <?php esc_html_e( 'Isolates plugin pages under a common path like /fanfiction/...', 'fanfiction-manager' ); ?>
+                                    <?php esc_html_e( 'Isolate the fanfiction pages from other Wordpress pages by using a base slug', 'fanfiction-manager' ); ?>
                                 </span>
                             </label>
 
                             <label style="display: block;">
                                 <input type="radio" name="fanfic_use_base_slug" value="0" <?php checked( $use_base_slug, false ); ?>>
-                                <strong><?php esc_html_e( 'Use Root URLs', 'fanfiction-manager' ); ?></strong>
+                                <strong><?php esc_html_e( "Don't use a Base Slug", 'fanfiction-manager' ); ?></strong>
                                 <br>
                                 <span class="description" style="margin-left: 24px;">
-                                    <?php esc_html_e( 'Plugin pages live at the site root, like /login/. This may conflict with other pages.', 'fanfiction-manager' ); ?>
+                                    <?php esc_html_e( 'Plugin pages live at the wordpress root URL. This may conflict with other pages if they share a similar name.', 'fanfiction-manager' ); ?>
                                 </span>
                             </label>
                         </td>
@@ -1704,7 +1700,7 @@ foreach ( $definitions as $key => $def ) {
                         <li><?php esc_html_e( 'Temporary disruption to site navigation', 'fanfiction-manager' ); ?></li>
                     </ul>
                     <p>
-                        <?php esc_html_e( 'Only switch modes if absolutely necessary.', 'fanfiction-manager' ); ?>
+                        <?php esc_html_e( 'Only switch URL mode if you are ok with this.', 'fanfiction-manager' ); ?>
                     </p>
                 </div>
 

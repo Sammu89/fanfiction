@@ -323,12 +323,10 @@ class Fanfic_Wizard {
 	private function all_pages_exist() {
 		$page_ids = get_option( 'fanfic_system_page_ids', array() );
 
-		$use_base_slug  = get_option( 'fanfic_use_base_slug', true );
-		$main_page_mode = get_option( 'fanfic_main_page_mode', 'custom_homepage' );
-		$require_main   = ! ( ! $use_base_slug && 'stories_homepage' === $main_page_mode );
-
 		// Only check physical WordPress pages (not dynamic pages)
+		// Main page is always required — it is created in every scenario
 		$required_pages = array(
+			'main',
 			'login',
 			'register',
 			'password-reset',
@@ -336,9 +334,6 @@ class Fanfic_Wizard {
 			'error',
 			'maintenance',
 		);
-		if ( $require_main ) {
-			array_unshift( $required_pages, 'main' );
-		}
 
 		error_log( 'Fanfic Wizard: Checking pages exist - required: ' . wp_json_encode( $required_pages ) );
 		error_log( 'Fanfic Wizard: Page IDs from option: ' . wp_json_encode( $page_ids ) );
@@ -775,18 +770,45 @@ class Fanfic_Wizard {
 						<p class="description"><?php esc_html_e( 'Lets users choose story language and enables linking between versions of the same story in different languages.', 'fanfiction-manager' ); ?></p>
 					</td>
 				</tr>
+				<tr>
+					<th scope="row">
+						<label for="fanfic_wizard_create_samples"><?php esc_html_e( 'Sample Stories', 'fanfiction-manager' ); ?></label>
+					</th>
+					<td>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_create_samples" name="fanfic_create_samples" value="1">
+							<?php esc_html_e( 'Create 2 sample stories for testing', 'fanfiction-manager' ); ?>
+						</label>
+					</td>
+				</tr>
 			</table>
 		</form>
 
 		<script type="text/javascript">
 		jQuery(document).ready(function($) {
+			function togglePornographicDependency() {
+				var pornChecked = $('#fanfic_wizard_allow_pornographic_content').is(':checked');
+				if ( pornChecked ) {
+					$('#fanfic_wizard_allow_sexual_content').prop('checked', true).prop('disabled', true);
+				} else {
+					var warningsEnabled = $('#fanfic_wizard_enable_warnings').is(':checked');
+					$('#fanfic_wizard_allow_sexual_content').prop('disabled', !warningsEnabled);
+				}
+			}
+
 			function toggleWarningSubOptions() {
 				var warningsEnabled = $('#fanfic_wizard_enable_warnings').is(':checked');
 				$('#fanfic-wizard-warning-suboptions').toggle(warningsEnabled);
-				$('#fanfic_wizard_allow_sexual_content, #fanfic_wizard_allow_pornographic_content').prop('disabled', !warningsEnabled);
+				if ( !warningsEnabled ) {
+					$('#fanfic_wizard_allow_sexual_content, #fanfic_wizard_allow_pornographic_content').prop('disabled', true);
+				} else {
+					$('#fanfic_wizard_allow_pornographic_content').prop('disabled', false);
+					togglePornographicDependency();
+				}
 			}
 
 			$('#fanfic_wizard_enable_warnings').on('change', toggleWarningSubOptions);
+			$('#fanfic_wizard_allow_pornographic_content').on('change', togglePornographicDependency);
 			toggleWarningSubOptions();
 		});
 		</script>
@@ -807,6 +829,9 @@ class Fanfic_Wizard {
 		$step_1 = isset( $draft['step_1'] ) ? $draft['step_1'] : array();
 		$step_2 = isset( $draft['step_2'] ) ? $draft['step_2'] : array();
 		$step_4 = isset( $draft['step_4'] ) ? $draft['step_4'] : array();
+
+		// Extract key settings early so they're available to all sections
+		$use_base_slug = isset( $step_2['use_base_slug'] ) ? $step_2['use_base_slug'] : 1;
 
 		// Get saved role data (step 3 saves directly)
 		$moderators = get_option( 'fanfic_wizard_moderators', array() );
@@ -836,15 +861,6 @@ class Fanfic_Wizard {
 						</td>
 					</tr>
 					<tr>
-						<td><?php esc_html_e( 'Base Slug Mode', 'fanfiction-manager' ); ?></td>
-						<td>
-							<?php
-							$use_base_slug = isset( $step_1['use_base_slug'] ) ? $step_1['use_base_slug'] : 1;
-							echo $use_base_slug ? esc_html__( 'Enabled', 'fanfiction-manager' ) : esc_html__( 'Disabled', 'fanfiction-manager' );
-							?>
-						</td>
-					</tr>
-					<tr>
 						<td><?php esc_html_e( 'Main Page Mode', 'fanfiction-manager' ); ?></td>
 						<td>
 							<?php
@@ -864,9 +880,6 @@ class Fanfic_Wizard {
 								<?php
 								$homepage_source = isset( $step_1['homepage_source'] ) ? $step_1['homepage_source'] : 'fanfiction_page';
 								switch ( $homepage_source ) {
-									case 'stories':
-										esc_html_e( 'Stories Archive', 'fanfiction-manager' );
-										break;
 									case 'fanfiction_page':
 										esc_html_e( 'Fanfiction Custom Page', 'fanfiction-manager' );
 										break;
@@ -901,6 +914,7 @@ class Fanfic_Wizard {
 									'homepage_source'    => isset( $step_1['homepage_source'] ) ? $step_1['homepage_source'] : 'fanfiction_page',
 									'homepage_source_id' => isset( $step_1['homepage_source_id'] ) ? $step_1['homepage_source_id'] : 0,
 									'main_page_id'       => 0, // Will be set after page creation
+									'stories_page_id'    => 0, // Will be set after page creation
 								);
 
 								if ( class_exists( 'Fanfic_Homepage_State' ) ) {
@@ -929,8 +943,22 @@ class Fanfic_Wizard {
 						</td>
 					</tr>
 					<tr>
+						<td><?php esc_html_e( 'Base Slug Mode', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							echo $use_base_slug ? esc_html__( 'Enabled', 'fanfiction-manager' ) : esc_html__( 'Disabled (Root URL Mode)', 'fanfiction-manager' );
+							?>
+						</td>
+					</tr>
+					<tr>
 						<td><?php esc_html_e( 'Base Slug', 'fanfiction-manager' ); ?></td>
-						<td><code><?php echo esc_html( isset( $step_2['base_slug'] ) ? $step_2['base_slug'] : 'fanfiction' ); ?></code></td>
+						<td>
+							<?php if ( ! $use_base_slug ) : ?>
+								<?php esc_html_e( 'N/A (Root URL Mode)', 'fanfiction-manager' ); ?>
+							<?php else : ?>
+								<code><?php echo esc_html( array_key_exists( 'base_slug', $step_2 ) ? ( $step_2['base_slug'] !== '' ? $step_2['base_slug'] : '(none)' ) : 'fanfiction' ); ?></code>
+							<?php endif; ?>
+						</td>
 					</tr>
 					<tr>
 						<td><?php esc_html_e( 'Story Path', 'fanfiction-manager' ); ?></td>
@@ -970,6 +998,17 @@ class Fanfic_Wizard {
 							echo isset( $step_4['enable_languages'] ) && $step_4['enable_languages']
 								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
 								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
+							?>
+						</td>
+					</tr>
+
+					<tr>
+						<td><?php esc_html_e( 'Sample Stories', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							echo ! empty( $step_4['create_samples'] )
+								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Yes', 'fanfiction-manager' ) . '</span>'
+								: '<span style="color: #999;">&#10006; ' . esc_html__( 'No', 'fanfiction-manager' ) . '</span>';
 							?>
 						</td>
 					</tr>
@@ -1058,34 +1097,6 @@ class Fanfic_Wizard {
 				// Display configuration synthesis
 				$this->render_configuration_synthesis();
 				?>
-
-				<p><?php esc_html_e( 'Click the "Complete Setup" button below to:', 'fanfiction-manager' ); ?></p>
-				<ul style="list-style: disc; margin-left: 2em;">
-					<li><?php esc_html_e( 'Save all your configuration settings', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Create all system pages (Login, Register, Archive, Dashboard, etc.)', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Create selected taxonomy terms for Genre and Status', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Assign user roles to selected users', 'fanfiction-manager' ); ?></li>
-					<li><?php esc_html_e( 'Initialize the fanfiction platform', 'fanfiction-manager' ); ?></li>
-				</ul>
-				<p><strong><?php esc_html_e( 'This process may take a few seconds.', 'fanfiction-manager' ); ?></strong></p>
-
-				<div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; background: #f9f9f9;">
-					<h4 style="margin-top: 0;"><?php esc_html_e( 'Optional: Create Sample Stories', 'fanfiction-manager' ); ?></h4>
-					<p class="description"><?php esc_html_e( 'Create 2 test stories with chapters to help you understand how the system works.', 'fanfiction-manager' ); ?></p>
-					<p style="margin-top: 10px;">
-						<input type="checkbox" name="fanfic_create_samples" id="fanfic_create_samples" value="1" style="margin-right: 8px;" />
-						<label for="fanfic_create_samples" style="cursor: pointer;">
-							<strong><?php esc_html_e( 'Create sample stories for testing', 'fanfiction-manager' ); ?></strong>
-						</label>
-					</p>
-					<p class="description" style="margin-left: 24px; margin-top: 5px;">
-						<?php esc_html_e( 'This will create 2 sample stories with different statuses and genres:', 'fanfiction-manager' ); ?>
-					</p>
-					<ul style="list-style: disc; margin-left: 3.5em; margin-top: 5px;">
-						<li><?php esc_html_e( 'Story 1: "Lorem Ipsum" (Draft) with 2 chapters', 'fanfiction-manager' ); ?></li>
-						<li><?php esc_html_e( 'Story 2: "De finibus bonorum et malorum" (Published) with prologue + chapter', 'fanfiction-manager' ); ?></li>
-					</ul>
-				</div>
 			</div>
 
 		<?php endif;
@@ -1220,11 +1231,6 @@ class Fanfic_Wizard {
 			}
 		}
 
-		// Base slug enabled
-		if ( isset( $_POST['fanfic_use_base_slug'] ) ) {
-			$step_data['use_base_slug'] = '1' === $_POST['fanfic_use_base_slug'] ? 1 : 0;
-		}
-
 		// Homepage source (for custom_homepage mode)
 		// The form uses fanfic_homepage_source_select
 		if ( isset( $_POST['fanfic_main_page_mode'] ) && 'custom_homepage' === $_POST['fanfic_main_page_mode'] ) {
@@ -1246,8 +1252,8 @@ class Fanfic_Wizard {
 				}
 			}
 		} elseif ( isset( $_POST['fanfic_main_page_mode'] ) && 'stories_homepage' === $_POST['fanfic_main_page_mode'] ) {
-			// If stories_homepage, set source to stories
-			$step_data['homepage_source'] = 'stories';
+			// If stories_homepage, set source to fanfiction_page
+			$step_data['homepage_source'] = 'fanfiction_page';
 			$step_data['homepage_source_id'] = 0;
 		}
 
@@ -1278,7 +1284,12 @@ class Fanfic_Wizard {
 		// Collect step 2 data
 		$step_data = array();
 
-		// Base slug
+		// Use base slug (radio button: 1 = use base slug, 0 = no base slug)
+		if ( isset( $_POST['fanfic_use_base_slug'] ) ) {
+			$step_data['use_base_slug'] = '1' === $_POST['fanfic_use_base_slug'] ? 1 : 0;
+		}
+
+		// Base slug value (only relevant when use_base_slug = 1)
 		if ( isset( $_POST['fanfic_base_slug'] ) ) {
 			$step_data['base_slug'] = sanitize_title( wp_unslash( $_POST['fanfic_base_slug'] ) );
 		}
@@ -1406,11 +1417,9 @@ class Fanfic_Wizard {
 		// Collect step 4 data
 		$step_data = array();
 
-		// Genre and Status are mandatory
-		$step_data['genre_terms'] = array(
-			'Romance', 'Adventure', 'Drama', 'Horror', 'Mystery', 'Sci-Fi', 'Fantasy', 'Comedy',
-		);
-		$step_data['status_terms'] = array( 'Finished', 'Ongoing', 'On Hiatus', 'Abandoned' );
+		// Genre and Status are mandatory - use constants from Fanfic_Taxonomies
+		$step_data['genre_terms'] = Fanfic_Taxonomies::DEFAULT_GENRES;
+		$step_data['status_terms'] = array_values( Fanfic_Taxonomies::DEFAULT_STATUSES );
 
 		// Feature toggles
 		$step_data['enable_fandoms'] = isset( $_POST['fanfic_enable_fandom_classification'] ) && '1' === $_POST['fanfic_enable_fandom_classification'];
@@ -1418,6 +1427,14 @@ class Fanfic_Wizard {
 		$step_data['enable_languages'] = isset( $_POST['fanfic_enable_language_classification'] ) && '1' === $_POST['fanfic_enable_language_classification'];
 		$step_data['allow_sexual'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_sexual_content'] ) && '1' === $_POST['fanfic_allow_sexual_content'];
 		$step_data['allow_pornographic'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_pornographic_content'] ) && '1' === $_POST['fanfic_allow_pornographic_content'];
+
+		// Pornographic content requires sexual content
+		if ( $step_data['allow_pornographic'] ) {
+			$step_data['allow_sexual'] = true;
+		}
+
+		// Sample stories toggle
+		$step_data['create_samples'] = isset( $_POST['fanfic_create_samples'] ) && '1' === $_POST['fanfic_create_samples'];
 
 		error_log( '[Fanfic Wizard Step 4] Collected step data: ' . wp_json_encode( $step_data ) );
 
@@ -1531,8 +1548,9 @@ class Fanfic_Wizard {
 			error_log( '[Fanfic Wizard Complete] ========== ASSIGNING USER ROLES ==========' );
 			$this->assign_user_roles();
 
-			// Create sample stories if requested
-			if ( isset( $_POST['create_samples'] ) && '1' === $_POST['create_samples'] ) {
+			// Create sample stories if requested (saved in step 4 draft)
+			$step_4 = isset( $draft['step_4'] ) ? $draft['step_4'] : array();
+			if ( ! empty( $step_4['create_samples'] ) ) {
 				error_log( '[Fanfic Wizard Complete] ========== CREATING SAMPLE STORIES ==========' );
 				$this->create_sample_stories();
 			} else {
@@ -1551,7 +1569,18 @@ class Fanfic_Wizard {
 
 			// Gate 1: Base slug persisted correctly
 			error_log( '[Fanfic Wizard Complete] Gate 1: Verifying base slug persistence' );
-			$expected_base_slug = isset( $draft['step_2']['base_slug'] ) ? $draft['step_2']['base_slug'] : 'fanfiction';
+
+			// Check if user chose "no base slug" mode in step 2 (use_base_slug is set in URL settings step)
+			$use_base_slug = isset( $draft['step_2']['use_base_slug'] ) ? (int) $draft['step_2']['use_base_slug'] : 1;
+
+			if ( 0 === $use_base_slug ) {
+				// No base slug mode - expect empty string
+				$expected_base_slug = '';
+			} else {
+				// Base slug mode - use the value from step 2 or default to 'fanfiction'
+				$expected_base_slug = array_key_exists( 'base_slug', $draft['step_2'] ) ? $draft['step_2']['base_slug'] : 'fanfiction';
+			}
+
 			$actual_base_slug = get_option( 'fanfic_base_slug', '' );
 			error_log( sprintf(
 				'[Fanfic Wizard Complete] Gate 1: Expected=%s, Actual=%s',
@@ -1720,16 +1749,6 @@ class Fanfic_Wizard {
 				) );
 			}
 
-			if ( isset( $step_1['use_base_slug'] ) ) {
-				$old = get_option( 'fanfic_use_base_slug', '' );
-				update_option( 'fanfic_use_base_slug', $step_1['use_base_slug'] );
-				error_log( sprintf(
-					'[Fanfic Wizard Commit] fanfic_use_base_slug: %s → %s',
-					$old,
-					$step_1['use_base_slug']
-				) );
-			}
-
 			if ( isset( $step_1['homepage_source'] ) ) {
 				$old = get_option( 'fanfic_homepage_source', '' );
 				update_option( 'fanfic_homepage_source', $step_1['homepage_source'] );
@@ -1756,7 +1775,30 @@ class Fanfic_Wizard {
 			error_log( '[Fanfic Wizard Commit] Committing Step 2 (URL Settings)' );
 			$step_2 = $draft['step_2'];
 
-			if ( isset( $step_2['base_slug'] ) ) {
+			// Save use_base_slug setting (set in step 2 URL settings)
+			if ( isset( $step_2['use_base_slug'] ) ) {
+				$old = get_option( 'fanfic_use_base_slug', '' );
+				update_option( 'fanfic_use_base_slug', $step_2['use_base_slug'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_use_base_slug: %s → %s',
+					$old,
+					$step_2['use_base_slug']
+				) );
+			}
+
+			// Check if user chose "no base slug" mode
+			$use_base_slug = isset( $step_2['use_base_slug'] ) ? (int) $step_2['use_base_slug'] : 1;
+
+			if ( 0 === $use_base_slug ) {
+				// No base slug mode - explicitly set base_slug to empty string
+				$old = get_option( 'fanfic_base_slug', '' );
+				update_option( 'fanfic_base_slug', '' );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_base_slug: %s → (empty - no base slug mode)',
+					$old
+				) );
+			} elseif ( array_key_exists( 'base_slug', $step_2 ) ) {
+				// Base slug mode - use the value from step 2
 				$old = get_option( 'fanfic_base_slug', '' );
 				update_option( 'fanfic_base_slug', $step_2['base_slug'] );
 				error_log( sprintf(

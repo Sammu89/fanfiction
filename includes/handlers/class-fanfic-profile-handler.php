@@ -24,12 +24,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Profile_Handler {
 
 	/**
+	 * Registration flag to prevent duplicate registration
+	 *
+	 * @since 1.0.0
+	 * @var bool
+	 */
+	private static $registered = false;
+
+	/**
 	 * Register profile handlers
 	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
 	public static function register() {
+		// Prevent duplicate registration
+		if ( self::$registered ) {
+			return;
+		}
+		self::$registered = true;
+
 		// Register form submission handlers
 		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_profile_submission' ) );
 

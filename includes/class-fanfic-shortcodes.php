@@ -24,6 +24,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Shortcodes {
 
 	/**
+	 * Registration flag to prevent duplicate registration
+	 *
+	 * @since 1.0.0
+	 * @var bool
+	 */
+	private static $registered = false;
+
+	/**
 	 * Initialize shortcodes
 	 *
 	 * Loads all shortcode handler classes and registers shortcodes.
@@ -82,6 +90,12 @@ class Fanfic_Shortcodes {
 	 * @return void
 	 */
 	public static function register_shortcodes() {
+		// Prevent duplicate registration
+		if ( self::$registered ) {
+			return;
+		}
+		self::$registered = true;
+
 		// Initialize each handler class
 		if ( class_exists( 'Fanfic_Shortcodes_Story' ) ) {
 			Fanfic_Shortcodes_Story::register();
@@ -121,10 +135,7 @@ class Fanfic_Shortcodes {
 		}
 
 		if ( class_exists( 'Fanfic_Shortcodes_Author_Forms' ) ) {
-			error_log( 'Fanfic_Shortcodes_Author_Forms class exists - calling register()' );
 			Fanfic_Shortcodes_Author_Forms::register();
-		} else {
-			error_log( 'ERROR: Fanfic_Shortcodes_Author_Forms class does NOT exist!' );
 		}
 
 		if ( class_exists( 'Fanfic_Shortcodes_Comments' ) ) {

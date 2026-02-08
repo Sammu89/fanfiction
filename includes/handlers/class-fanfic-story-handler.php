@@ -24,6 +24,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Story_Handler {
 
 	/**
+	 * Registration flag to prevent duplicate registration
+	 *
+	 * @since 1.0.0
+	 * @var bool
+	 */
+	private static $registered = false;
+
+	/**
 	 * Get story image input from URL or upload
 	 *
 	 * @param array $errors Errors array to append to.
@@ -56,6 +64,12 @@ class Fanfic_Story_Handler {
 	 * @return void
 	 */
 	public static function register() {
+		// Prevent duplicate registration
+		if ( self::$registered ) {
+			return;
+		}
+		self::$registered = true;
+
 		// Register form submission handlers
 		add_action( 'template_redirect', array( __CLASS__, 'handle_unified_story_form' ), 5 );
 		add_action( 'template_redirect', array( __CLASS__, 'handle_create_story_submission' ) );

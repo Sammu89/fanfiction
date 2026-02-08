@@ -156,22 +156,17 @@ class Fanfic_Shortcodes_Search {
 				</div>
 
 				<div class="fanfic-status-filter-wrapper">
-					<label class="screen-reader-text"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
-				<div class="multi-select" data-placeholder="<?php esc_attr_e( 'All Statuses', 'fanfiction-manager' ); ?>">
-					<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-						<?php esc_html_e( 'All Statuses', 'fanfiction-manager' ); ?>
-					</button>
-					<div class="multi-select__dropdown">
+					<label for="fanfic-status-filter" class="screen-reader-text"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
+					<select id="fanfic-status-filter" name="status">
+						<option value=""><?php esc_html_e( 'All Statuses', 'fanfiction-manager' ); ?></option>
 						<?php if ( ! empty( $context['statuses'] ) && ! is_wp_error( $context['statuses'] ) ) : ?>
 							<?php foreach ( $context['statuses'] as $status ) : ?>
-								<label>
-									<input type="checkbox" name="status[]" value="<?php echo esc_attr( $status->slug ); ?>" <?php in_array( $status->slug, (array) ( $context['params']['statuses'] ?? [] ) ) ? checked( true ) : ''; ?> />
+								<option value="<?php echo esc_attr( $status->slug ); ?>" <?php selected( ( $context['params']['statuses'][0] ?? '' ), $status->slug ); ?>>
 									<?php echo esc_html( $status->name ); ?>
-								</label>
+								</option>
 							<?php endforeach; ?>
 						<?php endif; ?>
-					</div>
-				</div>
+					</select>
 				</div>
 
 				<div class="fanfic-sort-filter-wrapper">
@@ -220,30 +215,14 @@ class Fanfic_Shortcodes_Search {
 					</div>
 
 					<div class="fanfic-browse-column">
-						<label><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
-						<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Age Rating', 'fanfiction-manager' ); ?>">
-							<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-								<?php esc_html_e( 'Select Age Rating', 'fanfiction-manager' ); ?>
-							</button>
-							<div class="multi-select__dropdown">
-								<label>
-									<input type="checkbox" name="age[]" value="PG" <?php in_array( 'PG', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php esc_html_e( 'PG', 'fanfiction-manager' ); ?>
-								</label>
-								<label>
-									<input type="checkbox" name="age[]" value="13" <?php in_array( '13', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php esc_html_e( '13+', 'fanfiction-manager' ); ?>
-								</label>
-								<label>
-									<input type="checkbox" name="age[]" value="16" <?php in_array( '16', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php esc_html_e( '16+', 'fanfiction-manager' ); ?>
-								</label>
-								<label>
-									<input type="checkbox" name="age[]" value="18" <?php in_array( '18', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php esc_html_e( '18+', 'fanfiction-manager' ); ?>
-								</label>
-							</div>
-						</div>
+						<label for="fanfic-age-filter"><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
+						<select id="fanfic-age-filter" name="age">
+							<option value=""><?php esc_html_e( 'Any age', 'fanfiction-manager' ); ?></option>
+							<option value="PG" <?php selected( 'PG', $context['params']['age'] ?? '' ); ?>><?php esc_html_e( 'PG', 'fanfiction-manager' ); ?></option>
+							<option value="13" <?php selected( '13', $context['params']['age'] ?? '' ); ?>><?php esc_html_e( '13+', 'fanfiction-manager' ); ?></option>
+							<option value="16" <?php selected( '16', $context['params']['age'] ?? '' ); ?>><?php esc_html_e( '16+', 'fanfiction-manager' ); ?></option>
+							<option value="18" <?php selected( '18', $context['params']['age'] ?? '' ); ?>><?php esc_html_e( '18+', 'fanfiction-manager' ); ?></option>
+						</select>
 					</div>
 
 					<?php if ( ! empty( $context['languages'] ) ) : ?>
@@ -286,18 +265,7 @@ class Fanfic_Shortcodes_Search {
 				<div class="fanfic-browse-row fanfic-smart-toggle-wrapper">
 					<label class="fanfic-toggle-label" for="fanfic-match-all-filters">
 						<?php esc_html_e( 'Match ALL selected filters', 'fanfiction-manager' ); ?>
-					<span class="fanfic-toggle-subtext">
-	<?php esc_html_e(
-		'OFF: matches any selected values within the same category (e.g. Comedy or Drama + Finished or Ongoing)',
-		'fanfiction-manager'
-	); ?>
-	<br>
-	<?php esc_html_e(
-		'ON: matches all selected values within the same category (e.g. Comedy and Drama + only one valid status)',
-		'fanfiction-manager'
-	); ?>
-</span>
-
+						<span class="fanfic-toggle-subtext"><?php esc_html_e( 'When ON, we\'ll show stories that match ALL the selections within a category.', 'fanfiction-manager' ); ?></span>
 					</label>
 					<label class="fanfic-switch">
 						<input type="checkbox" id="fanfic-match-all-filters" name="match_all_filters" value="1" <?php checked( ( $context['params']['match_all_filters'] ?? '0' ) === '1' ); ?>>
@@ -431,25 +399,12 @@ class Fanfic_Shortcodes_Search {
 		</form>
 
 		<?php
-		// Prepare single-select taxonomy mapping for JavaScript
-		$single_select_taxonomies = array( 'status', 'age', 'language' );
-
-		// Add single-select custom taxonomies
-		if ( ! empty( $context['custom_taxonomies'] ) ) {
-			foreach ( $context['custom_taxonomies'] as $custom_taxonomy ) {
-				if ( 'single' === $custom_taxonomy['selection_type'] ) {
-					$single_select_taxonomies[] = $custom_taxonomy['slug'];
-				}
-			}
-		}
-
 		// Localize script with base_url and translations for live pills
 		wp_localize_script(
 			'fanfic-search-bar-frontend',
 			'fanficSearchBar',
 			array(
 				'baseUrl' => esc_url_raw( $context['base_url'] ),
-				'singleSelectTaxonomies' => $single_select_taxonomies,
 				'i18n'    => array(
 					'activeFilters' => esc_html__( 'Active Filters', 'fanfiction-manager' ),
 				),
