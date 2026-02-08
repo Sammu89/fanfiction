@@ -420,12 +420,25 @@ class Fanfic_Shortcodes_Search {
 		</form>
 
 		<?php
+		// Prepare single-select taxonomy mapping for JavaScript
+		$single_select_taxonomies = array( 'status', 'age', 'language' );
+
+		// Add single-select custom taxonomies
+		if ( ! empty( $context['custom_taxonomies'] ) ) {
+			foreach ( $context['custom_taxonomies'] as $custom_taxonomy ) {
+				if ( 'single' === $custom_taxonomy['selection_type'] ) {
+					$single_select_taxonomies[] = $custom_taxonomy['slug'];
+				}
+			}
+		}
+
 		// Localize script with base_url and translations for live pills
 		wp_localize_script(
 			'fanfic-search-bar-frontend',
 			'fanficSearchBar',
 			array(
 				'baseUrl' => esc_url_raw( $context['base_url'] ),
+				'singleSelectTaxonomies' => $single_select_taxonomies,
 				'i18n'    => array(
 					'activeFilters' => esc_html__( 'Active Filters', 'fanfiction-manager' ),
 				),

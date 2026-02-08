@@ -1,6 +1,178 @@
 (function($) {
     'use strict';
 
+    // ===== SMART FILTER MANAGER (Match All Logic) =====
+    var SmartFilterManager = {
+        /**
+         * Enforce single-select mode for single-select taxonomies when match_all is ON
+         */
+        enforceMatchAllFilters: function() {
+            var taxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
+
+            var self = this;
+            taxonomies.forEach(function(taxName) {
+                self.enforceSingleSelectForTaxonomy(taxName);
+            });
+        },
+
+        /**
+         * Enforce single-select for a specific taxonomy
+         */
+        enforceSingleSelectForTaxonomy: function(taxName) {
+            var checkboxes = this.getCheckboxesForTaxonomy(taxName);
+            if (checkboxes.length === 0) return;
+
+            var checked = checkboxes.filter(':checked');
+            if (checked.length <= 1) {
+                return; // Already single or empty
+            }
+
+            // Keep only the last checked one
+            var lastChecked = checked.last();
+            checkboxes.not(lastChecked).prop('checked', false).trigger('change');
+        },
+
+        /**
+         * Get checkboxes for a specific taxonomy
+         */
+        getCheckboxesForTaxonomy: function(taxName) {
+            var selector;
+            if (taxName === 'status') {
+                selector = 'input[name="status[]"]';
+            } else if (taxName === 'age') {
+                selector = 'input[name="age[]"]';
+            } else if (taxName === 'language') {
+                selector = 'input[name="language[]"]';
+            } else {
+                // Custom taxonomy
+                selector = 'input[name="' + taxName + '[]"]';
+            }
+            return $(selector);
+        },
+
+        /**
+         * Disable match_all_filters restrictions - allow multi-select again
+         */
+        disableMatchAllFilters: function() {
+            // No action needed here - just remove the restriction
+            // Checkboxes are already enabled, just allow multiple selections
+        }
+    };
+
+    // ===== WARNINGS CROSS-DISABLE MANAGER =====
+    // Note: Warnings use a single set of checkboxes with warnings_mode radio to switch between include/exclude
+    // Cross-disable prevents selecting the same warning in both modes simultaneously
+    var WarningsManager = {
+        // Store which warnings are selected in each mode
+        includeWarnings: {},
+        excludeWarnings: {},
+
+        /**
+         * Initialize warnings cross-disable logic
+         */
+        init: function() {
+            var self = this;
+            var $warningsCheckboxes = $('input[name="warnings_slugs[]"]');
+            var $warningsModeRadios = $('input[name="warnings_mode"]');
+
+            // Load initial state from form
+            this.loadState();
+
+            // Watch for changes on warning checkboxes
+            $warningsCheckboxes.on('change', function() {
+                self.onWarningCheckboxChange($(this));
+            });
+
+            // Watch for mode changes (Include/Exclude radio buttons)
+            $warningsModeRadios.on('change', function() {
+                self.onModeChange();
+            });
+        },
+
+        /**
+         * Load current state from form
+         */
+        loadState: function() {
+            // Since there's only one set of checkboxes, we store the checked values
+            // in a way that lets us restore them when switching modes
+            var $warningsCheckboxes = $('input[name="warnings_slugs[]"]');
+            var currentMode = $('input[name="warnings_mode"]:checked').val() || 'exclude';
+
+            // Initialize storage if needed
+            if (!window.fanficWarningsState) {
+                window.fanficWarningsState = {
+                    include: {},
+                    exclude: {}
+                };
+            }
+
+            // Load current checked values into the appropriate mode storage
+            $warningsCheckboxes.each(function() {
+                var $cb = $(this);
+                var value = $cb.val();
+                window.fanficWarningsState[currentMode][value] = $cb.is(':checked');
+            });
+        },
+
+        /**
+         * Handle warning checkbox change
+         */
+        onWarningCheckboxChange: function($checkbox) {
+            var value = $checkbox.val();
+            var currentMode = $('input[name="warnings_mode"]:checked').val() || 'exclude';
+            var isChecked = $checkbox.is(':checked');
+
+            // Update state storage
+            if (!window.fanficWarningsState) {
+                window.fanficWarningsState = { include: {}, exclude: {} };
+            }
+            window.fanficWarningsState[currentMode][value] = isChecked;
+
+            // If checking in one mode, uncheck in other mode
+            if (isChecked) {
+                var otherMode = currentMode === 'include' ? 'exclude' : 'include';
+                window.fanficWarningsState[otherMode][value] = false;
+            }
+
+            PillsManager.updatePills();
+        },
+
+        /**
+         * Handle mode change (Include/Exclude radio)
+         */
+        onModeChange: function() {
+            var newMode = $('input[name="warnings_mode"]:checked').val() || 'exclude';
+            var $warningsCheckboxes = $('input[name="warnings_slugs[]"]');
+
+            // Initialize state storage if needed
+            if (!window.fanficWarningsState) {
+                window.fanficWarningsState = { include: {}, exclude: {} };
+            }
+
+            // Update checkboxes to reflect the new mode's saved state
+            $warningsCheckboxes.each(function() {
+                var $cb = $(this);
+                var value = $cb.val();
+                var shouldCheck = window.fanficWarningsState[newMode][value] || false;
+                $cb.prop('checked', shouldCheck);
+            });
+
+            // Update the display label in the multi-select trigger
+            var trigger = $('.fanfic-warnings-multiselect .multi-select__trigger');
+            if (trigger.length) {
+                var checked = $warningsCheckboxes.filter(':checked').length;
+                var placeholder = $('.fanfic-warnings-multiselect').data('placeholder') || 'Select Warnings';
+                if (checked === 0) {
+                    trigger.text(placeholder);
+                } else {
+                    trigger.text(checked + ' selected');
+                }
+            }
+
+            PillsManager.updatePills();
+        }
+    };
+
     // ===== GENERIC PILLS SYSTEM =====
     var PillsManager = {
         // Configuration
@@ -93,6 +265,42 @@
                     filters.warnings_exclude = warnings;
                 }
             }
+
+            // Custom taxonomies (multi-select and single-select dropdowns)
+            var singleSelectTaxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
+
+            // Collect all custom taxonomy names from selectors on page
+            document.querySelectorAll('.fanfic-advanced-search-filters select:not([multiple]), .fanfic-advanced-search-filters .multi-select:not(.fanfic-warnings-multiselect)').forEach(function(elem) {
+                var selector, values = [];
+
+                // Check if it's a select element (single-select custom taxonomy)
+                if (elem.tagName === 'SELECT') {
+                    selector = 'select[name="' + elem.name + '"]';
+                    var selectedOption = document.querySelector(selector);
+                    if (selectedOption && selectedOption.value) {
+                        values.push($(selectedOption).find('option:selected').text().trim());
+                    }
+                } else if (elem.classList.contains('multi-select')) {
+                    // Get the multi-select's name from its checkboxes
+                    var $checkboxes = $(elem).find('input[type="checkbox"]:checked');
+                    if ($checkboxes.length > 0) {
+                        var fieldName = $checkboxes.first().attr('name');
+                        if (fieldName) {
+                            $checkboxes.each(function() {
+                                values.push($(this).closest('label').text().trim());
+                            });
+                        }
+                    }
+                }
+
+                // Store custom taxonomy values
+                if (values.length > 0 && elem.name) {
+                    var taxonomyName = elem.name.replace(/\[\]$/, ''); // Remove [] suffix if present
+                    if (taxonomyName && !['status', 'age', 'language', 'genre', 'warnings_slugs'].includes(taxonomyName)) {
+                        filters[taxonomyName] = values;
+                    }
+                }
+            });
 
             return filters;
         },
@@ -356,6 +564,9 @@
         // Initialize pills system
         PillsManager.init();
 
+        // Initialize warnings manager for cross-disable logic
+        WarningsManager.init();
+
         var $advancedSearchToggle = $('.fanfic-advanced-search-toggle');
         var $advancedSearchFilters = $('.fanfic-advanced-search-filters');
         var $advancedActions = $('.fanfic-advanced-actions');
@@ -368,6 +579,9 @@
         var $warningsMultiSelect = $('.fanfic-warnings-multiselect');
         var $smartToggleCheckbox = $('#fanfic-match-all-filters');
         var $smartToggleLabel = $smartToggleCheckbox.closest('.fanfic-browse-row').find('.fanfic-toggle-label');
+
+        // Get single-select taxonomy list from PHP localization
+        var singleSelectTaxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
 
         // Advanced search toggle functionality
         $advancedSearchToggle.on('click', function() {
@@ -387,11 +601,20 @@
 
         // Smart Toggle functionality (match_all_filters)
         $smartToggleCheckbox.on('change', function() {
-            if ($(this).is(':checked')) {
+            var isChecked = $(this).is(':checked');
+
+            if (isChecked) {
                 $smartToggleLabel.addClass('is-active');
+                // Enforce single-select for single-select taxonomies
+                SmartFilterManager.enforceMatchAllFilters();
             } else {
                 $smartToggleLabel.removeClass('is-active');
+                // Re-enable multi-select for all checkboxes
+                SmartFilterManager.disableMatchAllFilters();
             }
+
+            // Update pills after toggling
+            PillsManager.updatePills();
         });
         // Set initial state
         if ($smartToggleCheckbox.is(':checked')) {
