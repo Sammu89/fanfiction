@@ -28,29 +28,14 @@
     min-width: 200px; /* Allow input to grow but have a minimum width */
 }
 
-/* Uniform dropdown styling - both native and custom */
+/* Search input styling - global select styling inherited from fanfiction-frontend.css */
 .fanfic-basic-search-row input[type="text"],
 .fanfic-basic-search-row select {
     width: 100%;
     padding: 8px;
-    padding-right: 32px;
     border: 1px solid #ccc;
     border-radius: 4px;
     box-sizing: border-box;
-    font-family: system-ui, sans-serif;
-    font-size: 1em;
-    background: #fff;
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    background-size: 12px;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-}
-
-/* Arrow for native select in top row */
-.fanfic-basic-search-row select {
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23666" d="M6 9L1 4h10z"/></svg>');
 }
 
 .fanfic-basic-search-row .fanfic-button {
@@ -107,101 +92,17 @@
     font-weight: bold;
 }
 
-/* Uniform dropdown styling for advanced filters */
-.fanfic-browse-row input[type="text"].fanfic-input {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-}
-
+/* Advanced filters input styling - global select styling inherited from fanfiction-frontend.css */
+.fanfic-browse-row input[type="text"].fanfic-input,
 .fanfic-browse-row select:not([multiple]) {
     width: 100%;
     padding: 8px;
-    padding-right: 32px;
     border: 1px solid #ccc;
     border-radius: 4px;
     box-sizing: border-box;
-    font-family: system-ui, sans-serif;
-    font-size: 1em;
-    background: #fff;
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    background-size: 12px;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23666" d="M6 9L1 4h10z"/></svg>');
 }
 
-/* Custom Multi-select dropdown styles */
-.multi-select {
-  position: relative;
-  width: 100%; /* Make it full width of its container */
-  font-family: system-ui, sans-serif;
-}
-
-.multi-select__trigger {
-  width: 100%;
-  padding: 8px;
-  padding-right: 32px;
-  border: 1px solid #ccc;
-  background: #fff;
-  cursor: pointer;
-  text-align: left;
-  border-radius: 4px;
-  box-sizing: border-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  position: relative;
-}
-
-.multi-select__trigger::after {
-  content: '';
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 12px;
-  height: 12px;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%23666" d="M6 9L1 4h10z"/></svg>');
-  background-repeat: no-repeat;
-  background-size: contain;
-  pointer-events: none;
-}
-
-.multi-select__dropdown {
-  position: absolute;
-  top: 110%;
-  left: 0;
-  right: 0;
-  border: 1px solid #ccc;
-  background: #fff;
-  border-radius: 6px;
-  padding: 8px;
-  display: none;
-  max-height: 220px;
-  overflow-y: auto;
-  z-index: 10;
-}
-
-.multi-select__dropdown label {
-  display: flex;
-  gap: 8px;
-  padding: 6px;
-  cursor: pointer;
-  font-weight: normal; /* Override bold label from parent styles */
-}
-
-.multi-select__dropdown label:hover {
-  background: #f3f3f3;
-}
-
-.multi-select.open .multi-select__dropdown {
-  display: block;
-}
+/* Multi-select dropdown styles - now in global fanfiction-frontend.css */
 
 /* Warnings Mode Radio Buttons */
 .fanfic-warnings-mode {
