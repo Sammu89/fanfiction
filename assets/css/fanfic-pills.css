@@ -5,14 +5,43 @@
  * Can be used throughout the site for any pill-based UI
  *
  * Structure:
- * .fanfic-pills-container
- *   ├─ .fanfic-pill (one per taxonomy/group)
- *   │   ├─ .fanfic-pill-label (taxonomy name)
- *   │   ├─ .fanfic-pill-values
- *   │   │   ├─ .fanfic-pill-value
- *   │   │   │   ├─ .fanfic-pill-value-text
- *   │   │   │   └─ .fanfic-pill-value-remove (button with x)
+ * .fanfic-current-filters-section (optional wrapper)
+ *   ├─ .fanfic-current-filters-label (section heading)
+ *   ├─ .fanfic-current-filters-container (contains pills)
+ *   │   └─ .fanfic-pills-container
+ *   │       ├─ .fanfic-pill (one per taxonomy/group)
+ *   │       │   ├─ .fanfic-pill-label (taxonomy name)
+ *   │       │   ├─ .fanfic-pill-values
+ *   │       │   │   ├─ .fanfic-pill-value
+ *   │       │   │   │   ├─ .fanfic-pill-value-text
+ *   │       │   │   │   └─ .fanfic-pill-value-remove (button with x)
  */
+
+/* Current Filters Section (Optional Wrapper) */
+.fanfic-current-filters-section {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f5f9fb;
+    border: 1px solid #d0e8f2;
+    border-radius: 6px;
+    display: none; /* Hidden by default, shown by JavaScript when pills appear */
+}
+
+.fanfic-current-filters-section[style*="display: block"] {
+    /* Visible when JavaScript shows it */
+}
+
+.fanfic-current-filters-label {
+    margin: 0 0 12px 0;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #333;
+}
+
+.fanfic-current-filters-container {
+    margin: 0;
+    padding: 0;
+}
 
 /* Container for all pills */
 .fanfic-pills-container {

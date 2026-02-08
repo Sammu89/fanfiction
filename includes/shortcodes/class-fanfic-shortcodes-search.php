@@ -412,8 +412,11 @@ class Fanfic_Shortcodes_Search {
 		);
 		?>
 
-		<!-- Live filter pills container (updated by JavaScript in real-time) -->
-		<div data-fanfic-active-filters></div>
+		<!-- Current Filters Section with Live Pills -->
+		<div class="fanfic-current-filters-section">
+			<h3 class="fanfic-current-filters-label"><?php esc_html_e( 'Current Filters', 'fanfiction-manager' ); ?></h3>
+			<div class="fanfic-current-filters-container" data-fanfic-active-filters></div>
+		</div>
 		<?php
 
 		if ( $close_wrapper ) :

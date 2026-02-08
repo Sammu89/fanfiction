@@ -149,13 +149,24 @@
             var pillsHtml = this.generatePills(filters);
 
             var $container = $(this.config.containerSelector);
+            var $section = $container.closest('.fanfic-current-filters-section');
 
             if (pillsHtml) {
                 var containerHtml = '<ul class="fanfic-pills-container">' + pillsHtml + '</ul>';
                 $container.html(containerHtml);
                 this.attachRemoveListeners();
+
+                // Show the section when pills are present
+                if ($section.length) {
+                    $section.show();
+                }
             } else {
                 $container.empty();
+
+                // Hide the section when no pills
+                if ($section.length) {
+                    $section.hide();
+                }
             }
         },
 
