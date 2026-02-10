@@ -64,6 +64,8 @@ function fanfic_get_default_chapter_view_template() {
 		}
 		?>
 	</div>
+
+	[chapter-translations]
 </header>
 
 <!-- Main chapter content -->

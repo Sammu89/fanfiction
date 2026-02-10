@@ -153,8 +153,27 @@ class Fanfic_URL_Manager {
 		$base          = $this->slugs['base'];
 		$story_path    = $this->slugs['story_path'];
 		$chapter_slugs = $this->slugs['chapters'];
+		$page_ids      = get_option( 'fanfic_system_page_ids', array() );
+		$stories_page_id = isset( $page_ids['stories'] ) ? absint( $page_ids['stories'] ) : 0;
 		// When base slug is off, $base is '' — prefix becomes '' so rules start at root.
 		$prefix = empty( $base ) ? '' : $base . '/';
+
+		// Stories listing endpoint: /[base/]stories/
+		// Route explicitly to the configured stories page so this URL works even
+		// when the story CPT archive is disabled.
+		if ( $stories_page_id > 0 ) {
+			add_rewrite_rule(
+				'^' . $prefix . $story_path . '/?$',
+				'index.php?page_id=' . $stories_page_id,
+				'top'
+			);
+
+			add_rewrite_rule(
+				'^' . $prefix . $story_path . '/page/([0-9]{1,})/?$',
+				'index.php?page_id=' . $stories_page_id . '&paged=$matches[1]',
+				'top'
+			);
+		}
 
 		// Prologue: /[base/]stories/{story-slug}/prologue/
 		add_rewrite_rule(

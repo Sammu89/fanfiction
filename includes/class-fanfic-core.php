@@ -25,6 +25,13 @@ class Fanfic_Core {
 	private static $instance = null;
 
 	/**
+	 * Tracks current bootstrap stage for post-delete debugging.
+	 *
+	 * @var string
+	 */
+	private $post_delete_stage = 'bootstrap';
+
+	/**
 	 * Get singleton instance
 	 *
 	 * @return Fanfic_Core
@@ -44,6 +51,131 @@ class Fanfic_Core {
 		// Load text domain immediately before any hooks (WordPress 6.7+ compatibility)
 		$this->load_textdomain();
 		$this->init_hooks();
+	}
+
+	/**
+	 * Whether the current request is the setup wizard admin page.
+	 *
+	 * @return bool
+	 */
+	private function is_wizard_admin_page() {
+		if ( ! is_admin() || ! isset( $_GET['page'] ) ) {
+			return false;
+		}
+
+		$page = sanitize_key( wp_unslash( $_GET['page'] ) );
+		return 'fanfic-setup-wizard' === $page;
+	}
+
+	/**
+	 * Whether post-delete debug logging is enabled.
+	 *
+	 * @return bool
+	 */
+	private function is_post_delete_debug_enabled() {
+		static $enabled = null;
+
+		if ( null !== $enabled ) {
+			return $enabled;
+		}
+
+		$enabled = (bool) get_transient( 'fanfic_post_delete_debug' );
+		return $enabled;
+	}
+
+	/**
+	 * Log post-delete debug messages with memory metrics.
+	 *
+	 * @param string $message Debug message.
+	 * @param array  $context Optional context data.
+	 * @return void
+	 */
+	private function log_post_delete_debug( $message, $context = array() ) {
+		if ( ! $this->is_post_delete_debug_enabled() ) {
+			return;
+		}
+
+		$memory_mb = round( memory_get_usage( true ) / 1024 / 1024 );
+		$peak_mb   = round( memory_get_peak_usage( true ) / 1024 / 1024 );
+		$line      = 'Fanfic Post-Delete Debug: ' . $message . ' | mem=' . $memory_mb . 'MB peak=' . $peak_mb . 'MB';
+
+		if ( ! empty( $context ) ) {
+			$line .= ' | context=' . wp_json_encode( $context );
+		}
+
+		error_log( $line );
+	}
+
+	/**
+	 * Mark the current post-delete debug stage.
+	 *
+	 * @param string $stage Stage name.
+	 * @param array  $context Optional context data.
+	 * @return void
+	 */
+	private function mark_post_delete_stage( $stage, $context = array() ) {
+		$this->post_delete_stage = $stage;
+		$this->log_post_delete_debug( 'stage=' . $stage, $context );
+	}
+
+	/**
+	 * Register shutdown diagnostics to capture post-delete fatals.
+	 *
+	 * @return void
+	 */
+	private function register_post_delete_shutdown_debugger() {
+		if ( ! $this->is_post_delete_debug_enabled() ) {
+			return;
+		}
+
+		register_shutdown_function( array( $this, 'handle_post_delete_debug_shutdown' ) );
+	}
+
+	/**
+	 * Shutdown diagnostics for post-delete debugging.
+	 *
+	 * @return void
+	 */
+	public function handle_post_delete_debug_shutdown() {
+		if ( ! $this->is_post_delete_debug_enabled() ) {
+			return;
+		}
+
+		$error = error_get_last();
+		if ( ! empty( $error ) ) {
+			$is_fatal = in_array(
+				$error['type'],
+				array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR ),
+				true
+			);
+			if ( $is_fatal ) {
+				$this->log_post_delete_debug(
+					'fatal_shutdown',
+					array(
+						'stage'     => $this->post_delete_stage,
+						'message'   => isset( $error['message'] ) ? $error['message'] : '',
+						'file'      => isset( $error['file'] ) ? $error['file'] : '',
+						'line'      => isset( $error['line'] ) ? (int) $error['line'] : 0,
+						'request'   => isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '',
+						'is_wizard' => $this->is_wizard_admin_page(),
+					)
+				);
+				return;
+			}
+		}
+
+		$this->log_post_delete_debug(
+			'shutdown_ok',
+			array(
+				'stage'     => $this->post_delete_stage,
+				'request'   => isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '',
+				'is_wizard' => $this->is_wizard_admin_page(),
+			)
+		);
+
+		if ( $this->is_wizard_admin_page() ) {
+			delete_transient( 'fanfic_post_delete_debug' );
+		}
 	}
 
 	/**
@@ -114,6 +246,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-email-subscriptions.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-email-queue.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-author-demotion.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-story-status-automation.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-export.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-import.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-widgets.php';
@@ -121,6 +254,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-fandoms.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-warnings.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-languages.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-translations.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-custom-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
@@ -163,8 +297,20 @@ class Fanfic_Core {
 	 * Initialize hooks
 	 */
 	private function init_hooks() {
+		$this->register_post_delete_shutdown_debugger();
+		$is_wizard_admin_page = $this->is_wizard_admin_page();
+		$this->mark_post_delete_stage(
+			'init_hooks:start',
+			array(
+				'is_admin'             => is_admin(),
+				'is_wizard_admin_page' => $is_wizard_admin_page,
+			)
+		);
+
 		// Ensure database schema exists even if activation hook was skipped.
+		$this->mark_post_delete_stage( 'init_hooks:maybe_initialize_database:start' );
 		$this->maybe_initialize_database();
+		$this->mark_post_delete_stage( 'init_hooks:maybe_initialize_database:done' );
 
 		// Initialize post types
 		add_action( 'init', array( 'Fanfic_Post_Types', 'register' ) );
@@ -189,9 +335,12 @@ class Fanfic_Core {
 
 		// Initialize admin interface (only in admin)
 		if ( is_admin() ) {
+			$this->mark_post_delete_stage( 'init_hooks:admin_modules:start' );
+			$this->mark_post_delete_stage( 'init_hooks:admin_modules:cache_wizard_settings:start' );
 			Fanfic_Cache_Admin::init();
 			Fanfic_Wizard::get_instance(); // Initialize wizard singleton
 			Fanfic_Settings::init();
+			$this->mark_post_delete_stage( 'init_hooks:admin_modules:cache_wizard_settings:done' );
 
 			// Classification table health checks and rebuild handler.
 			add_action( 'init', array( 'Fanfic_Database_Setup', 'check_missing_classification_tables' ) );
@@ -200,20 +349,35 @@ class Fanfic_Core {
 
 			// Add admin notices for activation issues
 			add_action( 'admin_notices', array( __CLASS__, 'show_activation_warnings' ) );
+			$this->mark_post_delete_stage( 'init_hooks:admin_modules:taxonomy_admin:start' );
 			Fanfic_URL_Config::init();
 			Fanfic_Taxonomies_Admin::init();
 			Fanfic_Fandoms_Admin::init();
 			Fanfic_Warnings_Admin::init();
 			Fanfic_Languages_Admin::init();
 			Fanfic_Custom_Taxonomies_Admin::init();
+			$this->mark_post_delete_stage( 'init_hooks:admin_modules:taxonomy_admin:done' );
+
+			$this->mark_post_delete_stage( 'init_hooks:admin_modules:moderation_admin:start' );
 			Fanfic_Moderation::init();
 			Fanfic_Moderation_Stamps::init();
 			Fanfic_Users_Admin::init();
 			Fanfic_Export_Import_Admin::init();
 			Fanfic_Admin::init();
+			$this->mark_post_delete_stage( 'init_hooks:admin_modules:moderation_admin:done' );
+			$this->mark_post_delete_stage( 'init_hooks:admin_modules:done' );
+		}
+
+		// The wizard page only needs database/bootstrap + admin modules.
+		// Skip frontend and runtime subsystems there to avoid unnecessary memory usage.
+		if ( $is_wizard_admin_page ) {
+			add_action( 'admin_init', array( $this, 'block_banned_users_from_admin' ) );
+			$this->mark_post_delete_stage( 'init_hooks:wizard_short_circuit:return' );
+			return;
 		}
 
 		// Initialize validation
+		$this->mark_post_delete_stage( 'init_hooks:runtime_modules:start' );
 		Fanfic_Validation::init();
 
 		// Initialize auto-draft warning system
@@ -267,6 +431,7 @@ class Fanfic_Core {
 
 		// Initialize author demotion
 		Fanfic_Author_Demotion::init();
+		Fanfic_Story_Status_Automation::init();
 
 		// Initialize cache hooks (automatic cache invalidation)
 		Fanfic_Cache_Hooks::init();
@@ -291,6 +456,7 @@ class Fanfic_Core {
 		Fanfic_Fandoms::init();
 		Fanfic_Warnings::init();
 		Fanfic_Languages::init();
+		Fanfic_Translations::init();
 		Fanfic_Custom_Taxonomies::init();
 		Fanfic_Search_Index::init();
 		Fanfic_Moderation_Log::init();
@@ -329,6 +495,7 @@ class Fanfic_Core {
 
 		// Enqueue frontend styles and scripts
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
+		$this->mark_post_delete_stage( 'init_hooks:runtime_modules:done' );
 	}
 
 	/**
@@ -339,7 +506,10 @@ class Fanfic_Core {
 	 * @return void
 	 */
 	private function maybe_initialize_database() {
+		$this->mark_post_delete_stage( 'maybe_initialize_database:start' );
+
 		if ( ! class_exists( 'Fanfic_Database_Setup' ) ) {
+			$this->mark_post_delete_stage( 'maybe_initialize_database:missing_setup_class' );
 			return;
 		}
 
@@ -357,41 +527,74 @@ class Fanfic_Core {
 			$skip_classification = $on_wizard_page
 				&& ! Fanfic_Database_Setup::classification_tables_exist();
 		}
+		$this->mark_post_delete_stage(
+			'maybe_initialize_database:skip_evaluated',
+			array(
+				'skip_classification' => $skip_classification,
+				'classification_exist' => Fanfic_Database_Setup::classification_tables_exist(),
+			)
+		);
 
 		$stored_version = Fanfic_Database_Setup::get_db_version();
 		$needs_setup    = version_compare( $stored_version, Fanfic_Database_Setup::DB_VERSION, '<' );
+		$this->mark_post_delete_stage(
+			'maybe_initialize_database:version_check',
+			array(
+				'stored_version' => $stored_version,
+				'db_version'     => Fanfic_Database_Setup::DB_VERSION,
+				'needs_setup'    => $needs_setup,
+			)
+		);
 
 		if ( $needs_setup ) {
+			$this->mark_post_delete_stage( 'maybe_initialize_database:setup_init:start' );
 			$result = Fanfic_Database_Setup::init( ! $skip_classification );
 			if ( is_wp_error( $result ) ) {
 				error_log( 'Fanfiction Manager: Runtime database setup error - ' . $result->get_error_message() );
+				$this->mark_post_delete_stage(
+					'maybe_initialize_database:setup_init:error',
+					array( 'error' => $result->get_error_message() )
+				);
 				return;
 			}
+			$this->mark_post_delete_stage( 'maybe_initialize_database:setup_init:done' );
 		}
 
 		// Fallback: if classification tables are still missing and we are
 		// no longer in a "skip" context (transient expired or user left the
 		// wizard), create them now so the site is fully functional.
 		if ( ! $skip_classification && ! Fanfic_Database_Setup::classification_tables_exist() ) {
+			$this->mark_post_delete_stage( 'maybe_initialize_database:create_classification_tables:start' );
 			Fanfic_Database_Setup::create_classification_tables();
+			$this->mark_post_delete_stage( 'maybe_initialize_database:create_classification_tables:done' );
 		}
 
 		// Seed classification datasets only when their tables actually exist.
 		if ( Fanfic_Database_Setup::classification_tables_exist() ) {
 			if ( class_exists( 'Fanfic_Fandoms' ) ) {
+				$this->mark_post_delete_stage( 'maybe_initialize_database:seed_fandoms:start' );
 				Fanfic_Fandoms::maybe_seed_fandoms();
+				$this->mark_post_delete_stage( 'maybe_initialize_database:seed_fandoms:done' );
 			}
 			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				$this->mark_post_delete_stage( 'maybe_initialize_database:seed_warnings:start' );
 				Fanfic_Warnings::maybe_seed_warnings();
+				$this->mark_post_delete_stage( 'maybe_initialize_database:seed_warnings:done' );
 			}
 			if ( class_exists( 'Fanfic_Languages' ) ) {
+				$this->mark_post_delete_stage( 'maybe_initialize_database:seed_languages:start' );
 				Fanfic_Languages::maybe_seed_languages();
+				$this->mark_post_delete_stage( 'maybe_initialize_database:seed_languages:done' );
 			}
 		}
 
 		if ( taxonomy_exists( 'fanfiction_genre' ) && taxonomy_exists( 'fanfiction_status' ) && class_exists( 'Fanfic_Taxonomies' ) ) {
+			$this->mark_post_delete_stage( 'maybe_initialize_database:ensure_default_terms:start' );
 			Fanfic_Taxonomies::ensure_default_terms();
+			$this->mark_post_delete_stage( 'maybe_initialize_database:ensure_default_terms:done' );
 		}
+
+		$this->mark_post_delete_stage( 'maybe_initialize_database:done' );
 	}
 
 	/**
@@ -1147,6 +1350,31 @@ class Fanfic_Core {
 				)
 			);
 		}
+
+		// Translations autocomplete for story form
+		if ( 'template-story-form.php' === $current_template && class_exists( 'Fanfic_Translations' ) && Fanfic_Translations::is_enabled() ) {
+			wp_enqueue_script(
+				'fanfiction-translations',
+				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-translations.js',
+				array(),
+				FANFIC_VERSION,
+				true
+			);
+
+			wp_localize_script(
+				'fanfiction-translations',
+				'fanficTranslations',
+				array(
+					'restUrl'        => esc_url_raw( rest_url( Fanfic_Translations::REST_NAMESPACE . '/translations/search-stories' ) ),
+					'inheritRestUrl' => esc_url_raw( rest_url( Fanfic_Translations::REST_NAMESPACE . '/translations/inheritance-data' ) ),
+					'restNonce'      => wp_create_nonce( 'wp_rest' ),
+					'strings'   => array(
+						'remove'       => __( 'Remove translation link', 'fanfiction-manager' ),
+						'removeFandom' => __( 'Remove fandom', 'fanfiction-manager' ),
+					),
+				)
+			);
+		}
 	}
 
 	/**
@@ -1276,6 +1504,23 @@ class Fanfic_Core {
 		}
 
 		$target = add_query_arg( $args, $stories_url );
+		$current_request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+		$current_url = '' !== $current_request_uri ? home_url( $current_request_uri ) : home_url( '/' );
+
+		$current_path = untrailingslashit( (string) wp_parse_url( $current_url, PHP_URL_PATH ) );
+		$target_path = untrailingslashit( (string) wp_parse_url( $target, PHP_URL_PATH ) );
+		$current_query = (string) wp_parse_url( $current_url, PHP_URL_QUERY );
+		$target_query = (string) wp_parse_url( $target, PHP_URL_QUERY );
+		$current_query_args = array();
+		$target_query_args = array();
+		wp_parse_str( $current_query, $current_query_args );
+		wp_parse_str( $target_query, $target_query_args );
+
+		// Prevent self-redirect loops when archive URL and stories page URL resolve to the same endpoint.
+		if ( $current_path === $target_path && $current_query_args == $target_query_args ) {
+			return;
+		}
+
 		wp_safe_redirect( $target, 301 );
 		exit;
 	}
@@ -1320,8 +1565,10 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-fandoms.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-warnings.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-languages.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-translations.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-story-status-automation.php';
 
 		// Initialize and verify page template system
 		self::verify_page_template_system();
@@ -1373,6 +1620,16 @@ class Fanfic_Core {
 		Fanfic_Cron_Cleanup::schedule_cron();
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-media-cleanup.php';
 		Fanfic_Media_Cleanup::schedule_cron();
+		Fanfic_Story_Status_Automation::schedule_cron();
+
+		// Clean up legacy/duplicate cron hooks from older versions.
+		wp_clear_scheduled_hook( 'fanfic_daily_user_role_check' );
+		wp_clear_scheduled_hook( 'fanfic_daily_author_demotion_continue' );
+		wp_clear_scheduled_hook( 'fanfic_cleanup_orphaned_media_continue' );
+		wp_clear_scheduled_hook( 'fanfic_anonymize_old_data_continue' );
+		wp_clear_scheduled_hook( 'fanfic_cleanup_old_notifications_continue' );
+		wp_clear_scheduled_hook( 'fanfic_cleanup_transients_continue' );
+		wp_clear_scheduled_hook( 'fanfic_auto_transition_story_statuses_continue' );
 
 		// For multisite, store blog-specific activation
 		if ( is_multisite() ) {
@@ -1392,9 +1649,21 @@ class Fanfic_Core {
 		Fanfic_Cron_Cleanup::unschedule_cron();
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-media-cleanup.php';
 		Fanfic_Media_Cleanup::unschedule_cron();
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-story-status-automation.php';
+		Fanfic_Story_Status_Automation::unschedule_cron();
 
 		// Unschedule old cron jobs from previous versions (pre-v2.0)
 		wp_clear_scheduled_hook( 'fanfic_daily_sync_anonymous_likes' );
+		wp_clear_scheduled_hook( 'fanfic_daily_user_role_check' );
+		wp_clear_scheduled_hook( 'fanfic_daily_author_demotion' );
+		wp_clear_scheduled_hook( 'fanfic_daily_author_demotion_continue' );
+		wp_clear_scheduled_hook( 'fanfic_cleanup_old_notifications' );
+		wp_clear_scheduled_hook( 'fanfic_cleanup_old_notifications_continue' );
+		wp_clear_scheduled_hook( 'fanfic_cleanup_transients' );
+		wp_clear_scheduled_hook( 'fanfic_cleanup_transients_continue' );
+		wp_clear_scheduled_hook( 'fanfic_anonymize_old_data_continue' );
+		wp_clear_scheduled_hook( 'fanfic_cleanup_orphaned_media_continue' );
+		wp_clear_scheduled_hook( 'fanfic_auto_transition_story_statuses_continue' );
 
 		// Check if user wants to delete all data
 		$delete_data = get_option( 'fanfic_delete_on_deactivate', false );
@@ -1582,6 +1851,34 @@ class Fanfic_Core {
 	private static function delete_plugin_data() {
 		global $wpdb;
 
+		// Remove all terms from plugin taxonomies so next wizard/init starts clean.
+		$plugin_taxonomies = array(
+			'fanfiction_genre',
+			'fanfiction_status',
+		);
+
+		foreach ( $plugin_taxonomies as $taxonomy ) {
+			if ( ! taxonomy_exists( $taxonomy ) ) {
+				continue;
+			}
+
+			$term_ids = get_terms(
+				array(
+					'taxonomy'   => $taxonomy,
+					'hide_empty' => false,
+					'fields'     => 'ids',
+				)
+			);
+
+			if ( is_wp_error( $term_ids ) || empty( $term_ids ) ) {
+				continue;
+			}
+
+			foreach ( $term_ids as $term_id ) {
+				wp_delete_term( absint( $term_id ), $taxonomy );
+			}
+		}
+
 		// Delete all stories
 		$stories = get_posts( array(
 			'post_type'      => 'fanfiction_story',
@@ -1626,6 +1923,14 @@ class Fanfic_Core {
 			'subscriptions',
 			'fandoms',
 			'story_fandoms',
+			'warnings',
+			'story_warnings',
+			'languages',
+			'story_languages',
+			'story_translations',
+			'custom_taxonomies',
+			'custom_terms',
+			'story_custom_terms',
 		);
 
 		foreach ( $tables as $table ) {
@@ -1639,6 +1944,7 @@ class Fanfic_Core {
 		delete_option( 'fanfic_system_page_ids' );
 		delete_option( 'fanfic_wizard_completed' );
 		delete_option( 'fanfic_show_wizard' );
+		delete_option( 'fanfic_default_status_term_ids' );
 
 		// Remove user roles
 		Fanfic_Roles_Caps::remove_roles();

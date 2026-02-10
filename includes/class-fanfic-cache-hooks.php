@@ -57,6 +57,7 @@ class Fanfic_Cache_Hooks {
 		add_action( 'fanfic_story_unbookmarked', array( __CLASS__, 'on_bookmark_remove' ), 10, 2 );
 		add_action( 'fanfic_author_followed', array( __CLASS__, 'on_follow_add' ), 10, 2 );
 		add_action( 'fanfic_author_unfollowed', array( __CLASS__, 'on_follow_remove' ), 10, 2 );
+		add_action( 'fanfic_translations_updated', array( __CLASS__, 'invalidate_translation_caches' ), 10, 2 );
 	}
 
 	/**
@@ -182,6 +183,30 @@ class Fanfic_Cache_Hooks {
 		// Clear list and archive caches
 		self::clear_list_caches();
 		self::clear_archive_caches();
+	}
+
+	/**
+	 * Invalidate caches after translation group updates.
+	 *
+	 * @since 1.5.0
+	 * @param int $story_id Story ID that triggered the update.
+	 * @param int $group_id Translation group ID.
+	 * @return void
+	 */
+	public static function invalidate_translation_caches( $story_id, $group_id ) {
+		$story_id = absint( $story_id );
+		$group_id = absint( $group_id );
+
+		if ( class_exists( 'Fanfic_Translations' ) && $group_id ) {
+			$stories = Fanfic_Translations::get_group_stories( $group_id );
+			foreach ( $stories as $sid ) {
+				clean_post_cache( $sid );
+			}
+		}
+
+		if ( $story_id ) {
+			clean_post_cache( $story_id );
+		}
 	}
 
 	/**

@@ -83,9 +83,14 @@ class Fanfic_Warnings_Admin {
 		$search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
 		$filter_age = isset( $_GET['age_filter'] ) ? sanitize_text_field( wp_unslash( $_GET['age_filter'] ) ) : '';
 		$filter_enabled = isset( $_GET['enabled_filter'] ) ? sanitize_text_field( wp_unslash( $_GET['enabled_filter'] ) ) : '';
+		if ( '' !== $filter_age && class_exists( 'Fanfic_Warnings' ) ) {
+			$filter_age = Fanfic_Warnings::normalize_age_label( $filter_age );
+		}
 
 		$warnings = self::get_all_warnings( $search, $filter_age, $filter_enabled );
 		$age_counts = self::get_age_counts();
+		$age_options = self::get_age_filter_options( $age_counts );
+		$warnings_class_ready = class_exists( 'Fanfic_Warnings' );
 
 		// Get content restriction settings
 		$allow_sexual = Fanfic_Settings::get_setting( 'allow_sexual_content', true );
@@ -125,9 +130,15 @@ class Fanfic_Warnings_Admin {
 
 					<select name="age_filter">
 						<option value=""><?php esc_html_e( 'All Ages', 'fanfiction-manager' ); ?></option>
-						<?php foreach ( Fanfic_Warnings::VALID_AGES as $age ) : ?>
+						<?php foreach ( $age_options as $age ) : ?>
+							<?php
+							$age_label = $warnings_class_ready ? Fanfic_Warnings::format_age_label_for_display( $age, false ) : $age;
+							if ( '' === $age_label ) {
+								$age_label = $age;
+							}
+							?>
 							<option value="<?php echo esc_attr( $age ); ?>" <?php selected( $filter_age, $age ); ?>>
-								<?php echo esc_html( $age ); ?>
+								<?php echo esc_html( $age_label ); ?>
 								(<?php echo esc_html( isset( $age_counts[ $age ] ) ? $age_counts[ $age ] : 0 ); ?>)
 							</option>
 						<?php endforeach; ?>
@@ -195,6 +206,11 @@ class Fanfic_Warnings_Admin {
 								$is_sexual = ! empty( $warning['is_sexual'] );
 								$is_pornographic = ! empty( $warning['is_pornographic'] );
 								$row_class = $is_enabled ? '' : 'fanfic-warning-disabled';
+								$age_badge_class = $warnings_class_ready ? Fanfic_Warnings::get_age_badge_class( $warning['min_age'] ?? '' ) : 'fanfic-age-badge-18-plus';
+								$age_badge_label = $warnings_class_ready ? Fanfic_Warnings::format_age_label_for_display( $warning['min_age'] ?? '', false ) : (string) ( $warning['min_age'] ?? '' );
+								if ( '' === $age_badge_label ) {
+									$age_badge_label = (string) ( $warning['min_age'] ?? '' );
+								}
 
 								// Check if warning is restricted
 								$is_restricted = ( $is_sexual && ! $allow_sexual ) || ( $is_pornographic && ! $allow_pornographic );
@@ -225,8 +241,8 @@ class Fanfic_Warnings_Admin {
 									</td>
 									<td class="column-slug"><code><?php echo esc_html( $warning['slug'] ); ?></code></td>
 									<td class="column-age">
-										<span class="fanfic-age-badge fanfic-age-<?php echo esc_attr( sanitize_title( $warning['min_age'] ) ); ?>">
-											<?php echo esc_html( $warning['min_age'] ); ?>
+										<span class="fanfic-age-badge <?php echo esc_attr( $age_badge_class ); ?>">
+											<?php echo esc_html( $age_badge_label ); ?>
 										</span>
 									</td>
 									<td class="column-flags">
@@ -307,11 +323,7 @@ class Fanfic_Warnings_Admin {
 
 					<p>
 						<label for="fanfic-add-warning-age"><?php esc_html_e( 'Minimum Age', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
-						<select id="fanfic-add-warning-age" name="warning_min_age" required>
-							<?php foreach ( Fanfic_Warnings::VALID_AGES as $age ) : ?>
-								<option value="<?php echo esc_attr( $age ); ?>"><?php echo esc_html( $age ); ?></option>
-							<?php endforeach; ?>
-						</select>
+						<input type="number" id="fanfic-add-warning-age" name="warning_min_age" class="regular-text" min="3" max="99" step="1" list="fanfic-warning-age-options" required>
 					</p>
 
 					<p>
@@ -365,11 +377,7 @@ class Fanfic_Warnings_Admin {
 
 					<p>
 						<label for="fanfic-edit-warning-age"><?php esc_html_e( 'Minimum Age', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
-						<select id="fanfic-edit-warning-age" name="warning_min_age" required>
-							<?php foreach ( Fanfic_Warnings::VALID_AGES as $age ) : ?>
-								<option value="<?php echo esc_attr( $age ); ?>"><?php echo esc_html( $age ); ?></option>
-							<?php endforeach; ?>
-						</select>
+						<input type="number" id="fanfic-edit-warning-age" name="warning_min_age" class="regular-text" min="3" max="99" step="1" list="fanfic-warning-age-options" required>
 					</p>
 
 					<p>
@@ -420,6 +428,12 @@ class Fanfic_Warnings_Admin {
 			</div>
 		</div>
 
+		<datalist id="fanfic-warning-age-options">
+			<?php foreach ( $age_options as $age ) : ?>
+				<option value="<?php echo esc_attr( $age ); ?>"></option>
+			<?php endforeach; ?>
+		</datalist>
+
 		<style>
 			.fanfic-warning-disabled td {
 				opacity: 0.6;
@@ -431,10 +445,11 @@ class Fanfic_Warnings_Admin {
 				font-size: 12px;
 				font-weight: 600;
 			}
-			.fanfic-age-pg { background: #e7f7e7; color: #2e7d32; }
-			.fanfic-age-13 { background: #fff8e1; color: #f57c00; }
-			.fanfic-age-16 { background: #fff3e0; color: #e65100; }
-			.fanfic-age-18 { background: #ffebee; color: #c62828; }
+			.fanfic-age-badge-3-9 { background: #e8f5e9; color: #2e7d32; }
+			.fanfic-age-badge-10-12 { background: #f1f8e9; color: #558b2f; }
+			.fanfic-age-badge-13-15 { background: #fff8e1; color: #ef6c00; }
+			.fanfic-age-badge-16-17 { background: #fff3e0; color: #e65100; }
+			.fanfic-age-badge-18-plus { background: #ffebee; color: #c62828; }
 			.fanfic-flag {
 				display: inline-block;
 				width: 20px;
@@ -510,6 +525,41 @@ class Fanfic_Warnings_Admin {
 
 		<script>
 		jQuery(document).ready(function($) {
+			function clampWarningAgeInput($input) {
+				var min = parseInt($input.attr('min'), 10);
+				var max = parseInt($input.attr('max'), 10);
+				var raw = $.trim($input.val());
+
+				if (raw === '') {
+					return;
+				}
+
+				var parsed = Math.round(parseFloat(raw));
+				if (isNaN(parsed)) {
+					$input.val('');
+					return;
+				}
+
+				if (!isNaN(min) && parsed < min) {
+					parsed = min;
+				}
+				if (!isNaN(max) && parsed > max) {
+					parsed = max;
+				}
+
+				$input.val(parsed);
+			}
+
+			var $ageInputs = $('#fanfic-add-warning-age, #fanfic-edit-warning-age');
+			$ageInputs.on('change blur', function() {
+				clampWarningAgeInput($(this));
+			});
+			$('.fanfic-admin-modal-form').on('submit', function() {
+				$(this).find('input[name="warning_min_age"]').each(function() {
+					clampWarningAgeInput($(this));
+				});
+			});
+
 			// Edit warning modal
 			$('.fanfic-edit-warning-link').on('click', function(e) {
 				e.preventDefault();
@@ -590,9 +640,12 @@ class Fanfic_Warnings_Admin {
 			$args[] = $like;
 		}
 
-		if ( '' !== $filter_age && in_array( $filter_age, Fanfic_Warnings::VALID_AGES, true ) ) {
-			$where[] = 'min_age = %s';
-			$args[] = $filter_age;
+		if ( '' !== $filter_age ) {
+			$normalized_age = class_exists( 'Fanfic_Warnings' ) ? Fanfic_Warnings::normalize_age_label( $filter_age ) : trim( (string) $filter_age );
+			if ( '' !== $normalized_age ) {
+				$where[] = 'min_age = %s';
+				$args[] = $normalized_age;
+			}
 		}
 
 		if ( '' !== $filter_enabled ) {
@@ -600,13 +653,33 @@ class Fanfic_Warnings_Admin {
 			$args[] = (int) $filter_enabled;
 		}
 
-		$sql = "SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY min_age ASC, name ASC';
+		$sql = "SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY name ASC';
 
 		if ( ! empty( $args ) ) {
 			$sql = $wpdb->prepare( $sql, $args );
 		}
 
-		return $wpdb->get_results( $sql, ARRAY_A );
+		$warnings = $wpdb->get_results( $sql, ARRAY_A );
+		if ( empty( $warnings ) || ! class_exists( 'Fanfic_Warnings' ) ) {
+			return is_array( $warnings ) ? $warnings : array();
+		}
+
+		$priority = Fanfic_Warnings::get_age_priority_map( false );
+		usort(
+			$warnings,
+			function( $left, $right ) use ( $priority ) {
+				$left_age = Fanfic_Warnings::normalize_age_label( $left['min_age'] ?? '' );
+				$right_age = Fanfic_Warnings::normalize_age_label( $right['min_age'] ?? '' );
+				$left_rank = isset( $priority[ $left_age ] ) ? (int) $priority[ $left_age ] : 0;
+				$right_rank = isset( $priority[ $right_age ] ) ? (int) $priority[ $right_age ] : 0;
+				if ( $left_rank === $right_rank ) {
+					return strcasecmp( (string) ( $left['name'] ?? '' ), (string) ( $right['name'] ?? '' ) );
+				}
+				return ( $left_rank < $right_rank ) ? -1 : 1;
+			}
+		);
+
+		return $warnings;
 	}
 
 	/**
@@ -633,6 +706,49 @@ class Fanfic_Warnings_Admin {
 	}
 
 	/**
+	 * Build age option labels for the admin filter and forms.
+	 *
+	 * @since 1.2.0
+	 * @param array $age_counts Counts keyed by age label.
+	 * @return string[]
+	 */
+	private static function get_age_filter_options( $age_counts = array() ) {
+		$age_options = array_keys( (array) $age_counts );
+
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			$priority = Fanfic_Warnings::get_age_priority_map( false );
+			$default_age = Fanfic_Warnings::get_default_age_label( false );
+			unset( $priority[ $default_age ] );
+			$age_options = array_merge( $age_options, array_keys( $priority ) );
+		}
+
+		$age_options = array_values( array_unique( array_filter( array_map( 'trim', $age_options ) ) ) );
+		if ( empty( $age_options ) ) {
+			return array();
+		}
+
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			$priority = Fanfic_Warnings::get_age_priority_map( false );
+			usort(
+				$age_options,
+				function( $left, $right ) use ( $priority ) {
+					$left_rank  = isset( $priority[ $left ] ) ? (int) $priority[ $left ] : PHP_INT_MAX;
+					$right_rank = isset( $priority[ $right ] ) ? (int) $priority[ $right ] : PHP_INT_MAX;
+					if ( $left_rank === $right_rank ) {
+						return strcasecmp( (string) $left, (string) $right );
+					}
+					return ( $left_rank < $right_rank ) ? -1 : 1;
+				}
+			);
+		} else {
+			natcasesort( $age_options );
+			$age_options = array_values( $age_options );
+		}
+
+		return $age_options;
+	}
+
+	/**
 	 * Handle add warning
 	 *
 	 * @since 1.2.0
@@ -643,18 +759,13 @@ class Fanfic_Warnings_Admin {
 
 		$name = isset( $_POST['warning_name'] ) ? sanitize_text_field( wp_unslash( $_POST['warning_name'] ) ) : '';
 		$slug = isset( $_POST['warning_slug'] ) ? sanitize_title( wp_unslash( $_POST['warning_slug'] ) ) : '';
-		$min_age = isset( $_POST['warning_min_age'] ) ? sanitize_text_field( wp_unslash( $_POST['warning_min_age'] ) ) : 'PG';
+		$min_age = isset( $_POST['warning_min_age'] ) ? Fanfic_Warnings::sanitize_age_label( wp_unslash( $_POST['warning_min_age'] ) ) : '';
 		$description = isset( $_POST['warning_description'] ) ? sanitize_textarea_field( wp_unslash( $_POST['warning_description'] ) ) : '';
 		$is_sexual = isset( $_POST['warning_is_sexual'] ) ? 1 : 0;
 		$is_pornographic = isset( $_POST['warning_is_pornographic'] ) ? 1 : 0;
 
-		if ( '' === $name ) {
+		if ( '' === $name || '' === $min_age ) {
 			self::redirect_with_message( 'error', 'missing_fields' );
-		}
-
-		// Validate age
-		if ( ! in_array( $min_age, Fanfic_Warnings::VALID_AGES, true ) ) {
-			$min_age = 'PG';
 		}
 
 		// Generate slug if empty
@@ -673,14 +784,22 @@ class Fanfic_Warnings_Admin {
 			array(
 				'slug'           => $slug,
 				'name'           => $name,
-				'min_age'        => $min_age,
+				'min_age'        => (int) $min_age,
 				'description'    => $description,
 				'is_sexual'      => $is_sexual,
 				'is_pornographic' => $is_pornographic,
 				'enabled'        => 1,
 			),
-			array( '%s', '%s', '%s', '%s', '%d', '%d', '%d' )
+			array( '%s', '%s', '%d', '%s', '%d', '%d', '%d' )
 		);
+
+		$new_warning_id = (int) $wpdb->insert_id;
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			Fanfic_Warnings::ensure_lowest_age_assignment();
+			if ( $new_warning_id > 0 ) {
+				Fanfic_Warnings::sync_age_ratings_for_warning( $new_warning_id, false );
+			}
+		}
 
 		self::redirect_with_message( 'success', 'warning_added' );
 	}
@@ -697,19 +816,14 @@ class Fanfic_Warnings_Admin {
 
 		$name = isset( $_POST['warning_name'] ) ? sanitize_text_field( wp_unslash( $_POST['warning_name'] ) ) : '';
 		$slug = isset( $_POST['warning_slug'] ) ? sanitize_title( wp_unslash( $_POST['warning_slug'] ) ) : '';
-		$min_age = isset( $_POST['warning_min_age'] ) ? sanitize_text_field( wp_unslash( $_POST['warning_min_age'] ) ) : 'PG';
+		$min_age = isset( $_POST['warning_min_age'] ) ? Fanfic_Warnings::sanitize_age_label( wp_unslash( $_POST['warning_min_age'] ) ) : '';
 		$description = isset( $_POST['warning_description'] ) ? sanitize_textarea_field( wp_unslash( $_POST['warning_description'] ) ) : '';
 		$is_sexual = isset( $_POST['warning_is_sexual'] ) ? 1 : 0;
 		$is_pornographic = isset( $_POST['warning_is_pornographic'] ) ? 1 : 0;
 		$enabled = isset( $_POST['warning_enabled'] ) ? 1 : 0;
 
-		if ( ! $warning_id || '' === $name ) {
+		if ( ! $warning_id || '' === $name || '' === $min_age ) {
 			self::redirect_with_message( 'error', 'missing_fields' );
-		}
-
-		// Validate age
-		if ( ! in_array( $min_age, Fanfic_Warnings::VALID_AGES, true ) ) {
-			$min_age = 'PG';
 		}
 
 		// Generate slug if empty
@@ -722,22 +836,34 @@ class Fanfic_Warnings_Admin {
 
 		global $wpdb;
 		$table = $wpdb->prefix . 'fanfic_warnings';
+		$existing = $wpdb->get_row(
+			$wpdb->prepare( "SELECT min_age FROM {$table} WHERE id = %d", $warning_id ),
+			ARRAY_A
+		);
 
 		$wpdb->update(
 			$table,
 			array(
 				'slug'           => $slug,
 				'name'           => $name,
-				'min_age'        => $min_age,
+				'min_age'        => (int) $min_age,
 				'description'    => $description,
 				'is_sexual'      => $is_sexual,
 				'is_pornographic' => $is_pornographic,
 				'enabled'        => $enabled,
 			),
 			array( 'id' => $warning_id ),
-			array( '%s', '%s', '%s', '%s', '%d', '%d', '%d' ),
+			array( '%s', '%s', '%d', '%s', '%d', '%d', '%d' ),
 			array( '%d' )
 		);
+
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			Fanfic_Warnings::ensure_lowest_age_assignment();
+			$min_age_changed = isset( $existing['min_age'] ) && (string) $existing['min_age'] !== (string) $min_age;
+			if ( $min_age_changed ) {
+				Fanfic_Warnings::sync_age_ratings_for_warning( $warning_id, false );
+			}
+		}
 
 		self::redirect_with_message( 'success', 'warning_updated' );
 	}
@@ -801,12 +927,20 @@ class Fanfic_Warnings_Admin {
 		global $wpdb;
 		$warnings_table = $wpdb->prefix . 'fanfic_warnings';
 		$relations_table = $wpdb->prefix . 'fanfic_story_warnings';
+		$affected_story_ids = $wpdb->get_col(
+			$wpdb->prepare( "SELECT DISTINCT story_id FROM {$relations_table} WHERE warning_id = %d", $warning_id )
+		);
 
 		// Delete story relations first
 		$wpdb->delete( $relations_table, array( 'warning_id' => $warning_id ), array( '%d' ) );
 
 		// Delete the warning
 		$wpdb->delete( $warnings_table, array( 'id' => $warning_id ), array( '%d' ) );
+
+		if ( class_exists( 'Fanfic_Warnings' ) ) {
+			Fanfic_Warnings::ensure_lowest_age_assignment();
+			Fanfic_Warnings::sync_story_age_ratings( $affected_story_ids );
+		}
 
 		self::redirect_with_message( 'success', 'warning_deleted' );
 	}
@@ -844,6 +978,12 @@ class Fanfic_Warnings_Admin {
 
 		if ( 'delete' === $action ) {
 			$relations_table = $wpdb->prefix . 'fanfic_story_warnings';
+			$affected_story_ids = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT DISTINCT story_id FROM {$relations_table} WHERE warning_id IN ({$placeholders})",
+					$warning_ids
+				)
+			);
 
 			// Delete story relations first
 			$wpdb->query(
@@ -860,6 +1000,11 @@ class Fanfic_Warnings_Admin {
 					$warning_ids
 				)
 			);
+
+			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				Fanfic_Warnings::ensure_lowest_age_assignment();
+				Fanfic_Warnings::sync_story_age_ratings( $affected_story_ids );
+			}
 
 			self::redirect_with_message( 'success', 'warning_deleted' );
 		}

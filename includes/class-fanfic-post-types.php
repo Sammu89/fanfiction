@@ -81,7 +81,7 @@ class Fanfic_Post_Types {
 			),
 			'capability_type'    => array( 'fanfiction_story', 'fanfiction_stories' ),
 			'map_meta_cap'       => true,
-			'has_archive'        => true,
+			'has_archive'        => false,
 			'hierarchical'       => true,
 			'menu_position'      => 5,
 			'menu_icon'          => 'dashicons-book',

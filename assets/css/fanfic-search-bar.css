@@ -28,6 +28,12 @@
     min-width: 200px; /* Allow input to grow but have a minimum width */
 }
 
+.fanfic-status-filter-wrapper,
+.fanfic-sort-filter-wrapper {
+    flex-grow: 1;
+    flex-basis: 200px; /* Give them a starting point for their size */
+}
+
 /* Search input styling - global select styling inherited from fanfiction-frontend.css */
 .fanfic-basic-search-row input[type="text"],
 .fanfic-basic-search-row select {
@@ -104,23 +110,18 @@
 
 /* Multi-select dropdown styles - now in global fanfiction-frontend.css */
 
-/* Warnings Mode Radio Buttons */
-.fanfic-warnings-mode {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 10px;
-    align-items: center;
+/* Hide inline fandom pills in search form (Current Filters pills handle display) */
+.fanfic-stories-form .fanfic-selected-fandoms {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
 }
 
-.fanfic-warnings-mode label {
-    font-weight: normal; /* Override bold label from parent styles */
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    cursor: pointer;
-}
-
-.fanfic-warnings-multiselect {
+/* Warnings Columns (Exclude / Include side by side) */
+.fanfic-stories-warnings.fanfic-stories-columns {
     margin-top: 5px;
 }
 

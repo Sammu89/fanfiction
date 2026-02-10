@@ -111,15 +111,26 @@ class Fanfic_Fandoms {
 
 		global $wpdb;
 		$table = self::get_fandoms_table();
+		$relations_table = self::get_story_fandoms_table();
+		$index_table = $wpdb->prefix . 'fanfic_story_search_index';
 		$like = $wpdb->esc_like( $query ) . '%';
 
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, name
-				FROM {$table}
-				WHERE is_active = 1
-				  AND name LIKE %s
-				ORDER BY name ASC
+				"SELECT
+					f.id,
+					f.name,
+					f.slug,
+					COUNT(DISTINCT idx.story_id) AS story_count
+				FROM {$table} f
+				LEFT JOIN {$relations_table} sf ON sf.fandom_id = f.id
+				LEFT JOIN {$index_table} idx
+					ON idx.story_id = sf.story_id
+				   AND idx.story_status = 'publish'
+				WHERE f.is_active = 1
+				  AND f.name LIKE %s
+				GROUP BY f.id, f.name, f.slug
+				ORDER BY f.name ASC
 				LIMIT %d",
 				$like,
 				$limit
@@ -132,16 +143,25 @@ class Fanfic_Fandoms {
 		if ( count( $results ) < $limit && strlen( $query ) >= 3 && self::has_fulltext_index() ) {
 			$remaining = $limit - count( $results );
 			$existing_ids = wp_list_pluck( $results, 'id' );
-			$exclude = ! empty( $existing_ids ) ? 'AND id NOT IN (' . implode( ',', array_map( 'absint', $existing_ids ) ) . ')' : '';
+			$exclude = ! empty( $existing_ids ) ? 'AND f.id NOT IN (' . implode( ',', array_map( 'absint', $existing_ids ) ) . ')' : '';
 
 			$fulltext = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT id, name
-					FROM {$table}
-					WHERE is_active = 1
+					"SELECT
+						f.id,
+						f.name,
+						f.slug,
+						COUNT(DISTINCT idx.story_id) AS story_count
+					FROM {$table} f
+					LEFT JOIN {$relations_table} sf ON sf.fandom_id = f.id
+					LEFT JOIN {$index_table} idx
+						ON idx.story_id = sf.story_id
+					   AND idx.story_status = 'publish'
+					WHERE f.is_active = 1
 					  {$exclude}
-					  AND MATCH(name) AGAINST (%s IN NATURAL LANGUAGE MODE)
-					ORDER BY name ASC
+					  AND MATCH(f.name) AGAINST (%s IN NATURAL LANGUAGE MODE)
+					GROUP BY f.id, f.name, f.slug
+					ORDER BY f.name ASC
 					LIMIT %d",
 					$query,
 					$remaining
@@ -156,9 +176,12 @@ class Fanfic_Fandoms {
 
 		$response = array();
 		foreach ( $results as $row ) {
+			$count = absint( $row['story_count'] ?? 0 );
 			$response[] = array(
-				'id'    => (int) $row['id'],
-				'label' => $row['name'],
+				'id'       => (int) $row['id'],
+				'label'    => $row['name'],
+				'count'    => $count,
+				'disabled' => 0 === $count,
 			);
 		}
 
@@ -464,6 +487,9 @@ class Fanfic_Fandoms {
 		if ( $is_original ) {
 			update_post_meta( $story_id, self::META_ORIGINAL, '1' );
 			self::delete_story_relations( $story_id );
+			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+				Fanfic_Search_Index::update_index( $story_id );
+			}
 			return;
 		}
 
@@ -473,6 +499,9 @@ class Fanfic_Fandoms {
 		self::delete_story_relations( $story_id );
 
 		if ( empty( $validated ) ) {
+			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+				Fanfic_Search_Index::update_index( $story_id );
+			}
 			return;
 		}
 
@@ -487,6 +516,10 @@ class Fanfic_Fandoms {
 				),
 				array( '%d', '%d' )
 			);
+		}
+
+		if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+			Fanfic_Search_Index::update_index( $story_id );
 		}
 	}
 
@@ -667,6 +700,28 @@ class Fanfic_Fandoms {
 	private static function get_fandoms_table() {
 		global $wpdb;
 		return $wpdb->prefix . 'fanfic_fandoms';
+	}
+
+	/**
+	 * Get all active fandoms.
+	 *
+	 * @since 1.0.0
+	 * @return array Array of active fandom objects.
+	 */
+	public static function get_all_active() {
+		if ( ! self::tables_ready() ) {
+			return array();
+		}
+
+		global $wpdb;
+		$table = self::get_fandoms_table();
+
+		$results = $wpdb->get_results(
+			"SELECT id, slug, name, category FROM {$table} WHERE is_active = 1 ORDER BY name ASC",
+			ARRAY_A
+		);
+
+		return is_array( $results ) ? $results : array();
 	}
 
 	/**

@@ -28,6 +28,41 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Cache_Admin {
 
 	/**
+	 * Continuation hook name for cache cleanup.
+	 *
+	 * @var string
+	 */
+	const CLEANUP_CONTINUATION_HOOK = 'fanfic_cleanup_transients_continue';
+
+	/**
+	 * Daily start offset from cron_hour (minutes).
+	 *
+	 * @var int
+	 */
+	const CLEANUP_CRON_OFFSET_MINUTES = 30;
+
+	/**
+	 * Batch size for one cleanup query.
+	 *
+	 * @var int
+	 */
+	const CLEANUP_BATCH_SIZE = 500;
+
+	/**
+	 * Worker time limit.
+	 *
+	 * @var int
+	 */
+	const CLEANUP_MAX_RUNTIME_SECONDS = 45;
+
+	/**
+	 * Lock key.
+	 *
+	 * @var string
+	 */
+	const CLEANUP_LOCK_KEY = 'fanfic_lock_cleanup_transients';
+
+	/**
 	 * Initialize the cache admin class
 	 *
 	 * Sets up WordPress hooks for cache management.
@@ -49,6 +84,8 @@ class Fanfic_Cache_Admin {
 
 		// Register cron event
 		add_action( 'fanfic_cleanup_transients', array( __CLASS__, 'cron_cleanup_expired' ) );
+		add_action( self::CLEANUP_CONTINUATION_HOOK, array( __CLASS__, 'cron_cleanup_expired' ) );
+		add_action( 'update_option_fanfic_settings', array( __CLASS__, 'reschedule_on_settings_change' ), 10, 2 );
 
 		// Schedule cron on plugin activation
 		if ( ! wp_next_scheduled( 'fanfic_cleanup_transients' ) ) {
@@ -500,20 +537,35 @@ class Fanfic_Cache_Admin {
 	 * @return void
 	 */
 	public static function schedule_cleanup() {
-		// Get cron hour from settings (default 2 AM)
-		$cron_hour = Fanfic_Settings::get_setting( 'cron_hour', 2 );
+		// Get cron hour from settings (default 3 AM)
+		$cron_hour = Fanfic_Settings::get_setting( 'cron_hour', 3 );
+		$cron_hour = min( 23, max( 0, absint( $cron_hour ) ) );
 
 		// Calculate next run time
-		$current_time = current_time( 'timestamp' );
-		$scheduled_time = strtotime( "today {$cron_hour}:00:00" );
-
-		// If the time has passed today, schedule for tomorrow
-		if ( $scheduled_time < $current_time ) {
-			$scheduled_time = strtotime( "tomorrow {$cron_hour}:00:00" );
-		}
+		$scheduled_time = self::calculate_next_run_time( $cron_hour, self::CLEANUP_CRON_OFFSET_MINUTES );
 
 		// Schedule the event
 		wp_schedule_event( $scheduled_time, 'daily', 'fanfic_cleanup_transients' );
+	}
+
+	/**
+	 * Re-schedule cleanup cron when settings change.
+	 *
+	 * @since 1.0.0
+	 * @param array $old_value Previous settings.
+	 * @param array $new_value New settings.
+	 * @return void
+	 */
+	public static function reschedule_on_settings_change( $old_value, $new_value ) {
+		$old_hour = isset( $old_value['cron_hour'] ) ? absint( $old_value['cron_hour'] ) : 3;
+		$new_hour = isset( $new_value['cron_hour'] ) ? absint( $new_value['cron_hour'] ) : 3;
+
+		if ( $old_hour === $new_hour ) {
+			return;
+		}
+
+		self::unschedule_cleanup();
+		self::schedule_cleanup();
 	}
 
 	/**
@@ -525,10 +577,8 @@ class Fanfic_Cache_Admin {
 	 * @return void
 	 */
 	public static function unschedule_cleanup() {
-		$timestamp = wp_next_scheduled( 'fanfic_cleanup_transients' );
-		if ( $timestamp ) {
-			wp_unschedule_event( $timestamp, 'fanfic_cleanup_transients' );
-		}
+		wp_clear_scheduled_hook( 'fanfic_cleanup_transients' );
+		wp_clear_scheduled_hook( self::CLEANUP_CONTINUATION_HOOK );
 	}
 
 	/**
@@ -538,10 +588,31 @@ class Fanfic_Cache_Admin {
 	 * @return void
 	 */
 	public static function cron_cleanup_expired() {
-		$count = Fanfic_Cache::cleanup_expired();
+		if ( ! self::acquire_cleanup_lock() ) {
+			return;
+		}
+
+		$total = 0;
+		$start = microtime( true );
+		$time_budget = self::get_cleanup_time_budget_seconds();
+		$has_more = false;
+
+		do {
+			$count = Fanfic_Cache::cleanup_expired_batch( self::CLEANUP_BATCH_SIZE );
+			$total += $count;
+			$has_more = ( self::CLEANUP_BATCH_SIZE === $count );
+		} while ( $has_more && ( microtime( true ) - $start ) < $time_budget );
+
+		if ( $has_more ) {
+			self::schedule_cleanup_continuation();
+		} else {
+			wp_clear_scheduled_hook( self::CLEANUP_CONTINUATION_HOOK );
+		}
+
+		self::release_cleanup_lock();
 
 		// Log the cleanup
-		self::log_cache_action( 'cron_cleanup', $count );
+		self::log_cache_action( 'cron_cleanup', $total );
 	}
 
 	/**
@@ -609,6 +680,82 @@ class Fanfic_Cache_Admin {
 		array_unshift( $log_history, $log_data );
 		$log_history = array_slice( $log_history, 0, 20 );
 		update_option( 'fanfic_cache_action_log', $log_history );
+	}
+
+	/**
+	 * Calculate next run time for cron hour + offset.
+	 *
+	 * @since 2.0.0
+	 * @param int $cron_hour Hour (0-23).
+	 * @param int $offset_minutes Offset in minutes.
+	 * @return int Timestamp.
+	 */
+	private static function calculate_next_run_time( $cron_hour, $offset_minutes = 0 ) {
+		$cron_hour = min( 23, max( 0, absint( $cron_hour ) ) );
+		$offset_minutes = max( 0, absint( $offset_minutes ) );
+
+		$current_time = current_time( 'timestamp' );
+		$today = date_i18n( 'Y-m-d', $current_time );
+		$scheduled_time = strtotime( sprintf( '%s %02d:00:00', $today, $cron_hour ) );
+		$scheduled_time = strtotime( '+' . $offset_minutes . ' minutes', $scheduled_time );
+
+		if ( $scheduled_time <= $current_time ) {
+			$scheduled_time = strtotime( '+1 day', $scheduled_time );
+		}
+
+		return $scheduled_time;
+	}
+
+	/**
+	 * Schedule continuation worker.
+	 *
+	 * @since 2.0.0
+	 * @return void
+	 */
+	private static function schedule_cleanup_continuation() {
+		if ( ! wp_next_scheduled( self::CLEANUP_CONTINUATION_HOOK ) ) {
+			wp_schedule_single_event( time() + MINUTE_IN_SECONDS, self::CLEANUP_CONTINUATION_HOOK );
+		}
+	}
+
+	/**
+	 * Acquire cleanup lock.
+	 *
+	 * @since 2.0.0
+	 * @return bool
+	 */
+	private static function acquire_cleanup_lock() {
+		if ( get_transient( self::CLEANUP_LOCK_KEY ) ) {
+			return false;
+		}
+
+		set_transient( self::CLEANUP_LOCK_KEY, 1, self::CLEANUP_MAX_RUNTIME_SECONDS + 120 );
+		return true;
+	}
+
+	/**
+	 * Release cleanup lock.
+	 *
+	 * @since 2.0.0
+	 * @return void
+	 */
+	private static function release_cleanup_lock() {
+		delete_transient( self::CLEANUP_LOCK_KEY );
+	}
+
+	/**
+	 * Get safe cleanup budget based on server max_execution_time.
+	 *
+	 * @since 2.0.0
+	 * @return int Seconds.
+	 */
+	private static function get_cleanup_time_budget_seconds() {
+		$budget = self::CLEANUP_MAX_RUNTIME_SECONDS;
+		$max_exec = (int) ini_get( 'max_execution_time' );
+		if ( $max_exec > 0 ) {
+			$budget = max( 10, min( $budget, $max_exec - 5 ) );
+		}
+		return $budget;
 	}
 
 	/**

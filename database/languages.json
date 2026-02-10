@@ -66,6 +66,7 @@
   { "slug": "fa", "name": "Persian", "native_name": "فارسی" },
   { "slug": "pl", "name": "Polish", "native_name": "Polski" },
   { "slug": "pt", "name": "Portuguese", "native_name": "Português" },
+  { "slug": "pt-pt", "name": "Portuguese", "native_name": "Português" },
   { "slug": "pt-br", "name": "Portuguese (Brazil)", "native_name": "Português do Brasil" },
 
   { "slug": "ro", "name": "Romanian", "native_name": "Română" },
@@ -75,6 +76,7 @@
   { "slug": "sk", "name": "Slovak", "native_name": "Slovenčina" },
   { "slug": "sl", "name": "Slovenian", "native_name": "Slovenščina" },
   { "slug": "es", "name": "Spanish", "native_name": "Español" },
+  { "slug": "es-es", "name": "Spanish", "native_name": "Español" },
   { "slug": "es-419", "name": "Spanish (Latin America)", "native_name": "Español (Latinoamérica)" },
   { "slug": "sw", "name": "Swahili", "native_name": "Kiswahili" },
   { "slug": "sv", "name": "Swedish", "native_name": "Svenska" },

@@ -49,6 +49,7 @@ class Fanfic_Shortcodes_Story {
 		add_shortcode( 'story-warnings', array( __CLASS__, 'story_warnings' ) );
 		add_shortcode( 'story-visible-tags', array( __CLASS__, 'story_visible_tags' ) );
 		add_shortcode( 'story-age-badge', array( __CLASS__, 'story_age_badge' ) );
+		add_shortcode( 'story-translations', array( __CLASS__, 'story_translations' ) );
 	}
 
 	/**
@@ -312,6 +313,59 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		return '<div class="fanfic-story-language"><strong>' . esc_html__( 'Language:', 'fanfiction-manager' ) . '</strong> <span class="story-language" aria-label="' . esc_attr__( 'Story language', 'fanfiction-manager' ) . '">' . $label . '</span></div>';
+	}
+
+	/**
+	 * Story translations shortcode
+	 *
+	 * [story-translations]
+	 *
+	 * Displays available translations as inline link (1 translation)
+	 * or dropdown (2+ translations) with globe icon.
+	 *
+	 * @since 1.5.0
+	 * @return string Translations HTML or empty string.
+	 */
+	public static function story_translations() {
+		if ( ! class_exists( 'Fanfic_Translations' ) || ! Fanfic_Translations::is_enabled() ) {
+			return '';
+		}
+
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		$siblings = Fanfic_Translations::get_translation_siblings( $story_id );
+		if ( empty( $siblings ) ) {
+			return '';
+		}
+
+		$count = count( $siblings );
+
+		ob_start();
+		?>
+		<div class="fanfic-story-translations" aria-label="<?php esc_attr_e( 'Available translations', 'fanfiction-manager' ); ?>">
+			<span class="fanfic-translations-icon" aria-hidden="true">&#127760;</span>
+			<strong><?php esc_html_e( 'Also available in:', 'fanfiction-manager' ); ?></strong>
+			<?php if ( 1 === $count ) : ?>
+				<?php $sibling = $siblings[0]; ?>
+				<a href="<?php echo esc_url( $sibling['permalink'] ); ?>" class="fanfic-translation-link">
+					<?php echo esc_html( $sibling['language_label'] ); ?>
+				</a>
+			<?php else : ?>
+				<select class="fanfic-translations-dropdown" onchange="if(this.value)window.location.href=this.value">
+					<option value=""><?php esc_html_e( 'Select language...', 'fanfiction-manager' ); ?></option>
+					<?php foreach ( $siblings as $sibling ) : ?>
+						<option value="<?php echo esc_url( $sibling['permalink'] ); ?>">
+							<?php echo esc_html( $sibling['language_label'] ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
+			<?php endif; ?>
+		</div>
+		<?php
+		return ob_get_clean();
 	}
 
 	/**
@@ -618,7 +672,12 @@ class Fanfic_Shortcodes_Story {
 				$item = '<span class="story-warning-item">';
 				$item .= '<span class="story-warning-name">' . esc_html( $warning['name'] ) . '</span>';
 				if ( $show_age && ! empty( $warning['min_age'] ) ) {
-					$item .= ' <span class="story-warning-age-badge fanfic-age-badge-' . esc_attr( sanitize_title( $warning['min_age'] ) ) . '">' . esc_html( $warning['min_age'] ) . '</span>';
+					$warning_age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $warning['min_age'], false ) : (string) $warning['min_age'];
+					if ( '' === $warning_age_label ) {
+						$warning_age_label = (string) $warning['min_age'];
+					}
+					$warning_age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $warning['min_age'] ) : 'fanfic-age-badge-18-plus';
+					$item .= ' <span class="story-warning-age-badge ' . esc_attr( $warning_age_class ) . '">' . esc_html( $warning_age_label ) . '</span>';
 				}
 				$item .= '</span>';
 				$warning_items[] = $item;
@@ -715,7 +774,7 @@ class Fanfic_Shortcodes_Story {
 	public static function story_age_badge( $atts ) {
 		$atts = shortcode_atts(
 			array(
-				'default'    => 'PG',     // Default age rating if no warnings
+				'default'    => '',       // Default age rating if no warnings
 				'show_label' => 'false',  // Show "Age Rating:" label
 			),
 			$atts,
@@ -738,22 +797,14 @@ class Fanfic_Shortcodes_Story {
 
 		$warnings = Fanfic_Warnings::get_story_warnings( $story_id );
 		$show_label = filter_var( $atts['show_label'], FILTER_VALIDATE_BOOLEAN );
-
-		// Determine highest age rating from warnings
-		$age_priority = array( 'PG' => 1, '13' => 2, '16' => 3, '18' => 4 );
-		$highest_age = $atts['default'];
-		$highest_priority = isset( $age_priority[ $highest_age ] ) ? $age_priority[ $highest_age ] : 1;
-
-		if ( ! empty( $warnings ) ) {
-			foreach ( $warnings as $warning ) {
-				if ( ! empty( $warning['min_age'] ) ) {
-					$warning_priority = isset( $age_priority[ $warning['min_age'] ] ) ? $age_priority[ $warning['min_age'] ] : 0;
-					if ( $warning_priority > $highest_priority ) {
-						$highest_priority = $warning_priority;
-						$highest_age = $warning['min_age'];
-					}
-				}
-			}
+		$default_age = trim( (string) $atts['default'] );
+		if ( '' === $default_age ) {
+			$default_age = Fanfic_Warnings::get_default_age_label( false );
+		}
+		$warning_ids = array_map( 'absint', wp_list_pluck( (array) $warnings, 'id' ) );
+		$highest_age = ! empty( $warning_ids ) ? Fanfic_Warnings::calculate_derived_age( $warning_ids ) : $default_age;
+		if ( '' === $highest_age ) {
+			return '';
 		}
 
 		$output = '<span class="fanfic-age-rating">';
@@ -762,8 +813,13 @@ class Fanfic_Shortcodes_Story {
 			$output .= '<span class="age-rating-label">' . esc_html__( 'Age Rating:', 'fanfiction-manager' ) . '</span> ';
 		}
 
-		$age_class = 'fanfic-age-badge fanfic-age-badge-' . sanitize_title( $highest_age );
-		$output .= '<span class="' . esc_attr( $age_class ) . '" aria-label="' . esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age ) ) . '">' . esc_html( $highest_age ) . '+</span>';
+		$highest_age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $highest_age, true ) : (string) $highest_age;
+		if ( '' === $highest_age_label ) {
+			$highest_age_label = (string) $highest_age;
+		}
+		$highest_age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $highest_age ) : 'fanfic-age-badge-18-plus';
+		$age_class = 'fanfic-age-badge ' . $highest_age_class;
+		$output .= '<span class="' . esc_attr( $age_class ) . '" aria-label="' . esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age_label ) ) . '">' . esc_html( $highest_age_label ) . '</span>';
 
 		$output .= '</span>';
 

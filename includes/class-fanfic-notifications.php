@@ -36,6 +36,41 @@ class Fanfic_Notifications {
 	const TYPE_FOLLOW_STORY = 'follow_story';
 
 	/**
+	 * Cron continuation hook for old-notification cleanup.
+	 *
+	 * @var string
+	 */
+	const CLEANUP_CONTINUATION_HOOK = 'fanfic_cleanup_old_notifications_continue';
+
+	/**
+	 * Cleanup batch size.
+	 *
+	 * @var int
+	 */
+	const CLEANUP_BATCH_SIZE = 1000;
+
+	/**
+	 * Cleanup worker time limit.
+	 *
+	 * @var int
+	 */
+	const CLEANUP_MAX_RUNTIME_SECONDS = 45;
+
+	/**
+	 * Cleanup lock key.
+	 *
+	 * @var string
+	 */
+	const CLEANUP_LOCK_KEY = 'fanfic_lock_cleanup_old_notifications';
+
+	/**
+	 * Daily start offset from cron_hour (minutes).
+	 *
+	 * @var int
+	 */
+	const CLEANUP_CRON_OFFSET_MINUTES = 40;
+
+	/**
 	 * Initialize the notifications class
 	 *
 	 * Sets up WordPress hooks for notification functionality.
@@ -46,7 +81,9 @@ class Fanfic_Notifications {
 	public static function init() {
 		// Register cron hooks
 		add_action( 'fanfic_cleanup_old_notifications', array( __CLASS__, 'delete_old_notifications' ) );
+		add_action( self::CLEANUP_CONTINUATION_HOOK, array( __CLASS__, 'delete_old_notifications' ) );
 		add_action( 'fanfic_process_debounced_notification', array( __CLASS__, 'process_debounced_notification' ), 10, 1 );
+		add_action( 'update_option_fanfic_settings', array( __CLASS__, 'reschedule_on_settings_change' ), 10, 2 );
 
 		// Schedule cron job on init if not already scheduled
 		if ( ! wp_next_scheduled( 'fanfic_cleanup_old_notifications' ) ) {
@@ -392,20 +429,60 @@ class Fanfic_Notifications {
 	 * @return int Number of notifications deleted.
 	 */
 	public static function delete_old_notifications() {
+		if ( ! self::acquire_cleanup_lock() ) {
+			return 0;
+		}
+
+		$total_deleted = 0;
+		$start = microtime( true );
+		$time_budget = self::get_cleanup_time_budget_seconds();
+		$has_more = false;
+
+		do {
+			$deleted = self::delete_old_notifications_batch( self::CLEANUP_BATCH_SIZE );
+			$total_deleted += $deleted;
+			$has_more = ( self::CLEANUP_BATCH_SIZE === $deleted );
+		} while ( $has_more && ( microtime( true ) - $start ) < $time_budget );
+
+		if ( $has_more ) {
+			self::schedule_cleanup_continuation();
+		} else {
+			wp_clear_scheduled_hook( self::CLEANUP_CONTINUATION_HOOK );
+		}
+
+		self::release_cleanup_lock();
+
+		if ( $total_deleted > 0 ) {
+			error_log( sprintf( 'Fanfiction Manager: Cleaned up %d old notifications', $total_deleted ) );
+		}
+
+		return $total_deleted;
+	}
+
+	/**
+	 * Delete one old-notification batch.
+	 *
+	 * @since 2.0.0
+	 * @param int $limit Batch size.
+	 * @return int Deleted row count.
+	 */
+	private static function delete_old_notifications_batch( $limit ) {
 		global $wpdb;
 
 		$table_name = $wpdb->prefix . 'fanfic_notifications';
+		$limit = max( 1, absint( $limit ) );
 
-		// Delete notifications older than 90 days
-		$result = $wpdb->query( $wpdb->prepare(
-			"DELETE FROM {$table_name} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",
-			90
-		) );
-
-		// Log cleanup
-		if ( $result > 0 ) {
-			error_log( sprintf( 'Fanfiction Manager: Cleaned up %d old notifications', $result ) );
-		}
+		// Delete oldest rows first in bounded chunks.
+		$result = $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$table_name}
+				WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)
+				ORDER BY id ASC
+				LIMIT %d",
+				90,
+				$limit
+			)
+		);
 
 		return $result ? $result : 0;
 	}
@@ -422,12 +499,120 @@ class Fanfic_Notifications {
 		// Get configured cron hour from settings (default: 3 AM)
 		$settings = get_option( 'fanfic_settings', array() );
 		$cron_hour = isset( $settings['cron_hour'] ) ? absint( $settings['cron_hour'] ) : 3;
+		$cron_hour = min( 23, max( 0, $cron_hour ) );
 
 		// Calculate next run time
-		$next_run = strtotime( sprintf( 'tomorrow %d:00:00', $cron_hour ) );
+		$next_run = self::calculate_next_run_time( $cron_hour, self::CLEANUP_CRON_OFFSET_MINUTES );
 
 		// Schedule event
 		wp_schedule_event( $next_run, 'daily', 'fanfic_cleanup_old_notifications' );
+	}
+
+	/**
+	 * Unschedule cleanup cron job.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function unschedule_cleanup_cron() {
+		wp_clear_scheduled_hook( 'fanfic_cleanup_old_notifications' );
+		wp_clear_scheduled_hook( self::CLEANUP_CONTINUATION_HOOK );
+	}
+
+	/**
+	 * Re-schedule cleanup cron when cron hour setting changes.
+	 *
+	 * @since 1.0.0
+	 * @param array $old_value Previous settings.
+	 * @param array $new_value New settings.
+	 * @return void
+	 */
+	public static function reschedule_on_settings_change( $old_value, $new_value ) {
+		$old_hour = isset( $old_value['cron_hour'] ) ? absint( $old_value['cron_hour'] ) : 3;
+		$new_hour = isset( $new_value['cron_hour'] ) ? absint( $new_value['cron_hour'] ) : 3;
+
+		if ( $old_hour === $new_hour ) {
+			return;
+		}
+
+		self::unschedule_cleanup_cron();
+		self::schedule_cleanup_cron();
+	}
+
+	/**
+	 * Calculate next run time based on cron hour and offset.
+	 *
+	 * @since 2.0.0
+	 * @param int $cron_hour Hour (0-23).
+	 * @param int $offset_minutes Offset in minutes.
+	 * @return int Timestamp.
+	 */
+	private static function calculate_next_run_time( $cron_hour, $offset_minutes = 0 ) {
+		$cron_hour = min( 23, max( 0, absint( $cron_hour ) ) );
+		$offset_minutes = max( 0, absint( $offset_minutes ) );
+
+		$current_time = current_time( 'timestamp' );
+		$today = date_i18n( 'Y-m-d', $current_time );
+		$scheduled_time = strtotime( sprintf( '%s %02d:00:00', $today, $cron_hour ) );
+		$scheduled_time = strtotime( '+' . $offset_minutes . ' minutes', $scheduled_time );
+
+		if ( $scheduled_time <= $current_time ) {
+			$scheduled_time = strtotime( '+1 day', $scheduled_time );
+		}
+
+		return $scheduled_time;
+	}
+
+	/**
+	 * Schedule continuation worker.
+	 *
+	 * @since 2.0.0
+	 * @return void
+	 */
+	private static function schedule_cleanup_continuation() {
+		if ( ! wp_next_scheduled( self::CLEANUP_CONTINUATION_HOOK ) ) {
+			wp_schedule_single_event( time() + MINUTE_IN_SECONDS, self::CLEANUP_CONTINUATION_HOOK );
+		}
+	}
+
+	/**
+	 * Acquire cleanup lock.
+	 *
+	 * @since 2.0.0
+	 * @return bool
+	 */
+	private static function acquire_cleanup_lock() {
+		if ( get_transient( self::CLEANUP_LOCK_KEY ) ) {
+			return false;
+		}
+
+		set_transient( self::CLEANUP_LOCK_KEY, 1, self::CLEANUP_MAX_RUNTIME_SECONDS + 120 );
+		return true;
+	}
+
+	/**
+	 * Release cleanup lock.
+	 *
+	 * @since 2.0.0
+	 * @return void
+	 */
+	private static function release_cleanup_lock() {
+		delete_transient( self::CLEANUP_LOCK_KEY );
+	}
+
+	/**
+	 * Get safe cleanup budget based on server max_execution_time.
+	 *
+	 * @since 2.0.0
+	 * @return int Seconds.
+	 */
+	private static function get_cleanup_time_budget_seconds() {
+		$budget = self::CLEANUP_MAX_RUNTIME_SECONDS;
+		$max_exec = (int) ini_get( 'max_execution_time' );
+		if ( $max_exec > 0 ) {
+			$budget = max( 10, min( $budget, $max_exec - 5 ) );
+		}
+		return $budget;
 	}
 
 	/**

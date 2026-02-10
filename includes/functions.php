@@ -119,6 +119,32 @@ function fanfic_is_moderator( $user_id = 0 ) {
 }
 
 /**
+ * Check if user can manually edit publication dates.
+ *
+ * Allowed: fanfiction_author, fanfiction_admin, WordPress administrator.
+ * Disallowed: fanfiction_moderator-only users.
+ *
+ * @since 2.1.0
+ * @param int $user_id User ID (optional, defaults to current user).
+ * @return bool True if user can edit manual publication dates.
+ */
+function fanfic_can_edit_publish_date( $user_id = 0 ) {
+	if ( ! $user_id ) {
+		$user_id = get_current_user_id();
+	}
+
+	$user = get_userdata( $user_id );
+	if ( ! $user ) {
+		return false;
+	}
+
+	$roles = (array) $user->roles;
+	return in_array( 'administrator', $roles, true )
+		|| in_array( 'fanfiction_admin', $roles, true )
+		|| in_array( 'fanfiction_author', $roles, true );
+}
+
+/**
  * Get custom table name with proper prefix
  *
  * @param string $table_name Table name without prefix
@@ -514,7 +540,13 @@ add_filter( 'get_avatar_url', 'fanfic_get_local_avatar_url', 10, 3 );
  * @return string The story archive URL.
  */
 function fanfic_get_story_archive_url() {
-	return get_post_type_archive_link( 'fanfiction_story' );
+	$stories_page_url = function_exists( 'fanfic_get_page_url' ) ? fanfic_get_page_url( 'stories' ) : '';
+	if ( ! empty( $stories_page_url ) ) {
+		return $stories_page_url;
+	}
+
+	$archive_url = get_post_type_archive_link( 'fanfiction_story' );
+	return $archive_url ? $archive_url : '';
 }
 
 /**
@@ -651,7 +683,7 @@ function fanfic_get_create_story_url() {
  * @return string The stories page URL.
  */
 function fanfic_get_search_url() {
-	return fanfic_get_page_url( 'search' );
+	return fanfic_get_page_url( 'stories' );
 }
 
 /**
@@ -1973,19 +2005,243 @@ function fanfic_parse_warning_exclusions( $value ) {
  * Normalize age filter value.
  *
  * @since 1.2.0
+ * @param string $value Age value.
+ * @return float Numeric sort weight.
+ */
+function fanfic_get_age_filter_sort_weight( $value ) {
+	$value = trim( (string) $value );
+	if ( '' === $value ) {
+		return 1000;
+	}
+
+	if ( class_exists( 'Fanfic_Warnings' ) ) {
+		$priority = Fanfic_Warnings::get_age_priority_map( false );
+		if ( isset( $priority[ $value ] ) ) {
+			return (float) $priority[ $value ];
+		}
+
+		$normalized = Fanfic_Warnings::normalize_age_label( $value, false );
+		if ( '' !== $normalized && isset( $priority[ $normalized ] ) ) {
+			return (float) $priority[ $normalized ];
+		}
+	}
+
+	$value = strtoupper( $value );
+	if ( preg_match( '/\d+/', $value, $matches ) ) {
+		return (float) absint( $matches[0] );
+	}
+
+	return 1000;
+}
+
+/**
+ * Sort age values from least to most restrictive.
+ *
+ * @since 1.2.0
+ * @param string[] $ages Age values.
+ * @return string[] Sorted age values.
+ */
+function fanfic_sort_age_filter_values( $ages ) {
+	$ages = array_values( array_unique( array_filter( array_map( 'trim', (array) $ages ) ) ) );
+	if ( empty( $ages ) ) {
+		return array();
+	}
+
+	usort(
+		$ages,
+		function( $left, $right ) {
+			$left_weight = fanfic_get_age_filter_sort_weight( $left );
+			$right_weight = fanfic_get_age_filter_sort_weight( $right );
+			if ( $left_weight === $right_weight ) {
+				return strcmp( (string) $left, (string) $right );
+			}
+			return ( $left_weight < $right_weight ) ? -1 : 1;
+		}
+	);
+
+	return $ages;
+}
+
+/**
+ * Format age label for UI display.
+ *
+ * Numeric ages are shown as "13+" while no-warning remains "PG".
+ *
+ * @since 1.2.0
+ * @param string $value Age value.
+ * @param bool   $infer_default Whether to infer default label for empty values.
+ * @return string Display label.
+ */
+function fanfic_get_age_display_label( $value, $infer_default = true ) {
+	$value = trim( (string) $value );
+
+	if ( class_exists( 'Fanfic_Warnings' ) ) {
+		$label = Fanfic_Warnings::format_age_label_for_display( $value, $infer_default );
+		if ( '' !== $label ) {
+			return $label;
+		}
+	}
+
+	if ( '' === $value ) {
+		return $infer_default ? 'PG' : '';
+	}
+
+	$numeric = rtrim( $value, '+' );
+	if ( is_numeric( $numeric ) ) {
+		return (string) ( (int) round( (float) $numeric ) ) . '+';
+	}
+
+	return $value;
+}
+
+/**
+ * Build age badge class from age value.
+ *
+ * @since 1.2.0
+ * @param string $value Age value.
+ * @param string $prefix Class prefix.
+ * @return string CSS class name.
+ */
+function fanfic_get_age_badge_class( $value, $prefix = 'fanfic-age-badge-' ) {
+	$prefix = trim( (string) $prefix );
+	if ( '' === $prefix ) {
+		$prefix = 'fanfic-age-badge-';
+	}
+
+	if ( class_exists( 'Fanfic_Warnings' ) ) {
+		return Fanfic_Warnings::get_age_badge_class( $value, $prefix );
+	}
+
+	$numeric = rtrim( trim( (string) $value ), '+' );
+	if ( ! is_numeric( $numeric ) ) {
+		return $prefix . '3-9';
+	}
+
+	$age = (int) round( (float) $numeric );
+	if ( $age <= 9 ) {
+		return $prefix . '3-9';
+	}
+	if ( $age <= 12 ) {
+		return $prefix . '10-12';
+	}
+	if ( $age <= 15 ) {
+		return $prefix . '13-15';
+	}
+	if ( $age <= 17 ) {
+		return $prefix . '16-17';
+	}
+
+	return $prefix . '18-plus';
+}
+
+/**
+ * Get available age filters from configured data.
+ *
+ * @since 1.2.0
+ * @return string[] Age values.
+ */
+function fanfic_get_available_age_filters() {
+	global $wpdb;
+
+	$ages = array();
+	$default_age = '';
+
+	if ( class_exists( 'Fanfic_Warnings' ) ) {
+		$default_age = Fanfic_Warnings::get_default_age_label( false );
+		if ( '' !== $default_age ) {
+			$ages[] = $default_age;
+		}
+	}
+
+	if ( class_exists( 'Fanfic_Warnings' ) ) {
+		$warnings = Fanfic_Warnings::get_available_warnings();
+		foreach ( (array) $warnings as $warning ) {
+			$age = Fanfic_Warnings::sanitize_age_label( $warning['min_age'] ?? '' );
+			if ( '' !== $age ) {
+				$ages[] = $age;
+			}
+		}
+	}
+
+	$index_table = $wpdb->prefix . 'fanfic_story_search_index';
+	$table_ready = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $index_table ) );
+	if ( $table_ready === $index_table ) {
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$index_ages = $wpdb->get_col(
+			"SELECT DISTINCT age_rating
+			FROM {$index_table}
+			WHERE story_status = 'publish'
+			  AND age_rating != ''"
+		);
+		foreach ( (array) $index_ages as $age ) {
+			$age = trim( (string) $age );
+			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				$age = Fanfic_Warnings::normalize_age_label( $age, false );
+			}
+			if ( '' !== $age ) {
+				$ages[] = $age;
+			}
+		}
+	}
+
+	if ( empty( $ages ) && '' !== $default_age ) {
+		$ages[] = $default_age;
+	}
+
+	return fanfic_sort_age_filter_values( $ages );
+}
+
+/**
+ * Build age filter alias map.
+ *
+ * @since 1.2.0
+ * @param string[] $ages Canonical ages.
+ * @return array<string,string> Alias map.
+ */
+function fanfic_get_age_filter_alias_map( $ages ) {
+	$aliases = array();
+	foreach ( (array) $ages as $age ) {
+		$canonical = trim( (string) $age );
+		if ( '' === $canonical ) {
+			continue;
+		}
+		$upper = strtoupper( $canonical );
+		$aliases[ $upper ] = $canonical;
+	}
+
+	return $aliases;
+}
+
+/**
+ * Normalize age filter value.
+ *
+ * @since 1.2.0
  * @param mixed $value Raw param value.
- * @return string Age value or empty string.
+ * @return string[] Normalized age values.
  */
 function fanfic_normalize_age_filter( $value ) {
 	if ( empty( $value ) ) {
-		return '';
+		return array();
 	}
 
-	$value = sanitize_text_field( wp_unslash( $value ) );
-	$value = strtoupper( trim( $value ) );
-	$allowed = array( 'PG', '13', '16', '18' );
+	$allowed = fanfic_get_available_age_filters();
+	if ( empty( $allowed ) ) {
+		return array();
+	}
+	$alias_map = fanfic_get_age_filter_alias_map( $allowed );
 
-	return in_array( $value, $allowed, true ) ? $value : '';
+	// Support space/comma-separated string or array input.
+	$raw = is_array( $value ) ? $value : preg_split( '/[\s,]+/', $value, -1, PREG_SPLIT_NO_EMPTY );
+
+	$result = array();
+	foreach ( $raw as $v ) {
+		$v = strtoupper( trim( sanitize_text_field( wp_unslash( $v ) ) ) );
+		if ( isset( $alias_map[ $v ] ) ) {
+			$result[] = $alias_map[ $v ];
+		}
+	}
+
+	return array_values( array_unique( $result ) );
 }
 
 /**
@@ -2023,12 +2279,14 @@ function fanfic_get_stories_params( $source = null ) {
 		$search = sanitize_text_field( wp_unslash( $source['s'] ) );
 	}
 
-	// Handle fanfic_story_fandoms[] from autofill (IDs) or fandom from direct input (slugs)
+	// Handle fandoms from search URL (IDs) — supports both array and space/comma-separated string.
 	$fandom_slugs = array();
-	if ( ! empty( $source['fanfic_story_fandoms'] ) && class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
-		// Convert fandom IDs to slugs (from autofill)
-		$fandom_ids = is_array( $source['fanfic_story_fandoms'] ) ? $source['fanfic_story_fandoms'] : array( $source['fanfic_story_fandoms'] );
-		foreach ( $fandom_ids as $fandom_id ) {
+	if ( ! empty( $source['fandoms'] ) && class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+		// Split space/comma-separated string into individual IDs, or use array as-is.
+		$raw_ids = is_array( $source['fandoms'] )
+			? $source['fandoms']
+			: preg_split( '/[\s,+]+/', $source['fandoms'], -1, PREG_SPLIT_NO_EMPTY );
+		foreach ( $raw_ids as $fandom_id ) {
 			$fandom_id = absint( $fandom_id );
 			if ( $fandom_id > 0 ) {
 				$slug = Fanfic_Fandoms::get_fandom_slug_by_id( $fandom_id );
@@ -2039,21 +2297,23 @@ function fanfic_get_stories_params( $source = null ) {
 		}
 	}
 
-	// Warnings mode (include/exclude)
-	$warnings_mode = 'exclude'; // Default
-	if ( isset( $source['warnings_mode'] ) && in_array( $source['warnings_mode'], array( 'include', 'exclude' ), true ) ) {
-		$warnings_mode = sanitize_key( $source['warnings_mode'] );
-	}
+	// Exclude warnings slugs
+	$exclude_warnings = fanfic_parse_slug_list( $source['warnings_exclude'] ?? '' );
 
-	// Selected warnings slugs
-	$selected_warnings = fanfic_parse_slug_list( $source['warnings_slugs'] ?? '' );
+	// Include warnings slugs
+	$include_warnings = fanfic_parse_slug_list( $source['warnings_include'] ?? '' );
+
+	// Remove any warning that appears in both lists (exclude wins)
+	if ( ! empty( $include_warnings ) && ! empty( $exclude_warnings ) ) {
+		$include_warnings = array_values( array_diff( $include_warnings, $exclude_warnings ) );
+	}
 
 	// Normalize age filter
 	$age_filter = fanfic_normalize_age_filter( $source['age'] ?? '' );
 
-	// If warnings mode is 'include' and warnings are selected, age filter is automatically cleared.
-	if ( 'include' === $warnings_mode && ! empty( $selected_warnings ) ) {
-		$age_filter = '';
+	// If include warnings are selected, age filter is automatically cleared.
+	if ( ! empty( $include_warnings ) ) {
+		$age_filter = array();
 	}
 
 	// Parse match_all_filters toggle state
@@ -2064,9 +2324,9 @@ function fanfic_get_stories_params( $source = null ) {
 		'genres'           => fanfic_parse_slug_list( $source['genre'] ?? '' ),
 		'statuses'         => fanfic_parse_slug_list( $source['status'] ?? '' ),
 		'fandoms'          => $fandom_slugs,
-		'languages'        => fanfic_parse_slug_list( $source['language'] ?? '' ),
-		'warnings_mode'    => $warnings_mode,
-		'selected_warnings' => $selected_warnings,
+		'languages'        => fanfic_get_default_language_filter( $source ),
+		'exclude_warnings' => $exclude_warnings,
+		'include_warnings' => $include_warnings,
 		'age'              => $age_filter,
 		'sort'             => fanfic_normalize_sort_filter( $source['sort'] ?? '' ),
 		'match_all_filters' => $match_all_filters,
@@ -2088,10 +2348,33 @@ function fanfic_get_stories_params( $source = null ) {
 }
 
 /**
- * Get warning slugs that exceed a target age rating.
+ * Get language filter slugs from request source.
+ *
+ * Returns only explicitly selected languages — no default is applied.
+ * The WP site language default is used only in the story edit form,
+ * not in search/browse filters.
  *
  * @since 1.2.0
- * @param string $age Age filter (PG, 13, 16, 18).
+ * @param array $source Request parameters ($_GET or similar).
+ * @return string[] Array of language slugs.
+ */
+function fanfic_get_default_language_filter( $source ) {
+	if ( ! empty( $source['language'] ) ) {
+		return fanfic_parse_slug_list( $source['language'] );
+	}
+
+	return array();
+}
+
+/**
+ * Get warning slugs that exceed a target age rating.
+ *
+ * Accepts a single age string or an array of ages. When multiple ages are
+ * provided, uses the least restrictive (highest priority) to determine which
+ * warnings to exclude.
+ *
+ * @since 1.2.0
+ * @param string|string[] $age Age filter(s).
  * @return string[] Warning slugs to exclude.
  */
 function fanfic_get_warning_slugs_above_age( $age ) {
@@ -2099,14 +2382,29 @@ function fanfic_get_warning_slugs_above_age( $age ) {
 		return array();
 	}
 
-	$priority = array(
-		'PG' => 1,
-		'13' => 2,
-		'16' => 3,
-		'18' => 4,
-	);
+	$available_ages = fanfic_get_available_age_filters();
+	$priority = array();
+	$rank = 1;
+	foreach ( (array) $available_ages as $age_value ) {
+		$priority[ $age_value ] = $rank++;
+	}
+	if ( empty( $priority ) ) {
+		return array();
+	}
+	$aliases = fanfic_get_age_filter_alias_map( array_keys( $priority ) );
 
-	if ( ! isset( $priority[ $age ] ) ) {
+	// Find the least restrictive (highest priority number) among selected ages.
+	$ages = (array) $age;
+	$limit = 0;
+	foreach ( $ages as $a ) {
+		$a = strtoupper( trim( (string) $a ) );
+		$canonical = $aliases[ $a ] ?? '';
+		if ( '' !== $canonical && isset( $priority[ $canonical ] ) && $priority[ $canonical ] > $limit ) {
+			$limit = $priority[ $canonical ];
+		}
+	}
+
+	if ( 0 === $limit ) {
 		return array();
 	}
 
@@ -2115,10 +2413,10 @@ function fanfic_get_warning_slugs_above_age( $age ) {
 		return array();
 	}
 
-	$limit = $priority[ $age ];
 	$excluded = array();
 	foreach ( $warnings as $warning ) {
 		$min_age = isset( $warning['min_age'] ) ? $warning['min_age'] : '';
+		$min_age = trim( (string) $min_age );
 		if ( empty( $min_age ) || ! isset( $priority[ $min_age ] ) ) {
 			continue;
 		}
@@ -2132,6 +2430,108 @@ function fanfic_get_warning_slugs_above_age( $age ) {
 }
 
 /**
+ * Check if table-driven search runtime tables are available.
+ *
+ * @since 1.5.2
+ * @return bool
+ */
+function fanfic_search_filter_map_tables_ready() {
+	static $ready = null;
+	if ( null !== $ready ) {
+		return $ready;
+	}
+
+	global $wpdb;
+	$index_table = $wpdb->prefix . 'fanfic_story_search_index';
+	$map_table   = $wpdb->prefix . 'fanfic_story_filter_map';
+
+	$index_ready = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $index_table ) ) === $index_table;
+	$map_ready   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $map_table ) ) === $map_table;
+
+	$ready = ( $index_ready && $map_ready );
+
+	return $ready;
+}
+
+/**
+ * Get published story IDs by one filter-map facet.
+ *
+ * @since 1.5.2
+ * @param string   $facet_type Facet type.
+ * @param string[] $facet_values Facet values.
+ * @param bool     $require_all_values Require all selected values.
+ * @return int[] Story IDs.
+ */
+function fanfic_get_story_ids_by_filter_map_facet( $facet_type, $facet_values, $require_all_values = false ) {
+	if ( ! fanfic_search_filter_map_tables_ready() ) {
+		return array();
+	}
+
+	$facet_type = strtolower( trim( sanitize_text_field( (string) $facet_type ) ) );
+	$facet_type = preg_replace( '/[^a-z0-9:_-]/', '', $facet_type );
+	if ( '' === $facet_type ) {
+		return array();
+	}
+
+	$facet_values = array_values( array_unique( array_filter( array_map( 'sanitize_title', (array) $facet_values ) ) ) );
+	if ( empty( $facet_values ) ) {
+		return array();
+	}
+
+	$require_all_values = (bool) $require_all_values && count( $facet_values ) > 1;
+
+	global $wpdb;
+	$index_table = $wpdb->prefix . 'fanfic_story_search_index';
+	$map_table   = $wpdb->prefix . 'fanfic_story_filter_map';
+	$placeholders = implode( ',', array_fill( 0, count( $facet_values ), '%s' ) );
+
+	$sql = "SELECT m.story_id
+		FROM {$map_table} m
+		INNER JOIN {$index_table} idx ON idx.story_id = m.story_id
+		WHERE idx.story_status = 'publish'
+		  AND m.facet_type = %s
+		  AND m.facet_value IN ({$placeholders})
+		GROUP BY m.story_id";
+
+	$args = array_merge( array( $facet_type ), $facet_values );
+	if ( $require_all_values ) {
+		$sql .= ' HAVING COUNT(DISTINCT m.facet_value) >= %d';
+		$args[] = count( $facet_values );
+	}
+
+	$results = $wpdb->get_col(
+		$wpdb->prepare( $sql, $args )
+	);
+
+	$results = array_map( 'absint', (array) $results );
+
+	return $results;
+}
+
+/**
+ * Intersect an incoming set of IDs into the current candidate set.
+ *
+ * @since 1.5.2
+ * @param int[]|null $current Current candidate set (null means uninitialized).
+ * @param int[]      $incoming Incoming IDs to intersect.
+ * @return int[] Updated candidate set.
+ */
+function fanfic_intersect_story_id_sets( $current, $incoming ) {
+	$incoming = array_values( array_unique( array_map( 'absint', (array) $incoming ) ) );
+	if ( empty( $incoming ) ) {
+		return array( 0 );
+	}
+
+	if ( ! is_array( $current ) ) {
+		return $incoming;
+	}
+
+	$intersected = array_values( array_intersect( $current, $incoming ) );
+
+	return empty( $intersected ) ? array( 0 ) : $intersected;
+}
+
+/**
  * Get story IDs that contain any of the specified warning slugs.
  *
  * @since 1.2.0
@@ -2139,47 +2539,7 @@ function fanfic_get_warning_slugs_above_age( $age ) {
  * @return int[] Story IDs.
  */
 function fanfic_get_story_ids_with_warnings( $warning_slugs ) {
-	$warning_slugs = array_values( array_unique( array_map( 'sanitize_title', (array) $warning_slugs ) ) );
-	if ( empty( $warning_slugs ) ) {
-		return array();
-	}
-
-	if ( ! class_exists( 'Fanfic_Cache' ) ) {
-		$cache_key = '';
-	} else {
-		$cache_key = Fanfic_Cache::get_key( 'search', 'warnings_' . md5( wp_json_encode( $warning_slugs ) ) );
-	}
-
-	if ( ! empty( $cache_key ) ) {
-		$cached = Fanfic_Cache::get( $cache_key, null, Fanfic_Cache::SHORT );
-		if ( false !== $cached ) {
-			return array_map( 'absint', (array) $cached );
-		}
-	}
-
-	global $wpdb;
-	$warnings_table  = $wpdb->prefix . 'fanfic_warnings';
-	$relations_table = $wpdb->prefix . 'fanfic_story_warnings';
-	$placeholders = implode( ',', array_fill( 0, count( $warning_slugs ), '%s' ) );
-
-	$results = $wpdb->get_col(
-		$wpdb->prepare(
-			"SELECT DISTINCT r.story_id
-			FROM {$relations_table} r
-			INNER JOIN {$warnings_table} w ON w.id = r.warning_id
-			WHERE w.enabled = 1
-			  AND w.slug IN ({$placeholders})",
-			$warning_slugs
-		)
-	);
-
-	$results = array_map( 'absint', (array) $results );
-
-	if ( ! empty( $cache_key ) ) {
-		Fanfic_Cache::set( $cache_key, $results, Fanfic_Cache::SHORT );
-	}
-
-	return $results;
+	return fanfic_get_story_ids_by_filter_map_facet( 'warning', $warning_slugs, false );
 }
 
 /**
@@ -2204,212 +2564,106 @@ function fanfic_build_stories_query_args( $params, $paged = 1, $per_page = 12 ) 
 		'ignore_sticky_posts' => true,
 	);
 
-	$post__in = null;
+	$post__in     = null;
 	$post__not_in = array();
+	$search_ids   = array();
+	$match_all_filters = ( $params['match_all_filters'] ?? '0' ) === '1';
 
 	// Search index -> candidate IDs
 	if ( ! empty( $params['search'] ) && class_exists( 'Fanfic_Search_Index' ) ) {
 		$limit = min( 2000, max( 200, $per_page * 20 ) );
-		$search_ids = Fanfic_Search_Index::search( $params['search'], $limit );
+		$search_ids = array_map( 'absint', (array) Fanfic_Search_Index::search( $params['search'], $limit ) );
 
 		if ( empty( $search_ids ) ) {
 			$post__in = array( 0 );
 		} else {
-			$post__in = array_map( 'absint', (array) $search_ids );
-			if ( empty( $params['sort'] ) ) {
-				$query_args['orderby'] = 'post__in';
-			}
+			$post__in = $search_ids;
 		}
 	}
 
-	// Handle Warnings (Include/Exclude)
-	if ( ! empty( $params['selected_warnings'] ) ) {
-		$warning_story_ids = fanfic_get_story_ids_with_warnings( $params['selected_warnings'] );
+	// Include warnings: keep stories matching at least one selected warning.
+	if ( ! empty( $params['include_warnings'] ) ) {
+		$include_warning_ids = fanfic_get_story_ids_with_warnings( $params['include_warnings'] );
+		$post__in = fanfic_intersect_story_id_sets( $post__in, $include_warning_ids );
+	}
 
-		if ( 'include' === ( $params['warnings_mode'] ?? 'exclude' ) ) {
-			// Include mode: only show stories that have *at least one* of the selected warnings.
-			if ( empty( $warning_story_ids ) ) {
-				$post__in = array( 0 ); // No stories match
-			} else {
-				if ( is_array( $post__in ) ) {
-					$post__in = array_values( array_intersect( (array) $post__in, $warning_story_ids ) );
-					if ( empty( $post__in ) ) {
-						$post__in = array( 0 );
-					}
-				} else {
-					$post__in = $warning_story_ids;
-				}
-			}
-			// In "Include" mode, age rating is automatically cleared, so no age-derived exclusions here.
-		} else { // Exclude mode (default)
-			$excluded_warnings_from_params = (array) $params['selected_warnings'];
-
-			// Add age-derived exclusions if age is set
-			if ( ! empty( $params['age'] ) ) {
-				$excluded_warnings_from_params = array_merge( $excluded_warnings_from_params, fanfic_get_warning_slugs_above_age( $params['age'] ) );
-			}
-			$excluded_warnings_from_params = array_values( array_unique( $excluded_warnings_from_params ) );
-
-			if ( ! empty( $excluded_warnings_from_params ) ) {
-				$exclude_ids = fanfic_get_story_ids_with_warnings( $excluded_warnings_from_params );
-				if ( ! empty( $exclude_ids ) ) {
-					$post__not_in = array_merge( (array) $post__not_in, $exclude_ids );
-				}
-			}
-		}
-	} elseif ( ! empty( $params['age'] ) ) {
-		// Only age-derived exclusions if no explicit warnings are selected and age is present (in exclude mode implicitly)
-		$age_excluded_warnings = fanfic_get_warning_slugs_above_age( $params['age'] );
-		if ( ! empty( $age_excluded_warnings ) ) {
-			$exclude_ids = fanfic_get_story_ids_with_warnings( $age_excluded_warnings );
-			if ( ! empty( $exclude_ids ) ) {
-				$post__not_in = array_merge( (array) $post__not_in, $exclude_ids );
-			}
+	// Exclude warnings: remove any story that has a selected warning.
+	$all_exclude_warning_slugs = ! empty( $params['exclude_warnings'] ) ? (array) $params['exclude_warnings'] : array();
+	$all_exclude_warning_slugs = array_values( array_unique( $all_exclude_warning_slugs ) );
+	if ( ! empty( $all_exclude_warning_slugs ) ) {
+		$exclude_ids = fanfic_get_story_ids_by_filter_map_facet( 'warning', $all_exclude_warning_slugs, false );
+		if ( ! empty( $exclude_ids ) ) {
+			$post__not_in = array_merge( (array) $post__not_in, $exclude_ids );
 		}
 	}
 
-	// Fandom filters (custom table)
-	if ( ! empty( $params['fandoms'] ) && class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
-		$fandom_story_ids = Fanfic_Fandoms::get_story_ids_by_fandom_slugs( $params['fandoms'] );
-		if ( empty( $fandom_story_ids ) ) {
-			$post__in = array( 0 );
-		} else {
-			$fandom_story_ids = array_map( 'absint', (array) $fandom_story_ids );
-			if ( is_array( $post__in ) ) {
-				$post__in = array_values( array_intersect( $post__in, $fandom_story_ids ) );
-				if ( empty( $post__in ) ) {
-					$post__in = array( 0 );
-				}
-			} else {
-				$post__in = $fandom_story_ids;
-			}
-		}
-	}
-
-	// Language filters (custom table)
-	if ( ! empty( $params['languages'] ) && class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
-		$language_story_ids = Fanfic_Languages::get_story_ids_by_language_slugs( $params['languages'] );
-		if ( empty( $language_story_ids ) ) {
-			$post__in = array( 0 );
-		} else {
-			$language_story_ids = array_map( 'absint', (array) $language_story_ids );
-			if ( is_array( $post__in ) ) {
-				$post__in = array_values( array_intersect( $post__in, $language_story_ids ) );
-				if ( empty( $post__in ) ) {
-					$post__in = array( 0 );
-				}
-			} else {
-				$post__in = $language_story_ids;
-			}
-		}
-	}
-
-	// Custom taxonomy filters (custom tables)
-	if ( ! empty( $params['custom'] ) && class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
-		foreach ( $params['custom'] as $taxonomy_slug => $term_slugs ) {
-			if ( empty( $term_slugs ) ) {
-				continue;
-			}
-			$custom_story_ids = Fanfic_Custom_Taxonomies::get_story_ids_by_term_slugs( $taxonomy_slug, $term_slugs );
-			if ( empty( $custom_story_ids ) ) {
-				$post__in = array( 0 );
-				break;
-			} else {
-				$custom_story_ids = array_map( 'absint', (array) $custom_story_ids );
-				if ( is_array( $post__in ) ) {
-					$post__in = array_values( array_intersect( $post__in, $custom_story_ids ) );
-					if ( empty( $post__in ) ) {
-						$post__in = array( 0 );
-						break;
-					}
-				} else {
-					$post__in = $custom_story_ids;
-				}
-			}
-		}
-	}
-
-	$match_all_filters = ( $params['match_all_filters'] ?? '0' ) === '1'; // Get toggle state
-
-	// Taxonomy filters (genre/status/language/custom)
-	$tax_query = array();
-
-	// Genres
 	if ( ! empty( $params['genres'] ) ) {
-		$genre_query = array(
-			'taxonomy' => 'fanfiction_genre',
-			'field'    => 'slug',
-			'terms'    => $params['genres'],
+		$genre_ids = fanfic_get_story_ids_by_filter_map_facet(
+			'genre',
+			$params['genres'],
+			$match_all_filters
 		);
-		if ( $match_all_filters ) {
-			$genre_query['operator'] = 'AND'; // Match ALL selected genres
-		}
-		$tax_query[] = $genre_query;
+		$post__in = fanfic_intersect_story_id_sets( $post__in, $genre_ids );
 	}
 
-	// Statuses (usually single select, but kept consistent)
 	if ( ! empty( $params['statuses'] ) ) {
-		$status_query = array(
-			'taxonomy' => 'fanfiction_status',
-			'field'    => 'slug',
-			'terms'    => $params['statuses'],
+		$status_ids = fanfic_get_story_ids_by_filter_map_facet(
+			'status',
+			$params['statuses'],
+			false
 		);
-		// Apply AND operator if match_all_filters is true.
-		// Note: For single-select fields where statuses is an array of one element, 'AND' operator
-		// is effectively similar to 'IN' if there's only one term. It primarily impacts
-		// scenarios where multiple statuses could somehow be selected or if the field
-		// was configured as multi-select at WP Taxonomy level.
-		if ( $match_all_filters ) {
-			$status_query['operator'] = 'AND'; // Match ALL selected statuses
-		}
-		$tax_query[] = $status_query;
-	}
-	
-	// Languages
-	if ( ! empty( $params['languages'] ) ) {
-		$language_query = array(
-			'taxonomy' => 'fanfiction_language', // Assuming 'fanfiction_language' is the taxonomy slug
-			'field'    => 'slug',
-			'terms'    => $params['languages'],
-		);
-		if ( $match_all_filters ) {
-			$language_query['operator'] = 'AND'; // Match ALL selected languages
-		}
-		$tax_query[] = $language_query;
+		$post__in = fanfic_intersect_story_id_sets( $post__in, $status_ids );
 	}
 
-	// Custom Taxonomies
+	if ( ! empty( $params['fandoms'] ) ) {
+		$fandom_ids = fanfic_get_story_ids_by_filter_map_facet(
+			'fandom',
+			$params['fandoms'],
+			$match_all_filters
+		);
+		$post__in = fanfic_intersect_story_id_sets( $post__in, $fandom_ids );
+	}
+
+	if ( ! empty( $params['languages'] ) ) {
+		$language_ids = fanfic_get_story_ids_by_filter_map_facet(
+			'language',
+			$params['languages'],
+			false
+		);
+		$post__in = fanfic_intersect_story_id_sets( $post__in, $language_ids );
+	}
+
+	if ( ! empty( $params['age'] ) ) {
+		$age_ids = fanfic_get_story_ids_by_filter_map_facet(
+			'age',
+			$params['age'],
+			false
+		);
+		$post__in = fanfic_intersect_story_id_sets( $post__in, $age_ids );
+	}
+
 	if ( ! empty( $params['custom'] ) && class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
 		foreach ( $params['custom'] as $taxonomy_slug => $term_slugs ) {
 			if ( empty( $term_slugs ) ) {
 				continue;
 			}
-			$custom_taxonomy_config = Fanfic_Custom_Taxonomies::get_taxonomy_by_slug( $taxonomy_slug );
-			// Only apply AND operator for multi-select custom taxonomies
-			if ( $custom_taxonomy_config && 'single' !== $custom_taxonomy_config['selection_type'] ) {
-				 $custom_tax_query = array(
-					'taxonomy' => $taxonomy_slug,
-					'field'    => 'slug',
-					'terms'    => $term_slugs,
-				);
-				if ( $match_all_filters ) {
-					$custom_tax_query['operator'] = 'AND'; // Match ALL selected custom terms
-				}
-				$tax_query[] = $custom_tax_query;
-			} else { // Single select custom taxonomies, or if selection_type is not defined.
-				$tax_query[] = array(
-					'taxonomy' => $taxonomy_slug,
-					'field'    => 'slug',
-					'terms'    => $term_slugs,
-				);
+			$taxonomy_slug = sanitize_title( $taxonomy_slug );
+			if ( '' === $taxonomy_slug ) {
+				continue;
 			}
+
+			$custom_taxonomy_config = Fanfic_Custom_Taxonomies::get_taxonomy_by_slug( $taxonomy_slug );
+			$require_all_custom = $match_all_filters
+				&& $custom_taxonomy_config
+				&& 'single' !== ( $custom_taxonomy_config['selection_type'] ?? 'single' );
+
+			$custom_ids = fanfic_get_story_ids_by_filter_map_facet(
+				'custom:' . $taxonomy_slug,
+				$term_slugs,
+				$require_all_custom
+			);
+			$post__in = fanfic_intersect_story_id_sets( $post__in, $custom_ids );
 		}
-	}
-
-
-	if ( ! empty( $tax_query ) ) {
-		$tax_query['relation'] = 'AND'; // Relation *between* different taxonomies remains AND
-		$query_args['tax_query'] = $tax_query;
 	}
 
 	if ( is_array( $post__in ) ) {
@@ -2436,6 +2690,8 @@ function fanfic_build_stories_query_args( $params, $paged = 1, $per_page = 12 ) 
 				$query_args['order'] = 'DESC';
 				break;
 		}
+	} elseif ( ! empty( $search_ids ) && is_array( $post__in ) ) {
+		$query_args['orderby'] = 'post__in';
 	} elseif ( empty( $query_args['orderby'] ) ) {
 		$query_args['orderby'] = 'modified';
 		$query_args['order'] = 'DESC';
@@ -2470,14 +2726,14 @@ function fanfic_build_stories_url_args( $params ) {
 	if ( ! empty( $params['languages'] ) ) {
 		$args['language'] = implode( ' ', $params['languages'] );
 	}
-	if ( ! empty( $params['warnings_mode'] ) && 'exclude' !== $params['warnings_mode'] ) { // Only add if not default 'exclude'
-		$args['warnings_mode'] = $params['warnings_mode'];
+	if ( ! empty( $params['exclude_warnings'] ) ) {
+		$args['warnings_exclude'] = implode( ' ', $params['exclude_warnings'] );
 	}
-	if ( ! empty( $params['selected_warnings'] ) ) {
-		$args['warnings_slugs'] = implode( ' ', $params['selected_warnings'] );
+	if ( ! empty( $params['include_warnings'] ) ) {
+		$args['warnings_include'] = implode( ' ', $params['include_warnings'] );
 	}
 	if ( ! empty( $params['age'] ) ) {
-		$args['age'] = $params['age'];
+		$args['age'] = implode( ' ', (array) $params['age'] );
 	}
 	if ( ! empty( $params['sort'] ) ) {
 		$args['sort'] = $params['sort'];
@@ -2522,6 +2778,114 @@ function fanfic_build_stories_url( $base_url, $params, $overrides = array() ) {
 }
 
 /**
+ * Preload search-index metadata needed by story cards.
+ *
+ * This keeps story card rendering lightweight by avoiding per-card translation
+ * and language table lookups on archive/search pages.
+ *
+ * @since 1.5.1
+ * @param int[] $story_ids Story IDs to preload.
+ * @return void
+ */
+function fanfic_preload_story_card_index_data( $story_ids ) {
+	global $wpdb;
+
+	$story_ids = array_values( array_unique( array_map( 'absint', (array) $story_ids ) ) );
+	$story_ids = array_filter( $story_ids );
+	if ( empty( $story_ids ) ) {
+		return;
+	}
+
+	if ( ! isset( $GLOBALS['fanfic_story_card_index_cache'] ) || ! is_array( $GLOBALS['fanfic_story_card_index_cache'] ) ) {
+		$GLOBALS['fanfic_story_card_index_cache'] = array();
+	}
+
+	$cache = $GLOBALS['fanfic_story_card_index_cache'];
+	$missing_ids = array();
+
+	foreach ( $story_ids as $story_id ) {
+		if ( ! array_key_exists( $story_id, $cache ) ) {
+			$missing_ids[] = $story_id;
+			$cache[ $story_id ] = array(
+				'language_slug'         => '',
+				'translation_group_id'  => 0,
+				'translation_count'     => 0,
+				'view_count'            => 0,
+			);
+		}
+	}
+
+	if ( empty( $missing_ids ) ) {
+		$GLOBALS['fanfic_story_card_index_cache'] = $cache;
+		return;
+	}
+
+	$table = $wpdb->prefix . 'fanfic_story_search_index';
+	$table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	if ( $table_exists !== $table ) {
+		$GLOBALS['fanfic_story_card_index_cache'] = $cache;
+		return;
+	}
+
+	$placeholders = implode( ',', array_fill( 0, count( $missing_ids ), '%d' ) );
+	$rows = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT story_id, language_slug, translation_group_id, translation_count, view_count
+			FROM {$table}
+			WHERE story_id IN ({$placeholders})",
+			$missing_ids
+		),
+		ARRAY_A
+	);
+
+	if ( is_array( $rows ) ) {
+		foreach ( $rows as $row ) {
+			$sid = absint( $row['story_id'] ?? 0 );
+			if ( ! $sid ) {
+				continue;
+			}
+			$cache[ $sid ] = array(
+				'language_slug'        => sanitize_title( (string) ( $row['language_slug'] ?? '' ) ),
+				'translation_group_id' => absint( $row['translation_group_id'] ?? 0 ),
+				'translation_count'    => absint( $row['translation_count'] ?? 0 ),
+				'view_count'           => absint( $row['view_count'] ?? 0 ),
+			);
+		}
+	}
+
+	$GLOBALS['fanfic_story_card_index_cache'] = $cache;
+}
+
+/**
+ * Get preloaded story-card index metadata for a single story.
+ *
+ * @since 1.5.1
+ * @param int $story_id Story ID.
+ * @return array{language_slug:string,translation_group_id:int,translation_count:int,view_count:int}
+ */
+function fanfic_get_story_card_index_data( $story_id ) {
+	$story_id = absint( $story_id );
+	$defaults = array(
+		'language_slug'        => '',
+		'translation_group_id' => 0,
+		'translation_count'    => 0,
+		'view_count'           => 0,
+	);
+
+	if ( ! $story_id ) {
+		return $defaults;
+	}
+
+	fanfic_preload_story_card_index_data( array( $story_id ) );
+
+	if ( isset( $GLOBALS['fanfic_story_card_index_cache'][ $story_id ] ) && is_array( $GLOBALS['fanfic_story_card_index_cache'][ $story_id ] ) ) {
+		return wp_parse_args( $GLOBALS['fanfic_story_card_index_cache'][ $story_id ], $defaults );
+	}
+
+	return $defaults;
+}
+
+/**
  * Render a story card (archive style) for a given story.
  *
  * @since 1.2.0
@@ -2549,28 +2913,19 @@ function fanfic_get_story_card_html( $story_id ) {
 	$age_badge = '';
 	if ( class_exists( 'Fanfic_Warnings' ) ) {
 		$story_warnings = Fanfic_Warnings::get_story_warnings( $story_id );
-		$age_priority = array( 'PG' => 1, '13' => 2, '16' => 3, '18' => 4 );
-		$highest_age = 'PG';
-		$highest_priority = 1;
+		$warning_ids = array_map( 'absint', wp_list_pluck( (array) $story_warnings, 'id' ) );
+		$highest_age = Fanfic_Warnings::calculate_derived_age( $warning_ids );
 
-		if ( ! empty( $story_warnings ) ) {
-			foreach ( $story_warnings as $warning ) {
-				if ( ! empty( $warning['min_age'] ) && isset( $age_priority[ $warning['min_age'] ] ) ) {
-					$warning_priority = $age_priority[ $warning['min_age'] ];
-					if ( $warning_priority > $highest_priority ) {
-						$highest_priority = $warning_priority;
-						$highest_age = $warning['min_age'];
-					}
-				}
-			}
+		if ( '' !== $highest_age ) {
+			$highest_age_label = fanfic_get_age_display_label( $highest_age, true );
+			$highest_age_class = fanfic_get_age_badge_class( $highest_age );
+			$age_badge = sprintf(
+				'<span class="fanfic-age-badge %1$s" aria-label="%2$s">%3$s</span>',
+				esc_attr( $highest_age_class ),
+				esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age_label ) ),
+				esc_html( $highest_age_label )
+			);
 		}
-
-		$age_badge = sprintf(
-			'<span class="fanfic-age-badge fanfic-age-badge-%1$s" aria-label="%2$s">%3$s+</span>',
-			esc_attr( sanitize_title( $highest_age ) ),
-			esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age ) ),
-			esc_html( $highest_age )
-		);
 	}
 
 	$visible_tags = array();
@@ -2578,9 +2933,16 @@ function fanfic_get_story_card_html( $story_id ) {
 		$visible_tags = fanfic_get_visible_tags( $story_id );
 	}
 
+	// Translation/language metadata comes from search index preload for lightweight cards.
+	$card_index_data = fanfic_get_story_card_index_data( $story_id );
+	$translation_group_id = absint( $card_index_data['translation_group_id'] );
+	$translation_count = absint( $card_index_data['translation_count'] );
+	$language_slug = sanitize_title( (string) $card_index_data['language_slug'] );
+	$story_views = absint( $card_index_data['view_count'] );
+
 	ob_start();
 	?>
-	<article id="story-<?php echo esc_attr( $story_id ); ?>" <?php post_class( 'fanfic-story-card', $story_id ); ?>>
+	<article id="story-<?php echo esc_attr( $story_id ); ?>" <?php post_class( 'fanfic-story-card', $story_id ); ?> data-language="<?php echo esc_attr( $language_slug ); ?>" data-translation-group="<?php echo esc_attr( $translation_group_id ); ?>" data-views="<?php echo esc_attr( $story_views ); ?>">
 		<?php if ( has_post_thumbnail( $story_id ) ) : ?>
 			<div class="fanfic-story-card-image">
 				<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>">
@@ -2654,6 +3016,18 @@ function fanfic_get_story_card_html( $story_id ) {
 						</span>
 					<?php endif; ?>
 				</div>
+
+				<?php if ( $translation_group_id && $translation_count > 0 ) : ?>
+					<div class="fanfic-story-translations-indicator">
+						<span class="fanfic-translations-icon" aria-hidden="true">&#127760;</span>
+						<?php
+						printf(
+							esc_html( _n( '%d translation', '%d translations', $translation_count, 'fanfiction-manager' ) ),
+							$translation_count
+						);
+						?>
+					</div>
+				<?php endif; ?>
 			</footer>
 		</div>
 	</article>
@@ -2732,26 +3106,42 @@ function fanfic_build_active_filters( $params, $base_url ) {
 		}
 	}
 
-	// Warnings logic
-	if ( ! empty( $params['selected_warnings'] ) ) {
-		$warnings_mode_label = ( 'include' === ( $params['warnings_mode'] ?? 'exclude' ) )
-			? __( 'Include', 'fanfiction-manager' )
-			: __( 'Exclude', 'fanfiction-manager' );
-
-		foreach ( (array) $params['selected_warnings'] as $slug ) {
+	// Exclude warnings pills
+	if ( ! empty( $params['exclude_warnings'] ) ) {
+		foreach ( (array) $params['exclude_warnings'] as $slug ) {
 			$label = isset( $warning_map[ $slug ] ) ? $warning_map[ $slug ] : $slug;
-			$new_selected_warnings = array_values( array_diff( $params['selected_warnings'], array( $slug ) ) );
+			$new_exclude = array_values( array_diff( $params['exclude_warnings'], array( $slug ) ) );
 			$filters[] = array(
-				'label' => sprintf( '%s: %s', $warnings_mode_label, $label ),
-				'url'   => fanfic_build_stories_url( $base_url, $params, array( 'selected_warnings' => $new_selected_warnings, 'paged' => null ) ),
+				'label' => sprintf( '%s: %s', __( 'Excluding', 'fanfiction-manager' ), $label ),
+				'url'   => fanfic_build_stories_url( $base_url, $params, array( 'exclude_warnings' => $new_exclude, 'paged' => null ) ),
 			);
 		}
 	}
 
-	// Age filter pill, skip if warnings are included and selected warnings exist
-	if ( ! empty( $params['age'] ) && ! ( 'include' === ( $params['warnings_mode'] ?? 'exclude' ) && ! empty( $params['selected_warnings'] ) ) ) {
+	// Include warnings pills
+	if ( ! empty( $params['include_warnings'] ) ) {
+		foreach ( (array) $params['include_warnings'] as $slug ) {
+			$label = isset( $warning_map[ $slug ] ) ? $warning_map[ $slug ] : $slug;
+			$new_include = array_values( array_diff( $params['include_warnings'], array( $slug ) ) );
+			$filters[] = array(
+				'label' => sprintf( '%s: %s', __( 'Including', 'fanfiction-manager' ), $label ),
+				'url'   => fanfic_build_stories_url( $base_url, $params, array( 'include_warnings' => $new_include, 'paged' => null ) ),
+			);
+		}
+	}
+
+	// Age filter pills, skip if include warnings are active
+	if ( ! empty( $params['age'] ) && empty( $params['include_warnings'] ) ) {
+		$age_labels = array();
+		foreach ( (array) $params['age'] as $age_value ) {
+			$age_label = fanfic_get_age_display_label( $age_value, true );
+			if ( '' === $age_label ) {
+				$age_label = (string) $age_value;
+			}
+			$age_labels[] = $age_label;
+		}
 		$filters[] = array(
-			'label' => sprintf( __( 'Age: %s+', 'fanfiction-manager' ), $params['age'] ),
+			'label' => sprintf( __( 'Age: %s', 'fanfiction-manager' ), implode( ', ', $age_labels ) ),
 			'url'   => fanfic_build_stories_url( $base_url, $params, array( 'age' => null, 'paged' => null ) ),
 		);
 	}
@@ -2900,7 +3290,7 @@ function fanfic_get_taxonomy_terms_with_counts_for_stories_all( $taxonomy_config
 	}
 
 	$terms = array();
-	$base_url = function_exists( 'fanfic_get_page_url' ) ? fanfic_get_page_url( 'search' ) : '';
+	$base_url = function_exists( 'fanfic_get_page_url' ) ? fanfic_get_page_url( 'stories' ) : '';
 	if ( empty( $base_url ) ) {
 		$base_url = home_url( '/' );
 	}
@@ -2983,6 +3373,53 @@ function fanfic_get_taxonomy_terms_with_counts_for_stories_all( $taxonomy_config
 }
 
 /**
+ * Get counts by facet value from search filter map for published stories.
+ *
+ * @since 1.5.2
+ * @param string $facet_type Facet type.
+ * @return array<string,int> Value => count.
+ */
+function fanfic_get_filter_map_counts_by_facet( $facet_type ) {
+	if ( ! fanfic_search_filter_map_tables_ready() ) {
+		return array();
+	}
+
+	$facet_type = strtolower( trim( sanitize_text_field( (string) $facet_type ) ) );
+	$facet_type = preg_replace( '/[^a-z0-9:_-]/', '', $facet_type );
+	if ( '' === $facet_type ) {
+		return array();
+	}
+
+	global $wpdb;
+	$index_table = $wpdb->prefix . 'fanfic_story_search_index';
+	$map_table   = $wpdb->prefix . 'fanfic_story_filter_map';
+
+	$rows = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT m.facet_value, COUNT(DISTINCT m.story_id) AS story_count
+			FROM {$map_table} m
+			INNER JOIN {$index_table} idx ON idx.story_id = m.story_id
+			WHERE idx.story_status = 'publish'
+			  AND m.facet_type = %s
+			GROUP BY m.facet_value",
+			$facet_type
+		),
+		ARRAY_A
+	);
+
+	$counts = array();
+	foreach ( (array) $rows as $row ) {
+		$value = sanitize_title( $row['facet_value'] ?? '' );
+		if ( '' === $value ) {
+			continue;
+		}
+		$counts[ $value ] = absint( $row['story_count'] ?? 0 );
+	}
+
+	return $counts;
+}
+
+/**
  * Get light taxonomy terms with counts (fandom, language).
  *
  * @since 1.2.0
@@ -2990,68 +3427,28 @@ function fanfic_get_taxonomy_terms_with_counts_for_stories_all( $taxonomy_config
  * @return array Terms with name, slug, and count.
  */
 function fanfic_get_light_taxonomy_terms_with_counts( $taxonomy_key ) {
-	global $wpdb;
-
-	// Determine which column to query
-	$column = '';
+	$facet_type = '';
 	if ( 'fandom' === $taxonomy_key ) {
-		$column = 'fandom_slugs';
+		$facet_type = 'fandom';
 	} elseif ( 'language' === $taxonomy_key ) {
-		$column = 'language_slug';
+		$facet_type = 'language';
 	} else {
 		return array();
 	}
 
-	$table = $wpdb->prefix . 'fanfic_story_search_index';
-
-	if ( 'language' === $taxonomy_key ) {
-		// Language is single-value
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$results = $wpdb->get_results(
-			"SELECT {$column} as slug, COUNT(*) as count
-			FROM {$table}
-			WHERE story_status = 'publish'
-			AND {$column} != ''
-			GROUP BY {$column}
-			ORDER BY {$column} ASC",
-			ARRAY_A
-		);
-	} else {
-		// Fandom is comma-separated (need to split)
-		// This uses a numbers table technique to split CSV
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$results = $wpdb->get_results(
-			"SELECT
-				TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(fandom_slugs, ',', numbers.n), ',', -1)) as slug,
-				COUNT(*) as count
-			FROM {$table}
-			CROSS JOIN (
-				SELECT 1 n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
-				UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8
-				UNION ALL SELECT 9 UNION ALL SELECT 10
-			) numbers
-			WHERE story_status = 'publish'
-			AND fandom_slugs != ''
-			AND CHAR_LENGTH(fandom_slugs) - CHAR_LENGTH(REPLACE(fandom_slugs, ',', '')) >= numbers.n - 1
-			GROUP BY slug
-			HAVING slug != ''
-			ORDER BY slug ASC",
-			ARRAY_A
-		);
-	}
-
+	$counts = fanfic_get_filter_map_counts_by_facet( $facet_type );
 	$terms = array();
-	foreach ( $results as $row ) {
-		$slug  = $row['slug'];
-		$count = absint( $row['count'] );
+	foreach ( $counts as $slug => $count ) {
+		$slug = sanitize_title( $slug );
+		$count = absint( $count );
 
 		if ( $count > 0 ) {
 			// Get display name
 			$name = $slug;
 			if ( 'language' === $taxonomy_key && class_exists( 'Fanfic_Languages' ) ) {
-				$lang_data = Fanfic_Languages::get_language_by_slug( $slug );
+				$lang_data = Fanfic_Languages::get_by_slug( $slug );
 				if ( $lang_data ) {
-					$name = $lang_data['name'];
+					$name = $lang_data['name'] ?? $slug;
 				}
 			} else {
 				$name = ucwords( str_replace( array( '-', '_' ), ' ', $slug ) );
@@ -3076,21 +3473,255 @@ function fanfic_get_light_taxonomy_terms_with_counts( $taxonomy_key ) {
  * @return int Story count.
  */
 function fanfic_get_warning_story_count( $warning_slug ) {
+	$warning_slug = sanitize_title( $warning_slug );
+	if ( '' === $warning_slug ) {
+		return 0;
+	}
+
+	$counts = fanfic_get_filter_map_counts_by_facet( 'warning' );
+	return absint( $counts[ $warning_slug ] ?? 0 );
+}
+
+/**
+ * Normalize a filter label key for stable lookups.
+ *
+ * @since 1.2.0
+ * @param string $value Raw label value.
+ * @return string Normalized key.
+ */
+function fanfic_normalize_filter_label_key( $value ) {
+	$value = trim( wp_strip_all_tags( (string) $value ) );
+	if ( '' === $value ) {
+		return '';
+	}
+
+	return function_exists( 'mb_strtolower' ) ? mb_strtolower( $value, 'UTF-8' ) : strtolower( $value );
+}
+
+/**
+ * Get CSV-value counts from search index for published stories.
+ *
+ * @since 1.2.0
+ * @param string $column CSV column name in search index.
+ * @param int    $max_values Maximum values to split per row.
+ * @return array<string,int> Map of value => story count.
+ */
+function fanfic_get_search_index_csv_counts( $column, $max_values = 20 ) {
 	global $wpdb;
+
+	$allowed_columns = array( 'fandom_slugs', 'warning_slugs', 'genre_names' );
+	if ( ! in_array( $column, $allowed_columns, true ) ) {
+		return array();
+	}
+
+	$max_values = max( 1, min( 40, absint( $max_values ) ) );
+	$numbers = array();
+	for ( $i = 1; $i <= $max_values; $i++ ) {
+		$numbers[] = 'SELECT ' . $i . ' n';
+	}
+	$numbers_sql = implode( ' UNION ALL ', $numbers );
 
 	$table = $wpdb->prefix . 'fanfic_story_search_index';
 
-	$count = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT COUNT(*)
-			FROM {$table}
-			WHERE story_status = 'publish'
-			AND FIND_IN_SET(%s, warning_slugs) > 0",
-			$warning_slug
-		)
+	// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	$rows = $wpdb->get_results(
+		"SELECT
+			TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX({$column}, ',', numbers.n), ',', -1)) AS value_slug,
+			COUNT(DISTINCT story_id) AS story_count
+		FROM {$table}
+		CROSS JOIN ({$numbers_sql}) numbers
+		WHERE story_status = 'publish'
+		  AND {$column} != ''
+		  AND CHAR_LENGTH({$column}) - CHAR_LENGTH(REPLACE({$column}, ',', '')) >= numbers.n - 1
+		GROUP BY value_slug
+		HAVING value_slug != ''",
+		ARRAY_A
 	);
 
-	return absint( $count );
+	$counts = array();
+	foreach ( (array) $rows as $row ) {
+		$value = trim( (string) ( $row['value_slug'] ?? '' ) );
+		if ( '' === $value ) {
+			continue;
+		}
+		$counts[ $value ] = absint( $row['story_count'] ?? 0 );
+	}
+
+	return $counts;
+}
+
+/**
+ * Get global filter option counts for search form.
+ *
+ * Uses published stories only. Built-in filters are sourced from search index.
+ * Custom taxonomy counts are sourced from custom relation tables and constrained
+ * by search index publish status.
+ *
+ * @since 1.2.0
+ * @return array Filter counts by taxonomy key.
+ */
+function fanfic_get_search_filter_option_counts() {
+	global $wpdb;
+
+	$empty = array(
+		'genres_by_name'   => array(),
+		'statuses_by_name' => array(),
+		'ages'             => array(),
+		'languages'        => array(),
+		'warnings'         => array(),
+		'fandoms'          => array(),
+		'custom'           => array(),
+	);
+
+	if ( ! fanfic_search_filter_map_tables_ready() ) {
+		return $empty;
+	}
+
+	$index_table = $wpdb->prefix . 'fanfic_story_search_index';
+	$map_table   = $wpdb->prefix . 'fanfic_story_filter_map';
+
+	$cache_key = '';
+	if ( class_exists( 'Fanfic_Cache' ) ) {
+		$cache_key = Fanfic_Cache::get_key( 'search', 'global_filter_counts' );
+		$cached = Fanfic_Cache::get( $cache_key, null, Fanfic_Cache::REALTIME );
+		if ( false !== $cached && is_array( $cached ) ) {
+			return wp_parse_args( $cached, $empty );
+		}
+	}
+
+	$counts = $empty;
+	$available_ages = fanfic_get_available_age_filters();
+	$age_aliases = fanfic_get_age_filter_alias_map( $available_ages );
+	foreach ( (array) $available_ages as $age_value ) {
+		$counts['ages'][ $age_value ] = 0;
+	}
+
+	// Status counts (slug -> term name key).
+	$status_slug_counts = fanfic_get_filter_map_counts_by_facet( 'status' );
+	if ( ! empty( $status_slug_counts ) ) {
+		$status_terms = get_terms(
+			array(
+				'taxonomy'   => 'fanfiction_status',
+				'hide_empty' => false,
+				'slug'       => array_keys( $status_slug_counts ),
+			)
+		);
+		if ( ! is_wp_error( $status_terms ) ) {
+			foreach ( (array) $status_terms as $status_term ) {
+				$slug = sanitize_title( $status_term->slug ?? '' );
+				if ( '' === $slug || ! isset( $status_slug_counts[ $slug ] ) ) {
+					continue;
+				}
+				$key = fanfic_normalize_filter_label_key( $status_term->name ?? '' );
+				if ( '' === $key ) {
+					continue;
+				}
+				$counts['statuses_by_name'][ $key ] = absint( $status_slug_counts[ $slug ] );
+			}
+		}
+	}
+
+	// Genre counts (slug -> term name key).
+	$genre_slug_counts = fanfic_get_filter_map_counts_by_facet( 'genre' );
+	if ( ! empty( $genre_slug_counts ) ) {
+		$genre_terms = get_terms(
+			array(
+				'taxonomy'   => 'fanfiction_genre',
+				'hide_empty' => false,
+				'slug'       => array_keys( $genre_slug_counts ),
+			)
+		);
+		if ( ! is_wp_error( $genre_terms ) ) {
+			foreach ( (array) $genre_terms as $genre_term ) {
+				$slug = sanitize_title( $genre_term->slug ?? '' );
+				if ( '' === $slug || ! isset( $genre_slug_counts[ $slug ] ) ) {
+					continue;
+				}
+				$key = fanfic_normalize_filter_label_key( $genre_term->name ?? '' );
+				if ( '' === $key ) {
+					continue;
+				}
+				$counts['genres_by_name'][ $key ] = absint( $genre_slug_counts[ $slug ] );
+			}
+		}
+	}
+
+	// Age counts.
+	$age_counts = fanfic_get_filter_map_counts_by_facet( 'age' );
+	foreach ( $age_counts as $age_slug => $story_count ) {
+		$raw_age = trim( (string) $age_slug );
+		if ( '' === $raw_age ) {
+			continue;
+		}
+		$lookup_key = strtoupper( $raw_age );
+		$age = $age_aliases[ $lookup_key ] ?? ( $age_aliases[ str_replace( '+', '', $lookup_key ) ] ?? $raw_age );
+		if ( ! isset( $counts['ages'][ $age ] ) ) {
+			$counts['ages'][ $age ] = 0;
+		}
+		$counts['ages'][ $age ] = absint( $story_count );
+	}
+	$counts['ages'] = array_replace( array_fill_keys( fanfic_get_available_age_filters(), 0 ), $counts['ages'] );
+
+	// Language counts.
+	$language_counts = fanfic_get_filter_map_counts_by_facet( 'language' );
+	foreach ( $language_counts as $slug => $story_count ) {
+		$slug = sanitize_title( $slug );
+		if ( '' !== $slug ) {
+			$counts['languages'][ $slug ] = absint( $story_count );
+		}
+	}
+
+	// Warning counts.
+	$warning_counts = fanfic_get_filter_map_counts_by_facet( 'warning' );
+	foreach ( $warning_counts as $slug => $story_count ) {
+		$slug = sanitize_title( $slug );
+		if ( '' === $slug ) {
+			continue;
+		}
+		$counts['warnings'][ $slug ] = absint( $story_count );
+	}
+
+	// Fandom counts.
+	$fandom_counts = fanfic_get_filter_map_counts_by_facet( 'fandom' );
+	foreach ( $fandom_counts as $slug => $story_count ) {
+		$slug = sanitize_title( $slug );
+		if ( '' === $slug ) {
+			continue;
+		}
+		$counts['fandoms'][ $slug ] = absint( $story_count );
+	}
+
+	// Custom taxonomy counts from runtime filter map.
+	$custom_rows = $wpdb->get_results(
+		"SELECT
+			SUBSTRING_INDEX(m.facet_type, ':', -1) AS taxonomy_slug,
+			m.facet_value AS term_slug,
+			COUNT(DISTINCT m.story_id) AS story_count
+		FROM {$map_table} m
+		INNER JOIN {$index_table} idx ON idx.story_id = m.story_id
+		WHERE idx.story_status = 'publish'
+		  AND m.facet_type LIKE 'custom:%'
+		GROUP BY taxonomy_slug, term_slug",
+		ARRAY_A
+	);
+
+	foreach ( (array) $custom_rows as $row ) {
+		$taxonomy_slug = sanitize_title( $row['taxonomy_slug'] ?? '' );
+		$term_slug = sanitize_title( $row['term_slug'] ?? '' );
+		if ( '' === $taxonomy_slug || '' === $term_slug ) {
+			continue;
+		}
+		if ( ! isset( $counts['custom'][ $taxonomy_slug ] ) ) {
+			$counts['custom'][ $taxonomy_slug ] = array();
+		}
+		$counts['custom'][ $taxonomy_slug ][ $term_slug ] = absint( $row['story_count'] ?? 0 );
+	}
+
+	if ( ! empty( $cache_key ) ) {
+		Fanfic_Cache::set( $cache_key, $counts, Fanfic_Cache::REALTIME );
+	}
+
+	return $counts;
 }
 
 /**
@@ -3102,22 +3733,17 @@ function fanfic_get_warning_story_count( $warning_slug ) {
  * @return int Story count.
  */
 function fanfic_get_custom_taxonomy_term_count( $taxonomy_id, $term_slug ) {
-	global $wpdb;
+	$taxonomy_id = absint( $taxonomy_id );
+	$term_slug   = sanitize_title( $term_slug );
+	if ( ! $taxonomy_id || '' === $term_slug || ! class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
+		return 0;
+	}
 
-	$table_name = $wpdb->prefix . 'fanfic_story_custom_taxonomy';
+	$taxonomy = Fanfic_Custom_Taxonomies::get_taxonomy_by_id( $taxonomy_id );
+	if ( empty( $taxonomy ) || empty( $taxonomy['slug'] ) ) {
+		return 0;
+	}
 
-	$count = $wpdb->get_var( $wpdb->prepare(
-		"SELECT COUNT(DISTINCT sct.story_id)
-		FROM {$table_name} sct
-		INNER JOIN {$wpdb->posts} p ON sct.story_id = p.ID
-		WHERE sct.taxonomy_id = %d
-		AND sct.term_slug = %s
-		AND p.post_type = 'fanfiction_story'
-		AND p.post_status = 'publish'",
-		$taxonomy_id,
-		$term_slug
-	) );
-
-	return absint( $count );
+	$counts = fanfic_get_filter_map_counts_by_facet( 'custom:' . sanitize_title( $taxonomy['slug'] ) );
+	return absint( $counts[ $term_slug ] ?? 0 );
 }
-

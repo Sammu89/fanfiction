@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Fanfic_Database_Setup
  *
- * Creates and manages 16 custom tables:
+ * Creates and manages custom tables:
  * - wp_fanfic_ratings: Chapter ratings (1-5 stars)
  * - wp_fanfic_likes: Chapter likes
  * - wp_fanfic_reading_progress: Mark chapters as read
@@ -35,6 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_custom_terms: Custom taxonomy terms (NEW in 1.4.0)
  * - wp_fanfic_story_custom_terms: Story-custom term relations (NEW in 1.4.0)
  * - wp_fanfic_story_search_index: Pre-computed search index (NEW in 1.2.0)
+ * - wp_fanfic_story_filter_map: Pre-computed filter facets map (NEW in 1.5.2)
  * - wp_fanfic_moderation_log: Moderation action log (NEW in 1.2.0)
  *
  * @since 1.0.0
@@ -47,7 +48,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.4.0';
+	const DB_VERSION = '1.5.2';
 
 	/**
 	 * Option name for database version tracking
@@ -283,7 +284,7 @@ class Fanfic_Database_Setup {
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			slug varchar(191) NOT NULL,
 			name varchar(255) NOT NULL,
-			min_age enum('PG','13+','16+','18+') NOT NULL DEFAULT 'PG',
+			min_age tinyint(3) UNSIGNED NOT NULL DEFAULT 3,
 			description text NOT NULL,
 			is_sexual tinyint(1) NOT NULL DEFAULT 0,
 			is_pornographic tinyint(1) NOT NULL DEFAULT 0,
@@ -348,9 +349,26 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_languages table';
 		}
 
+		// 14. Story Translation Groups Table
+		$table_story_translations = $prefix . 'fanfic_story_translations';
+		$sql_story_translations   = "CREATE TABLE IF NOT EXISTS {$table_story_translations} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			group_id bigint(20) UNSIGNED NOT NULL,
+			story_id bigint(20) UNSIGNED NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_story (story_id),
+			KEY idx_group (group_id),
+			KEY idx_group_story (group_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_translations );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_translations ) ) {
+			$errors[] = 'Failed to create story_translations table';
+		}
+
 		} // end if ( $include_classification )
 
-		// 14. Custom Taxonomies Table
+		// 15. Custom Taxonomies Table
 		$table_custom_taxonomies = $prefix . 'fanfic_custom_taxonomies';
 		$sql_custom_taxonomies   = "CREATE TABLE IF NOT EXISTS {$table_custom_taxonomies} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -371,7 +389,7 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create custom_taxonomies table';
 		}
 
-		// 15. Custom Terms Table
+		// 16. Custom Terms Table
 		$table_custom_terms = $prefix . 'fanfic_custom_terms';
 		$sql_custom_terms   = "CREATE TABLE IF NOT EXISTS {$table_custom_terms} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -393,7 +411,7 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create custom_terms table';
 		}
 
-		// 16. Story-Custom Terms Relations Table
+		// 17. Story-Custom Terms Relations Table
 		$table_story_custom_terms = $prefix . 'fanfic_story_custom_terms';
 		$sql_story_custom_terms   = "CREATE TABLE IF NOT EXISTS {$table_story_custom_terms} (
 			story_id bigint(20) UNSIGNED NOT NULL,
@@ -408,7 +426,7 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_custom_terms table';
 		}
 
-		// 17. Story Search Index Table
+		// 18. Story Search Index Table
 		$table_search_index = $prefix . 'fanfic_story_search_index';
 		$sql_search_index   = "CREATE TABLE IF NOT EXISTS {$table_search_index} (
 			story_id bigint(20) UNSIGNED NOT NULL,
@@ -423,10 +441,13 @@ class Fanfic_Database_Setup {
 			updated_date datetime DEFAULT NULL,
 			chapter_count int(11) DEFAULT 0,
 			word_count bigint(20) DEFAULT 0,
+			view_count bigint(20) DEFAULT 0,
 			fandom_slugs text,
 			language_slug varchar(50) DEFAULT '',
+			translation_group_id bigint(20) UNSIGNED DEFAULT 0,
+			translation_count int(11) DEFAULT 0,
 			warning_slugs varchar(500) DEFAULT '',
-			age_rating varchar(5) DEFAULT '',
+			age_rating varchar(50) DEFAULT '',
 			visible_tags text,
 			invisible_tags text,
 			genre_names varchar(500) DEFAULT '',
@@ -436,6 +457,7 @@ class Fanfic_Database_Setup {
 			KEY idx_author (author_id),
 			KEY idx_status (story_status),
 			KEY idx_language (language_slug),
+			KEY idx_translation_group (translation_group_id),
 			KEY idx_age_rating (age_rating),
 			FULLTEXT KEY idx_search_fulltext (indexed_text),
 			FULLTEXT KEY idx_title_fulltext (story_title)
@@ -446,7 +468,23 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_search_index table';
 		}
 
-		// 16. Moderation Log Table
+		// 19. Story Filter Map Table
+		$table_filter_map = $prefix . 'fanfic_story_filter_map';
+		$sql_filter_map   = "CREATE TABLE IF NOT EXISTS {$table_filter_map} (
+			story_id bigint(20) UNSIGNED NOT NULL,
+			facet_type varchar(64) NOT NULL,
+			facet_value varchar(191) NOT NULL,
+			PRIMARY KEY  (story_id, facet_type, facet_value),
+			KEY idx_facet_lookup (facet_type, facet_value, story_id),
+			KEY idx_story_facet (story_id, facet_type)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_filter_map );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_filter_map ) ) {
+			$errors[] = 'Failed to create story_filter_map table';
+		}
+
+		// 20. Moderation Log Table
 		$table_moderation_log = $prefix . 'fanfic_moderation_log';
 		$sql_moderation_log   = "CREATE TABLE IF NOT EXISTS {$table_moderation_log} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -467,6 +505,11 @@ class Fanfic_Database_Setup {
 		if ( empty( $result ) || ! self::verify_table_exists( $table_moderation_log ) ) {
 			$errors[] = 'Failed to create moderation_log table';
 		}
+
+		self::migrate_warnings_age_schema();
+		self::migrate_search_index_age_schema();
+		self::migrate_search_index_translations_schema();
+		self::migrate_story_filter_map_schema();
 
 		// Return errors if any
 		if ( ! empty( $errors ) ) {
@@ -539,7 +582,7 @@ class Fanfic_Database_Setup {
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			slug varchar(191) NOT NULL,
 			name varchar(255) NOT NULL,
-			min_age enum('PG','13+','16+','18+') NOT NULL DEFAULT 'PG',
+			min_age tinyint(3) UNSIGNED NOT NULL DEFAULT 3,
 			description text NOT NULL,
 			is_sexual tinyint(1) NOT NULL DEFAULT 0,
 			is_pornographic tinyint(1) NOT NULL DEFAULT 0,
@@ -604,6 +647,25 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_languages table';
 		}
 
+		// 7. Story Translation Groups Table
+		$table_story_translations = $prefix . 'fanfic_story_translations';
+		$sql_story_translations   = "CREATE TABLE IF NOT EXISTS {$table_story_translations} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			group_id bigint(20) UNSIGNED NOT NULL,
+			story_id bigint(20) UNSIGNED NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_story (story_id),
+			KEY idx_group (group_id),
+			KEY idx_group_story (group_id, story_id)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_story_translations );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_story_translations ) ) {
+			$errors[] = 'Failed to create story_translations table';
+		}
+
+		self::migrate_warnings_age_schema();
+
 		if ( ! empty( $errors ) ) {
 			return new WP_Error(
 				'classification_tables_failed',
@@ -615,7 +677,7 @@ class Fanfic_Database_Setup {
 	}
 
 	/**
-	 * Check whether all six classification tables exist.
+	 * Check whether all seven classification tables exist.
 	 *
 	 * @since 1.0.0
 	 * @return bool
@@ -631,6 +693,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_story_translations',
 		);
 
 		foreach ( $tables as $table ) {
@@ -822,7 +885,7 @@ class Fanfic_Database_Setup {
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN fandom_slugs text AFTER word_count" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN language_slug varchar(50) DEFAULT '' AFTER fandom_slugs" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN warning_slugs varchar(500) DEFAULT '' AFTER language_slug" );
-		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN age_rating varchar(5) DEFAULT '' AFTER warning_slugs" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN age_rating varchar(50) DEFAULT '' AFTER warning_slugs" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN visible_tags text AFTER age_rating" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN invisible_tags text AFTER visible_tags" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN genre_names varchar(500) DEFAULT '' AFTER invisible_tags" );
@@ -836,6 +899,332 @@ class Fanfic_Database_Setup {
 		$wpdb->query( "ALTER TABLE {$table} ADD FULLTEXT KEY idx_title_fulltext (story_title)" );
 
 		return true;
+	}
+
+	/**
+	 * Migrate warning ages to numeric values (3-99) and drop legacy baseline fields.
+	 *
+	 * @since 1.4.2
+	 * @return void
+	 */
+	private static function migrate_warnings_age_schema() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_warnings';
+
+		if ( ! self::verify_table_exists( $table ) ) {
+			return;
+		}
+
+		$rows = $wpdb->get_results(
+			"SELECT id, min_age FROM {$table}",
+			ARRAY_A
+		);
+
+		foreach ( (array) $rows as $row ) {
+			$warning_id = absint( $row['id'] ?? 0 );
+			if ( $warning_id < 1 ) {
+				continue;
+			}
+
+			$raw_age = (string) ( $row['min_age'] ?? '' );
+			$normalized_age = '';
+
+			if ( class_exists( 'Fanfic_Warnings' ) ) {
+				$normalized_age = Fanfic_Warnings::sanitize_age_label( $raw_age );
+			}
+
+			if ( '' === $normalized_age ) {
+				$trimmed = trim( (string) $raw_age );
+				if ( preg_match( '/^\d{1,2}\+?$/', $trimmed ) ) {
+					$fallback_age = absint( rtrim( $trimmed, '+' ) );
+					if ( $fallback_age >= 3 && $fallback_age <= 99 ) {
+						$normalized_age = (string) $fallback_age;
+					}
+				}
+			}
+
+			if ( '' === $normalized_age ) {
+				$normalized_age = '3';
+			}
+
+			if ( (string) $row['min_age'] !== $normalized_age ) {
+				$wpdb->update(
+					$table,
+					array( 'min_age' => (int) $normalized_age ),
+					array( 'id' => $warning_id ),
+					array( '%d' ),
+					array( '%d' )
+				);
+			}
+		}
+
+		$indexes = $wpdb->get_col( "SHOW INDEX FROM {$table}", 2 );
+		if ( in_array( 'idx_lowest_age', (array) $indexes, true ) ) {
+			$wpdb->query( "ALTER TABLE {$table} DROP INDEX idx_lowest_age" );
+		}
+
+		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+		if ( in_array( 'is_lowest_age', (array) $columns, true ) ) {
+			$wpdb->query( "ALTER TABLE {$table} DROP COLUMN is_lowest_age" );
+		}
+
+		$wpdb->query( "ALTER TABLE {$table} MODIFY COLUMN min_age tinyint(3) UNSIGNED NOT NULL DEFAULT 3" );
+	}
+
+	/**
+	 * Migrate search index age_rating column width.
+	 *
+	 * @since 1.4.1
+	 * @return void
+	 */
+	private static function migrate_search_index_age_schema() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_story_search_index';
+
+		if ( ! self::verify_table_exists( $table ) ) {
+			return;
+		}
+
+		$age_column = $wpdb->get_row( "SHOW COLUMNS FROM {$table} LIKE 'age_rating'", ARRAY_A );
+		if ( empty( $age_column ) ) {
+			return;
+		}
+
+		$column_type = strtolower( (string) ( $age_column['Type'] ?? '' ) );
+		if ( false === strpos( $column_type, 'varchar(50)' ) ) {
+			$wpdb->query( "ALTER TABLE {$table} MODIFY COLUMN age_rating varchar(50) DEFAULT ''" );
+		}
+	}
+
+	/**
+	 * Migrate search index translation columns.
+	 *
+	 * Ensures translation/dedup metadata is stored in search index to avoid
+	 * per-card relation queries on browse/search pages.
+	 *
+	 * @since 1.5.1
+	 * @return void
+	 */
+	private static function migrate_search_index_translations_schema() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_story_search_index';
+
+		if ( ! self::verify_table_exists( $table ) ) {
+			return;
+		}
+
+		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+
+		if ( ! in_array( 'view_count', (array) $columns, true ) ) {
+			$wpdb->query( "ALTER TABLE {$table} ADD COLUMN view_count bigint(20) DEFAULT 0 AFTER word_count" );
+		}
+		if ( ! in_array( 'translation_group_id', (array) $columns, true ) ) {
+			$wpdb->query( "ALTER TABLE {$table} ADD COLUMN translation_group_id bigint(20) UNSIGNED DEFAULT 0 AFTER language_slug" );
+		}
+		if ( ! in_array( 'translation_count', (array) $columns, true ) ) {
+			$wpdb->query( "ALTER TABLE {$table} ADD COLUMN translation_count int(11) DEFAULT 0 AFTER translation_group_id" );
+		}
+
+		$indexes = $wpdb->get_col( "SHOW INDEX FROM {$table}", 2 );
+		if ( ! in_array( 'idx_translation_group', (array) $indexes, true ) ) {
+			$wpdb->query( "ALTER TABLE {$table} ADD KEY idx_translation_group (translation_group_id)" );
+		}
+
+		// One-time backfill for existing rows so story cards can immediately use
+		// search-index metadata without per-card relation queries.
+		$postmeta_table = $wpdb->postmeta;
+		$wpdb->query(
+			"UPDATE {$table} idx
+			LEFT JOIN {$postmeta_table} pm
+				ON pm.post_id = idx.story_id
+				AND pm.meta_key = '_fanfic_views'
+			SET idx.view_count = CAST(COALESCE(pm.meta_value, 0) AS UNSIGNED)"
+		);
+
+		$translations_table = $wpdb->prefix . 'fanfic_story_translations';
+		if ( self::verify_table_exists( $translations_table ) ) {
+			$posts_table = $wpdb->posts;
+
+			$wpdb->query( "UPDATE {$table} SET translation_group_id = 0, translation_count = 0" );
+
+			$wpdb->query(
+				"UPDATE {$table} idx
+				INNER JOIN {$translations_table} tr ON tr.story_id = idx.story_id
+				SET idx.translation_group_id = tr.group_id"
+			);
+
+			$wpdb->query(
+				"UPDATE {$table} idx
+				INNER JOIN (
+					SELECT
+						tr1.story_id AS story_id,
+						GREATEST(COUNT(CASE WHEN p2.post_status = 'publish' THEN 1 END) - 1, 0) AS translation_count
+					FROM {$translations_table} tr1
+					INNER JOIN {$translations_table} tr2 ON tr1.group_id = tr2.group_id
+					INNER JOIN {$posts_table} p2
+						ON p2.ID = tr2.story_id
+						AND p2.post_type = 'fanfiction_story'
+					GROUP BY tr1.story_id
+				) stats ON stats.story_id = idx.story_id
+				SET idx.translation_count = stats.translation_count"
+			);
+		}
+	}
+
+	/**
+	 * Migrate search filter map schema.
+	 *
+	 * Ensures a lightweight, indexed facet map exists for runtime search
+	 * filtering without joining multiple canonical relation tables.
+	 *
+	 * @since 1.5.2
+	 * @return void
+	 */
+	private static function migrate_story_filter_map_schema() {
+		global $wpdb;
+
+		$table_map   = $wpdb->prefix . 'fanfic_story_filter_map';
+		$table_index = $wpdb->prefix . 'fanfic_story_search_index';
+
+		if ( ! self::verify_table_exists( $table_map ) || ! self::verify_table_exists( $table_index ) ) {
+			return;
+		}
+
+		$rows_in_map = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table_map}" );
+		if ( $rows_in_map > 0 ) {
+			return;
+		}
+
+		$rows_in_index = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table_index}" );
+		if ( $rows_in_index < 1 ) {
+			return;
+		}
+
+		$wpdb->query(
+			"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+			SELECT idx.story_id, 'language', LOWER(TRIM(idx.language_slug))
+			FROM {$table_index} idx
+			WHERE idx.language_slug IS NOT NULL
+			  AND idx.language_slug != ''"
+		);
+
+		$wpdb->query(
+			"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+			SELECT idx.story_id, 'age', LOWER(TRIM(idx.age_rating))
+			FROM {$table_index} idx
+			WHERE idx.age_rating IS NOT NULL
+			  AND idx.age_rating != ''"
+		);
+
+		$table_story_fandoms = $wpdb->prefix . 'fanfic_story_fandoms';
+		$table_fandoms       = $wpdb->prefix . 'fanfic_fandoms';
+		if ( self::verify_table_exists( $table_story_fandoms ) && self::verify_table_exists( $table_fandoms ) ) {
+			$wpdb->query(
+				"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+				SELECT sf.story_id, 'fandom', LOWER(TRIM(f.slug))
+				FROM {$table_story_fandoms} sf
+				INNER JOIN {$table_fandoms} f ON f.id = sf.fandom_id
+				WHERE f.slug IS NOT NULL
+				  AND f.slug != ''"
+			);
+		} else {
+			$wpdb->query(
+				"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+				SELECT idx.story_id, 'fandom',
+					LOWER(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(idx.fandom_slugs, ',', numbers.n), ',', -1))) AS facet_value
+				FROM {$table_index} idx
+				CROSS JOIN (
+					SELECT 1 n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+					UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8
+					UNION ALL SELECT 9 UNION ALL SELECT 10
+				) numbers
+				WHERE idx.fandom_slugs != ''
+				  AND CHAR_LENGTH(idx.fandom_slugs) - CHAR_LENGTH(REPLACE(idx.fandom_slugs, ',', '')) >= numbers.n - 1
+				HAVING facet_value != ''"
+			);
+		}
+
+		$table_story_warnings = $wpdb->prefix . 'fanfic_story_warnings';
+		$table_warnings       = $wpdb->prefix . 'fanfic_warnings';
+		if ( self::verify_table_exists( $table_story_warnings ) && self::verify_table_exists( $table_warnings ) ) {
+			$wpdb->query(
+				"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+				SELECT sw.story_id, 'warning', LOWER(TRIM(w.slug))
+				FROM {$table_story_warnings} sw
+				INNER JOIN {$table_warnings} w ON w.id = sw.warning_id
+				WHERE w.slug IS NOT NULL
+				  AND w.slug != ''"
+			);
+		} else {
+			$wpdb->query(
+				"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+				SELECT idx.story_id, 'warning',
+					LOWER(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(idx.warning_slugs, ',', numbers.n), ',', -1))) AS facet_value
+				FROM {$table_index} idx
+				CROSS JOIN (
+					SELECT 1 n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+					UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8
+					UNION ALL SELECT 9 UNION ALL SELECT 10
+				) numbers
+				WHERE idx.warning_slugs != ''
+				  AND CHAR_LENGTH(idx.warning_slugs) - CHAR_LENGTH(REPLACE(idx.warning_slugs, ',', '')) >= numbers.n - 1
+				HAVING facet_value != ''"
+			);
+		}
+
+		$posts_table          = $wpdb->posts;
+		$terms_table          = $wpdb->terms;
+		$term_taxonomy_table  = $wpdb->term_taxonomy;
+		$term_relations_table = $wpdb->term_relationships;
+
+		$wpdb->query(
+			"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+			SELECT p.ID, 'genre', LOWER(TRIM(t.slug))
+			FROM {$posts_table} p
+			INNER JOIN {$term_relations_table} tr ON tr.object_id = p.ID
+			INNER JOIN {$term_taxonomy_table} tt
+				ON tt.term_taxonomy_id = tr.term_taxonomy_id
+			   AND tt.taxonomy = 'fanfiction_genre'
+			INNER JOIN {$terms_table} t ON t.term_id = tt.term_id
+			WHERE p.post_type = 'fanfiction_story'
+			  AND t.slug IS NOT NULL
+			  AND t.slug != ''"
+		);
+
+		$wpdb->query(
+			"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+			SELECT p.ID, 'status', LOWER(TRIM(t.slug))
+			FROM {$posts_table} p
+			INNER JOIN {$term_relations_table} tr ON tr.object_id = p.ID
+			INNER JOIN {$term_taxonomy_table} tt
+				ON tt.term_taxonomy_id = tr.term_taxonomy_id
+			   AND tt.taxonomy = 'fanfiction_status'
+			INNER JOIN {$terms_table} t ON t.term_id = tt.term_id
+			WHERE p.post_type = 'fanfiction_story'
+			  AND t.slug IS NOT NULL
+			  AND t.slug != ''"
+		);
+
+		$table_custom_taxonomies  = $wpdb->prefix . 'fanfic_custom_taxonomies';
+		$table_custom_terms       = $wpdb->prefix . 'fanfic_custom_terms';
+		$table_story_custom_terms = $wpdb->prefix . 'fanfic_story_custom_terms';
+		if ( self::verify_table_exists( $table_custom_taxonomies ) && self::verify_table_exists( $table_custom_terms ) && self::verify_table_exists( $table_story_custom_terms ) ) {
+			$wpdb->query(
+				"INSERT IGNORE INTO {$table_map} (story_id, facet_type, facet_value)
+				SELECT rel.story_id, CONCAT('custom:', LOWER(TRIM(tx.slug))), LOWER(TRIM(term.slug))
+				FROM {$table_story_custom_terms} rel
+				INNER JOIN {$table_custom_terms} term
+					ON term.id = rel.term_id
+				INNER JOIN {$table_custom_taxonomies} tx
+					ON tx.id = term.taxonomy_id
+				WHERE tx.is_active = 1
+				  AND term.is_active = 1
+				  AND tx.slug IS NOT NULL
+				  AND tx.slug != ''
+				  AND term.slug IS NOT NULL
+				  AND term.slug != ''"
+			);
+		}
 	}
 
 	/**
@@ -881,11 +1270,13 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_moderation_log',
+			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_custom_terms',
 			$prefix . 'fanfic_custom_taxonomies',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_story_translations',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_warnings',
@@ -936,10 +1327,12 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_story_translations',
 			$prefix . 'fanfic_custom_taxonomies',
 			$prefix . 'fanfic_custom_terms',
 			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_moderation_log',
 		);
 
@@ -1054,10 +1447,12 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_story_translations',
 			$prefix . 'fanfic_custom_taxonomies',
 			$prefix . 'fanfic_custom_terms',
 			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_moderation_log',
 		);
 
@@ -1134,10 +1529,12 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_story_translations',
 			$prefix . 'fanfic_custom_taxonomies',
 			$prefix . 'fanfic_custom_terms',
 			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_moderation_log',
 		);
 
@@ -1176,10 +1573,12 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_story_translations',
 			$prefix . 'fanfic_custom_taxonomies',
 			$prefix . 'fanfic_custom_terms',
 			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_story_search_index',
+			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_moderation_log',
 		);
 
@@ -1214,11 +1613,13 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_moderation_log',
+			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_story_custom_terms',
 			$prefix . 'fanfic_custom_terms',
 			$prefix . 'fanfic_custom_taxonomies',
 			$prefix . 'fanfic_story_languages',
+			$prefix . 'fanfic_story_translations',
 			$prefix . 'fanfic_languages',
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_warnings',

@@ -58,6 +58,149 @@ class Fanfic_Story_Handler {
 	}
 
 	/**
+	 * Check whether the current user can manually edit publication dates.
+	 *
+	 * Allowed: fanfiction_author, fanfiction_admin, WordPress administrator.
+	 * Disallowed: fanfiction_moderator-only users.
+	 *
+	 * @since 2.1.0
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	private static function user_can_edit_publish_date( $user_id ) {
+		$user_id = absint( $user_id );
+		if ( ! $user_id ) {
+			return false;
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return false;
+		}
+
+		$roles = (array) $user->roles;
+		return in_array( 'administrator', $roles, true )
+			|| in_array( 'fanfiction_admin', $roles, true )
+			|| in_array( 'fanfiction_author', $roles, true );
+	}
+
+	/**
+	 * Parse and validate a YYYY-MM-DD publication date input.
+	 *
+	 * @since 2.1.0
+	 * @param string $raw_date Raw request value.
+	 * @param array  $errors Errors array by reference.
+	 * @return array|null|false Array with local/gmt values, null for empty, false for invalid.
+	 */
+	private static function parse_publication_date_input( $raw_date, &$errors ) {
+		$raw_date = trim( (string) $raw_date );
+		if ( '' === $raw_date ) {
+			return null;
+		}
+
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw_date ) ) {
+			$errors[] = __( 'Publication date format is invalid.', 'fanfiction-manager' );
+			return false;
+		}
+
+		$timezone = wp_timezone();
+		$date_obj = DateTime::createFromFormat( '!Y-m-d', $raw_date, $timezone );
+		if ( ! $date_obj ) {
+			$errors[] = __( 'Publication date is invalid.', 'fanfiction-manager' );
+			return false;
+		}
+
+		$date_errors = DateTime::getLastErrors();
+		if ( ( $date_errors && ! empty( $date_errors['warning_count'] ) ) || ( $date_errors && ! empty( $date_errors['error_count'] ) ) ) {
+			$errors[] = __( 'Publication date is invalid.', 'fanfiction-manager' );
+			return false;
+		}
+
+		$local_datetime = $date_obj->format( 'Y-m-d 00:00:00' );
+		$local_ts       = strtotime( $local_datetime );
+		if ( false === $local_ts ) {
+			$errors[] = __( 'Publication date is invalid.', 'fanfiction-manager' );
+			return false;
+		}
+
+		if ( $local_ts > current_time( 'timestamp' ) ) {
+			$errors[] = __( 'Publication date cannot be in the future.', 'fanfiction-manager' );
+			return false;
+		}
+
+		return array(
+			'local' => $local_datetime,
+			'gmt'   => get_gmt_from_date( $local_datetime ),
+		);
+	}
+
+	/**
+	 * Get a safe referer URL with fallback.
+	 *
+	 * @since 1.2.0
+	 * @param string $fallback_url Fallback URL when referer is missing/invalid.
+	 * @return string Safe URL.
+	 */
+	private static function get_safe_referer_url( $fallback_url = '' ) {
+		$referer = wp_get_referer();
+		if ( ! empty( $referer ) ) {
+			$validated_referer = wp_validate_redirect( $referer, '' );
+			if ( ! empty( $validated_referer ) ) {
+				return $validated_referer;
+			}
+		}
+
+		if ( ! empty( $fallback_url ) ) {
+			return $fallback_url;
+		}
+
+		return home_url( '/' );
+	}
+
+	/**
+	 * Get canonical story edit URL.
+	 *
+	 * @since 1.2.0
+	 * @param int $story_id Story ID.
+	 * @return string Story edit URL.
+	 */
+	private static function get_story_edit_url( $story_id ) {
+		$story_id = absint( $story_id );
+		if ( $story_id > 0 ) {
+			$story_permalink = get_permalink( $story_id );
+			if ( ! empty( $story_permalink ) ) {
+				return add_query_arg( 'action', 'edit', $story_permalink );
+			}
+		}
+
+		return self::get_page_url_with_fallback( 'create-story' );
+	}
+
+	/**
+	 * Redirect safely with fallback to avoid blank pages on invalid targets.
+	 *
+	 * @since 1.2.0
+	 * @param string $target_url   Preferred redirect URL.
+	 * @param string $fallback_url Fallback redirect URL.
+	 * @return void
+	 */
+	private static function redirect_with_fallback( $target_url, $fallback_url ) {
+		if ( empty( $fallback_url ) ) {
+			$fallback_url = home_url( '/' );
+		}
+
+		$target = wp_validate_redirect( $target_url, '' );
+		if ( empty( $target ) ) {
+			$target = $fallback_url;
+		}
+
+		if ( ! wp_safe_redirect( $target ) ) {
+			wp_safe_redirect( $fallback_url );
+		}
+		exit;
+	}
+
+	/**
 	 * Register story handlers
 	 *
 	 * @since 1.0.0
@@ -77,6 +220,7 @@ class Fanfic_Story_Handler {
 		add_action( 'template_redirect', array( __CLASS__, 'handle_delete_story' ) );
 
 		// Register AJAX handlers for logged-in users
+		add_action( 'wp_ajax_fanfic_submit_story_form', array( __CLASS__, 'handle_unified_story_form' ) );
 		add_action( 'wp_ajax_fanfic_create_story', array( __CLASS__, 'ajax_create_story' ) );
 		add_action( 'wp_ajax_fanfic_edit_story', array( __CLASS__, 'ajax_edit_story' ) );
 		add_action( 'wp_ajax_fanfic_publish_story', array( __CLASS__, 'ajax_publish_story' ) );
@@ -95,19 +239,40 @@ class Fanfic_Story_Handler {
 		if ( 'POST' !== $_SERVER['REQUEST_METHOD'] || ! isset( $_POST['fanfic_story_nonce'] ) ) {
 			return;
 		}
+		$is_ajax = wp_doing_ajax();
 
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => __( 'You must be logged in to perform this action.', 'fanfiction-manager' ),
+					'errors'  => array( __( 'You must be logged in to perform this action.', 'fanfiction-manager' ) ),
+				) );
+			}
 			return;
 		}
 
-		// Detect mode - check if we're editing an existing story
-		$is_edit_mode = is_singular( 'fanfiction_story' ) && isset( $_GET['action'] ) && 'edit' === $_GET['action'];
-		$story_id = $is_edit_mode ? get_the_ID() : 0;
+		// Detect mode.
+		$is_edit_mode = false;
+		$story_id = 0;
+		if ( $is_ajax ) {
+			$form_mode = isset( $_POST['fanfic_story_form_mode'] ) ? sanitize_key( wp_unslash( $_POST['fanfic_story_form_mode'] ) ) : 'create';
+			$story_id = isset( $_POST['fanfic_story_id'] ) ? absint( $_POST['fanfic_story_id'] ) : 0;
+			$is_edit_mode = ( 'edit' === $form_mode && $story_id > 0 );
+		} else {
+			$is_edit_mode = is_singular( 'fanfiction_story' ) && isset( $_GET['action'] ) && 'edit' === $_GET['action'];
+			$story_id = $is_edit_mode ? get_the_ID() : 0;
+		}
 
 		// Verify nonce
 		$nonce_action = 'fanfic_story_form_action' . ( $is_edit_mode ? '_' . $story_id : '' );
 		if ( ! wp_verify_nonce( $_POST['fanfic_story_nonce'], $nonce_action ) ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => __( 'Security check failed.', 'fanfiction-manager' ),
+					'errors'  => array( __( 'Security check failed.', 'fanfiction-manager' ) ),
+				) );
+			}
 			wp_die( esc_html__( 'Security check failed.', 'fanfiction-manager' ) );
 		}
 
@@ -133,6 +298,14 @@ class Fanfic_Story_Handler {
 
 		// Get language (Phase 4.x)
 		$language_id = isset( $_POST['fanfic_story_language'] ) ? absint( $_POST['fanfic_story_language'] ) : 0;
+		$publish_date_raw = isset( $_POST['fanfic_story_publish_date'] ) ? sanitize_text_field( wp_unslash( $_POST['fanfic_story_publish_date'] ) ) : '';
+		$publish_date_data = null;
+		if ( '' !== $publish_date_raw && self::user_can_edit_publish_date( get_current_user_id() ) ) {
+			$publish_date_data = self::parse_publication_date_input( $publish_date_raw, $errors );
+		}
+
+		// Get translation links (Phase 5 - translation groups)
+		$translation_ids = isset( $_POST['fanfic_story_translations'] ) ? array_map( 'absint', (array) $_POST['fanfic_story_translations'] ) : array();
 
 		// Get custom taxonomy values
 		$custom_taxonomy_values = array();
@@ -165,9 +338,16 @@ class Fanfic_Story_Handler {
 
 		// If errors, store in transient and redirect back
 		if ( ! empty( $errors ) ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => implode( ' ', $errors ),
+					'errors'  => $errors,
+				) );
+			}
 			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
-			wp_safe_redirect( wp_get_referer() );
-			exit;
+			$fallback_url = self::get_page_url_with_fallback( 'create-story' );
+			$redirect_url = self::get_safe_referer_url( $fallback_url );
+			self::redirect_with_fallback( $redirect_url, $fallback_url );
 		}
 
 		// CREATE MODE
@@ -177,20 +357,33 @@ class Fanfic_Story_Handler {
 			$unique_slug = wp_unique_post_slug( $base_slug, 0, 'draft', 'fanfiction_story', 0 );
 
 			// Create story as draft
-			$new_story_id = wp_insert_post( array(
+			$insert_data = array(
 				'post_type'    => 'fanfiction_story',
 				'post_title'   => $title,
 				'post_name'    => $unique_slug,
 				'post_excerpt' => $introduction,
 				'post_status'  => 'draft',
 				'post_author'  => $current_user->ID,
-			) );
+			);
+			if ( is_array( $publish_date_data ) ) {
+				$insert_data['post_date'] = $publish_date_data['local'];
+				$insert_data['post_date_gmt'] = $publish_date_data['gmt'];
+			}
+
+			$new_story_id = wp_insert_post( $insert_data );
 
 			if ( is_wp_error( $new_story_id ) ) {
 				$errors[] = $new_story_id->get_error_message();
+				if ( $is_ajax ) {
+					wp_send_json_error( array(
+						'message' => implode( ' ', $errors ),
+						'errors'  => $errors,
+					) );
+				}
 				set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
-				wp_safe_redirect( wp_get_referer() );
-				exit;
+				$fallback_url = self::get_page_url_with_fallback( 'create-story' );
+				$redirect_url = self::get_safe_referer_url( $fallback_url );
+				self::redirect_with_fallback( $redirect_url, $fallback_url );
 			}
 
 			// Set genres
@@ -214,6 +407,11 @@ class Fanfic_Story_Handler {
 			// Save language
 			if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
 				Fanfic_Languages::save_story_language( $new_story_id, $language_id );
+			}
+
+			// Save translation links on first save (create mode).
+			if ( class_exists( 'Fanfic_Translations' ) && Fanfic_Translations::is_enabled() ) {
+				Fanfic_Translations::save_story_translations( $new_story_id, $translation_ids );
 			}
 
 			// Save custom taxonomy values
@@ -250,6 +448,22 @@ class Fanfic_Story_Handler {
 				$redirect_url = add_query_arg( 'action', 'edit', $story_permalink );
 			}
 
+			if ( $is_ajax ) {
+				$status_label = __( 'Draft', 'fanfiction-manager' );
+				wp_send_json_success( array(
+					'message'         => __( 'Story saved successfully.', 'fanfiction-manager' ),
+					'story_id'        => $new_story_id,
+					'post_status'     => 'draft',
+					'status_class'    => 'draft',
+					'status_label'    => $status_label,
+					'form_mode'       => 'edit',
+					'redirect_url'    => $redirect_url,
+					'edit_url'        => add_query_arg( 'action', 'edit', $story_permalink ),
+					'add_chapter_url' => add_query_arg( 'action', 'add-chapter', $story_permalink ),
+					'edit_nonce'      => wp_create_nonce( 'fanfic_story_form_action_' . $new_story_id ),
+				) );
+			}
+
 			wp_safe_redirect( $redirect_url );
 			exit;
 		}
@@ -260,12 +474,51 @@ class Fanfic_Story_Handler {
 
 			// Check permissions
 			if ( ! $story || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+				if ( $is_ajax ) {
+					wp_send_json_error( array(
+						'message' => __( 'You do not have permission to edit this story.', 'fanfiction-manager' ),
+						'errors'  => array( __( 'You do not have permission to edit this story.', 'fanfiction-manager' ) ),
+					) );
+				}
 				wp_die( esc_html__( 'You do not have permission to edit this story.', 'fanfiction-manager' ) );
 			}
 
 			// Determine post status based on action
 			$current_status = get_post_status( $story_id );
 			$post_status = $current_status;
+			$existing_content_updated_date = (string) get_post_meta( $story_id, '_fanfic_content_updated_date', true );
+			$current_publish_date = isset( $story->post_date ) ? substr( (string) $story->post_date, 0, 10 ) : '';
+			$new_publish_date = is_array( $publish_date_data ) ? substr( (string) $publish_date_data['local'], 0, 10 ) : $current_publish_date;
+			$publish_date_changed = is_array( $publish_date_data ) && $new_publish_date !== $current_publish_date;
+			$content_unchanged = ( (string) $story->post_title === (string) $title ) && ( (string) $story->post_excerpt === (string) $introduction );
+			$preserve_content_updated_meta = $publish_date_changed && $content_unchanged && '' !== $existing_content_updated_date;
+			$is_forward_publish_date_change = false;
+			if ( is_array( $publish_date_data ) ) {
+				$current_publish_ts = strtotime( (string) $story->post_date );
+				$new_publish_ts = strtotime( (string) $publish_date_data['local'] );
+				if ( false !== $current_publish_ts && false !== $new_publish_ts ) {
+					$is_forward_publish_date_change = $new_publish_ts > $current_publish_ts;
+				}
+			}
+
+			// Anti-cheat validation: story-level forward date changes are not allowed.
+			// Content update recency is chapter-driven only.
+			if ( $is_forward_publish_date_change ) {
+				$errors[] = __( 'Story update date is controlled by chapter activity. You can backdate publication for imports, but you cannot move it forward from the story form.', 'fanfiction-manager' );
+			}
+
+			if ( ! empty( $errors ) ) {
+				if ( $is_ajax ) {
+					wp_send_json_error( array(
+						'message' => implode( ' ', $errors ),
+						'errors'  => $errors,
+					) );
+				}
+				set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
+				$fallback_url = self::get_story_edit_url( $story_id );
+				$redirect_url = self::get_safe_referer_url( $fallback_url );
+				self::redirect_with_fallback( $redirect_url, $fallback_url );
+			}
 
 			if ( 'save_draft' === $form_action ) {
 				$post_status = 'draft';
@@ -282,27 +535,48 @@ class Fanfic_Story_Handler {
 			error_log( 'Introduction: ' . substr( $introduction, 0, 50 ) );
 			error_log( 'Form action: ' . $form_action );
 
-			$result = wp_update_post( array(
+			$update_data = array(
 				'ID'           => $story_id,
 				'post_title'   => $title,
 				'post_excerpt' => $introduction,
 				'post_status'  => $post_status,
-			), true ); // true = return WP_Error on failure
+				'edit_date'    => true,
+			);
+			if ( is_array( $publish_date_data ) ) {
+				$update_data['post_date'] = $publish_date_data['local'];
+				$update_data['post_date_gmt'] = $publish_date_data['gmt'];
+			}
+
+			$result = wp_update_post( $update_data, true ); // true = return WP_Error on failure
 
 			error_log( 'wp_update_post result: ' . ( is_wp_error( $result ) ? $result->get_error_message() : $result ) );
 
 			if ( is_wp_error( $result ) ) {
 				$errors[] = $result->get_error_message();
+				if ( $is_ajax ) {
+					wp_send_json_error( array(
+						'message' => implode( ' ', $errors ),
+						'errors'  => $errors,
+					) );
+				}
 				set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
-				wp_safe_redirect( wp_get_referer() );
-				exit;
+				$fallback_url = self::get_story_edit_url( $story_id );
+				$redirect_url = self::get_safe_referer_url( $fallback_url );
+				self::redirect_with_fallback( $redirect_url, $fallback_url );
 			}
 
 			if ( ! $result || 0 === $result ) {
 				$errors[] = __( 'Failed to update story. Please try again.', 'fanfiction-manager' );
+				if ( $is_ajax ) {
+					wp_send_json_error( array(
+						'message' => implode( ' ', $errors ),
+						'errors'  => $errors,
+					) );
+				}
 				set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
-				wp_safe_redirect( wp_get_referer() );
-				exit;
+				$fallback_url = self::get_story_edit_url( $story_id );
+				$redirect_url = self::get_safe_referer_url( $fallback_url );
+				self::redirect_with_fallback( $redirect_url, $fallback_url );
 			}
 
 			// Clear post cache to ensure fresh data
@@ -321,13 +595,21 @@ class Fanfic_Story_Handler {
 				$validation_errors = Fanfic_Validation::get_validation_errors( $story_id );
 
 				if ( ! empty( $validation_errors ) ) {
+					if ( $is_ajax ) {
+						wp_send_json_error( array(
+							'message' => __( 'Story could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ),
+							'errors'  => array_values( $validation_errors ),
+						) );
+					}
 					// Validation failed - story stays as draft, show errors
 					set_transient( 'fanfic_story_validation_errors_' . $current_user->ID . '_' . $story_id, $validation_errors, 60 );
 					Fanfic_Flash_Messages::add_message( 'error', __( 'Story could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ) );
 					// Redirect back to story with validation error, removing any success params
-					$referer = remove_query_arg( 'success', wp_get_referer() );
-					wp_safe_redirect( add_query_arg( 'action', 'edit', $referer ) ); // Redirect to edit page
-					exit;
+					$fallback_url = self::get_story_edit_url( $story_id );
+					$redirect_url = self::get_safe_referer_url( $fallback_url );
+					$redirect_url = remove_query_arg( array( 'success', 'error' ), $redirect_url );
+					$redirect_url = add_query_arg( 'action', 'edit', $redirect_url );
+					self::redirect_with_fallback( $redirect_url, $fallback_url );
 				}
 
 				// Validation passed - now publish
@@ -363,6 +645,16 @@ class Fanfic_Story_Handler {
 				Fanfic_Languages::save_story_language( $story_id, $language_id );
 			}
 
+			// Anti-cheat guard: manual date edits must not count as qualifying content updates.
+			if ( $preserve_content_updated_meta ) {
+				update_post_meta( $story_id, '_fanfic_content_updated_date', $existing_content_updated_date );
+			}
+
+			// Save translation links
+			if ( class_exists( 'Fanfic_Translations' ) && Fanfic_Translations::is_enabled() ) {
+				Fanfic_Translations::save_story_translations( $story_id, $translation_ids );
+			}
+
 			// Save custom taxonomy values
 			if ( class_exists( 'Fanfic_Custom_Taxonomies' ) && ! empty( $custom_taxonomy_values ) ) {
 				foreach ( $custom_taxonomy_values as $taxonomy_id => $term_ids ) {
@@ -395,11 +687,36 @@ class Fanfic_Story_Handler {
 				$redirect_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
 			} else {
 				Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated successfully!', 'fanfiction-manager' ) );
-				$redirect_url = wp_get_referer();
+				$fallback_url = self::get_story_edit_url( $story_id );
+				$redirect_url = self::get_safe_referer_url( $fallback_url );
+				$redirect_url = remove_query_arg( array( 'success', 'error' ), $redirect_url );
+				$redirect_url = add_query_arg( 'action', 'edit', $redirect_url );
 			}
 
-			wp_safe_redirect( $redirect_url );
-			exit;
+			if ( $is_ajax ) {
+				$final_status = get_post_status( $story_id );
+				$status_class = ( 'publish' === $final_status ) ? 'published' : 'draft';
+				$status_label = ( 'publish' === $final_status ) ? __( 'Visible', 'fanfiction-manager' ) : __( 'Draft', 'fanfiction-manager' );
+				$success_message = ( 'add_chapter' === $form_action )
+					? __( 'Story updated. You can now add a chapter.', 'fanfiction-manager' )
+					: __( 'Story updated successfully!', 'fanfiction-manager' );
+
+				wp_send_json_success( array(
+					'message'         => $success_message,
+					'story_id'        => $story_id,
+					'post_status'     => $final_status,
+					'status_class'    => $status_class,
+					'status_label'    => $status_label,
+					'form_mode'       => 'edit',
+					'redirect_url'    => $redirect_url,
+					'edit_url'        => self::get_story_edit_url( $story_id ),
+					'add_chapter_url' => add_query_arg( 'action', 'add-chapter', get_permalink( $story_id ) ),
+					'edit_nonce'      => wp_create_nonce( 'fanfic_story_form_action_' . $story_id ),
+				) );
+			}
+
+			$fallback_url = self::get_story_edit_url( $story_id );
+			self::redirect_with_fallback( $redirect_url, $fallback_url );
 		}
 	}
 
@@ -506,8 +823,9 @@ class Fanfic_Story_Handler {
 		// If errors, store and redirect back
 		if ( ! empty( $errors ) ) {
 			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
-			wp_redirect( wp_get_referer() );
-			exit;
+			$fallback_url = self::get_page_url_with_fallback( 'create-story' );
+			$redirect_url = self::get_safe_referer_url( $fallback_url );
+			self::redirect_with_fallback( $redirect_url, $fallback_url );
 		}
 
 		// Generate unique slug before creating the post
@@ -527,8 +845,9 @@ class Fanfic_Story_Handler {
 		if ( is_wp_error( $story_id ) ) {
 			$errors[] = $story_id->get_error_message();
 			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
-			wp_redirect( wp_get_referer() );
-			exit;
+			$fallback_url = self::get_page_url_with_fallback( 'create-story' );
+			$redirect_url = self::get_safe_referer_url( $fallback_url );
+			self::redirect_with_fallback( $redirect_url, $fallback_url );
 		}
 
 		// Set genres
@@ -559,8 +878,8 @@ class Fanfic_Story_Handler {
 		$story_permalink = get_permalink( $story_id );
 		Fanfic_Flash_Messages::add_message( 'success', __( 'Story created as draft. Now add your first chapter!', 'fanfiction-manager' ) );
 		$add_chapter_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
-		wp_redirect( $add_chapter_url );
-		exit;
+		$fallback_url = self::get_story_edit_url( $story_id );
+		self::redirect_with_fallback( $add_chapter_url, $fallback_url );
 	}
 
 	/**
@@ -634,8 +953,9 @@ class Fanfic_Story_Handler {
 		// If errors, store and redirect back
 		if ( ! empty( $errors ) ) {
 			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
-			wp_redirect( wp_get_referer() );
-			exit;
+			$fallback_url = self::get_story_edit_url( $story_id );
+			$redirect_url = self::get_safe_referer_url( $fallback_url );
+			self::redirect_with_fallback( $redirect_url, $fallback_url );
 		}
 
 		// Update story
@@ -649,8 +969,9 @@ class Fanfic_Story_Handler {
 		if ( is_wp_error( $result ) ) {
 			$errors[] = $result->get_error_message();
 			set_transient( 'fanfic_story_errors_' . $current_user->ID, $errors, 60 );
-			wp_redirect( wp_get_referer() );
-			exit;
+			$fallback_url = self::get_story_edit_url( $story_id );
+			$redirect_url = self::get_safe_referer_url( $fallback_url );
+			self::redirect_with_fallback( $redirect_url, $fallback_url );
 		}
 
 		// Update genres
@@ -688,11 +1009,13 @@ class Fanfic_Story_Handler {
 		} else {
 			// Normal save - redirect back with success message
 			Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated successfully!', 'fanfiction-manager' ) );
-			$redirect_url = wp_get_referer();
+			$fallback_url = self::get_story_edit_url( $story_id );
+			$redirect_url = self::get_safe_referer_url( $fallback_url );
+			$redirect_url = add_query_arg( 'action', 'edit', remove_query_arg( array( 'success', 'error' ), $redirect_url ) );
 		}
 
-		wp_redirect( $redirect_url );
-		exit;
+		$fallback_url = self::get_story_edit_url( $story_id );
+		self::redirect_with_fallback( $redirect_url, $fallback_url );
 	}
 
 	/**
@@ -730,8 +1053,8 @@ class Fanfic_Story_Handler {
 		if ( $is_blocked && ! current_user_can( 'delete_others_posts' ) ) {
 			Fanfic_Flash_Messages::add_message( 'error', fanfic_get_blocked_story_message() );
 			$redirect_url = self::get_page_url_with_fallback( 'manage-stories' );
-			wp_redirect( $redirect_url );
-			exit;
+			$fallback_url = self::get_story_edit_url( $story_id );
+			self::redirect_with_fallback( $redirect_url, $fallback_url );
 		}
 
 		// Delete all chapters first
@@ -753,8 +1076,8 @@ class Fanfic_Story_Handler {
 		// Redirect to manage stories with success message
         Fanfic_Flash_Messages::add_message( 'success', __( 'Story deleted successfully.', 'fanfiction-manager' ) );
 		$redirect_url = self::get_page_url_with_fallback( 'manage-stories' );
-		wp_redirect( $redirect_url );
-		exit;
+		$fallback_url = function_exists( 'fanfic_get_dashboard_url' ) ? fanfic_get_dashboard_url() : home_url( '/' );
+		self::redirect_with_fallback( $redirect_url, $fallback_url );
 	}
 
 	/**
@@ -965,13 +1288,16 @@ class Fanfic_Story_Handler {
 			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 
-		// Build redirect URL
+		// Build redirect URL with fallback for clients that do full-page navigation.
+		$fallback_url = self::get_story_edit_url( $story_id );
+		$redirect_base = self::get_safe_referer_url( $fallback_url );
 		$redirect_url = add_query_arg(
 			array(
+				'action'  => 'edit',
 				'story_id' => $story_id,
-				'updated' => 'success'
+				'updated' => 'success',
 			),
-			wp_get_referer()
+			remove_query_arg( array( 'success', 'error' ), $redirect_base )
 		);
 
 		// Return success response

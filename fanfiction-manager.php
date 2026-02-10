@@ -3,7 +3,7 @@
  * Plugin Name: Fanfiction Manager
  * Plugin URI: https://example.com/fanfiction-manager
  * Description: A comprehensive WordPress plugin that transforms WordPress into a dedicated fanfiction publishing platform with frontend-only interface for authors and readers.
- * Version: 1.0.15
+ * Version: 1.0.17
  * Author: Your Name
  * Author URI: https://example.com
  * Text Domain: fanfiction-manager
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'FANFIC_VERSION', '1.0.15' );
+define( 'FANFIC_VERSION', '1.0.19' );
 define( 'FANFIC_PLUGIN_FILE', __FILE__ );
 define( 'FANFIC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FANFIC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

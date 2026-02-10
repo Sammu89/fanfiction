@@ -90,11 +90,17 @@
 			}
 
 			items.forEach(function(item) {
+				var count = typeof item.count === 'number' ? item.count : parseInt(item.count, 10) || 0;
 				var btn = document.createElement('button');
 				btn.type = 'button';
 				btn.className = 'fanfic-fandom-result';
 				btn.setAttribute('data-id', item.id);
-				btn.textContent = item.label;
+				btn.setAttribute('data-label', item.label);
+				btn.textContent = item.label + ' (' + count + ')';
+				if (item.disabled || count === 0) {
+					btn.disabled = true;
+					btn.classList.add('is-disabled');
+				}
 				resultsBox.appendChild(btn);
 			});
 		}
@@ -133,13 +139,16 @@
 			if (!target.classList.contains('fanfic-fandom-result')) {
 				return;
 			}
+			if (target.disabled || target.classList.contains('is-disabled')) {
+				return;
+			}
 			if (originalCheckbox && originalCheckbox.checked) {
 				return;
 			}
 			if (getSelectedIds().length >= maxFandoms) {
 				return;
 			}
-			addSelected(target.getAttribute('data-id'), target.textContent);
+			addSelected(target.getAttribute('data-id'), target.getAttribute('data-label') || target.textContent);
 			searchInput.value = '';
 			resultsBox.innerHTML = '';
 		});

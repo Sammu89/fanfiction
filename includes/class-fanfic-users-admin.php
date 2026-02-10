@@ -727,13 +727,14 @@ class Fanfic_Users_Admin {
 		// Track last login
 		add_action( 'wp_login', array( __CLASS__, 'track_last_login' ), 10, 2 );
 
-		// Auto role adjustments (WP-Cron)
-		add_action( 'fanfic_daily_user_role_check', array( __CLASS__, 'auto_demote_authors' ) );
+		// Auto role adjustments
+		// Reader -> Author promotion remains event-driven on publish.
+		// Daily author demotion is handled by Fanfic_Author_Demotion (cron_hour-aware).
 		add_action( 'transition_post_status', array( __CLASS__, 'auto_promote_to_author' ), 10, 3 );
 
-		// Schedule WP-Cron if not scheduled
-		if ( ! wp_next_scheduled( 'fanfic_daily_user_role_check' ) ) {
-			wp_schedule_event( time(), 'daily', 'fanfic_daily_user_role_check' );
+		// Remove legacy duplicate demotion cron from older versions.
+		if ( wp_next_scheduled( 'fanfic_daily_user_role_check' ) ) {
+			wp_clear_scheduled_hook( 'fanfic_daily_user_role_check' );
 		}
 	}
 

@@ -29,9 +29,49 @@ class Fanfic_Taxonomies {
 		'Drama',
 		'Horror',
 		'Mystery',
-		'Sci-Fi',
+		'Thriller',
+		'Crime',
 		'Fantasy',
+		'Science Fiction',
+		'Paranormal',
+		'Historical Fiction',
+		'Contemporary Lit',
 		'Comedy',
+		'Non-Fiction',
+		'Children',
+		'Teen',
+		'Young Adult',
+		'Short Story',
+		'Poetry',
+		'LGBTQ+',
+	);
+
+	/**
+	 * Default genre descriptions keyed by canonical slug.
+	 *
+	 * @var string[]
+	 */
+	const DEFAULT_GENRE_DESCRIPTIONS = array(
+		'romance'            => 'Stories centered on romantic relationships, emotional bonds, and love in its many forms.',
+		'adventure'          => 'Action-driven stories focused on journeys, quests, danger, and discovery.',
+		'drama'              => 'Character-focused narratives exploring conflict, relationships, and emotional tension.',
+		'horror'             => 'Stories meant to frighten, disturb, or unsettle through fear, suspense, or the macabre.',
+		'mystery'            => 'Plots built around secrets, investigations, puzzles, or unanswered questions.',
+		'thriller'           => 'Fast-paced, high-tension stories involving danger, urgency, and escalating stakes.',
+		'crime'              => 'Stories dealing with criminal acts, investigations, justice, or the underworld.',
+		'fantasy'            => 'Fiction set in worlds with magic, mythical creatures, or supernatural systems.',
+		'science-fiction'    => 'Stories exploring technology, science, space, or speculative futures.',
+		'paranormal'         => 'Fiction involving ghosts, spirits, supernatural phenomena, or unexplained forces.',
+		'historical-fiction' => 'Stories set in real past periods, blending fictional narratives with historical settings.',
+		'contemporary-lit'   => 'Fiction set in the modern world, focused on realistic characters and present-day issues.',
+		'comedy'             => 'Stories written to amuse, entertain, or provoke laughter through humor or satire.',
+		'non-fiction'        => 'Works based on real events, facts, personal experiences, or true stories.',
+		'children'           => 'Stories written for young readers, with age-appropriate themes and language. Any non-PG story will automatically remove this genre.',
+		'teen'               => 'Stories aimed at teenagers, often exploring identity, relationships, and growing up. 18+ warnings will automatically remove this genre.',
+		'young-adult'        => 'Narratives focused on young adult characters dealing with complex choices and transitions.',
+		'short-story'        => 'Self-contained stories told in a brief format, usually focused on a single plot or idea. More than 10 chapters will automatically remove this genre.',
+		'poetry'             => 'Works written in verse, emphasizing rhythm, imagery, and emotional expression.',
+		'lgbtq'              => 'Stories centered on LGBTQ+ characters, relationships, or themes of identity and representation.',
 	);
 
 	/**
@@ -55,6 +95,7 @@ class Fanfic_Taxonomies {
 		self::register_genre_taxonomy();
 		self::register_status_taxonomy();
 		self::ensure_default_terms();
+		self::register_genre_constraint_hooks();
 
 		// Hook for registering dynamic custom taxonomies (to be implemented)
 		do_action( 'fanfic_register_custom_taxonomies' );
@@ -207,9 +248,249 @@ class Fanfic_Taxonomies {
 
 		foreach ( self::DEFAULT_GENRES as $term_name ) {
 			if ( ! term_exists( $term_name, 'fanfiction_genre' ) ) {
-				wp_insert_term( $term_name, 'fanfiction_genre' );
+				$description = self::get_default_genre_description( $term_name );
+				$args = array();
+				if ( '' !== $description ) {
+					$args['description'] = $description;
+				}
+				wp_insert_term( $term_name, 'fanfiction_genre', $args );
 			}
 		}
+	}
+
+	/**
+	 * Get default description for a default genre label.
+	 *
+	 * @since 1.0.0
+	 * @param string $genre_name Genre display name.
+	 * @return string
+	 */
+	public static function get_default_genre_description( $genre_name ) {
+		$slug = sanitize_title( (string) $genre_name );
+		return isset( self::DEFAULT_GENRE_DESCRIPTIONS[ $slug ] ) ? (string) self::DEFAULT_GENRE_DESCRIPTIONS[ $slug ] : '';
+	}
+
+	/**
+	 * Register hooks that enforce built-in genre constraints.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	private static function register_genre_constraint_hooks() {
+		add_action( 'save_post_fanfiction_story', array( __CLASS__, 'enforce_constraints_after_story_save' ), 20, 3 );
+		add_action( 'save_post_fanfiction_chapter', array( __CLASS__, 'enforce_constraints_after_chapter_save' ), 20, 3 );
+	}
+
+	/**
+	 * Enforce constrained genres when a story is saved.
+	 *
+	 * @since 1.0.0
+	 * @param int     $post_id Story post ID.
+	 * @param WP_Post $post    Story post object.
+	 * @return void
+	 */
+	public static function enforce_constraints_after_story_save( $post_id, $post, $update = false ) {
+		$post_id = absint( $post_id );
+		if ( ! $post_id || ! $post || 'fanfiction_story' !== $post->post_type ) {
+			return;
+		}
+
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return;
+		}
+
+		self::enforce_story_genre_constraints( $post_id );
+	}
+
+	/**
+	 * Enforce constrained genres when a chapter is saved.
+	 *
+	 * @since 1.0.0
+	 * @param int     $post_id Chapter post ID.
+	 * @param WP_Post $post    Chapter post object.
+	 * @return void
+	 */
+	public static function enforce_constraints_after_chapter_save( $post_id, $post, $update = false ) {
+		$post_id = absint( $post_id );
+		if ( ! $post_id || ! $post || 'fanfiction_chapter' !== $post->post_type ) {
+			return;
+		}
+
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return;
+		}
+
+		$story_id = absint( $post->post_parent );
+		if ( ! $story_id ) {
+			return;
+		}
+
+		self::enforce_story_genre_constraints( $story_id );
+	}
+
+	/**
+	 * Enforce automatic constrained-genre removals for one story.
+	 *
+	 * Rules:
+	 * - Remove "Children" when age rating is non-PG.
+	 * - Remove "Teen" when age rating is 18+.
+	 * - Remove "Short Story" when chapter count is greater than 10.
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story post ID.
+	 * @return bool True when terms changed, false otherwise.
+	 */
+	public static function enforce_story_genre_constraints( $story_id ) {
+		$story_id = absint( $story_id );
+		if ( ! $story_id || 'fanfiction_story' !== get_post_type( $story_id ) ) {
+			return false;
+		}
+
+		$current_genre_ids = wp_get_post_terms(
+			$story_id,
+			'fanfiction_genre',
+			array(
+				'fields' => 'ids',
+			)
+		);
+
+		if ( is_wp_error( $current_genre_ids ) || empty( $current_genre_ids ) ) {
+			return false;
+		}
+
+		$remove_slugs = array();
+		if ( self::story_is_non_pg( $story_id ) ) {
+			$remove_slugs[] = 'children';
+		}
+		if ( self::story_is_18_plus( $story_id ) ) {
+			$remove_slugs[] = 'teen';
+		}
+		if ( self::story_exceeds_short_story_limit( $story_id ) ) {
+			$remove_slugs[] = 'short-story';
+		}
+
+		if ( empty( $remove_slugs ) ) {
+			return false;
+		}
+
+		$remove_genre_ids = self::get_genre_term_ids_by_slug( $remove_slugs );
+		if ( empty( $remove_genre_ids ) ) {
+			return false;
+		}
+
+		$current_genre_ids = array_values( array_unique( array_map( 'absint', (array) $current_genre_ids ) ) );
+		$remaining_genre_ids = array_values( array_diff( $current_genre_ids, $remove_genre_ids ) );
+		if ( count( $remaining_genre_ids ) === count( $current_genre_ids ) ) {
+			return false;
+		}
+
+		$result = wp_set_post_terms( $story_id, $remaining_genre_ids, 'fanfiction_genre', false );
+		if ( is_wp_error( $result ) ) {
+			return false;
+		}
+
+		if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+			Fanfic_Search_Index::update_index( $story_id );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Determine whether a story's age rating is stricter than default "PG".
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story post ID.
+	 * @return bool
+	 */
+	private static function story_is_non_pg( $story_id ) {
+		$age_label = self::get_story_age_label( $story_id );
+		return 'PG' !== $age_label;
+	}
+
+	/**
+	 * Determine whether a story age rating is 18+.
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story post ID.
+	 * @return bool
+	 */
+	private static function story_is_18_plus( $story_id ) {
+		$age_label = self::get_story_age_label( $story_id );
+		if ( 'PG' === $age_label || '' === $age_label ) {
+			return false;
+		}
+
+		$numeric = str_replace( '+', '', $age_label );
+		return is_numeric( $numeric ) && absint( $numeric ) >= 18;
+	}
+
+	/**
+	 * Get normalized story age label (defaults to PG when unset).
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story post ID.
+	 * @return string
+	 */
+	private static function get_story_age_label( $story_id ) {
+		$age_label = trim( (string) get_post_meta( $story_id, '_fanfic_age_rating', true ) );
+
+		$age_label = strtoupper( $age_label );
+		return '' !== $age_label ? $age_label : 'PG';
+	}
+
+	/**
+	 * Check whether chapter count violates short-story limit.
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story post ID.
+	 * @return bool
+	 */
+	private static function story_exceeds_short_story_limit( $story_id ) {
+		global $wpdb;
+
+		$chapter_count = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(1)
+				FROM {$wpdb->posts}
+				WHERE post_parent = %d
+				AND post_type = %s
+				AND post_status NOT IN ('trash', 'auto-draft')",
+				$story_id,
+				'fanfiction_chapter'
+			)
+		);
+
+		return $chapter_count > 10;
+	}
+
+	/**
+	 * Get genre term IDs for canonical slugs.
+	 *
+	 * @since 1.0.0
+	 * @param string[] $slugs Genre slugs.
+	 * @return int[]
+	 */
+	private static function get_genre_term_ids_by_slug( $slugs ) {
+		$slugs = array_values( array_unique( array_filter( array_map( 'sanitize_title', (array) $slugs ) ) ) );
+		if ( empty( $slugs ) ) {
+			return array();
+		}
+
+		$term_ids = get_terms(
+			array(
+				'taxonomy'   => 'fanfiction_genre',
+				'hide_empty' => false,
+				'slug'       => $slugs,
+				'fields'     => 'ids',
+			)
+		);
+
+		if ( is_wp_error( $term_ids ) || empty( $term_ids ) ) {
+			return array();
+		}
+
+		return array_values( array_unique( array_map( 'absint', (array) $term_ids ) ) );
 	}
 
 	/**

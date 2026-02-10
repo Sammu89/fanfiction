@@ -163,6 +163,30 @@ fanfic_render_breadcrumb( 'edit-story', array(
 <!-- Unified Messages Container -->
 <div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php
+// Display flash messages from previous request.
+$flash_messages = class_exists( 'Fanfic_Flash_Messages' ) ? Fanfic_Flash_Messages::get_messages() : array();
+if ( ! empty( $flash_messages ) ) {
+	foreach ( $flash_messages as $msg ) {
+		$type = isset( $msg['type'] ) ? sanitize_key( $msg['type'] ) : 'info';
+		$message = isset( $msg['message'] ) ? (string) $msg['message'] : '';
+		if ( '' === $message ) {
+			continue;
+		}
+
+		$icon = ( 'success' === $type || 'info' === $type ) ? '&#10003;' : ( 'warning' === $type ? '&#9888;' : '&#10007;' );
+		$role = ( 'error' === $type ) ? 'alert' : 'status';
+
+		printf(
+			"<div class='fanfic-message fanfic-message-%1\$s' role='%2\$s'><span class='fanfic-message-icon' aria-hidden='true'>%3\$s</span><span class='fanfic-message-content'>%4\$s</span><button class='fanfic-message-close' aria-label='%5\$s'>&times;</button></div>",
+			esc_attr( $type ),
+			esc_attr( $role ),
+			$icon,
+			esc_html( $message ),
+			esc_attr__( 'Dismiss message', 'fanfiction-manager' )
+		);
+	}
+}
+
 // Success message from URL
 if ( isset( $_GET['success'] ) && $_GET['success'] === 'true' ) : ?>
 	<div class="fanfic-message fanfic-message-success" role="status">
@@ -243,6 +267,9 @@ $current_fandom_labels = array();
 $is_original_work = false;
 $featured_image = '';
 $story_introduction = '';
+$default_create_status = 0;
+$can_edit_publish_date = function_exists( 'fanfic_can_edit_publish_date' ) ? fanfic_can_edit_publish_date( get_current_user_id() ) : false;
+$story_publish_date = current_time( 'Y-m-d' );
 
 if ( $is_edit_mode ) {
 	// Pre-populate variables for edit mode
@@ -256,9 +283,27 @@ if ( $is_edit_mode ) {
 	}
 	$featured_image = get_post_meta( $story->ID, '_fanfic_featured_image', true );
 	$story_introduction = $story->post_excerpt;
+	$story_publish_date = mysql2date( 'Y-m-d', $story->post_date, false );
+}
+if ( isset( $_POST['fanfic_story_publish_date'] ) ) {
+	$story_publish_date = sanitize_text_field( wp_unslash( $_POST['fanfic_story_publish_date'] ) );
 }
 
 $form_mode = $is_edit_mode ? 'edit' : 'create';
+if ( ! $is_edit_mode ) {
+	// Default new stories to the canonical "ongoing" status term.
+	$status_map = get_option( 'fanfic_default_status_term_ids', array() );
+	if ( isset( $status_map['ongoing'] ) ) {
+		$default_create_status = absint( $status_map['ongoing'] );
+	}
+
+	if ( ! $default_create_status ) {
+		$ongoing_term = get_term_by( 'slug', 'ongoing', 'fanfiction_status' );
+		if ( $ongoing_term && ! is_wp_error( $ongoing_term ) ) {
+			$default_create_status = absint( $ongoing_term->term_id );
+		}
+	}
+}
 $image_upload_settings = function_exists( 'fanfic_get_image_upload_settings' ) ? fanfic_get_image_upload_settings() : array( 'enabled' => false, 'max_value' => 1, 'max_unit' => 'mb' );
 $image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 
@@ -266,14 +311,26 @@ $image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 $data_attrs = '';
 if ( $is_edit_mode ) {
 	$data_attrs = sprintf(
-		'data-original-title="%s" data-original-content="%s" data-original-genres="%s" data-original-status="%s" data-original-fandoms="%s" data-original-original="%s" data-original-image="%s"',
+		'data-original-title="%s" data-original-content="%s" data-original-genres="%s" data-original-status="%s" data-original-fandoms="%s" data-original-original="%s" data-original-image="%s" data-original-translations="%s" data-original-publish-date="%s"',
 		esc_attr( $story->post_title ),
 		esc_attr( $story->post_excerpt ),
 		esc_attr( implode( ',', $current_genres ) ),
 		esc_attr( $current_status ),
 		esc_attr( implode( ',', $current_fandoms ) ),
 		$is_original_work ? '1' : '0',
-		esc_attr( $featured_image )
+		esc_attr( $featured_image ),
+		esc_attr(
+			implode(
+				',',
+				wp_list_pluck(
+					class_exists( 'Fanfic_Translations' ) && Fanfic_Translations::is_enabled()
+						? Fanfic_Translations::get_translation_siblings( $story_id )
+						: array(),
+					'story_id'
+				)
+			)
+		),
+		esc_attr( $story_publish_date )
 	);
 }
 ?>
@@ -341,6 +398,21 @@ if ( $is_edit_mode ) {
 							><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : ( $is_edit_mode ? esc_textarea( $story->post_excerpt ) : '' ); ?></textarea>
 						</div>
 
+						<?php if ( $can_edit_publish_date ) : ?>
+							<div class="fanfic-form-field">
+								<label for="fanfic_story_publish_date"><?php esc_html_e( 'Publication Date', 'fanfiction-manager' ); ?></label>
+								<input
+									type="date"
+									id="fanfic_story_publish_date"
+									name="fanfic_story_publish_date"
+									class="fanfic-input"
+									max="<?php echo esc_attr( current_time( 'Y-m-d' ) ); ?>"
+									value="<?php echo esc_attr( $story_publish_date ); ?>"
+								/>
+								<p class="description"><?php esc_html_e( 'Use this for importing older works. Changing this date does not count as a qualifying update for inactivity status.', 'fanfiction-manager' ); ?></p>
+							</div>
+						<?php endif; ?>
+
 						<!-- Genres -->
 						<div class="fanfic-form-field">
 							<label><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
@@ -384,9 +456,10 @@ if ( $is_edit_mode ) {
 								) );
 
 								foreach ( $statuses as $status ) {
+									$posted_status = isset( $_POST['fanfic_story_status'] ) ? absint( $_POST['fanfic_story_status'] ) : 0;
 									$is_selected = isset( $_POST['fanfic_story_status'] ) ?
-										$_POST['fanfic_story_status'] == $status->term_id :
-										( $is_edit_mode && $current_status == $status->term_id );
+										$posted_status === absint( $status->term_id ) :
+										( $is_edit_mode ? absint( $current_status ) === absint( $status->term_id ) : $default_create_status === absint( $status->term_id ) );
 									?>
 									<option value="<?php echo esc_attr( $status->term_id ); ?>" <?php selected( $is_selected ); ?>>
 										<?php echo esc_html( $status->name ); ?>
@@ -440,10 +513,18 @@ if ( $is_edit_mode ) {
 
 						<?php if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) : ?>
 							<?php
-							// Get current language for edit mode
+							// Get current language for edit mode, or default to WP site language for new stories
 							$current_language_id = 0;
 							if ( $is_edit_mode ) {
 								$current_language_id = Fanfic_Languages::get_story_language_id( $story_id );
+							} else {
+								// Default to WordPress site language for new stories
+								$wp_locale    = get_locale();
+								$wp_lang_code = strtolower( substr( $wp_locale, 0, 2 ) );
+								$wp_lang      = Fanfic_Languages::get_by_slug( $wp_lang_code );
+								if ( $wp_lang && ! empty( $wp_lang['is_active'] ) ) {
+									$current_language_id = (int) $wp_lang['id'];
+								}
 							}
 							// Check for POST data
 							if ( isset( $_POST['fanfic_story_language'] ) ) {
@@ -469,6 +550,34 @@ if ( $is_edit_mode ) {
 									<?php endforeach; ?>
 								</select>
 								<p class="description"><?php esc_html_e( 'Select the language your story is written in.', 'fanfiction-manager' ); ?></p>
+							</div>
+						<?php endif; ?>
+
+						<?php if ( class_exists( 'Fanfic_Translations' ) && Fanfic_Translations::is_enabled() ) : ?>
+							<?php
+							$current_translation_siblings = $is_edit_mode ? Fanfic_Translations::get_translation_siblings( $story_id ) : array();
+							?>
+							<!-- Translation Links -->
+							<div class="fanfic-form-field fanfic-translations-field" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-story-language="<?php echo esc_attr( $current_language_id ); ?>">
+								<label for="fanfic_translation_search"><?php esc_html_e( 'Linked Translations', 'fanfiction-manager' ); ?></label>
+								<input
+									type="text"
+									id="fanfic_translation_search"
+									class="fanfic-input"
+									autocomplete="off"
+									placeholder="<?php esc_attr_e( 'Search your stories to link as translation...', 'fanfiction-manager' ); ?>"
+								/>
+								<div class="fanfic-translation-results" role="listbox" aria-label="<?php esc_attr_e( 'Translation search results', 'fanfiction-manager' ); ?>"></div>
+								<div class="fanfic-selected-translations" aria-live="polite">
+									<?php foreach ( $current_translation_siblings as $sibling ) : ?>
+										<span class="fanfic-selected-translation" data-id="<?php echo esc_attr( $sibling['story_id'] ); ?>">
+											<?php echo esc_html( $sibling['title'] . ' - ' . $sibling['language_label'] ); ?>
+											<button type="button" class="fanfic-remove-translation" aria-label="<?php esc_attr_e( 'Remove translation link', 'fanfiction-manager' ); ?>">&times;</button>
+											<input type="hidden" name="fanfic_story_translations[]" value="<?php echo esc_attr( $sibling['story_id'] ); ?>">
+										</span>
+									<?php endforeach; ?>
+								</div>
+								<p class="description"><?php esc_html_e( 'Link other stories you wrote in different languages as translations of this story.', 'fanfiction-manager' ); ?></p>
 							</div>
 						<?php endif; ?>
 
@@ -553,7 +662,11 @@ if ( $is_edit_mode ) {
 									$is_checked = isset( $_POST['fanfic_story_warnings'] ) ?
 										in_array( $warning['id'], (array) $_POST['fanfic_story_warnings'] ) :
 										( $is_edit_mode && in_array( $warning['id'], $current_warnings ) );
-									$age_class = 'fanfic-warning-age-' . sanitize_title( $warning['min_age'] );
+									$age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $warning['min_age'], 'fanfic-warning-age-' ) : 'fanfic-warning-age-18-plus';
+									$age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $warning['min_age'], false ) : (string) $warning['min_age'];
+									if ( '' === $age_label ) {
+										$age_label = (string) $warning['min_age'];
+									}
 									?>
 									<label class="fanfic-checkbox-label fanfic-warning-item <?php echo esc_attr( $age_class ); ?>" title="<?php echo esc_attr( $warning['description'] ); ?>">
 										<input
@@ -564,7 +677,7 @@ if ( $is_edit_mode ) {
 											<?php checked( $is_checked ); ?>
 										/>
 										<span class="fanfic-warning-name"><?php echo esc_html( $warning['name'] ); ?></span>
-										<span class="fanfic-warning-age-badge"><?php echo esc_html( $warning['min_age'] ); ?></span>
+										<span class="fanfic-warning-age-badge <?php echo esc_attr( $age_class ); ?>"><?php echo esc_html( $age_label ); ?></span>
 									</label>
 								<?php endforeach; ?>
 							</div>
@@ -755,7 +868,7 @@ if ( $is_edit_mode ) {
 								</button>
 							<?php endif; ?>
 							<?php if ( $is_published ) : ?>
-								<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button secondary" target="_blank" rel="noopener noreferrer">
+								<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button secondary" target="_blank" rel="noopener noreferrer" data-fanfic-story-view="1">
 									<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 								</a>
 							<?php endif; ?>
@@ -920,6 +1033,45 @@ if ( $is_edit_mode ) {
 
 	<!-- Help Sidebar (Create mode only) -->
 	<?php if ( ! $is_edit_mode ) : ?>
+	<?php
+	$help_genres = array();
+	$genre_terms = get_terms(
+		array(
+			'taxonomy'   => 'fanfiction_genre',
+			'hide_empty' => false,
+		)
+	);
+	if ( ! is_wp_error( $genre_terms ) && ! empty( $genre_terms ) ) {
+		foreach ( $genre_terms as $genre_term ) {
+			$name = trim( (string) $genre_term->name );
+			if ( '' === $name ) {
+				continue;
+			}
+
+			$help_genres[] = array(
+				'name'        => $name,
+				'description' => trim( wp_strip_all_tags( (string) $genre_term->description ) ),
+			);
+		}
+	}
+
+	$help_warnings = array();
+	$warnings_enabled_for_help = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_warnings', true ) : true;
+	if ( $warnings_enabled_for_help && class_exists( 'Fanfic_Warnings' ) ) {
+		$available_help_warnings = Fanfic_Warnings::get_available_warnings();
+		foreach ( (array) $available_help_warnings as $warning ) {
+			$name = isset( $warning['name'] ) ? trim( (string) $warning['name'] ) : '';
+			if ( '' === $name ) {
+				continue;
+			}
+
+			$help_warnings[] = array(
+				'name'        => $name,
+				'description' => isset( $warning['description'] ) ? trim( wp_strip_all_tags( (string) $warning['description'] ) ) : '',
+			);
+		}
+	}
+	?>
 	<aside class="fanfic-content-sidebar" aria-labelledby="help-heading">
 		<h2 id="help-heading"><?php esc_html_e( 'Tips & Guidelines', 'fanfiction-manager' ); ?></h2>
 
@@ -948,6 +1100,8 @@ if ( $is_edit_mode ) {
 				<li><?php esc_html_e( 'Summarize the main plot without spoilers', 'fanfiction-manager' ); ?></li>
 				<li><?php esc_html_e( 'Mention key themes or genres', 'fanfiction-manager' ); ?></li>
 				<li><?php esc_html_e( 'Keep it between 100-300 words', 'fanfiction-manager' ); ?></li>
+				<li><?php esc_html_e( 'If a non-finished story has no qualifying updates for 4 months, it is automatically marked as On Hiatus.', 'fanfiction-manager' ); ?></li>
+				<li><?php esc_html_e( 'If a story has no qualifying updates for 10 months, it is automatically marked as Abandoned.', 'fanfiction-manager' ); ?></li>
 			</ul>
 		</section>
 
@@ -957,36 +1111,38 @@ if ( $is_edit_mode ) {
 				<span class="dashicons dashicons-category" aria-hidden="true"></span>
 				<?php esc_html_e( 'Understanding Genres', 'fanfiction-manager' ); ?>
 			</h3>
-			<p class="fanfic-help-text">
-				<?php esc_html_e( 'Genres help readers find stories they\'ll enjoy. You can select multiple genres that fit your story.', 'fanfiction-manager' ); ?>
-			</p>
-			<ul class="fanfic-help-list">
-				<li><strong><?php esc_html_e( 'Romance:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Focus on relationships and love', 'fanfiction-manager' ); ?></li>
-				<li><strong><?php esc_html_e( 'Adventure:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Action-packed journeys', 'fanfiction-manager' ); ?></li>
-				<li><strong><?php esc_html_e( 'Drama:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Emotional and character-driven', 'fanfiction-manager' ); ?></li>
-				<li><strong><?php esc_html_e( 'Mystery:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Puzzles and suspense', 'fanfiction-manager' ); ?></li>
-			</ul>
+			<?php if ( ! empty( $help_genres ) ) : ?>
+				<ul class="fanfic-help-list">
+					<?php foreach ( $help_genres as $help_genre ) : ?>
+						<li>
+							<strong><?php echo esc_html( $help_genre['name'] ); ?>:</strong>
+							<?php echo '' !== $help_genre['description'] ? esc_html( $help_genre['description'] ) : esc_html__( 'No description provided yet.', 'fanfiction-manager' ); ?>
+						</li>
+					<?php endforeach; ?>
+				</ul>
+			<?php else : ?>
+				<p class="fanfic-help-text"><?php esc_html_e( 'No active genres are currently available.', 'fanfiction-manager' ); ?></p>
+			<?php endif; ?>
 		</section>
 
-		<!-- Status Options -->
-		<section class="fanfic-content-section" class="fanfic-help-widget" aria-labelledby="status-tips-heading">
-			<h3 id="status-tips-heading">
-				<span class="dashicons dashicons-flag" aria-hidden="true"></span>
-				<?php esc_html_e( 'Story Status Options', 'fanfiction-manager' ); ?>
+		<!-- Warning Information -->
+		<section class="fanfic-content-section" class="fanfic-help-widget" aria-labelledby="warning-tips-heading">
+			<h3 id="warning-tips-heading">
+				<span class="dashicons dashicons-warning" aria-hidden="true"></span>
+				<?php esc_html_e( 'Available Content Warnings', 'fanfiction-manager' ); ?>
 			</h3>
-			<dl class="fanfic-help-definitions">
-				<dt><?php esc_html_e( 'Ongoing:', 'fanfiction-manager' ); ?></dt>
-				<dd><?php esc_html_e( 'Actively being written and updated', 'fanfiction-manager' ); ?></dd>
-
-				<dt><?php esc_html_e( 'Finished:', 'fanfiction-manager' ); ?></dt>
-				<dd><?php esc_html_e( 'Story is complete', 'fanfiction-manager' ); ?></dd>
-
-				<dt><?php esc_html_e( 'On Hiatus:', 'fanfiction-manager' ); ?></dt>
-				<dd><?php esc_html_e( 'Temporarily paused', 'fanfiction-manager' ); ?></dd>
-
-				<dt><?php esc_html_e( 'Abandoned:', 'fanfiction-manager' ); ?></dt>
-				<dd><?php esc_html_e( 'No longer being updated', 'fanfiction-manager' ); ?></dd>
-			</dl>
+			<?php if ( ! empty( $help_warnings ) ) : ?>
+				<ul class="fanfic-help-list">
+					<?php foreach ( $help_warnings as $help_warning ) : ?>
+						<li>
+							<strong><?php echo esc_html( $help_warning['name'] ); ?>:</strong>
+							<?php echo '' !== $help_warning['description'] ? esc_html( $help_warning['description'] ) : esc_html__( 'No description provided yet.', 'fanfiction-manager' ); ?>
+						</li>
+					<?php endforeach; ?>
+				</ul>
+			<?php else : ?>
+				<p class="fanfic-help-text"><?php esc_html_e( 'No active warnings are currently available.', 'fanfiction-manager' ); ?></p>
+			<?php endif; ?>
 		</section>
 
 		<!-- Back to Dashboard Link -->
@@ -1053,17 +1209,49 @@ fanfic_render_breadcrumb( 'edit-story', array(
 		<?php if ( $is_edit_mode ) : ?>
 		// Change detection for Update buttons
 		var form = document.getElementById('fanfic-story-form');
-		var updateBtn = document.getElementById('update-button');
-		var updateDraftBtn = document.getElementById('update-draft-button');
+		if (form) {
+			function getCustomTaxonomyState(container) {
+				var fields = container.querySelectorAll('[name^="fanfic_custom_"]');
+				var values = {};
 
-		if (form && (updateBtn || updateDraftBtn)) {
-			var originalTitle = form.getAttribute('data-original-title') || '';
-			var originalContent = form.getAttribute('data-original-content') || '';
-			var originalGenres = form.getAttribute('data-original-genres') || '';
-			var originalStatus = form.getAttribute('data-original-status') || '';
-			var originalFandoms = form.getAttribute('data-original-fandoms') || '';
-			var originalOriginal = form.getAttribute('data-original-original') || '0';
-			var originalImage = form.getAttribute('data-original-image') || '';
+				fields.forEach(function(field) {
+					var name = field.name;
+					if (!name) {
+						return;
+					}
+
+					if (!Object.prototype.hasOwnProperty.call(values, name)) {
+						values[name] = [];
+					}
+
+					if (field.type === 'checkbox' || field.type === 'radio') {
+						if (field.checked) {
+							values[name].push(field.value || '');
+						}
+						return;
+					}
+
+					if (field.tagName === 'SELECT' && field.multiple) {
+						Array.from(field.selectedOptions).forEach(function(option) {
+							values[name].push(option.value || '');
+						});
+						return;
+					}
+
+					values[name] = [field.value || ''];
+				});
+
+				var parts = [];
+				Object.keys(values).sort().forEach(function(name) {
+					var entry = values[name];
+					if (Array.isArray(entry)) {
+						entry = entry.slice().sort();
+					}
+					parts.push(name + '=' + entry.join(','));
+				});
+
+				return parts.join('|');
+			}
 
 			function checkForChanges() {
 				var titleField = document.getElementById('fanfic_story_title');
@@ -1071,50 +1259,131 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				var statusField = document.getElementById('fanfic_story_status');
 				var imageField = document.getElementById('fanfic_story_image');
 				var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]:checked');
+				var warningCheckboxes = document.querySelectorAll('input[name="fanfic_story_warnings[]"]:checked');
 				var fandomInputs = document.querySelectorAll('input[name="fanfic_story_fandoms[]"]');
+				var translationInputs = document.querySelectorAll('input[name="fanfic_story_translations[]"]');
 				var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
+				var languageField = document.getElementById('fanfic_story_language');
+				var visibleTagsField = document.getElementById('fanfic_visible_tags');
+				var invisibleTagsField = document.getElementById('fanfic_invisible_tags');
+				var publishDateField = document.getElementById('fanfic_story_publish_date');
 
 				var currentTitle = titleField ? titleField.value : '';
 				var currentContent = contentField ? contentField.value : '';
 				var currentStatus = statusField ? statusField.value : '';
 				var currentImage = imageField ? imageField.value : '';
 				var currentGenres = Array.from(genreCheckboxes).map(function(cb) { return cb.value; }).sort().join(',');
+				var currentWarnings = Array.from(warningCheckboxes).map(function(cb) { return cb.value; }).sort().join(',');
 				var currentFandoms = Array.from(fandomInputs).map(function(input) { return input.value; }).sort().join(',');
+				var currentTranslations = Array.from(translationInputs).map(function(input) { return input.value; }).sort().join(',');
 				var currentOriginal = originalCheckbox && originalCheckbox.checked ? '1' : '0';
+				var currentLanguage = languageField ? languageField.value : '';
+				var currentVisibleTags = visibleTagsField ? visibleTagsField.value : '';
+				var currentInvisibleTags = invisibleTagsField ? invisibleTagsField.value : '';
+				var currentPublishDate = publishDateField ? publishDateField.value : '';
+				var currentCustomTaxonomies = getCustomTaxonomyState(form);
+				var originalTitle = form.getAttribute('data-original-title') || '';
+				var originalContent = form.getAttribute('data-original-content') || '';
+				var originalGenres = form.getAttribute('data-original-genres') || '';
+				var originalStatus = form.getAttribute('data-original-status') || '';
+				var originalFandoms = form.getAttribute('data-original-fandoms') || '';
+				var originalOriginal = form.getAttribute('data-original-original') || '0';
+				var originalImage = form.getAttribute('data-original-image') || '';
+				var originalWarnings = form.getAttribute('data-original-warnings');
+				var originalLanguage = form.getAttribute('data-original-language');
+				var originalTranslations = form.getAttribute('data-original-translations');
+				var originalVisibleTags = form.getAttribute('data-original-visible-tags');
+				var originalInvisibleTags = form.getAttribute('data-original-invisible-tags');
+				var originalPublishDate = form.getAttribute('data-original-publish-date');
+				var originalCustomTaxonomies = form.getAttribute('data-original-custom-taxonomies');
+
+				if (null === originalWarnings) {
+					originalWarnings = currentWarnings;
+					form.setAttribute('data-original-warnings', originalWarnings);
+				}
+				if (null === originalLanguage) {
+					originalLanguage = currentLanguage;
+					form.setAttribute('data-original-language', originalLanguage);
+				}
+				if (null === originalTranslations) {
+					originalTranslations = currentTranslations;
+					form.setAttribute('data-original-translations', originalTranslations);
+				}
+				if (null === originalVisibleTags) {
+					originalVisibleTags = currentVisibleTags;
+					form.setAttribute('data-original-visible-tags', originalVisibleTags);
+				}
+				if (null === originalInvisibleTags) {
+					originalInvisibleTags = currentInvisibleTags;
+					form.setAttribute('data-original-invisible-tags', originalInvisibleTags);
+				}
+				if (null === originalPublishDate) {
+					originalPublishDate = currentPublishDate;
+					form.setAttribute('data-original-publish-date', originalPublishDate);
+				}
+				if (null === originalCustomTaxonomies) {
+					originalCustomTaxonomies = currentCustomTaxonomies;
+					form.setAttribute('data-original-custom-taxonomies', originalCustomTaxonomies);
+				}
 
 				var hasChanges = (currentTitle !== originalTitle) ||
 								(currentContent !== originalContent) ||
 								(currentStatus !== originalStatus) ||
 								(currentImage !== originalImage) ||
 								(currentGenres !== originalGenres) ||
+								(currentWarnings !== originalWarnings) ||
 								(currentFandoms !== originalFandoms) ||
-								(currentOriginal !== originalOriginal);
+								(currentOriginal !== originalOriginal) ||
+								(currentLanguage !== originalLanguage) ||
+								(currentTranslations !== originalTranslations) ||
+								(currentVisibleTags !== originalVisibleTags) ||
+								(currentInvisibleTags !== originalInvisibleTags) ||
+								(currentPublishDate !== originalPublishDate) ||
+								(currentCustomTaxonomies !== originalCustomTaxonomies);
 
-				if (updateBtn) {
-					updateBtn.disabled = !hasChanges;
+				var liveUpdateBtn = document.getElementById('update-button');
+				var liveUpdateDraftBtn = document.getElementById('update-draft-button');
+
+				if (liveUpdateBtn) {
+					liveUpdateBtn.disabled = !hasChanges;
 				}
-				if (updateDraftBtn) {
-					updateDraftBtn.disabled = !hasChanges;
+				if (liveUpdateDraftBtn) {
+					liveUpdateDraftBtn.disabled = !hasChanges;
 				}
 			}
 
-			// Attach event listeners
-			var titleField = document.getElementById('fanfic_story_title');
-			var contentField = document.getElementById('fanfic_story_intro');
-			var statusField = document.getElementById('fanfic_story_status');
-			var imageField = document.getElementById('fanfic_story_image');
-			var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]');
-			var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
+			// Universal field tracking: any field mutation inside the current content
+			// section re-checks dirty state, including dynamically added fields.
+			var formSection = form.closest('.fanfic-content-section');
+			var listenerScope = formSection || form;
 
-			if (titleField) titleField.addEventListener('input', checkForChanges);
-			if (contentField) contentField.addEventListener('input', checkForChanges);
-			if (statusField) statusField.addEventListener('change', checkForChanges);
-			if (imageField) imageField.addEventListener('input', checkForChanges);
-			if (originalCheckbox) originalCheckbox.addEventListener('change', checkForChanges);
-			genreCheckboxes.forEach(function(checkbox) {
-				checkbox.addEventListener('change', checkForChanges);
-			});
-			document.addEventListener('fanfic-fandoms-changed', checkForChanges);
+			function isTrackedStoryField(target) {
+				if (!target || !form.contains(target)) {
+					return false;
+				}
+
+				var tagName = target.tagName ? target.tagName.toLowerCase() : '';
+				if (tagName !== 'input' && tagName !== 'textarea' && tagName !== 'select') {
+					return false;
+				}
+
+				var inputType = (target.type || '').toLowerCase();
+				if (inputType === 'submit' || inputType === 'button' || inputType === 'reset' || inputType === 'file') {
+					return false;
+				}
+
+				return true;
+			}
+
+			function handleUniversalFieldChange(event) {
+				if (!isTrackedStoryField(event.target)) {
+					return;
+				}
+				checkForChanges();
+			}
+
+			listenerScope.addEventListener('input', handleUniversalFieldChange, true);
+			listenerScope.addEventListener('change', handleUniversalFieldChange, true);
 
 			// Initial check on page load
 			checkForChanges();
@@ -1536,11 +1805,214 @@ fanfic_render_breadcrumb( 'edit-story', array(
 		// Form validation for genres (at least one must be checked)
 		var storyForm = document.getElementById('fanfic-story-form');
 		if (storyForm) {
+			var storyAjaxUrl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
+			var storyMessagesContainer = document.getElementById('fanfic-messages');
+
+			function showStoryFormMessage(type, message, persistent) {
+				if (!message) {
+					return;
+				}
+
+				if (window.FanficMessages && typeof window.FanficMessages[type] === 'function') {
+					if ('error' === type) {
+						window.FanficMessages.error(message, { autoDismiss: !persistent });
+					} else {
+						window.FanficMessages.success(message);
+					}
+					return;
+				}
+
+				if (!storyMessagesContainer) {
+					alert(message);
+					return;
+				}
+
+				var notice = document.createElement('div');
+				notice.className = 'fanfic-message ' + ('error' === type ? 'fanfic-message-error' : 'fanfic-message-success');
+				notice.setAttribute('role', 'error' === type ? 'alert' : 'status');
+				notice.setAttribute('aria-live', 'error' === type ? 'assertive' : 'polite');
+				notice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">' + ('error' === type ? '&#10007;' : '&#10003;') + '</span><span class="fanfic-message-content"></span><button type="button" class="fanfic-message-close" aria-label="<?php echo esc_attr( __( 'Close message', 'fanfiction-manager' ) ); ?>">&times;</button>';
+				notice.querySelector('.fanfic-message-content').textContent = message;
+				storyMessagesContainer.appendChild(notice);
+
+				var closeBtn = notice.querySelector('.fanfic-message-close');
+				if (closeBtn) {
+					closeBtn.addEventListener('click', function() {
+						notice.remove();
+					});
+				}
+
+				if (!persistent && 'error' !== type) {
+					setTimeout(function() {
+						notice.remove();
+					}, 5000);
+				}
+			}
+
+			function updateStoryOriginalState() {
+				var titleField = document.getElementById('fanfic_story_title');
+				var contentField = document.getElementById('fanfic_story_intro');
+				var statusField = document.getElementById('fanfic_story_status');
+				var imageField = document.getElementById('fanfic_story_image');
+				var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]:checked');
+				var warningCheckboxes = document.querySelectorAll('input[name="fanfic_story_warnings[]"]:checked');
+				var fandomInputs = document.querySelectorAll('input[name="fanfic_story_fandoms[]"]');
+				var translationInputs = document.querySelectorAll('input[name="fanfic_story_translations[]"]');
+				var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
+				var languageField = document.getElementById('fanfic_story_language');
+				var visibleTagsField = document.getElementById('fanfic_visible_tags');
+				var invisibleTagsField = document.getElementById('fanfic_invisible_tags');
+				var publishDateField = document.getElementById('fanfic_story_publish_date');
+				var customTaxonomyFields = storyForm.querySelectorAll('[name^="fanfic_custom_"]');
+
+				var customTaxonomyValues = {};
+				customTaxonomyFields.forEach(function(field) {
+					var name = field.name;
+					if (!name) {
+						return;
+					}
+
+					if (!Object.prototype.hasOwnProperty.call(customTaxonomyValues, name)) {
+						customTaxonomyValues[name] = [];
+					}
+
+					if (field.type === 'checkbox' || field.type === 'radio') {
+						if (field.checked) {
+							customTaxonomyValues[name].push(field.value || '');
+						}
+						return;
+					}
+
+					if (field.tagName === 'SELECT' && field.multiple) {
+						Array.from(field.selectedOptions).forEach(function(option) {
+							customTaxonomyValues[name].push(option.value || '');
+						});
+						return;
+					}
+
+					customTaxonomyValues[name] = [field.value || ''];
+				});
+
+				var customTaxonomyState = [];
+				Object.keys(customTaxonomyValues).sort().forEach(function(name) {
+					var values = customTaxonomyValues[name];
+					if (Array.isArray(values)) {
+						values = values.slice().sort();
+					}
+					customTaxonomyState.push(name + '=' + values.join(','));
+				});
+
+				storyForm.setAttribute('data-original-title', titleField ? titleField.value : '');
+				storyForm.setAttribute('data-original-content', contentField ? contentField.value : '');
+				storyForm.setAttribute('data-original-status', statusField ? statusField.value : '');
+				storyForm.setAttribute('data-original-image', imageField ? imageField.value : '');
+				storyForm.setAttribute('data-original-genres', Array.from(genreCheckboxes).map(function(cb) { return cb.value; }).sort().join(','));
+				storyForm.setAttribute('data-original-warnings', Array.from(warningCheckboxes).map(function(cb) { return cb.value; }).sort().join(','));
+				storyForm.setAttribute('data-original-fandoms', Array.from(fandomInputs).map(function(input) { return input.value; }).sort().join(','));
+				storyForm.setAttribute('data-original-translations', Array.from(translationInputs).map(function(input) { return input.value; }).sort().join(','));
+				storyForm.setAttribute('data-original-original', originalCheckbox && originalCheckbox.checked ? '1' : '0');
+				storyForm.setAttribute('data-original-language', languageField ? languageField.value : '');
+				storyForm.setAttribute('data-original-visible-tags', visibleTagsField ? visibleTagsField.value : '');
+				storyForm.setAttribute('data-original-invisible-tags', invisibleTagsField ? invisibleTagsField.value : '');
+				storyForm.setAttribute('data-original-publish-date', publishDateField ? publishDateField.value : '');
+				storyForm.setAttribute('data-original-custom-taxonomies', customTaxonomyState.join('|'));
+			}
+
+			function getViewUrlFromEditUrl(editUrl) {
+				if (!editUrl) {
+					return '';
+				}
+				try {
+					var parsed = new URL(editUrl, window.location.origin);
+					parsed.searchParams.delete('action');
+					var normalized = parsed.toString();
+					if (normalized.slice(-1) === '?') {
+						normalized = normalized.slice(0, -1);
+					}
+					return normalized;
+				} catch (err) {
+					return '';
+				}
+			}
+
+			function syncStoryActionButtons(postStatus, editUrl) {
+				var actionsContainer = storyForm.querySelector('.fanfic-form-actions');
+				if (!actionsContainer) {
+					return;
+				}
+
+				var actionButtons = actionsContainer.querySelectorAll('button[type="submit"][name="fanfic_form_action"]');
+				if (actionButtons.length < 2) {
+					return;
+				}
+
+				var primaryButton = actionButtons[0];
+				var secondaryButton = actionButtons[1];
+				var viewLink = actionsContainer.querySelector('a[data-fanfic-story-view="1"]');
+				var viewUrl = getViewUrlFromEditUrl(editUrl);
+
+				if (postStatus === 'publish') {
+					primaryButton.value = 'update';
+					primaryButton.id = 'update-button';
+					primaryButton.textContent = '<?php echo esc_js( __( 'Update', 'fanfiction-manager' ) ); ?>';
+					primaryButton.disabled = true;
+
+					secondaryButton.value = 'save_draft';
+					secondaryButton.removeAttribute('id');
+					secondaryButton.textContent = '<?php echo esc_js( __( 'Draft', 'fanfiction-manager' ) ); ?>';
+					secondaryButton.disabled = false;
+
+					if (!viewLink && viewUrl) {
+						var deleteButton = actionsContainer.querySelector('#delete-story-button');
+						viewLink = document.createElement('a');
+						viewLink.className = 'fanfic-button secondary';
+						viewLink.target = '_blank';
+						viewLink.rel = 'noopener noreferrer';
+						viewLink.setAttribute('data-fanfic-story-view', '1');
+						viewLink.textContent = '<?php echo esc_js( __( 'View', 'fanfiction-manager' ) ); ?>';
+						viewLink.href = viewUrl;
+						if (deleteButton) {
+							actionsContainer.insertBefore(viewLink, deleteButton);
+						} else {
+							actionsContainer.appendChild(viewLink);
+						}
+					} else if (viewLink && viewUrl) {
+						viewLink.href = viewUrl;
+					}
+				} else if (postStatus === 'draft') {
+					if (primaryButton.value === 'add_chapter') {
+						secondaryButton.value = 'save_draft';
+						secondaryButton.id = 'update-draft-button';
+						secondaryButton.textContent = '<?php echo esc_js( __( 'Update Draft', 'fanfiction-manager' ) ); ?>';
+						secondaryButton.disabled = false;
+						if (viewLink) {
+							viewLink.remove();
+						}
+						return;
+					}
+
+					primaryButton.value = 'publish';
+					primaryButton.removeAttribute('id');
+					primaryButton.textContent = '<?php echo esc_js( __( 'Make Visible', 'fanfiction-manager' ) ); ?>';
+					primaryButton.disabled = false;
+
+					secondaryButton.value = 'update';
+					secondaryButton.id = 'update-draft-button';
+					secondaryButton.textContent = '<?php echo esc_js( __( 'Update Draft', 'fanfiction-manager' ) ); ?>';
+					secondaryButton.disabled = true;
+
+					if (viewLink) {
+						viewLink.remove();
+					}
+				}
+			}
+
 			storyForm.addEventListener('submit', function(e) {
+				var submitter = e.submitter || document.activeElement;
 				var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]:checked');
 				if (genreCheckboxes.length === 0) {
 					e.preventDefault();
-					alert('<?php echo esc_js( __( 'Please select at least one genre for your story.', 'fanfiction-manager' ) ); ?>');
+					showStoryFormMessage('error', '<?php echo esc_js( __( 'Please select at least one genre for your story.', 'fanfiction-manager' ) ); ?>', true);
 					// Scroll to genres section
 					var genresLabel = document.querySelector('label:has(+ .fanfic-checkboxes)');
 					if (!genresLabel) {
@@ -1563,6 +2035,117 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					}
 					return false;
 				}
+
+				e.preventDefault();
+
+				var formData = new FormData(storyForm);
+				formData.append('action', 'fanfic_submit_story_form');
+				if (submitter && submitter.name && submitter.value) {
+					formData.set(submitter.name, submitter.value);
+				}
+
+				var allSubmitButtons = storyForm.querySelectorAll('button[type="submit"]');
+				var originalButtonLabel = submitter ? submitter.textContent : '';
+				allSubmitButtons.forEach(function(button) {
+					button.disabled = true;
+				});
+				if (submitter) {
+					submitter.textContent = '<?php echo esc_js( __( 'Saving...', 'fanfiction-manager' ) ); ?>';
+				}
+
+				fetch(storyAjaxUrl, {
+					method: 'POST',
+					credentials: 'same-origin',
+					body: formData
+				})
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(payload) {
+					var data = payload && payload.data ? payload.data : {};
+
+					if (!payload || !payload.success) {
+						var errorMessage = '';
+						if (data.errors && data.errors.length) {
+							errorMessage = data.errors.join(' ');
+						} else {
+							errorMessage = data.message || '<?php echo esc_js( __( 'Failed to save story. Please try again.', 'fanfiction-manager' ) ); ?>';
+						}
+						showStoryFormMessage('error', errorMessage, true);
+						return;
+					}
+
+					showStoryFormMessage('success', data.message || '<?php echo esc_js( __( 'Story saved successfully.', 'fanfiction-manager' ) ); ?>', false);
+
+					// Keep form synchronized with the story now being in edit mode.
+					if (data.story_id) {
+						var storyIdInput = storyForm.querySelector('input[name="fanfic_story_id"]');
+						if (!storyIdInput) {
+							storyIdInput = document.createElement('input');
+							storyIdInput.type = 'hidden';
+							storyIdInput.name = 'fanfic_story_id';
+							storyForm.appendChild(storyIdInput);
+						}
+						storyIdInput.value = String(data.story_id);
+					}
+
+					var formModeInput = storyForm.querySelector('input[name="fanfic_story_form_mode"]');
+					if (formModeInput) {
+						formModeInput.value = 'edit';
+					}
+
+					var nonceInput = storyForm.querySelector('input[name="fanfic_story_nonce"]');
+					if (nonceInput && data.edit_nonce) {
+						nonceInput.value = data.edit_nonce;
+					}
+
+					var statusBadge = document.querySelector('.fanfic-story-status-badge');
+					var formHeader = document.querySelector('.fanfic-form-header');
+					if (!statusBadge && formHeader) {
+						statusBadge = document.createElement('span');
+						statusBadge.className = 'fanfic-story-status-badge';
+						formHeader.appendChild(statusBadge);
+					}
+					if (statusBadge && data.status_class && data.status_label) {
+						statusBadge.className = 'fanfic-story-status-badge fanfic-status-' + data.status_class;
+						statusBadge.textContent = data.status_label;
+					}
+
+					if (data.post_status) {
+						syncStoryActionButtons(data.post_status, data.edit_url || data.redirect_url || '');
+					}
+
+					updateStoryOriginalState();
+
+					if (submitter && submitter.value === 'add_chapter' && data.redirect_url) {
+						window.location.href = data.redirect_url;
+						return;
+					}
+
+					if (data.edit_url) {
+						window.history.replaceState({}, '', data.edit_url);
+					}
+				})
+				.catch(function(error) {
+					console.error('Error saving story via AJAX:', error);
+					showStoryFormMessage('error', '<?php echo esc_js( __( 'An unexpected error occurred while saving the story.', 'fanfiction-manager' ) ); ?>', true);
+				})
+				.finally(function() {
+					allSubmitButtons.forEach(function(button) {
+						button.disabled = false;
+					});
+					if (submitter) {
+						submitter.textContent = originalButtonLabel;
+					}
+					var updateButton = document.getElementById('update-button');
+					var updateDraftButton = document.getElementById('update-draft-button');
+					if (updateButton) {
+						updateButton.disabled = true;
+					}
+					if (updateDraftButton) {
+						updateDraftButton.disabled = true;
+					}
+				});
 			});
 		}
 	});

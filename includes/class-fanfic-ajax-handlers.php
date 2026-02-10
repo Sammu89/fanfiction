@@ -1078,6 +1078,12 @@ class Fanfic_AJAX_Handlers {
 		$query_args = fanfic_build_stories_query_args( $normalized, $paged, $per_page );
 		$stories_query = new WP_Query( $query_args );
 
+		// Preload story-card search-index metadata to avoid per-card queries.
+		if ( $stories_query->have_posts() && function_exists( 'fanfic_preload_story_card_index_data' ) ) {
+			$preload_ids = wp_list_pluck( $stories_query->posts, 'ID' );
+			fanfic_preload_story_card_index_data( $preload_ids );
+		}
+
 		$html = '';
 		if ( $stories_query->have_posts() ) {
 			while ( $stories_query->have_posts() ) {

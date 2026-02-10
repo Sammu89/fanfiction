@@ -17,7 +17,7 @@
 <!-- wp:buttons -->
 <div class="wp-block-buttons">
 <!-- wp:button -->
-<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( get_post_type_archive_link( 'fanfiction_story' ) ); ?>"><?php esc_html_e( 'View All Stories', 'fanfiction-manager' ); ?></a></div>
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' ) ); ?>"><?php esc_html_e( 'View All Stories', 'fanfiction-manager' ); ?></a></div>
 <!-- /wp:button -->
 </div>
 <!-- /wp:buttons -->

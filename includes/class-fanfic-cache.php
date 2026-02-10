@@ -509,9 +509,38 @@ class Fanfic_Cache {
 	 * @return int Number of expired transients deleted.
 	 */
 	public static function cleanup_expired() {
+		$total = 0;
+		$batch_size = 1000;
+
+		do {
+			$count = self::cleanup_expired_batch( $batch_size );
+			$total += $count;
+		} while ( $count === $batch_size );
+
+		/**
+		 * Fires after expired transients are cleaned up
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int $count Number of transients cleaned up.
+		 */
+		do_action( 'fanfic_cache_cleanup_expired', $total );
+
+		return $total;
+	}
+
+	/**
+	 * Clean up one batch of expired transients.
+	 *
+	 * @since 2.0.0
+	 * @param int $limit Batch size.
+	 * @return int Number of expired transients deleted in this batch.
+	 */
+	public static function cleanup_expired_batch( $limit = 500 ) {
 		global $wpdb;
 
 		$current_time = time();
+		$limit = max( 1, absint( $limit ) );
 
 		// Find expired transients with our prefix
 		$sql = $wpdb->prepare(
@@ -522,6 +551,7 @@ class Fanfic_Cache {
 			$wpdb->esc_like( '_transient_timeout_' . self::BASE_PREFIX ) . '%',
 			$current_time
 		);
+		$sql .= $wpdb->prepare( ' ORDER BY option_name ASC LIMIT %d', $limit );
 
 		$expired = $wpdb->get_col( $sql );
 		$count   = 0;
@@ -539,15 +569,6 @@ class Fanfic_Cache {
 				$count++;
 			}
 		}
-
-		/**
-		 * Fires after expired transients are cleaned up
-		 *
-		 * @since 1.0.0
-		 *
-		 * @param int $count Number of transients cleaned up.
-		 */
-		do_action( 'fanfic_cache_cleanup_expired', $count );
 
 		return $count;
 	}

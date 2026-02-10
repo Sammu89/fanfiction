@@ -1010,7 +1010,7 @@ class Fanfic_SEO {
         );
 
         // Stories archive
-        $archive_url = get_post_type_archive_link('fanfiction_story');
+        $archive_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : get_post_type_archive_link('fanfiction_story');
         if ($archive_url) {
             $breadcrumbs['itemListElement'][] = array(
                 '@type' => 'ListItem',

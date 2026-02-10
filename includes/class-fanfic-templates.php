@@ -734,6 +734,15 @@ class Fanfic_Templates {
 
 		// Get custom page slugs from settings
 		$custom_slugs = get_option( 'fanfic_system_page_slugs', array() );
+		$stories_page_slug = sanitize_title(
+			get_option(
+				'fanfic_story_path',
+				isset( $custom_slugs['story_path'] ) ? $custom_slugs['story_path'] : 'stories'
+			)
+		);
+		if ( '' === $stories_page_slug ) {
+			$stories_page_slug = 'stories';
+		}
 
 		// Separate dynamic page slugs (don't create WordPress pages for these)
 		$dynamic_slugs = array();
@@ -824,13 +833,8 @@ class Fanfic_Templates {
 			),
 			'stories'         => array(
 				'title'    => __( 'Stories', 'fanfiction-manager' ),
-				'slug'     => isset( $custom_slugs['story_path'] ) ? $custom_slugs['story_path'] : 'stories',
+				'slug'     => $stories_page_slug,
 				'template' => 'stories',
-			),
-			'search'          => array(
-				'title'    => __( 'Search', 'fanfiction-manager' ),
-				'slug'     => isset( $custom_slugs['search'] ) ? $custom_slugs['search'] : 'search',
-				'template' => 'search',
 			),
 			'dashboard'       => array(
 				'title'    => __( 'Dashboard', 'fanfiction-manager' ),
@@ -1124,6 +1128,13 @@ class Fanfic_Templates {
 			return;
 		}
 
+		// Throttle expensive sync-status checks to once every 2 minutes.
+		$throttle_key = 'fanfic_homepage_sync_check_throttle';
+		if ( false !== get_transient( $throttle_key ) ) {
+			return;
+		}
+		set_transient( $throttle_key, 1, 2 * MINUTE_IN_SECONDS );
+
 		// Use helper to check sync status
 		if ( class_exists( 'Fanfic_Homepage_State' ) ) {
 			$in_sync = Fanfic_Homepage_State::is_wp_front_page_in_sync();
@@ -1315,7 +1326,7 @@ class Fanfic_Templates {
 		}
 
 		// 3. STORIES ARCHIVE (always visible)
-		$archive_url = get_post_type_archive_link( 'fanfiction_story' );
+		$archive_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : get_post_type_archive_link( 'fanfiction_story' );
 		if ( ! empty( $archive_url ) ) {
 			wp_update_nav_menu_item( $menu_id, 0, array(
 				'menu-item-title'   => __( 'Stories Archive', 'fanfiction-manager' ),
@@ -1569,8 +1580,6 @@ class Fanfic_Templates {
 			'password-reset' => '<!-- wp:paragraph --><p>[fanfic-password-reset-form]</p><!-- /wp:paragraph -->',
 			'stories'        => '<!-- wp:shortcode -->[fanfic-search-bar]<!-- /wp:shortcode -->' . "\n"
 				. '<!-- wp:shortcode -->[fanfic-story-archive]<!-- /wp:shortcode -->',
-			'search'         => '<!-- wp:shortcode -->[fanfic-search-bar]<!-- /wp:shortcode -->' . "\n"
-				. '<!-- wp:shortcode -->[fanfic-search-results]<!-- /wp:shortcode -->',
 			'dashboard'      => '', // Template file handles all content directly
 			'members'        => '', // Template file handles all content directly
 			'error'          => '', // Template file handles all content directly

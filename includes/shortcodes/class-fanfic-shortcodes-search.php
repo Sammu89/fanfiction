@@ -164,9 +164,20 @@ class Fanfic_Shortcodes_Search {
 					<div class="multi-select__dropdown">
 						<?php if ( ! empty( $context['statuses'] ) && ! is_wp_error( $context['statuses'] ) ) : ?>
 							<?php foreach ( $context['statuses'] as $status ) : ?>
-								<label>
-									<input type="checkbox" name="status[]" value="<?php echo esc_attr( $status->slug ); ?>" <?php in_array( $status->slug, (array) ( $context['params']['statuses'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php echo esc_html( $status->name ); ?>
+								<?php
+								$status_count = isset( $context['filter_counts']['statuses'][ $status->slug ] ) ? absint( $context['filter_counts']['statuses'][ $status->slug ] ) : 0;
+								$status_selected = in_array( $status->slug, (array) ( $context['params']['statuses'] ?? array() ), true );
+								$status_disabled = 0 === $status_count;
+								?>
+								<label class="<?php echo $status_disabled ? 'fanfic-disabled' : ''; ?>">
+									<input
+										type="checkbox"
+										name="status[]"
+										value="<?php echo esc_attr( $status->slug ); ?>"
+										<?php checked( $status_selected ); ?>
+										<?php disabled( $status_disabled ); ?>
+									/>
+									<?php echo esc_html( sprintf( '%s (%d)', $status->name, $status_count ) ); ?>
 								</label>
 							<?php endforeach; ?>
 						<?php endif; ?>
@@ -204,14 +215,19 @@ class Fanfic_Shortcodes_Search {
 							<div class="multi-select__dropdown">
 								<?php if ( ! empty( $context['genres'] ) && ! is_wp_error( $context['genres'] ) ) : ?>
 									<?php foreach ( $context['genres'] as $genre ) : ?>
-										<label>
+										<?php
+										$genre_count = isset( $context['filter_counts']['genres'][ $genre->slug ] ) ? absint( $context['filter_counts']['genres'][ $genre->slug ] ) : 0;
+										$genre_disabled = 0 === $genre_count;
+										?>
+										<label class="<?php echo $genre_disabled ? 'fanfic-disabled' : ''; ?>">
 											<input
 												type="checkbox"
 												name="genre[]"
 												value="<?php echo esc_attr( $genre->slug ); ?>"
 												<?php checked( in_array( $genre->slug, (array) $context['params']['genres'], true ) ); ?>
+												<?php disabled( $genre_disabled ); ?>
 											/>
-											<?php echo esc_html( $genre->name ); ?>
+											<?php echo esc_html( sprintf( '%s (%d)', $genre->name, $genre_count ) ); ?>
 										</label>
 									<?php endforeach; ?>
 								<?php endif; ?>
@@ -226,22 +242,26 @@ class Fanfic_Shortcodes_Search {
 								<?php esc_html_e( 'Select Age Rating', 'fanfiction-manager' ); ?>
 							</button>
 							<div class="multi-select__dropdown">
-								<label>
-									<input type="checkbox" name="age[]" value="PG" <?php in_array( 'PG', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php esc_html_e( 'PG', 'fanfiction-manager' ); ?>
-								</label>
-								<label>
-									<input type="checkbox" name="age[]" value="13" <?php in_array( '13', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php esc_html_e( '13+', 'fanfiction-manager' ); ?>
-								</label>
-								<label>
-									<input type="checkbox" name="age[]" value="16" <?php in_array( '16', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php esc_html_e( '16+', 'fanfiction-manager' ); ?>
-								</label>
-								<label>
-									<input type="checkbox" name="age[]" value="18" <?php in_array( '18', (array) ( $context['params']['age'] ?? [] ) ) ? checked( true ) : ''; ?> />
-									<?php esc_html_e( '18+', 'fanfiction-manager' ); ?>
-								</label>
+								<?php foreach ( (array) ( $context['age_options'] ?? array() ) as $age_value ) : ?>
+									<?php
+									$age_count = isset( $context['filter_counts']['ages'][ $age_value ] ) ? absint( $context['filter_counts']['ages'][ $age_value ] ) : 0;
+									$age_disabled = 0 === $age_count;
+									$age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $age_value, true ) : (string) $age_value;
+									if ( '' === $age_label ) {
+										$age_label = (string) $age_value;
+									}
+									?>
+									<label class="<?php echo $age_disabled ? 'fanfic-disabled' : ''; ?>">
+										<input
+											type="checkbox"
+											name="age[]"
+											value="<?php echo esc_attr( $age_value ); ?>"
+											<?php checked( in_array( $age_value, (array) ( $context['params']['age'] ?? array() ), true ) ); ?>
+											<?php disabled( $age_disabled ); ?>
+										/>
+										<?php echo esc_html( sprintf( '%s (%d)', $age_label, $age_count ) ); ?>
+									</label>
+								<?php endforeach; ?>
 							</div>
 						</div>
 					</div>
@@ -255,19 +275,24 @@ class Fanfic_Shortcodes_Search {
 								</button>
 								<div class="multi-select__dropdown">
 									<?php foreach ( $context['languages'] as $language ) : ?>
-										<label>
+										<?php
+										$language_slug = $language['slug'];
+										$language_count = isset( $context['filter_counts']['languages'][ $language_slug ] ) ? absint( $context['filter_counts']['languages'][ $language_slug ] ) : 0;
+										$language_disabled = 0 === $language_count;
+										$language_label = $language['name'];
+										if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
+											$language_label .= ' (' . $language['native_name'] . ')';
+										}
+										?>
+										<label class="<?php echo $language_disabled ? 'fanfic-disabled' : ''; ?>">
 											<input
 												type="checkbox"
 												name="language[]"
-												value="<?php echo esc_attr( $language['slug'] ); ?>"
-												<?php checked( in_array( $language['slug'], (array) $context['params']['languages'], true ) ); ?>
+												value="<?php echo esc_attr( $language_slug ); ?>"
+												<?php checked( in_array( $language_slug, (array) $context['params']['languages'], true ) ); ?>
+												<?php disabled( $language_disabled ); ?>
 											/>
-											<?php
-											echo esc_html( $language['name'] );
-											if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
-												echo ' (' . esc_html( $language['native_name'] ) . ')';
-											}
-											?>
+											<?php echo esc_html( sprintf( '%s (%d)', $language_label, $language_count ) ); ?>
 										</label>
 									<?php endforeach; ?>
 								</div>
@@ -359,8 +384,17 @@ class Fanfic_Shortcodes_Search {
 									<select id="fanfic-<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>-filter" name="<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>">
 										<option value=""><?php esc_html_e( 'Any', 'fanfiction-manager' ); ?></option>
 										<?php foreach ( $custom_taxonomy['terms'] as $term ) : ?>
-											<option value="<?php echo esc_attr( $term['slug'] ); ?>" <?php selected( in_array( $term['slug'], $custom_params, true ) ); ?>>
-												<?php echo esc_html( $term['name'] ); ?>
+											<?php
+											$custom_term_count = isset( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ][ $term['slug'] ] )
+												? absint( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ][ $term['slug'] ] )
+												: 0;
+											?>
+											<option
+												value="<?php echo esc_attr( $term['slug'] ); ?>"
+												<?php selected( in_array( $term['slug'], $custom_params, true ) ); ?>
+												<?php disabled( 0 === $custom_term_count ); ?>
+											>
+												<?php echo esc_html( sprintf( '%s (%d)', $term['name'], $custom_term_count ) ); ?>
 											</option>
 										<?php endforeach; ?>
 									</select>
@@ -371,14 +405,21 @@ class Fanfic_Shortcodes_Search {
 										</button>
 										<div class="multi-select__dropdown">
 											<?php foreach ( $custom_taxonomy['terms'] as $term ) : ?>
-												<label>
+												<?php
+												$custom_term_count = isset( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ][ $term['slug'] ] )
+													? absint( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ][ $term['slug'] ] )
+													: 0;
+												$custom_term_disabled = 0 === $custom_term_count;
+												?>
+												<label class="<?php echo $custom_term_disabled ? 'fanfic-disabled' : ''; ?>">
 													<input
 														type="checkbox"
 														name="<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>[]"
 														value="<?php echo esc_attr( $term['slug'] ); ?>"
 														<?php checked( in_array( $term['slug'], $custom_params, true ) ); ?>
+														<?php disabled( $custom_term_disabled ); ?>
 													/>
-													<?php echo esc_html( $term['name'] ); ?>
+													<?php echo esc_html( sprintf( '%s (%d)', $term['name'], $custom_term_count ) ); ?>
 												</label>
 											<?php endforeach; ?>
 										</div>
@@ -390,36 +431,58 @@ class Fanfic_Shortcodes_Search {
 				<?php endif; ?>
 
 				<?php if ( ! empty( $context['warnings'] ) ) : ?>
-					<div class="fanfic-stories-row fanfic-stories-warnings">
-						<label class="fanfic-stories-label"><?php esc_html_e( 'Warnings', 'fanfiction-manager' ); ?></label>
-
-						<div class="fanfic-warnings-mode">
-							<label>
-								<input type="radio" name="warnings_mode" value="exclude" <?php checked( ( $context['params']['warnings_mode'] ?? 'exclude' ) === 'exclude' ); ?>>
-								<?php esc_html_e( 'Exclude', 'fanfiction-manager' ); ?>
-							</label>
-							<label>
-								<input type="radio" name="warnings_mode" value="include" <?php checked( ( $context['params']['warnings_mode'] ?? 'exclude' ) === 'include' ); ?>>
-								<?php esc_html_e( 'Include', 'fanfiction-manager' ); ?>
-							</label>
+					<div class="fanfic-stories-row fanfic-stories-warnings fanfic-stories-columns">
+						<div class="fanfic-stories-column">
+							<label><?php esc_html_e( 'Exclude Warnings', 'fanfiction-manager' ); ?></label>
+							<div class="multi-select fanfic-warnings-exclude-multiselect" data-placeholder="<?php esc_attr_e( 'Select Warnings to Exclude', 'fanfiction-manager' ); ?>">
+								<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
+									<?php esc_html_e( 'Select Warnings to Exclude', 'fanfiction-manager' ); ?>
+								</button>
+								<div class="multi-select__dropdown">
+									<?php foreach ( $context['warnings'] as $warning ) : ?>
+										<?php
+										$warning_count = isset( $context['filter_counts']['warnings'][ $warning['slug'] ] ) ? absint( $context['filter_counts']['warnings'][ $warning['slug'] ] ) : 0;
+										$warning_disabled = 0 === $warning_count;
+										?>
+										<label class="<?php echo $warning_disabled ? 'fanfic-disabled' : ''; ?>">
+											<input
+												type="checkbox"
+												name="warnings_exclude[]"
+												value="<?php echo esc_attr( $warning['slug'] ); ?>"
+												<?php checked( in_array( $warning['slug'], (array) ( $context['params']['exclude_warnings'] ?? array() ), true ) ); ?>
+												<?php disabled( $warning_disabled ); ?>
+											/>
+											<?php echo esc_html( sprintf( '%s (%d)', $warning['name'], $warning_count ) ); ?>
+										</label>
+									<?php endforeach; ?>
+								</div>
+							</div>
 						</div>
 
-						<div class="multi-select fanfic-warnings-multiselect" data-placeholder="<?php esc_attr_e( 'Select Warnings', 'fanfiction-manager' ); ?>">
-							<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-								<?php esc_html_e( 'Select Warnings', 'fanfiction-manager' ); ?>
-							</button>
-							<div class="multi-select__dropdown">
-								<?php foreach ( $context['warnings'] as $warning ) : ?>
-									<label>
-										<input
-											type="checkbox"
-											name="warnings_slugs[]"
-											value="<?php echo esc_attr( $warning['slug'] ); ?>"
-											<?php checked( in_array( $warning['slug'], (array) $context['params']['selected_warnings'], true ) ); ?>
-										/>
-										<?php echo esc_html( $warning['name'] ); ?>
-									</label>
-								<?php endforeach; ?>
+						<div class="fanfic-stories-column">
+							<label><?php esc_html_e( 'Include Warnings', 'fanfiction-manager' ); ?></label>
+							<div class="multi-select fanfic-warnings-include-multiselect" data-placeholder="<?php esc_attr_e( 'Select Warnings to Include', 'fanfiction-manager' ); ?>">
+								<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
+									<?php esc_html_e( 'Select Warnings to Include', 'fanfiction-manager' ); ?>
+								</button>
+								<div class="multi-select__dropdown">
+									<?php foreach ( $context['warnings'] as $warning ) : ?>
+										<?php
+										$warning_count = isset( $context['filter_counts']['warnings'][ $warning['slug'] ] ) ? absint( $context['filter_counts']['warnings'][ $warning['slug'] ] ) : 0;
+										$warning_disabled = 0 === $warning_count;
+										?>
+										<label class="<?php echo $warning_disabled ? 'fanfic-disabled' : ''; ?>">
+											<input
+												type="checkbox"
+												name="warnings_include[]"
+												value="<?php echo esc_attr( $warning['slug'] ); ?>"
+												<?php checked( in_array( $warning['slug'], (array) ( $context['params']['include_warnings'] ?? array() ), true ) ); ?>
+												<?php disabled( $warning_disabled ); ?>
+											/>
+											<?php echo esc_html( sprintf( '%s (%d)', $warning['name'], $warning_count ) ); ?>
+										</label>
+									<?php endforeach; ?>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -522,6 +585,12 @@ class Fanfic_Shortcodes_Search {
 			if ( function_exists( 'fanfic_build_stories_query_args' ) ) {
 				$args = fanfic_build_stories_query_args( $context['params'], $paged, $per_page );
 				$stories_query = new WP_Query( $args );
+
+				// Preload story-card search-index metadata to avoid per-card queries.
+				if ( $stories_query instanceof WP_Query && $stories_query->have_posts() && function_exists( 'fanfic_preload_story_card_index_data' ) ) {
+					$preload_ids = wp_list_pluck( $stories_query->posts, 'ID' );
+					fanfic_preload_story_card_index_data( $preload_ids );
+				}
 			}
 			?>
 
@@ -682,17 +751,11 @@ class Fanfic_Shortcodes_Search {
 	 * @return array Stories context data.
 	 */
 	private static function get_stories_context() {
-		// Get the permalink of the current page where the shortcode is embedded.
-		// This ensures the form submits to the same page.
-		$base_url = get_the_permalink();
-
-		// Fallback for cases where get_the_permalink() might not return a valid URL,
-		// e.g., if the shortcode is placed on a dynamically generated page without a static ID.
-		if ( ! $base_url ) {
-			// Get current URL without query parameters.
-			global $wp;
-			$base_url = home_url( $wp->request );
-		}
+		// Use the current request URL (without query string) as the form action.
+		// This ensures the form submits back to the same page the user is on,
+		// whether that's the homepage (stories as front page), /search/, or /stories/.
+		global $wp;
+		$base_url = home_url( $wp->request ? trailingslashit( $wp->request ) : '/' );
 
 		$params = function_exists( 'fanfic_get_stories_params' ) ? fanfic_get_stories_params() : array();
 
@@ -703,6 +766,7 @@ class Fanfic_Shortcodes_Search {
 			|| ! empty( $params['languages'] )
 			|| ! empty( $params['custom'] )
 			|| ! empty( $params['exclude_warnings'] )
+			|| ! empty( $params['include_warnings'] )
 			|| ! empty( $params['age'] )
 			|| ! empty( $params['sort'] );
 
@@ -758,6 +822,72 @@ class Fanfic_Shortcodes_Search {
 			}
 		}
 
+		$raw_filter_counts = function_exists( 'fanfic_get_search_filter_option_counts' ) ? fanfic_get_search_filter_option_counts() : array();
+		$age_options = function_exists( 'fanfic_get_available_age_filters' ) ? fanfic_get_available_age_filters() : array();
+		if ( empty( $age_options ) && isset( $raw_filter_counts['ages'] ) && is_array( $raw_filter_counts['ages'] ) ) {
+			$age_options = array_keys( $raw_filter_counts['ages'] );
+		}
+		$filter_counts = array(
+			'genres'    => array(),
+			'statuses'  => array(),
+			'ages'      => array(),
+			'languages' => array(),
+			'warnings'  => array(),
+			'fandoms'   => array(),
+			'custom'    => array(),
+		);
+		foreach ( (array) $age_options as $age_value ) {
+			$filter_counts['ages'][ $age_value ] = 0;
+		}
+
+		$genre_name_counts = isset( $raw_filter_counts['genres_by_name'] ) && is_array( $raw_filter_counts['genres_by_name'] )
+			? $raw_filter_counts['genres_by_name']
+			: array();
+		if ( ! empty( $genres ) && ! is_wp_error( $genres ) ) {
+			foreach ( $genres as $genre ) {
+				$name_key = function_exists( 'fanfic_normalize_filter_label_key' ) ? fanfic_normalize_filter_label_key( $genre->name ) : strtolower( trim( (string) $genre->name ) );
+				$filter_counts['genres'][ $genre->slug ] = isset( $genre_name_counts[ $name_key ] ) ? absint( $genre_name_counts[ $name_key ] ) : 0;
+			}
+		}
+
+		$status_name_counts = isset( $raw_filter_counts['statuses_by_name'] ) && is_array( $raw_filter_counts['statuses_by_name'] )
+			? $raw_filter_counts['statuses_by_name']
+			: array();
+		if ( ! empty( $statuses ) && ! is_wp_error( $statuses ) ) {
+			foreach ( $statuses as $status ) {
+				$name_key = function_exists( 'fanfic_normalize_filter_label_key' ) ? fanfic_normalize_filter_label_key( $status->name ) : strtolower( trim( (string) $status->name ) );
+				$filter_counts['statuses'][ $status->slug ] = isset( $status_name_counts[ $name_key ] ) ? absint( $status_name_counts[ $name_key ] ) : 0;
+			}
+		}
+
+		if ( isset( $raw_filter_counts['ages'] ) && is_array( $raw_filter_counts['ages'] ) ) {
+			foreach ( $raw_filter_counts['ages'] as $age_key => $age_count ) {
+				$filter_counts['ages'][ $age_key ] = absint( $age_count );
+			}
+		}
+
+		$language_counts = isset( $raw_filter_counts['languages'] ) && is_array( $raw_filter_counts['languages'] )
+			? $raw_filter_counts['languages']
+			: array();
+		foreach ( (array) $languages as $language ) {
+			$slug = $language['slug'];
+			$filter_counts['languages'][ $slug ] = isset( $language_counts[ $slug ] ) ? absint( $language_counts[ $slug ] ) : 0;
+		}
+
+		$warning_counts = isset( $raw_filter_counts['warnings'] ) && is_array( $raw_filter_counts['warnings'] )
+			? $raw_filter_counts['warnings']
+			: array();
+		foreach ( (array) $warnings as $warning ) {
+			$slug = $warning['slug'];
+			$filter_counts['warnings'][ $slug ] = isset( $warning_counts[ $slug ] ) ? absint( $warning_counts[ $slug ] ) : 0;
+		}
+
+		$filter_counts['fandoms'] = isset( $raw_filter_counts['fandoms'] ) && is_array( $raw_filter_counts['fandoms'] )
+			? $raw_filter_counts['fandoms']
+			: array();
+		$filter_counts['custom'] = isset( $raw_filter_counts['custom'] ) && is_array( $raw_filter_counts['custom'] )
+			? $raw_filter_counts['custom']
+			: array();
 
 		return array(
 			'base_url'          => $base_url,
@@ -770,6 +900,8 @@ class Fanfic_Shortcodes_Search {
 			'warnings'          => $warnings,
 			'languages'         => $languages,
 			'custom_taxonomies' => $custom_taxonomies,
+			'age_options'       => $age_options,
+			'filter_counts'     => $filter_counts,
 		);
 	}
 }

@@ -867,6 +867,10 @@ class Fanfic_Custom_Taxonomies {
 			);
 		}
 
+		if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+			Fanfic_Search_Index::update_index( $story_id );
+		}
+
 		return true;
 	}
 

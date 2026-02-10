@@ -1108,6 +1108,66 @@ foreach ( $definitions as $key => $def ) {
     }
 
     /**
+     * Keep stories page slug aligned with the Stories Slug URL setting.
+     *
+     * @since 1.2.0
+     * @param string $story_path Story path slug.
+     * @return true|WP_Error True on success, WP_Error on failure.
+     */
+    private function sync_story_path_to_stories_page( $story_path ) {
+        $story_path = sanitize_title( $story_path );
+        if ( '' === $story_path ) {
+            return new WP_Error(
+                'fanfic_invalid_story_path',
+                __( 'Stories slug cannot be empty.', 'fanfiction-manager' )
+            );
+        }
+
+        // Persist alongside other system page slugs so page creation uses the same source.
+        $page_slugs = get_option( 'fanfic_system_page_slugs', array() );
+        if ( ! is_array( $page_slugs ) ) {
+            $page_slugs = array();
+        }
+        if ( ! isset( $page_slugs['story_path'] ) || $page_slugs['story_path'] !== $story_path ) {
+            $page_slugs['story_path'] = $story_path;
+            update_option( 'fanfic_system_page_slugs', $page_slugs );
+        }
+
+        $page_ids = get_option( 'fanfic_system_page_ids', array() );
+        $stories_page_id = isset( $page_ids['stories'] ) ? absint( $page_ids['stories'] ) : 0;
+        if ( $stories_page_id <= 0 ) {
+            return true;
+        }
+
+        $stories_page = get_post( $stories_page_id );
+        if ( ! ( $stories_page instanceof WP_Post ) || 'page' !== $stories_page->post_type ) {
+            return true;
+        }
+
+        if ( $stories_page->post_name === $story_path ) {
+            return true;
+        }
+
+        if ( class_exists( 'Fanfic_Slug_Tracker' ) ) {
+            Fanfic_Slug_Tracker::add_manual_redirect( $stories_page->post_name, $story_path );
+        }
+
+        $updated = wp_update_post(
+            array(
+                'ID'        => $stories_page_id,
+                'post_name' => $story_path,
+            ),
+            true
+        );
+
+        if ( is_wp_error( $updated ) ) {
+            return $updated;
+        }
+
+        return true;
+    }
+
+    /**
      * Save all URL configuration settings
      *
      * Refactored to use schema-driven approach for reduced code duplication.
@@ -1169,6 +1229,11 @@ foreach ( $definitions as $key => $def ) {
                     $errors[] = $result['error'];
                 } elseif ( isset( $result['success'] ) ) {
                     $success_messages[] = $result['success'];
+                    $story_path = sanitize_title( wp_unslash( $_POST['fanfic_story_path'] ) );
+                    $sync_result = $this->sync_story_path_to_stories_page( $story_path );
+                    if ( is_wp_error( $sync_result ) ) {
+                        $errors[] = __( 'Stories page slug sync failed: ', 'fanfiction-manager' ) . $sync_result->get_error_message();
+                    }
                 }
             }
         }

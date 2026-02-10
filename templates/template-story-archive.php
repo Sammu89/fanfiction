@@ -9,9 +9,27 @@
  * @since 1.0.0
  */
 
-get_header();
+$is_block_theme = function_exists( 'wp_is_block_theme' ) && wp_is_block_theme();
+if ( $is_block_theme ) {
+	?>
+	<!doctype html>
+	<html <?php language_attributes(); ?>>
+	<head>
+		<meta charset="<?php bloginfo( 'charset' ); ?>">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<?php wp_head(); ?>
+	</head>
+	<body <?php body_class(); ?>>
+	<?php
+	if ( function_exists( 'wp_body_open' ) ) {
+		wp_body_open();
+	}
+	echo do_blocks( '<!-- wp:template-part {"slug":"header","tagName":"header"} /-->' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+} else {
+	get_header();
+}
 
-$base_url = function_exists( 'fanfic_get_page_url' ) ? fanfic_get_page_url( 'search' ) : '';
+$base_url = function_exists( 'fanfic_get_page_url' ) ? fanfic_get_page_url( 'stories' ) : '';
 if ( empty( $base_url ) ) {
 	$base_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' );
 }
@@ -35,6 +53,7 @@ $statuses = get_terms( array(
 ) );
 
 $warnings = class_exists( 'Fanfic_Warnings' ) ? Fanfic_Warnings::get_available_warnings() : array();
+$age_options = function_exists( 'fanfic_get_available_age_filters' ) ? fanfic_get_available_age_filters() : array();
 
 $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_build_active_filters( $params, $base_url ) : array();
 ?>
@@ -93,10 +112,17 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 				<label for="fanfic-age-filter"><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
 				<select id="fanfic-age-filter" name="age">
 					<option value=""><?php esc_html_e( 'Any age', 'fanfiction-manager' ); ?></option>
-					<option value="PG" <?php selected( 'PG', $params['age'] ?? '' ); ?>><?php esc_html_e( 'PG', 'fanfiction-manager' ); ?></option>
-					<option value="13" <?php selected( '13', $params['age'] ?? '' ); ?>><?php esc_html_e( '13+', 'fanfiction-manager' ); ?></option>
-					<option value="16" <?php selected( '16', $params['age'] ?? '' ); ?>><?php esc_html_e( '16+', 'fanfiction-manager' ); ?></option>
-					<option value="18" <?php selected( '18', $params['age'] ?? '' ); ?>><?php esc_html_e( '18+', 'fanfiction-manager' ); ?></option>
+					<?php foreach ( (array) $age_options as $age_value ) : ?>
+						<?php
+						$age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $age_value, true ) : (string) $age_value;
+						if ( '' === $age_label ) {
+							$age_label = (string) $age_value;
+						}
+						?>
+						<option value="<?php echo esc_attr( $age_value ); ?>" <?php selected( in_array( $age_value, (array) ( $params['age'] ?? array() ), true ) ); ?>>
+							<?php echo esc_html( $age_label ); ?>
+						</option>
+					<?php endforeach; ?>
 				</select>
 			</div>
 
@@ -222,4 +248,15 @@ $active_filters = function_exists( 'fanfic_build_active_filters' ) ? fanfic_buil
 	</div>
 </div>
 
-<?php get_footer(); ?>
+<?php
+if ( $is_block_theme ) {
+	echo do_blocks( '<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	wp_footer();
+	?>
+	</body>
+	</html>
+	<?php
+} else {
+	get_footer();
+}
+?>

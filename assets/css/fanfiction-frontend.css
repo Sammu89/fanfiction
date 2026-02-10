@@ -948,6 +948,53 @@ input:disabled,
 	}
 }
 
+/* Age badges */
+.fanfic-age-badge,
+.story-warning-age-badge,
+.fanfic-warning-age-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.4;
+}
+
+.story-warning-age-badge,
+.fanfic-warning-age-badge {
+	margin-left: 6px;
+}
+
+.fanfic-age-badge-3-9,
+.fanfic-warning-age-3-9 {
+	background: #e8f5e9;
+	color: #2e7d32;
+}
+
+.fanfic-age-badge-10-12,
+.fanfic-warning-age-10-12 {
+	background: #f1f8e9;
+	color: #558b2f;
+}
+
+.fanfic-age-badge-13-15,
+.fanfic-warning-age-13-15 {
+	background: #fff8e1;
+	color: #ef6c00;
+}
+
+.fanfic-age-badge-16-17,
+.fanfic-warning-age-16-17 {
+	background: #fff3e0;
+	color: #e65100;
+}
+
+.fanfic-age-badge-18-plus,
+.fanfic-warning-age-18-plus {
+	background: #ffebee;
+	color: #c62828;
+}
+
 
 /* ============================================
    DASHBOARD STYLES
@@ -5246,6 +5293,18 @@ body.fanfic-member-profile .wp-block-post-title {
 	background: #f7f7f7;
 }
 
+.fanfic-fandom-result:disabled,
+.fanfic-fandom-result.is-disabled {
+	background: #f5f5f5;
+	color: #999;
+	cursor: not-allowed;
+}
+
+.fanfic-fandom-result:disabled:hover,
+.fanfic-fandom-result.is-disabled:hover {
+	background: #f5f5f5;
+}
+
 .fanfic-selected-fandoms {
 	display: flex;
 	flex-wrap: wrap;
@@ -5824,4 +5883,136 @@ body.fanfic-member-profile .wp-block-post-title {
 /* Large number formatting (for fandoms with 100+ stories) */
 .fanfic-taxonomy-directory-count[data-count*="00"] {
 	font-weight: 600;
+}
+
+/* ============================================
+   TRANSLATION LINKS
+   ============================================ */
+
+/* Story View - Translation Banner */
+.fanfic-story-translations {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	padding: 0.75em 1em;
+	margin: 0.75em 0;
+	background: var(--fanfic-info-bg, #f0f6ff);
+	border: 1px solid var(--fanfic-info-border, #c3d9f0);
+	border-radius: 6px;
+	font-size: 0.95em;
+}
+
+.fanfic-translations-icon {
+	font-size: 1.2em;
+	line-height: 1;
+}
+
+.fanfic-translation-link {
+	font-weight: 600;
+	text-decoration: none;
+	color: var(--fanfic-link-color, #2271b1);
+}
+
+.fanfic-translation-link:hover {
+	text-decoration: underline;
+}
+
+.fanfic-translations-dropdown {
+	padding: 0.3em 0.5em;
+	border: 1px solid var(--fanfic-info-border, #c3d9f0);
+	border-radius: 4px;
+	background: #fff;
+	cursor: pointer;
+	font-size: 0.95em;
+}
+
+/* Story Card - Translation Indicator */
+.fanfic-story-translations-indicator {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3em;
+	font-size: 0.85em;
+	color: #666;
+	margin-top: 0.5em;
+}
+
+.fanfic-story-translations-indicator .fanfic-translations-icon {
+	font-size: 1em;
+}
+
+/* Story Form - Translation Field */
+.fanfic-translations-field .fanfic-translation-results {
+	max-height: 200px;
+	overflow-y: auto;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	background: #fff;
+	display: none;
+	margin-top: 0.25em;
+}
+
+.fanfic-translations-field .fanfic-translation-results:not(:empty) {
+	display: block;
+}
+
+.fanfic-translation-result {
+	display: block;
+	width: 100%;
+	padding: 0.5em 0.75em;
+	text-align: left;
+	border: none;
+	border-bottom: 1px solid #f0f0f0;
+	background: none;
+	cursor: pointer;
+	font-size: 0.9em;
+}
+
+.fanfic-translation-result:last-child {
+	border-bottom: none;
+}
+
+.fanfic-translation-result:hover {
+	background: #f0f6ff;
+}
+
+.fanfic-translation-result.is-disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.fanfic-selected-translations {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3em;
+	margin-top: 0.5em;
+}
+
+.fanfic-selected-translation {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3em;
+	padding: 0.3em 0.6em;
+	background: #e8f0fe;
+	border-radius: 4px;
+	font-size: 0.9em;
+}
+
+.fanfic-remove-translation {
+	background: none;
+	border: none;
+	cursor: pointer;
+	font-size: 1.1em;
+	line-height: 1;
+	color: #999;
+	padding: 0 0.2em;
+}
+
+.fanfic-remove-translation:hover {
+	color: #c00;
+}
+
+/* Hidden translation variant in search results (JS deduplication) */
+.fanfic-translation-hidden {
+	display: none !important;
 }

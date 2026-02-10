@@ -3554,12 +3554,14 @@ class Fanfic_Settings {
 		self::log_delete_data_progress( 'dropping_tables' );
 		$table_names = array(
 			'fanfic_moderation_log',
+			'fanfic_story_filter_map',
 			'fanfic_story_search_index',
 			'fanfic_story_custom_terms',
 			'fanfic_custom_terms',
 			'fanfic_custom_taxonomies',
 			'fanfic_story_languages',
 			'fanfic_languages',
+			'fanfic_story_translations',
 			'fanfic_story_warnings',
 			'fanfic_warnings',
 			'fanfic_notifications',
@@ -3583,6 +3585,72 @@ class Fanfic_Settings {
 		self::cleanup_memory();
 		self::log_delete_data_progress( 'tables_dropped' );
 
+		// Remove terms from built-in plugin taxonomies so wizard rerun starts from an empty state.
+		self::log_delete_data_progress( 'deleting_builtin_taxonomy_terms' );
+		$builtin_taxonomies = array(
+			'fanfiction_genre',
+			'fanfiction_status',
+		);
+		$taxonomies = array_values(
+			array_filter(
+				$builtin_taxonomies,
+				'taxonomy_exists'
+			)
+		);
+
+		if ( ! empty( $taxonomies ) ) {
+			$in_clause = "'" . implode( "','", array_map( 'esc_sql', $taxonomies ) ) . "'";
+
+			// Remove taxonomy relationships first.
+			$wpdb->query(
+				"DELETE tr
+				FROM {$wpdb->term_relationships} tr
+				INNER JOIN {$wpdb->term_taxonomy} tt
+					ON tt.term_taxonomy_id = tr.term_taxonomy_id
+				WHERE tt.taxonomy IN ({$in_clause})"
+			);
+
+			// Remove term meta for terms used only by plugin taxonomies.
+			if ( ! empty( $wpdb->termmeta ) ) {
+				$wpdb->query(
+					"DELETE tm
+					FROM {$wpdb->termmeta} tm
+					INNER JOIN {$wpdb->term_taxonomy} tt_plugin
+						ON tt_plugin.term_id = tm.term_id
+					LEFT JOIN {$wpdb->term_taxonomy} tt_other
+						ON tt_other.term_id = tm.term_id
+						AND tt_other.taxonomy NOT IN ({$in_clause})
+					WHERE tt_plugin.taxonomy IN ({$in_clause})
+						AND tt_other.term_taxonomy_id IS NULL"
+				);
+			}
+
+			// Remove terms used only by plugin taxonomies.
+			$wpdb->query(
+				"DELETE t
+				FROM {$wpdb->terms} t
+				INNER JOIN {$wpdb->term_taxonomy} tt_plugin
+					ON tt_plugin.term_id = t.term_id
+				LEFT JOIN {$wpdb->term_taxonomy} tt_other
+					ON tt_other.term_id = t.term_id
+					AND tt_other.taxonomy NOT IN ({$in_clause})
+				WHERE tt_plugin.taxonomy IN ({$in_clause})
+					AND tt_other.term_taxonomy_id IS NULL"
+			);
+
+			// Remove taxonomy rows for plugin taxonomies.
+			$wpdb->query(
+				"DELETE FROM {$wpdb->term_taxonomy}
+				WHERE taxonomy IN ({$in_clause})"
+			);
+
+			foreach ( $taxonomies as $taxonomy ) {
+				clean_taxonomy_cache( $taxonomy );
+			}
+		}
+		self::cleanup_memory();
+		self::log_delete_data_progress( 'builtin_taxonomy_terms_deleted' );
+
 		// Delete all options with "fanfic" in the name in one query (memory-safe).
 		self::log_delete_data_progress( 'deleting_options' );
 		$options_like = $wpdb->esc_like( 'fanfic' ) . '%';
@@ -3594,6 +3662,12 @@ class Fanfic_Settings {
 		);
 		self::cleanup_memory();
 		self::log_delete_data_progress( 'options_deleted' );
+
+		// Keep classification creation/seeding deferred until wizard step 1 explicitly runs.
+		// This prevents background admin requests from triggering heavy rebuilds right after deletion.
+		set_transient( 'fanfic_skip_classification', true, HOUR_IN_SECONDS * 12 );
+		// Enable short-lived post-delete diagnostics to trace any follow-up fatals.
+		set_transient( 'fanfic_post_delete_debug', true, HOUR_IN_SECONDS );
 
 		// Restore original memory limit if it completes.
 		@ini_set( 'memory_limit', $original_memory_limit );

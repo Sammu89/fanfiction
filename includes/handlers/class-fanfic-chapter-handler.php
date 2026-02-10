@@ -32,6 +32,117 @@ class Fanfic_Chapter_Handler {
 	private static $registered = false;
 
 	/**
+	 * Check whether the current user can manually edit publication dates.
+	 *
+	 * Allowed: fanfiction_author, fanfiction_admin, WordPress administrator.
+	 * Disallowed: fanfiction_moderator-only users.
+	 *
+	 * @since 2.1.0
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	private static function user_can_edit_publish_date( $user_id ) {
+		$user_id = absint( $user_id );
+		if ( ! $user_id ) {
+			return false;
+		}
+
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return false;
+		}
+
+		$roles = (array) $user->roles;
+		return in_array( 'administrator', $roles, true )
+			|| in_array( 'fanfiction_admin', $roles, true )
+			|| in_array( 'fanfiction_author', $roles, true );
+	}
+
+	/**
+	 * Parse and validate a YYYY-MM-DD publication date input.
+	 *
+	 * @since 2.1.0
+	 * @param string $raw_date Raw request value.
+	 * @param array  $errors Errors array by reference.
+	 * @return array|null|false Array with local/gmt values, null for empty, false for invalid.
+	 */
+	private static function parse_publication_date_input( $raw_date, &$errors ) {
+		$raw_date = trim( (string) $raw_date );
+		if ( '' === $raw_date ) {
+			return null;
+		}
+
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw_date ) ) {
+			$errors[] = __( 'Publication date format is invalid.', 'fanfiction-manager' );
+			return false;
+		}
+
+		$timezone = wp_timezone();
+		$date_obj = DateTime::createFromFormat( '!Y-m-d', $raw_date, $timezone );
+		if ( ! $date_obj ) {
+			$errors[] = __( 'Publication date is invalid.', 'fanfiction-manager' );
+			return false;
+		}
+
+		$date_errors = DateTime::getLastErrors();
+		if ( ( $date_errors && ! empty( $date_errors['warning_count'] ) ) || ( $date_errors && ! empty( $date_errors['error_count'] ) ) ) {
+			$errors[] = __( 'Publication date is invalid.', 'fanfiction-manager' );
+			return false;
+		}
+
+		$local_datetime = $date_obj->format( 'Y-m-d 00:00:00' );
+		$local_ts       = strtotime( $local_datetime );
+		if ( false === $local_ts ) {
+			$errors[] = __( 'Publication date is invalid.', 'fanfiction-manager' );
+			return false;
+		}
+
+		if ( $local_ts > current_time( 'timestamp' ) ) {
+			$errors[] = __( 'Publication date cannot be in the future.', 'fanfiction-manager' );
+			return false;
+		}
+
+		return array(
+			'local' => $local_datetime,
+			'gmt'   => get_gmt_from_date( $local_datetime ),
+		);
+	}
+
+	/**
+	 * Check whether content changed significantly (same threshold as search index logic).
+	 *
+	 * @since 2.1.0
+	 * @param string $old_content Previous content.
+	 * @param string $new_content New content.
+	 * @return bool
+	 */
+	private static function is_content_significantly_changed( $old_content, $new_content ) {
+		$old_content = trim( preg_replace( '/\s+/', ' ', (string) $old_content ) );
+		$new_content = trim( preg_replace( '/\s+/', ' ', (string) $new_content ) );
+
+		if ( '' === $old_content || '' === $new_content ) {
+			return true;
+		}
+
+		if ( $old_content === $new_content ) {
+			return false;
+		}
+
+		$old_len = strlen( $old_content );
+		$new_len = strlen( $new_content );
+
+		if ( $old_len < 5000 && $new_len < 5000 ) {
+			similar_text( $old_content, $new_content, $percent );
+			return $percent < 90;
+		}
+
+		$max_len = max( $old_len, $new_len );
+		$diff    = abs( $old_len - $new_len );
+		$change_percent = ( $diff / $max_len ) * 100;
+		return $change_percent >= 10;
+	}
+
+	/**
 	 * Register chapter handlers
 	 *
 	 * @since 1.0.0
@@ -71,16 +182,29 @@ class Fanfic_Chapter_Handler {
 		if ( ! isset( $_POST['fanfic_create_chapter_submit'] ) ) {
 			return;
 		}
+		$is_ajax = wp_doing_ajax();
 
 		$story_id = isset( $_POST['fanfic_story_id'] ) ? absint( $_POST['fanfic_story_id'] ) : 0;
 
 		// Verify nonce
 		if ( ! isset( $_POST['fanfic_create_chapter_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_create_chapter_nonce'], 'fanfic_create_chapter_action_' . $story_id ) ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => __( 'Security check failed.', 'fanfiction-manager' ),
+					'errors'  => array( __( 'Security check failed.', 'fanfiction-manager' ) ),
+				) );
+			}
 			return;
 		}
 
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => __( 'You must be logged in to create chapters.', 'fanfiction-manager' ),
+					'errors'  => array( __( 'You must be logged in to create chapters.', 'fanfiction-manager' ) ),
+				) );
+			}
 			return;
 		}
 
@@ -89,6 +213,12 @@ class Fanfic_Chapter_Handler {
 
 		// Check permissions
 		if ( ! $story || ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => __( 'You do not have permission to create chapters for this story.', 'fanfiction-manager' ),
+					'errors'  => array( __( 'You do not have permission to create chapters for this story.', 'fanfiction-manager' ) ),
+				) );
+			}
 			return;
 		}
 
@@ -101,6 +231,11 @@ class Fanfic_Chapter_Handler {
 		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
 		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
 		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
+		$publish_date_raw = isset( $_POST['fanfic_chapter_publish_date'] ) ? sanitize_text_field( wp_unslash( $_POST['fanfic_chapter_publish_date'] ) ) : '';
+		$publish_date_data = null;
+		if ( '' !== $publish_date_raw && self::user_can_edit_publish_date( get_current_user_id() ) ) {
+			$publish_date_data = self::parse_publication_date_input( $publish_date_raw, $errors );
+		}
 
 		// Validate chapter type restrictions
 		if ( 'prologue' === $chapter_type && self::story_has_prologue( $story_id ) ) {
@@ -136,6 +271,12 @@ class Fanfic_Chapter_Handler {
 
 		// If errors, store and redirect back
 		if ( ! empty( $errors ) ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => implode( ' ', $errors ),
+					'errors'  => $errors,
+				) );
+			}
 			set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
 			wp_redirect( wp_get_referer() );
 			exit;
@@ -143,14 +284,20 @@ class Fanfic_Chapter_Handler {
 
 		// Create chapter as draft first if publishing, so we can validate
 		$initial_status = ( 'publish' === $chapter_status ) ? 'draft' : $chapter_status;
-		$chapter_id = wp_insert_post( array(
+		$insert_data = array(
 			'post_type'    => 'fanfiction_chapter',
 			'post_title'   => $title,
 			'post_content' => $content,
 			'post_status'  => $initial_status,
 			'post_author'  => $current_user->ID,
 			'post_parent'  => $story_id,
-		) );
+		);
+		if ( is_array( $publish_date_data ) ) {
+			$insert_data['post_date'] = $publish_date_data['local'];
+			$insert_data['post_date_gmt'] = $publish_date_data['gmt'];
+		}
+
+		$chapter_id = wp_insert_post( $insert_data );
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			error_log( 'Chapter created with ID: ' . $chapter_id . ', Initial Status: ' . $initial_status );
@@ -158,6 +305,12 @@ class Fanfic_Chapter_Handler {
 
 		if ( is_wp_error( $chapter_id ) ) {
 			$errors[] = $chapter_id->get_error_message();
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => implode( ' ', $errors ),
+					'errors'  => $errors,
+				) );
+			}
 			set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
 			wp_redirect( wp_get_referer() );
 			exit;
@@ -172,6 +325,12 @@ class Fanfic_Chapter_Handler {
 			$validation = Fanfic_Validation::can_publish_chapter( $chapter_id );
 
 			if ( ! $validation['can_publish'] ) {
+				if ( $is_ajax ) {
+					wp_send_json_error( array(
+						'message' => __( 'Chapter could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ),
+						'errors'  => array_values( $validation['missing_fields'] ),
+					) );
+				}
 				// Validation failed - keep as draft, show errors
 				$validation_errors = array_values( $validation['missing_fields'] );
 				set_transient( 'fanfic_chapter_validation_errors_' . $current_user->ID . '_' . $chapter_id, $validation_errors, 60 );
@@ -229,9 +388,18 @@ class Fanfic_Chapter_Handler {
 		// Check if this is an AJAX request
 		if ( wp_doing_ajax() ) {
 			// Return JSON response for AJAX
+			$chapter_edit_url = add_query_arg( 'action', 'edit', get_permalink( $chapter_id ) );
 			wp_send_json_success( array(
-				'redirect_url' => $edit_url,
-				'chapter_id' => $chapter_id,
+				'message'            => __( 'Chapter saved successfully.', 'fanfiction-manager' ),
+				'redirect_url'       => $edit_url,
+				'edit_url'           => $chapter_edit_url,
+				'chapter_id'         => $chapter_id,
+				'chapter_type'       => $chapter_type,
+				'chapter_number' => $chapter_number,
+				'chapter_status' => get_post_status( $chapter_id ),
+				'form_mode'          => 'edit',
+				'edit_nonce'         => wp_create_nonce( 'fanfic_edit_chapter_action_' . $chapter_id ),
+				'is_first_published_chapter' => $is_first_published_chapter,
 			) );
 		} else {
 			// Regular form submission - redirect
@@ -250,16 +418,29 @@ class Fanfic_Chapter_Handler {
 		if ( ! isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 			return;
 		}
+		$is_ajax = wp_doing_ajax();
 
 		$chapter_id = isset( $_POST['fanfic_chapter_id'] ) ? absint( $_POST['fanfic_chapter_id'] ) : 0;
 
 		// Verify nonce
 		if ( ! isset( $_POST['fanfic_edit_chapter_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_edit_chapter_nonce'], 'fanfic_edit_chapter_action_' . $chapter_id ) ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => __( 'Security check failed.', 'fanfiction-manager' ),
+					'errors'  => array( __( 'Security check failed.', 'fanfiction-manager' ) ),
+				) );
+			}
 			return;
 		}
 
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => __( 'You must be logged in to edit chapters.', 'fanfiction-manager' ),
+					'errors'  => array( __( 'You must be logged in to edit chapters.', 'fanfiction-manager' ) ),
+				) );
+			}
 			return;
 		}
 
@@ -268,6 +449,12 @@ class Fanfic_Chapter_Handler {
 
 		// Check permissions
 		if ( ! $chapter || ( $chapter->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => __( 'You do not have permission to edit this chapter.', 'fanfiction-manager' ),
+					'errors'  => array( __( 'You do not have permission to edit this chapter.', 'fanfiction-manager' ) ),
+				) );
+			}
 			return;
 		}
 
@@ -279,9 +466,33 @@ class Fanfic_Chapter_Handler {
 		$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
 		$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
 		$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
+		$publish_date_raw = isset( $_POST['fanfic_chapter_publish_date'] ) ? sanitize_text_field( wp_unslash( $_POST['fanfic_chapter_publish_date'] ) ) : '';
+		$publish_date_data = null;
+		if ( '' !== $publish_date_raw && self::user_can_edit_publish_date( get_current_user_id() ) ) {
+			$publish_date_data = self::parse_publication_date_input( $publish_date_raw, $errors );
+		}
 
 		// Get story ID from chapter
 		$story_id = $chapter->post_parent;
+		$existing_content_updated_date = (string) get_post_meta( $story_id, '_fanfic_content_updated_date', true );
+		$current_publish_date = isset( $chapter->post_date ) ? substr( (string) $chapter->post_date, 0, 10 ) : '';
+		$new_publish_date = is_array( $publish_date_data ) ? substr( (string) $publish_date_data['local'], 0, 10 ) : $current_publish_date;
+		$publish_date_changed = is_array( $publish_date_data ) && $new_publish_date !== $current_publish_date;
+		$content_unchanged = ( (string) $chapter->post_content === (string) $content );
+		$preserve_content_updated_meta = $publish_date_changed && $content_unchanged && '' !== $existing_content_updated_date;
+		$is_forward_publish_date_change = false;
+		if ( is_array( $publish_date_data ) ) {
+			$current_publish_ts = strtotime( (string) $chapter->post_date );
+			$new_publish_ts = strtotime( (string) $publish_date_data['local'] );
+			if ( false !== $current_publish_ts && false !== $new_publish_ts ) {
+				$is_forward_publish_date_change = $new_publish_ts > $current_publish_ts;
+			}
+		}
+
+		// Anti-cheat validation: forward date changes require qualifying chapter content update.
+		if ( $is_forward_publish_date_change && ! self::is_content_significantly_changed( (string) $chapter->post_content, (string) $content ) ) {
+			$errors[] = __( 'To set a newer publication date, first make a substantial update to the chapter content. Date-only changes are not allowed.', 'fanfiction-manager' );
+		}
 
 		// Get current chapter type
 		$old_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
@@ -333,6 +544,12 @@ class Fanfic_Chapter_Handler {
 
 		// If errors, store and redirect back
 		if ( ! empty( $errors ) ) {
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => implode( ' ', $errors ),
+					'errors'  => $errors,
+				) );
+			}
 			set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
 			wp_redirect( wp_get_referer() );
 			exit;
@@ -344,15 +561,28 @@ class Fanfic_Chapter_Handler {
 
 		// Update chapter - keep as draft if trying to publish, so we can validate first
 		$update_status = ( 'publish' === $chapter_status && 'publish' !== $old_status ) ? 'draft' : $chapter_status;
-		$result = wp_update_post( array(
+		$update_data = array(
 			'ID'           => $chapter_id,
 			'post_title'   => $title,
 			'post_content' => $content,
 			'post_status'  => $update_status,
-		) );
+			'edit_date'    => true,
+		);
+		if ( is_array( $publish_date_data ) ) {
+			$update_data['post_date'] = $publish_date_data['local'];
+			$update_data['post_date_gmt'] = $publish_date_data['gmt'];
+		}
+
+		$result = wp_update_post( $update_data );
 
 		if ( is_wp_error( $result ) ) {
 			$errors[] = $result->get_error_message();
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => implode( ' ', $errors ),
+					'errors'  => $errors,
+				) );
+			}
 			set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
 			wp_redirect( wp_get_referer() );
 			exit;
@@ -367,6 +597,12 @@ class Fanfic_Chapter_Handler {
 			$validation = Fanfic_Validation::can_publish_chapter( $chapter_id );
 
 			if ( ! $validation['can_publish'] ) {
+				if ( $is_ajax ) {
+					wp_send_json_error( array(
+						'message' => __( 'Chapter could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ),
+						'errors'  => array_values( $validation['missing_fields'] ),
+					) );
+				}
 				// Validation failed - keep as draft, show errors
 				$validation_errors = array_values( $validation['missing_fields'] );
 				set_transient( 'fanfic_chapter_validation_errors_' . $current_user->ID . '_' . $chapter_id, $validation_errors, 60 );
@@ -453,6 +689,29 @@ class Fanfic_Chapter_Handler {
 		// Add info message if this is first published chapter
 		if ( $is_first_published_chapter ) {
 			Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first published chapter! Consider publishing your story now.', 'fanfiction-manager' ) );
+		}
+
+		// Anti-cheat guard: chapter publish date edits must not count as content updates.
+		if ( $preserve_content_updated_meta ) {
+			update_post_meta( $story_id, '_fanfic_content_updated_date', $existing_content_updated_date );
+		}
+
+		if ( $is_ajax ) {
+			$edit_url = add_query_arg( 'action', 'edit', get_permalink( $chapter_id ) );
+			wp_send_json_success( array(
+				'message' => __( 'Chapter updated successfully!', 'fanfiction-manager' ),
+				'chapter_id' => $chapter_id,
+				'chapter_type' => $chapter_type,
+				'chapter_number' => $chapter_number,
+				'chapter_status' => get_post_status( $chapter_id ),
+				'story_auto_drafted' => $was_story_auto_drafted,
+				'story_id' => $story_id,
+				'redirect_url' => $edit_url,
+				'edit_url' => $edit_url,
+				'form_mode' => 'edit',
+				'edit_nonce' => wp_create_nonce( 'fanfic_edit_chapter_action_' . $chapter_id ),
+				'is_first_published_chapter' => $is_first_published_chapter,
+			) );
 		}
 
 		wp_redirect( wp_get_referer() );

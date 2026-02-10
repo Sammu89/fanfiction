@@ -36,6 +36,7 @@ class Fanfic_Shortcodes_Chapter {
 		add_shortcode( 'fanfic-chapter-updated', array( __CLASS__, 'chapter_updated' ) );
 		add_shortcode( 'fanfic-chapter-content', array( __CLASS__, 'chapter_content' ) );
 		add_shortcode( 'fanfic-chapter-image', array( __CLASS__, 'fanfic_chapter_image' ) );
+		add_shortcode( 'chapter-translations', array( __CLASS__, 'chapter_translations' ) );
 	}
 
 	/**
@@ -256,5 +257,60 @@ class Fanfic_Shortcodes_Chapter {
 		$content = apply_filters( 'the_content', $chapter->post_content );
 
 		return $content;
+	}
+
+	/**
+	 * Chapter translations shortcode
+	 *
+	 * [chapter-translations]
+	 *
+	 * Displays links to translated sibling chapters matched by chapter structure
+	 * (type + number) across translated sibling stories.
+	 *
+	 * Returns empty when language/translations are disabled or no matches exist.
+	 *
+	 * @since 1.5.1
+	 * @return string
+	 */
+	public static function chapter_translations() {
+		if ( ! class_exists( 'Fanfic_Translations' ) || ! Fanfic_Translations::is_enabled() ) {
+			return '';
+		}
+
+		$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
+		if ( ! $chapter_id ) {
+			return '';
+		}
+
+		$siblings = Fanfic_Translations::get_chapter_translation_siblings( $chapter_id );
+		if ( empty( $siblings ) ) {
+			return '';
+		}
+
+		$count = count( $siblings );
+
+		ob_start();
+		?>
+		<div class="fanfic-story-translations fanfic-chapter-translations" aria-label="<?php esc_attr_e( 'Available chapter translations', 'fanfiction-manager' ); ?>">
+			<span class="fanfic-translations-icon" aria-hidden="true">&#127760;</span>
+			<strong><?php esc_html_e( 'This chapter is also available in:', 'fanfiction-manager' ); ?></strong>
+			<?php if ( 1 === $count ) : ?>
+				<?php $sibling = $siblings[0]; ?>
+				<a href="<?php echo esc_url( $sibling['permalink'] ); ?>" class="fanfic-translation-link">
+					<?php echo esc_html( $sibling['language_label'] ); ?>
+				</a>
+			<?php else : ?>
+				<select class="fanfic-translations-dropdown" onchange="if(this.value)window.location.href=this.value">
+					<option value=""><?php esc_html_e( 'Select language...', 'fanfiction-manager' ); ?></option>
+					<?php foreach ( $siblings as $sibling ) : ?>
+						<option value="<?php echo esc_url( $sibling['permalink'] ); ?>">
+							<?php echo esc_html( $sibling['language_label'] ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
+			<?php endif; ?>
+		</div>
+		<?php
+		return ob_get_clean();
 	}
 }

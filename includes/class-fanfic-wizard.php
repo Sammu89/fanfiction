@@ -315,12 +315,37 @@ class Fanfic_Wizard {
 	}
 
 	/**
+	 * Log lightweight diagnostics after a delete-data flow.
+	 *
+	 * @param string $message Message to log.
+	 * @param array  $context Optional context.
+	 * @return void
+	 */
+	private function log_post_delete_debug( $message, $context = array() ) {
+		if ( ! get_transient( 'fanfic_post_delete_debug' ) ) {
+			return;
+		}
+
+		$memory_mb = round( memory_get_usage( true ) / 1024 / 1024 );
+		$peak_mb   = round( memory_get_peak_usage( true ) / 1024 / 1024 );
+		$line      = 'Fanfic Wizard Debug: ' . $message . ' | mem=' . $memory_mb . 'MB peak=' . $peak_mb . 'MB';
+
+		if ( ! empty( $context ) ) {
+			$line .= ' | context=' . wp_json_encode( $context );
+		}
+
+		error_log( $line );
+	}
+
+	/**
 	 * Check if all required system pages exist
 	 *
 	 * @since 1.0.0
 	 * @return bool True if all pages exist, false otherwise.
 	 */
 	private function all_pages_exist() {
+		$this->log_post_delete_debug( 'all_pages_exist:start' );
+
 		$page_ids = get_option( 'fanfic_system_page_ids', array() );
 
 		// Only check physical WordPress pages (not dynamic pages)
@@ -330,7 +355,6 @@ class Fanfic_Wizard {
 			'login',
 			'register',
 			'password-reset',
-			'search',
 			'error',
 			'maintenance',
 		);
@@ -360,6 +384,13 @@ class Fanfic_Wizard {
 		// Also verify dynamic page slugs are configured
 		$dynamic_slugs = Fanfic_URL_Manager::get_instance()->get_slugs();
 		$dynamic_pages = Fanfic_URL_Manager::get_instance()->get_dynamic_pages();
+		$this->log_post_delete_debug(
+			'all_pages_exist:dynamic_pages_loaded',
+			array(
+				'dynamic_page_count' => is_array( $dynamic_pages ) ? count( $dynamic_pages ) : 0,
+				'dynamic_slug_count' => is_array( $dynamic_slugs ) ? count( $dynamic_slugs ) : 0,
+			)
+		);
 
 		error_log( 'Fanfic Wizard: Checking dynamic pages: ' . wp_json_encode( $dynamic_pages ) );
 		error_log( 'Fanfic Wizard: Dynamic slugs: ' . wp_json_encode( $dynamic_slugs ) );
@@ -372,6 +403,7 @@ class Fanfic_Wizard {
 		}
 
 		error_log( 'Fanfic Wizard: All pages exist check passed' );
+		$this->log_post_delete_debug( 'all_pages_exist:done' );
 		return true;
 	}
 
@@ -382,6 +414,8 @@ class Fanfic_Wizard {
 	 * @return void
 	 */
 	public function render_wizard_page() {
+		$this->log_post_delete_debug( 'render_wizard_page:start' );
+
 		// Set WordPress page title to prevent deprecation warnings
 		global $title, $parent_file, $admin_title, $hook_suffix;
 
@@ -395,6 +429,14 @@ class Fanfic_Wizard {
 		$wizard_completed = get_option( 'fanfic_wizard_completed', false );
 		$all_pages_exist = $this->all_pages_exist();
 		$force_run = isset( $_GET['force'] ) && 'true' === $_GET['force'];
+		$this->log_post_delete_debug(
+			'render_wizard_page:state_loaded',
+			array(
+				'wizard_completed' => (bool) $wizard_completed,
+				'all_pages_exist'  => (bool) $all_pages_exist,
+				'force_run'        => (bool) $force_run,
+			)
+		);
 
 		// Show choice screen if wizard was completed and pages exist, unless forced
 		if ( $wizard_completed && $all_pages_exist && ! $force_run ) {
@@ -403,6 +445,7 @@ class Fanfic_Wizard {
 		}
 
 		$this->current_step = $this->get_current_step();
+		$this->log_post_delete_debug( 'render_wizard_page:render_step', array( 'step' => (int) $this->current_step ) );
 		?>
 		<div class="wrap fanfic-wizard-wrap">
 			<h1><?php esc_html_e( 'Fanfiction Manager Setup Wizard', 'fanfiction-manager' ); ?></h1>
@@ -1830,11 +1873,26 @@ class Fanfic_Wizard {
 
 			if ( isset( $step_2['system_page_slugs'] ) ) {
 				$old = get_option( 'fanfic_system_page_slugs', array() );
-				update_option( 'fanfic_system_page_slugs', $step_2['system_page_slugs'] );
+				$new_system_page_slugs = is_array( $step_2['system_page_slugs'] ) ? $step_2['system_page_slugs'] : array();
+				if ( isset( $step_2['story_path'] ) ) {
+					$new_system_page_slugs['story_path'] = $step_2['story_path'];
+				}
+				update_option( 'fanfic_system_page_slugs', $new_system_page_slugs );
 				error_log( sprintf(
 					'[Fanfic Wizard Commit] fanfic_system_page_slugs: %s → %s',
 					wp_json_encode( $old ),
-					wp_json_encode( $step_2['system_page_slugs'] )
+					wp_json_encode( $new_system_page_slugs )
+				) );
+			} elseif ( isset( $step_2['story_path'] ) ) {
+				$existing_system_page_slugs = get_option( 'fanfic_system_page_slugs', array() );
+				if ( ! is_array( $existing_system_page_slugs ) ) {
+					$existing_system_page_slugs = array();
+				}
+				$existing_system_page_slugs['story_path'] = $step_2['story_path'];
+				update_option( 'fanfic_system_page_slugs', $existing_system_page_slugs );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] fanfic_system_page_slugs[story_path] synced to %s',
+					$step_2['story_path']
 				) );
 			}
 
@@ -1943,7 +2001,15 @@ class Fanfic_Wizard {
 					// Check if term already exists
 					$existing_term = term_exists( $term, 'fanfiction_genre' );
 					if ( ! $existing_term ) {
-						$result = wp_insert_term( $term, 'fanfiction_genre' );
+						$insert_args = array();
+						if ( class_exists( 'Fanfic_Taxonomies' ) && method_exists( 'Fanfic_Taxonomies', 'get_default_genre_description' ) ) {
+							$description = Fanfic_Taxonomies::get_default_genre_description( $term );
+							if ( '' !== $description ) {
+								$insert_args['description'] = $description;
+							}
+						}
+
+						$result = wp_insert_term( $term, 'fanfiction_genre', $insert_args );
 						if ( is_wp_error( $result ) ) {
 							error_log( '[Fanfic Wizard Taxonomy] Failed to create genre term "' . $term . '": ' . $result->get_error_message() );
 						} else {
@@ -2037,60 +2103,285 @@ class Fanfic_Wizard {
 	/**
 	 * Create sample stories for testing
 	 *
-	 * Creates 2 sample stories with chapters using random taxonomies.
+	 * Creates 3 sample stories with chapters, including a linked translation.
 	 *
 	 * @since 1.0.0
 	 * @return void
 	 */
+	private function get_sample_story_tag_pool() {
+		return array(
+			'Lorem Ipsum',
+			'Dolor Sit Amet',
+			'Consectetur Adipiscing',
+			'Elit Sed Do',
+			'Eiusmod Tempor',
+			'Incididunt Ut Labore',
+			'Et Dolore Magna',
+			'Aliqua Ut Enim',
+			'Ad Minim Veniam',
+			'Quis Nostrud Exercitation',
+			'Ullamco Laboris',
+			'Nisi Ut Aliquip',
+			'Ex Ea Commodo',
+			'Consequat Duis',
+			'Aute Irure Dolor',
+		);
+	}
+
+	/**
+	 * Build randomized visible/invisible tags for sample stories.
+	 *
+	 * Selects 1-5 visible and 1-5 invisible tags without repetition.
+	 *
+	 * @since 1.0.0
+	 * @return array{visible: string[], invisible: string[]}
+	 */
+	private function build_random_sample_story_tags() {
+		$pool = $this->get_sample_story_tag_pool();
+		$pool = array_values( array_unique( array_filter( array_map( 'trim', (array) $pool ) ) ) );
+
+		if ( empty( $pool ) ) {
+			return array(
+				'visible'   => array(),
+				'invisible' => array(),
+			);
+		}
+
+		shuffle( $pool );
+		$visible_count = rand( 1, min( 5, count( $pool ) ) );
+		$visible_tags  = array_slice( $pool, 0, $visible_count );
+		$remaining     = array_slice( $pool, $visible_count );
+
+		if ( empty( $remaining ) ) {
+			$remaining = $pool;
+		}
+
+		shuffle( $remaining );
+		$invisible_count = rand( 1, min( 5, count( $remaining ) ) );
+		$invisible_tags  = array_slice( $remaining, 0, $invisible_count );
+
+		return array(
+			'visible'   => array_values( $visible_tags ),
+			'invisible' => array_values( $invisible_tags ),
+		);
+	}
+
+	/**
+	 * Save sample story tags and trigger tag sync hooks.
+	 *
+	 * @since 1.0.0
+	 * @param int      $story_id        Story ID.
+	 * @param string[] $visible_tags    Visible tags.
+	 * @param string[] $invisible_tags  Invisible tags.
+	 * @return void
+	 */
+	private function apply_sample_story_tags( $story_id, $visible_tags, $invisible_tags ) {
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return;
+		}
+
+		if ( function_exists( 'fanfic_save_all_tags' ) ) {
+			fanfic_save_all_tags( $story_id, (array) $visible_tags, (array) $invisible_tags );
+			return;
+		}
+
+		update_post_meta( $story_id, '_fanfic_visible_tags', (array) $visible_tags );
+		update_post_meta( $story_id, '_fanfic_invisible_tags', (array) $invisible_tags );
+		do_action( 'fanfic_tags_updated', $story_id );
+	}
+
 	private function create_sample_stories() {
 		error_log( '[Fanfic Wizard Samples] Starting sample story creation' );
 		$current_user_id = get_current_user_id();
 		error_log( '[Fanfic Wizard Samples] Current user ID: ' . $current_user_id );
 
-		// Get random genre and status terms
+		// --- Get available terms/items ---
+
+		// Genres (WordPress taxonomy)
 		$genre_terms = get_terms( array(
 			'taxonomy'   => 'fanfiction_genre',
 			'hide_empty' => false,
 		) );
-		$status_terms = get_terms( array(
+		if ( empty( $genre_terms ) || is_wp_error( $genre_terms ) ) {
+			error_log( '[Fanfic Wizard Samples] No genre terms available, aborting sample creation.' );
+			return;
+		}
+
+		// Statuses (WordPress taxonomy) - Filter to only 'ongoing', 'abandoned', 'hiatus'
+		$all_status_terms = get_terms( array(
 			'taxonomy'   => 'fanfiction_status',
 			'hide_empty' => false,
 		) );
-
-		if ( empty( $status_terms ) || is_wp_error( $status_terms ) ) {
-			error_log( '[Fanfic Wizard Samples] No status terms available, aborting sample creation' );
-			return; // No status terms available
+		$filtered_status_terms = array();
+		if ( ! empty( $all_status_terms ) && ! is_wp_error( $all_status_terms ) ) {
+			foreach ( $all_status_terms as $term ) {
+				if ( in_array( $term->slug, array( 'ongoing', 'abandoned', 'on-hiatus' ), true ) ) {
+					$filtered_status_terms[] = $term;
+				}
+			}
+		}
+		if ( empty( $filtered_status_terms ) ) {
+			error_log( '[Fanfic Wizard Samples] No filtered status terms (ongoing, abandoned, hiatus) available, aborting sample creation.' );
+			return;
 		}
 
-		error_log( '[Fanfic Wizard Samples] Found ' . count( $genre_terms ) . ' genre terms and ' . count( $status_terms ) . ' status terms' );
+		// Warnings (Custom table)
+		// Check if Fanfic_Warnings class exists and get_all method is callable
+		$warnings_available = array();
+		if ( class_exists( 'Fanfic_Warnings' ) && method_exists( 'Fanfic_Warnings', 'get_all' ) ) {
+			$warnings_all = Fanfic_Warnings::get_all( true ); // Get all enabled warnings.
+			$warnings_available = array_values(
+				array_filter(
+					(array) $warnings_all,
+					function( $warning ) {
+						$is_sexual = ! empty( $warning['is_sexual'] );
+						$is_pornographic = ! empty( $warning['is_pornographic'] );
+						return ! $is_sexual && ! $is_pornographic;
+					}
+				)
+			);
+		}
+		if ( empty( $warnings_available ) ) {
+			error_log( '[Fanfic Wizard Samples] No non-sexual/non-pornographic warnings available.' );
+		}
 
-		// Pick random status terms
-		$random_status_1 = $status_terms[ array_rand( $status_terms ) ];
-		$random_status_2 = $status_terms[ array_rand( $status_terms ) ];
+		// Languages (Custom table)
+		// Check if Fanfic_Languages class exists and get_active_languages method is callable
+		$languages_available = array();
+		$esperanto_language_id = null; // Story 2 preferred language.
+		$latin_language_id = null; // Story 1 preferred language.
+		$english_language_id = null; // Story 3 preferred language.
+		$portuguese_language_id = null; // Fallback if English is unavailable.
+		if ( class_exists( 'Fanfic_Languages' ) && method_exists( 'Fanfic_Languages', 'get_active_languages' ) ) {
+			$languages_available = Fanfic_Languages::get_active_languages();
+			// Find Esperanto and Latin IDs.
+			foreach ( $languages_available as $lang ) {
+				if ( ! isset( $lang['slug'], $lang['id'] ) ) {
+					continue;
+				}
 
-		// Pick random genre terms (1-2 for each story)
+				if ( 'eo' === $lang['slug'] ) {
+					$esperanto_language_id = $lang['id'];
+				}
+
+				if ( 'la' === $lang['slug'] ) {
+					$latin_language_id = $lang['id'];
+				}
+
+				if ( 'en' === $lang['slug'] ) {
+					$english_language_id = $lang['id'];
+				}
+
+				if ( in_array( $lang['slug'], array( 'pt', 'pt-pt', 'pt-br' ), true ) && is_null( $portuguese_language_id ) ) {
+					$portuguese_language_id = $lang['id'];
+				}
+			}
+		}
+		if ( empty( $languages_available ) ) {
+			error_log( '[Fanfic Wizard Samples] No languages available.' );
+		}
+
+		// Fandoms (Custom table)
+		// Check if Fanfic_Fandoms class exists and get_all_active method is callable
+		$fandoms_available = array();
+		if ( class_exists( 'Fanfic_Fandoms' ) && method_exists( 'Fanfic_Fandoms', 'get_all_active' ) ) {
+			$fandoms_available = Fanfic_Fandoms::get_all_active();
+		}
+		if ( empty( $fandoms_available ) ) {
+			error_log( '[Fanfic Wizard Samples] No fandoms available.' );
+		}
+
+		// --- Prepare data for stories ---
+
+		// Random statuses
+		$random_status_1 = $filtered_status_terms[ array_rand( $filtered_status_terms ) ];
+		$random_status_2 = $filtered_status_terms[ array_rand( $filtered_status_terms ) ];
+
+		// Random genres (always 2 if possible)
 		$random_genres_1 = array();
 		$random_genres_2 = array();
-		if ( ! empty( $genre_terms ) && ! is_wp_error( $genre_terms ) ) {
+		if ( count( $genre_terms ) >= 2 ) {
 			shuffle( $genre_terms );
-			$random_genres_1 = array_slice( $genre_terms, 0, rand( 1, min( 2, count( $genre_terms ) ) ) );
+			$random_genres_1 = array_slice( $genre_terms, 0, 2 );
 			shuffle( $genre_terms );
-			$random_genres_2 = array_slice( $genre_terms, 0, rand( 1, min( 2, count( $genre_terms ) ) ) );
+			$random_genres_2 = array_slice( $genre_terms, 0, 2 );
+		} elseif ( count( $genre_terms ) === 1 ) {
+			$random_genres_1 = array( $genre_terms[0] );
+			$random_genres_2 = array( $genre_terms[0] );
 		}
 
-		// Lorem ipsum content
+		// Random warnings (1 or 2 if available)
+		$random_warnings_1 = array();
+		$random_warnings_2 = array();
+		if ( ! empty( $warnings_available ) ) {
+			shuffle( $warnings_available );
+			$random_warnings_1 = array_slice( $warnings_available, 0, rand( 1, min( 2, count( $warnings_available ) ) ) );
+			shuffle( $warnings_available );
+			$random_warnings_2 = array_slice( $warnings_available, 0, rand( 1, min( 2, count( $warnings_available ) ) ) );
+		}
+
+		// Story language selection with fallback.
+		$random_language_1_id = null;
+		// Story 2 will be Esperanto if available, otherwise random or null.
+		$random_language_2_id = $esperanto_language_id;
+		// Story 3 should be English if available.
+		$random_language_3_id = $english_language_id;
+
+		if ( ! empty( $languages_available ) ) {
+			// Story 1 should be Latin when available.
+			$random_language_1_id = $latin_language_id;
+			if ( is_null( $random_language_1_id ) ) {
+				$random_language_1_id = $languages_available[ array_rand( $languages_available ) ]['id'];
+			}
+
+			// If Esperanto is unavailable, fallback to random for story 2.
+			if ( is_null( $esperanto_language_id ) ) {
+				$random_language_2_id = $languages_available[ array_rand( $languages_available ) ]['id'];
+			}
+
+			// Story 3 fallback order: English -> Portuguese -> random.
+			if ( is_null( $random_language_3_id ) ) {
+				$random_language_3_id = $portuguese_language_id;
+			}
+			if ( is_null( $random_language_3_id ) ) {
+				$random_language_3_id = $languages_available[ array_rand( $languages_available ) ]['id'];
+			}
+		}
+
+		// Random fandoms (1 if available)
+		$random_fandom_1_id = null;
+		$random_fandom_2_id = null;
+		if ( ! empty( $fandoms_available ) ) {
+			$random_fandom_1_id = $fandoms_available[ array_rand( $fandoms_available ) ]['id'];
+			$random_fandom_2_id = $fandoms_available[ array_rand( $fandoms_available ) ]['id'];
+		}
+
+		// Random tag sets for sample stories.
+		$story1_tag_sets = $this->build_random_sample_story_tags();
+		$story2_tag_sets = $this->build_random_sample_story_tags(); // Story 3 inherits this exact set.
+
+		// --- Descriptions ---
+		// Lorem ipsum content (keep for Story 1)
 		$lorem_intro = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
 		$lorem_chapter = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.\n\nNemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.\n\nUt enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?";
+		$story2_summary = "Ĉi tiu rakonto rakontas mian personan sagao­n pri mia koramiko, kiu dormas kiel anĝelo… sed ronkas kiel furioza besto. Nokte, dum mi provas trovi pacon kaj silenton, li transformiĝas en vivantan motoron, miksitan kun urso kaj rompita traktor­o. Ĉiu nokto estas nova aventuro: ĉu mi sukcesos dormi, aŭ ĉu mi denove migrados al la sofo kun kuseno kaj rezignacio? Amo estas forta, sed liaj ronkoj estas pli fortaj.";
+		$story2_prologue_content = "En la komenco, estis silento. Bela, fragila silento. Tiu speco de silento, kiu promesas ripozon, revojn, kaj la dolĉan iluzion de ok horoj da dormo. Kaj tiam… li enspiris.\n\nTio ne estis ordinara ronko. Ne. Tio estis la sono de praa estaĵo, vekiĝanta el vintra dormo. La lito tremis. La aero vibris. Ie, najbara hundo ekdubis sian ekziston. Kaj mi, senkulpa animo kun kovrilo ĝis la nazo, komprenis ke mia nokto estis perdita.\n\nĈi tiu estas ne historio pri milito, sed pri bataloj. Ne pri drakoj, sed pri ronkado. Ne pri herooj kun glavoj, sed pri mi, armita nur per orelŝtopiloj, kusenoj, kaj senfina amo. Ĉar kiam oni amas iun, oni akceptas liajn mankojn… eĉ kiam tiuj mankoj sonas kiel demon-urso kun spirproblemoj.\n\nJen komenciĝas mia sagao. La sagao de amo, laceco, kaj noktoj sen kompatemo.";
+		$story2_chapter1_content = "Mi amas mian koramikon. Vere. Dumtage li estas ĉarma, dolĉa, preskaŭ silenta. Sed nokte… nokte li fariĝas porko. Ne metafore. Akustike.\n\nLa momento kiam li endormiĝas estas trompa. Li spiradas trankvile, kvazaŭ li estus sendanĝera estaĵo. Mi pensas: “Jen, ĉi-nokte mi dormos.” Naiva eraro. Post kvin minutoj venas la unua ronko. Profunda. Malseka. Decidema. La speco de sono, kiun vi atendus en farmo je la tria matene.\n\nMi provas ignori ĝin. Mi turniĝas. Mi metas kusenon super la kapon. Nenio helpas. La ronkoj venas en ondoj: foje rapidaj, foje longaj, foje kun paŭzo tiel longa ke mi pensas li mortis… ĝis li subite eksplodas per ronko kiu preskaŭ rompas la liton.\n\nMi rigardas lin dormantan, tute feliĉan, dum mi kalkulas minutojn ĝis la sunleviĝo. Amo estas pacienco, oni diras. Sed neniu avertis min, ke amo ankaŭ estas dormi apud porko kun supernatura pulmo-kapacito.\n\nKaj tiel finiĝas mia unua nokta batalo. Spoiler: ĝi ne estos la lasta.";
+		$story3_title = 'The Saga of My Snoring Partner';
+		$story3_summary = "This story tells my personal saga about my boyfriend, who sleeps like an angel... but snores like a furious beast. At night, while I try to find peace and silence, he turns into a living engine mixed with a bear and a broken tractor. Every night is a new adventure: will I manage to sleep, or will I migrate to the couch again with a pillow and resignation? Love is strong, but his snores are stronger.";
+		$story3_prologue_content = "In the beginning, there was silence. Beautiful, fragile silence. The kind of silence that promises rest, dreams, and the sweet illusion of eight hours of sleep. And then... he inhaled.\n\nThat was not an ordinary snore. No. It was the sound of a primordial creature waking from hibernation. The bed trembled. The air vibrated. Somewhere, a neighbor's dog questioned its own existence. And I, an innocent soul with the blanket up to my nose, understood that my night was lost.\n\nThis is not a story about war, but about battles. Not about dragons, but about snoring. Not about heroes with swords, but about me, armed only with earplugs, pillows, and endless love. Because when you love someone, you accept their flaws... even when those flaws sound like a demon bear with breathing problems.\n\nHere begins my saga. The saga of love, exhaustion, and merciless nights.";
+		$story3_chapter1_title = 'My Boyfriend Snores Like a Pig';
+		$story3_chapter1_content = "I love my boyfriend. Truly. During the day he is charming, sweet, almost silent. But at night... at night he becomes a pig. Not metaphorically. Acoustically.\n\nThe moment he falls asleep is deceptive. He breathes peacefully, as if he were a harmless creature. I think: \"Tonight, I will sleep.\" Naive mistake. Five minutes later comes the first snore. Deep. Wet. Determined. The kind of sound you would expect on a farm at three in the morning.\n\nI try to ignore it. I turn over. I put a pillow over my head. Nothing helps. The snores come in waves: sometimes fast, sometimes long, sometimes with a pause so long that I think he died... until he suddenly explodes with a snore that almost breaks the bed.\n\nI watch him sleeping, completely happy, while I count minutes until sunrise. Love is patience, they say. But no one warned me that love also means sleeping beside a pig with supernatural lung capacity.\n\nAnd so ends my first nightly battle. Spoiler: it will not be the last.";
 
-		// Story 2 introduction
-		$story2_intro = "Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio. Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.\n\nDumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.\n\nDumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio. Dumque ibi diu moratur commeatus opperiens, aliquando ex more stomacho et intestinis se vacuans tela publica in pavimento latentes, nullis palatii ministris intumuisset per genuinum occisum, scilicet ut in malignis nihil est vitio.";
 
-		// ===== STORY 1: Lorem Ipsum (Draft) =====
-		error_log( '[Fanfic Wizard Samples] Creating Story 1: Lorem Ipsum (Draft)' );
+		// ===== STORY 1: Lorem Ipsum (Published) =====
+		error_log( '[Fanfic Wizard Samples] Creating Story 1: Lorem Ipsum (Published)' );
 		$story1_id = wp_insert_post( array(
 			'post_title'   => 'Lorem Ipsum',
-			'post_content' => $lorem_intro,
-			'post_status'  => 'draft',
+			'post_content' => $lorem_intro, // Keep original Lorem Ipsum.
+			'post_excerpt' => $lorem_intro, // Story intro UI and search summary read from excerpt.
+			'post_status'  => 'publish',
 			'post_type'    => 'fanfiction_story',
 			'post_author'  => $current_user_id,
 		) );
@@ -2100,15 +2391,39 @@ class Fanfic_Wizard {
 			// Set status taxonomy
 			wp_set_object_terms( $story1_id, $random_status_1->term_id, 'fanfiction_status', false );
 
-			// Set genre taxonomy (1-2 genres)
+			// Set genre taxonomy (2 genres)
 			if ( ! empty( $random_genres_1 ) ) {
 				$genre_ids = wp_list_pluck( $random_genres_1, 'term_id' );
 				wp_set_object_terms( $story1_id, $genre_ids, 'fanfiction_genre', false );
 			}
 
+			// Set warnings
+			if ( ! empty( $random_warnings_1 ) && class_exists( 'Fanfic_Warnings' ) ) {
+				$warning_ids = wp_list_pluck( $random_warnings_1, 'id' );
+				Fanfic_Warnings::save_story_warnings( $story1_id, $warning_ids );
+			}
+
+			// Set language
+			if ( ! is_null( $random_language_1_id ) && class_exists( 'Fanfic_Languages' ) ) {
+				Fanfic_Languages::save_story_language( $story1_id, $random_language_1_id );
+			}
+
+			// Set fandom
+			if ( ! is_null( $random_fandom_1_id ) && class_exists( 'Fanfic_Fandoms' ) ) {
+				Fanfic_Fandoms::save_story_fandoms( $story1_id, array( $random_fandom_1_id ), false );
+			}
+
+			// Set sample tags.
+			$this->apply_sample_story_tags(
+				$story1_id,
+				$story1_tag_sets['visible'],
+				$story1_tag_sets['invisible']
+			);
+
+
 			// Chapter 1 (Published)
 			$chapter1_id = wp_insert_post( array(
-				'post_title'   => 'Lorem Ipsum',
+				'post_title'   => '1 - De Initio Verborum',
 				'post_content' => $lorem_chapter,
 				'post_status'  => 'publish',
 				'post_type'    => 'fanfiction_chapter',
@@ -2123,7 +2438,7 @@ class Fanfic_Wizard {
 
 			// Chapter 2 (Draft)
 			$chapter2_id = wp_insert_post( array(
-				'post_title'   => 'Lorem Ipsum',
+				'post_title'   => '2 - Fragmenta Sine Sensu',
 				'post_content' => $lorem_chapter,
 				'post_status'  => 'draft',
 				'post_type'    => 'fanfiction_chapter',
@@ -2135,13 +2450,18 @@ class Fanfic_Wizard {
 				update_post_meta( $chapter2_id, '_fanfic_chapter_type', 'chapter' );
 				update_post_meta( $chapter2_id, '_fanfic_chapter_number', 2 );
 			}
+
+			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+				Fanfic_Search_Index::update_index( $story1_id );
+			}
 		}
 
-		// ===== STORY 2: De finibus bonorum et malorum (Published) =====
-		error_log( '[Fanfic Wizard Samples] Creating Story 2: De finibus bonorum et malorum (Published)' );
+		// ===== STORY 2: La Sagao de Mia Ronkanta Kunulo (Published) =====
+		error_log( '[Fanfic Wizard Samples] Creating Story 2: La Sagao de Mia Ronkanta Kunulo (Published)' );
 		$story2_id = wp_insert_post( array(
-			'post_title'   => 'De finibus bonorum et malorum',
-			'post_content' => $story2_intro,
+			'post_title'   => 'La Sagao de Mia Ronkanta Kunulo',
+			'post_content' => $story2_summary,
+			'post_excerpt' => $story2_summary,
 			'post_status'  => 'publish',
 			'post_type'    => 'fanfiction_story',
 			'post_author'  => $current_user_id,
@@ -2152,16 +2472,39 @@ class Fanfic_Wizard {
 			// Set status taxonomy
 			wp_set_object_terms( $story2_id, $random_status_2->term_id, 'fanfiction_status', false );
 
-			// Set genre taxonomy (1-2 genres)
+			// Set genre taxonomy (2 genres)
 			if ( ! empty( $random_genres_2 ) ) {
 				$genre_ids = wp_list_pluck( $random_genres_2, 'term_id' );
 				wp_set_object_terms( $story2_id, $genre_ids, 'fanfiction_genre', false );
 			}
 
+			// Set warnings
+			if ( ! empty( $random_warnings_2 ) && class_exists( 'Fanfic_Warnings' ) ) {
+				$warning_ids = wp_list_pluck( $random_warnings_2, 'id' );
+				Fanfic_Warnings::save_story_warnings( $story2_id, $warning_ids );
+			}
+
+			// Set language
+			if ( ! is_null( $random_language_2_id ) && class_exists( 'Fanfic_Languages' ) ) {
+				Fanfic_Languages::save_story_language( $story2_id, $random_language_2_id );
+			}
+
+			// Set fandom
+			if ( ! is_null( $random_fandom_2_id ) && class_exists( 'Fanfic_Fandoms' ) ) {
+				Fanfic_Fandoms::save_story_fandoms( $story2_id, array( $random_fandom_2_id ), false );
+			}
+
+			// Set sample tags.
+			$this->apply_sample_story_tags(
+				$story2_id,
+				$story2_tag_sets['visible'],
+				$story2_tag_sets['invisible']
+			);
+
 			// Prologue (Published, NO TITLE - blank title)
 			$prologue_id = wp_insert_post( array(
 				'post_title'   => '', // Blank title as requested
-				'post_content' => $lorem_chapter,
+				'post_content' => $story2_prologue_content,
 				'post_status'  => 'publish',
 				'post_type'    => 'fanfiction_chapter',
 				'post_parent'  => $story2_id,
@@ -2175,8 +2518,8 @@ class Fanfic_Wizard {
 
 			// Chapter 1 (Published)
 			$chapter1_s2_id = wp_insert_post( array(
-				'post_title'   => 'Lorem Ipsum',
-				'post_content' => $lorem_chapter,
+				'post_title'   => 'Mia koramiko ronkas kiel porko', // "My boyfriend snores like a pig" in Esperanto
+				'post_content' => $story2_chapter1_content,
 				'post_status'  => 'publish',
 				'post_type'    => 'fanfiction_chapter',
 				'post_parent'  => $story2_id,
@@ -2187,11 +2530,128 @@ class Fanfic_Wizard {
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_type', 'chapter' );
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_number', 1 );
 			}
+
+			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+				Fanfic_Search_Index::update_index( $story2_id );
+			}
+
+			// ===== STORY 3: English Translation of Story 2 =====
+			error_log( '[Fanfic Wizard Samples] Creating Story 3 translation: The Saga of My Snoring Partner (Published)' );
+			$story3_id = wp_insert_post( array(
+				'post_title'   => $story3_title,
+				'post_content' => $story3_summary,
+				'post_excerpt' => $story3_summary,
+				'post_status'  => 'publish',
+				'post_type'    => 'fanfiction_story',
+				'post_author'  => $current_user_id,
+			) );
+
+			if ( ! is_wp_error( $story3_id ) && $story3_id > 0 ) {
+				error_log( '[Fanfic Wizard Samples] Story 3 created with ID: ' . $story3_id );
+
+				// Copy WordPress taxonomies from Story 2.
+				$story2_status_term_ids = wp_get_object_terms( $story2_id, 'fanfiction_status', array( 'fields' => 'ids' ) );
+				if ( ! is_wp_error( $story2_status_term_ids ) && ! empty( $story2_status_term_ids ) ) {
+					wp_set_object_terms( $story3_id, array_map( 'absint', $story2_status_term_ids ), 'fanfiction_status', false );
+				}
+
+				$story2_genre_term_ids = wp_get_object_terms( $story2_id, 'fanfiction_genre', array( 'fields' => 'ids' ) );
+				if ( ! is_wp_error( $story2_genre_term_ids ) && ! empty( $story2_genre_term_ids ) ) {
+					wp_set_object_terms( $story3_id, array_map( 'absint', $story2_genre_term_ids ), 'fanfiction_genre', false );
+				}
+
+				// Copy warning relations from Story 2.
+				if ( class_exists( 'Fanfic_Warnings' ) && method_exists( 'Fanfic_Warnings', 'get_story_warning_ids' ) && method_exists( 'Fanfic_Warnings', 'save_story_warnings' ) ) {
+					$story2_warning_ids = Fanfic_Warnings::get_story_warning_ids( $story2_id );
+					if ( ! empty( $story2_warning_ids ) ) {
+						Fanfic_Warnings::save_story_warnings( $story3_id, array_map( 'absint', $story2_warning_ids ) );
+					}
+				}
+
+				// Copy fandom relations from Story 2.
+				if ( class_exists( 'Fanfic_Fandoms' ) && method_exists( 'Fanfic_Fandoms', 'get_story_fandom_ids' ) && method_exists( 'Fanfic_Fandoms', 'save_story_fandoms' ) ) {
+					$story2_fandom_ids = Fanfic_Fandoms::get_story_fandom_ids( $story2_id );
+					if ( ! empty( $story2_fandom_ids ) ) {
+						Fanfic_Fandoms::save_story_fandoms( $story3_id, array_map( 'absint', $story2_fandom_ids ), false );
+					}
+				}
+
+				// Copy custom taxonomy relations from Story 2.
+				if ( class_exists( 'Fanfic_Custom_Taxonomies' ) && method_exists( 'Fanfic_Custom_Taxonomies', 'get_active_taxonomies' ) && method_exists( 'Fanfic_Custom_Taxonomies', 'get_story_term_ids' ) && method_exists( 'Fanfic_Custom_Taxonomies', 'save_story_terms' ) ) {
+					$active_custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+					foreach ( (array) $active_custom_taxonomies as $custom_taxonomy ) {
+						$taxonomy_id = absint( $custom_taxonomy['id'] ?? 0 );
+						if ( ! $taxonomy_id ) {
+							continue;
+						}
+
+						$story2_term_ids = Fanfic_Custom_Taxonomies::get_story_term_ids( $story2_id, $taxonomy_id );
+						if ( ! empty( $story2_term_ids ) ) {
+							Fanfic_Custom_Taxonomies::save_story_terms( $story3_id, $taxonomy_id, array_map( 'absint', $story2_term_ids ) );
+						}
+					}
+				}
+
+				// Set translation language for Story 3.
+				if ( ! is_null( $random_language_3_id ) && class_exists( 'Fanfic_Languages' ) ) {
+					Fanfic_Languages::save_story_language( $story3_id, $random_language_3_id );
+				}
+
+				// Inherit Story 2 tags for translation consistency.
+				$this->apply_sample_story_tags(
+					$story3_id,
+					$story2_tag_sets['visible'],
+					$story2_tag_sets['invisible']
+				);
+
+				// Prologue (Published, blank title, translated content).
+				$prologue3_id = wp_insert_post( array(
+					'post_title'   => '',
+					'post_content' => $story3_prologue_content,
+					'post_status'  => 'publish',
+					'post_type'    => 'fanfiction_chapter',
+					'post_parent'  => $story3_id,
+					'post_author'  => $current_user_id,
+				) );
+
+				if ( ! is_wp_error( $prologue3_id ) && $prologue3_id > 0 ) {
+					update_post_meta( $prologue3_id, '_fanfic_chapter_type', 'prologue' );
+					update_post_meta( $prologue3_id, '_fanfic_chapter_number', 0 );
+				}
+
+				// Chapter 1 (Published, translated title/content).
+				$chapter1_s3_id = wp_insert_post( array(
+					'post_title'   => $story3_chapter1_title,
+					'post_content' => $story3_chapter1_content,
+					'post_status'  => 'publish',
+					'post_type'    => 'fanfiction_chapter',
+					'post_parent'  => $story3_id,
+					'post_author'  => $current_user_id,
+				) );
+
+				if ( ! is_wp_error( $chapter1_s3_id ) && $chapter1_s3_id > 0 ) {
+					update_post_meta( $chapter1_s3_id, '_fanfic_chapter_type', 'chapter' );
+					update_post_meta( $chapter1_s3_id, '_fanfic_chapter_number', 1 );
+				}
+
+				// Link Story 2 and Story 3 directly in translation groups.
+				if ( class_exists( 'Fanfic_Translations' ) && method_exists( 'Fanfic_Translations', 'add_to_group' ) ) {
+					$link_result = Fanfic_Translations::add_to_group( $story2_id, $story3_id );
+					if ( is_wp_error( $link_result ) ) {
+						error_log( '[Fanfic Wizard Samples] Failed linking Story 2 and Story 3 translations: ' . $link_result->get_error_message() );
+					} else {
+						error_log( '[Fanfic Wizard Samples] Story 2 and Story 3 linked as translations.' );
+					}
+				}
+
+				if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+					Fanfic_Search_Index::update_index( $story3_id );
+				}
+			}
 		}
 
 		error_log( '[Fanfic Wizard Samples] Sample story creation completed' );
 	}
-
 	/**
 	 * Check if wizard is completed
 	 *

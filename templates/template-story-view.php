@@ -35,6 +35,7 @@ function fanfic_get_default_story_view_template() {
 			<span class="fanfic-story-status">[story-status]</span>
 			<span class="fanfic-story-age">[story-age-badge]</span>
 		</div>
+		[story-translations]
 	</header>
 
 	<figure class="fanfic-story-featured-image">

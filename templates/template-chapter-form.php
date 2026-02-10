@@ -658,13 +658,19 @@ if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can
 $chapter_number = '';
 $chapter_type = 'chapter';
 $chapter_image_url = '';
+$can_edit_publish_date = function_exists( 'fanfic_can_edit_publish_date' ) ? fanfic_can_edit_publish_date( get_current_user_id() ) : false;
+$chapter_publish_date = current_time( 'Y-m-d' );
 
 if ( $is_edit_mode ) {
 	$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
 	$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+	$chapter_publish_date = mysql2date( 'Y-m-d', $chapter->post_date, false );
 	if ( empty( $chapter_type ) ) {
 		$chapter_type = 'chapter';
 	}
+}
+if ( isset( $_POST['fanfic_chapter_publish_date'] ) ) {
+	$chapter_publish_date = sanitize_text_field( wp_unslash( $_POST['fanfic_chapter_publish_date'] ) );
 }
 
 // Get chapter availability data
@@ -676,11 +682,12 @@ $has_epilogue = fanfic_template_story_has_epilogue( $story_id, $is_edit_mode ? $
 $data_attrs = '';
 if ( $is_edit_mode ) {
 	$data_attrs = sprintf(
-		'data-original-title="%s" data-original-content="%s" data-original-type="%s" data-original-number="%s"',
+		'data-original-title="%s" data-original-content="%s" data-original-type="%s" data-original-number="%s" data-original-publish-date="%s"',
 		esc_attr( $chapter->post_title ),
 		esc_attr( $chapter->post_content ),
 		esc_attr( $chapter_type ),
-		esc_attr( $chapter_number )
+		esc_attr( $chapter_number ),
+		esc_attr( $chapter_publish_date )
 	);
 }
 
@@ -758,6 +765,23 @@ if ( ! empty( $flash_messages ) ) {
                 <button class='fanfic-message-close' aria-label='" . esc_attr__( 'Dismiss message', 'fanfiction-manager' ) . "'>&times;</button>
               </div>";
     }
+}
+
+// General form errors from chapter handler.
+if ( ! empty( $errors ) && is_array( $errors ) ) {
+	?>
+	<div class="fanfic-message fanfic-message-error" role="alert">
+		<span class="fanfic-message-icon" aria-hidden="true">✕</span>
+		<span class="fanfic-message-content">
+			<ul>
+				<?php foreach ( $errors as $error ) : ?>
+					<li><?php echo esc_html( $error ); ?></li>
+				<?php endforeach; ?>
+			</ul>
+		</span>
+		<button class="fanfic-message-close" aria-label="<?php esc_attr_e( 'Dismiss message', 'fanfiction-manager' ); ?>">&times;</button>
+	</div>
+	<?php
 }
 
 // Validation errors from transient (specific to chapter forms)
@@ -880,6 +904,21 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					</div>
 				</div>
 
+				<?php if ( $can_edit_publish_date ) : ?>
+					<div class="fanfic-form-field">
+						<label for="fanfic_chapter_publish_date"><?php esc_html_e( 'Publication Date', 'fanfiction-manager' ); ?></label>
+						<input
+							type="date"
+							id="fanfic_chapter_publish_date"
+							name="fanfic_chapter_publish_date"
+							class="fanfic-input"
+							max="<?php echo esc_attr( current_time( 'Y-m-d' ) ); ?>"
+							value="<?php echo esc_attr( $chapter_publish_date ); ?>"
+						/>
+						<p class="description"><?php esc_html_e( 'Use this for importing older chapters. Changing this date does not count as a qualifying update for inactivity status.', 'fanfiction-manager' ); ?></p>
+					</div>
+				<?php endif; ?>
+
 				<!-- Chapter Image -->
 				<div class="fanfic-form-field fanfic-has-dropzone">
 					<label for="fanfic_chapter_image_url"><?php esc_html_e( 'Chapter Cover Image', 'fanfiction-manager' ); ?> <span class="description"><?php esc_html_e( '(Optional)', 'fanfiction-manager' ); ?></span></label>
@@ -995,7 +1034,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						</button>
 					<?php endif; ?>
 					<?php if ( $is_chapter_published ) : ?>
-						<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button secondary" target="_blank" rel="noopener noreferrer">
+						<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button secondary" target="_blank" rel="noopener noreferrer" data-fanfic-chapter-view="1">
 							<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 						</a>
 					<?php endif; ?>
@@ -1285,8 +1324,6 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 		});
 
 		// Change detection and AJAX for Update buttons (edit mode only)
-		var updateBtn = document.getElementById('update-chapter-button');
-		var updateDraftBtn = document.getElementById('update-draft-chapter-button');
 
 		// Handle Update button click via AJAX
 		function handleUpdateClick(e, button) {
@@ -1301,10 +1338,12 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			var titleField = document.getElementById('fanfic_chapter_title');
 			var typeRadios = document.querySelectorAll('.fanfic-chapter-type-input:checked');
 			var numberField = document.getElementById('fanfic_chapter_number');
+			var publishDateField = document.getElementById('fanfic_chapter_publish_date');
 
 			var chapterTitle = titleField ? titleField.value : '';
 			var chapterType = typeRadios.length > 0 ? typeRadios[0].value : '';
 			var chapterNumber = (numberField && chapterType === 'chapter') ? numberField.value : '';
+			var chapterPublishDate = publishDateField ? publishDateField.value : '';
 
 			// Get content from TinyMCE if available
 			var chapterContent = '';
@@ -1318,11 +1357,13 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			// Prepare form data
 			var formData = new FormData();
 			formData.append('action', 'fanfic_update_chapter');
-			formData.append('chapter_id', '<?php echo absint( $chapter_id ); ?>');
+			var chapterIdInput = document.querySelector('input[name="fanfic_chapter_id"]');
+			formData.append('chapter_id', chapterIdInput ? chapterIdInput.value : '<?php echo absint( $chapter_id ); ?>');
 			formData.append('chapter_title', chapterTitle);
 			formData.append('chapter_content', chapterContent);
 			formData.append('chapter_type', chapterType);
 			formData.append('chapter_number', chapterNumber);
+			formData.append('chapter_publish_date', chapterPublishDate);
 			formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_update_chapter' ); ?>');
 
 			// Send AJAX request
@@ -1369,6 +1410,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					form.setAttribute('data-original-content', chapterContent);
 					form.setAttribute('data-original-type', chapterType);
 					form.setAttribute('data-original-number', chapterNumber);
+					form.setAttribute('data-original-publish-date', chapterPublishDate);
 
 					// Re-enable button and disable it again (no changes)
 					button.textContent = originalText;
@@ -1420,24 +1462,17 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			});
 		}
 
-		// Attach click handlers to Update buttons
-		if (updateBtn) {
-			updateBtn.addEventListener('click', function(e) {
-				handleUpdateClick(e, this);
+		// Handle dynamically switched update buttons through delegation.
+		if (form) {
+			form.addEventListener('click', function(e) {
+				var updateButton = e.target.closest('#update-chapter-button, #update-draft-chapter-button');
+				if (updateButton) {
+					handleUpdateClick(e, updateButton);
+				}
 			});
 		}
 
-		if (updateDraftBtn) {
-			updateDraftBtn.addEventListener('click', function(e) {
-				handleUpdateClick(e, this);
-			});
-		}
-
-		if (form && (updateBtn || updateDraftBtn)) {
-			var originalTitle = form.getAttribute('data-original-title') || '';
-			var originalContent = form.getAttribute('data-original-content') || '';
-			var originalType = form.getAttribute('data-original-type') || '';
-			var originalNumber = form.getAttribute('data-original-number') || '';
+		if (form) {
 			var tinymceInitialized = false; // Track if TinyMCE has finished initial load
 
 			function checkForChanges() {
@@ -1445,10 +1480,12 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				var contentField = document.getElementById('fanfic_chapter_content');
 				var typeRadios = document.querySelectorAll('.fanfic-chapter-type-input:checked');
 				var numberField = document.getElementById('fanfic_chapter_number');
+				var publishDateField = document.getElementById('fanfic_chapter_publish_date');
 
 				var currentTitle = titleField ? titleField.value : '';
 				var currentType = typeRadios.length > 0 ? typeRadios[0].value : '';
 				var currentNumber = (numberField && numberField.style.display !== 'none') ? numberField.value : '';
+				var currentPublishDate = publishDateField ? publishDateField.value : '';
 
 				// Get content from TinyMCE if available, otherwise from textarea
 				var currentContent = '';
@@ -1462,6 +1499,17 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 				// Skip check if TinyMCE hasn't initialized yet and is returning empty content
 				// This prevents false positives during initialization
+				var originalTitle = form.getAttribute('data-original-title') || '';
+				var originalContent = form.getAttribute('data-original-content') || '';
+				var originalType = form.getAttribute('data-original-type') || '';
+				var originalNumber = form.getAttribute('data-original-number') || '';
+				var originalPublishDate = form.getAttribute('data-original-publish-date');
+
+				if (null === originalPublishDate) {
+					originalPublishDate = currentPublishDate;
+					form.setAttribute('data-original-publish-date', originalPublishDate);
+				}
+
 				if (editorAvailable && !tinymceInitialized && originalContent.length > 0 && currentContent.length === 0) {
 					return;
 				}
@@ -1469,26 +1517,52 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				var hasChanges = (currentTitle !== originalTitle) ||
 								(currentContent !== originalContent) ||
 								(currentType !== originalType) ||
-								(currentNumber !== originalNumber);
+								(currentNumber !== originalNumber) ||
+								(currentPublishDate !== originalPublishDate);
 
-				if (updateBtn) {
-					updateBtn.disabled = !hasChanges;
+				var liveUpdateBtn = document.getElementById('update-chapter-button');
+				var liveUpdateDraftBtn = document.getElementById('update-draft-chapter-button');
+
+				if (liveUpdateBtn) {
+					liveUpdateBtn.disabled = !hasChanges;
 				}
-				if (updateDraftBtn) {
-					updateDraftBtn.disabled = !hasChanges;
+				if (liveUpdateDraftBtn) {
+					liveUpdateDraftBtn.disabled = !hasChanges;
 				}
 			}
 
-			// Attach event listeners
-			var titleField = document.getElementById('fanfic_chapter_title');
-			var numberField = document.getElementById('fanfic_chapter_number');
+			// Universal field tracking: any field mutation inside the current content
+			// section re-checks dirty state, including dynamically added fields.
+			var formSection = form.closest('.fanfic-content-section');
+			var listenerScope = formSection || form;
 
-			if (titleField) titleField.addEventListener('input', checkForChanges);
-			if (numberField) numberField.addEventListener('input', checkForChanges);
+			function isTrackedChapterField(target) {
+				if (!target || !form.contains(target)) {
+					return false;
+				}
 
-			chapterTypeInputs.forEach(function(input) {
-				input.addEventListener('change', checkForChanges);
-			});
+				var tagName = target.tagName ? target.tagName.toLowerCase() : '';
+				if (tagName !== 'input' && tagName !== 'textarea' && tagName !== 'select') {
+					return false;
+				}
+
+				var inputType = (target.type || '').toLowerCase();
+				if (inputType === 'submit' || inputType === 'button' || inputType === 'reset' || inputType === 'file') {
+					return false;
+				}
+
+				return true;
+			}
+
+			function handleUniversalFieldChange(event) {
+				if (!isTrackedChapterField(event.target)) {
+					return;
+				}
+				checkForChanges();
+			}
+
+			listenerScope.addEventListener('input', handleUniversalFieldChange);
+			listenerScope.addEventListener('change', handleUniversalFieldChange);
 
 			// Listen for TinyMCE changes
 			if (typeof tinymce !== 'undefined') {
@@ -1546,13 +1620,6 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				}, 10000);
 			}
 
-			// Also listen to textarea changes as fallback
-			var contentField = document.getElementById('fanfic_chapter_content');
-			if (contentField) {
-				contentField.addEventListener('input', checkForChanges);
-				contentField.addEventListener('change', checkForChanges);
-			}
-
 			// Note: Initial checkForChanges() is now called after TinyMCE initialization
 			// to prevent race condition where TinyMCE returns empty content before loading
 		}
@@ -1575,7 +1642,187 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 		// Form validation for chapter content (TinyMCE editor)
 		var chapterForm = document.querySelector('.fanfic-create-chapter-form, .fanfic-edit-chapter-form');
 		if (chapterForm) {
+			var chapterAjaxUrl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
+			var chapterMessagesContainer = document.getElementById('fanfic-messages');
+
+			function showChapterFormMessage(type, message, persistent) {
+				if (!message) {
+					return;
+				}
+
+				if (window.FanficMessages && typeof window.FanficMessages[type] === 'function') {
+					if ('error' === type) {
+						window.FanficMessages.error(message, { autoDismiss: !persistent });
+					} else {
+						window.FanficMessages.success(message);
+					}
+					return;
+				}
+
+				if (!chapterMessagesContainer) {
+					alert(message);
+					return;
+				}
+
+				var notice = document.createElement('div');
+				notice.className = 'fanfic-message ' + ('error' === type ? 'fanfic-message-error' : 'fanfic-message-success');
+				notice.setAttribute('role', 'error' === type ? 'alert' : 'status');
+				notice.setAttribute('aria-live', 'error' === type ? 'assertive' : 'polite');
+				notice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">' + ('error' === type ? '&#10007;' : '&#10003;') + '</span><span class="fanfic-message-content"></span><button type="button" class="fanfic-message-close" aria-label="<?php echo esc_attr( __( 'Close message', 'fanfiction-manager' ) ); ?>">&times;</button>';
+				notice.querySelector('.fanfic-message-content').textContent = message;
+				chapterMessagesContainer.appendChild(notice);
+
+				var closeBtn = notice.querySelector('.fanfic-message-close');
+				if (closeBtn) {
+					closeBtn.addEventListener('click', function() {
+						notice.remove();
+					});
+				}
+
+				if (!persistent && 'error' !== type) {
+					setTimeout(function() {
+						notice.remove();
+					}, 5000);
+				}
+			}
+
+			function moveChapterFormToEditMode(chapterId, editNonce) {
+				var createSubmitInput = chapterForm.querySelector('input[name="fanfic_create_chapter_submit"]');
+				if (createSubmitInput) {
+					createSubmitInput.remove();
+				}
+
+				var editSubmitInput = chapterForm.querySelector('input[name="fanfic_edit_chapter_submit"]');
+				if (!editSubmitInput) {
+					editSubmitInput = document.createElement('input');
+					editSubmitInput.type = 'hidden';
+					editSubmitInput.name = 'fanfic_edit_chapter_submit';
+					editSubmitInput.value = '1';
+					chapterForm.appendChild(editSubmitInput);
+				}
+
+				var chapterIdInput = chapterForm.querySelector('input[name="fanfic_chapter_id"]');
+				if (!chapterIdInput) {
+					chapterIdInput = document.createElement('input');
+					chapterIdInput.type = 'hidden';
+					chapterIdInput.name = 'fanfic_chapter_id';
+					chapterForm.appendChild(chapterIdInput);
+				}
+				chapterIdInput.value = String(chapterId);
+
+				var createNonceInput = chapterForm.querySelector('input[name="fanfic_create_chapter_nonce"]');
+				if (createNonceInput) {
+					createNonceInput.name = 'fanfic_edit_chapter_nonce';
+				}
+
+				var editNonceInput = chapterForm.querySelector('input[name="fanfic_edit_chapter_nonce"]');
+				if (!editNonceInput) {
+					editNonceInput = document.createElement('input');
+					editNonceInput.type = 'hidden';
+					editNonceInput.name = 'fanfic_edit_chapter_nonce';
+					chapterForm.appendChild(editNonceInput);
+				}
+				if (editNonce) {
+					editNonceInput.value = editNonce;
+				}
+			}
+
+			function getChapterViewUrl(editUrl) {
+				if (!editUrl) {
+					return '';
+				}
+				try {
+					var parsed = new URL(editUrl, window.location.origin);
+					parsed.searchParams.delete('action');
+					var normalized = parsed.toString();
+					if (normalized.slice(-1) === '?') {
+						normalized = normalized.slice(0, -1);
+					}
+					return normalized;
+				} catch (err) {
+					return '';
+				}
+			}
+
+			function syncChapterActionButtons(chapterStatus, chapterId, storyId, editUrl) {
+				var actionsContainer = chapterForm.querySelector('.fanfic-form-actions');
+				if (!actionsContainer) {
+					return;
+				}
+
+				var submitButtons = actionsContainer.querySelectorAll('button[type="submit"][name="fanfic_chapter_action"]');
+				if (submitButtons.length < 2) {
+					return;
+				}
+
+				var primaryButton = submitButtons[0];
+				var secondaryButton = submitButtons[1];
+				var viewLink = actionsContainer.querySelector('a[data-fanfic-chapter-view="1"]');
+				var chapterViewUrl = getChapterViewUrl(editUrl);
+
+				if (chapterStatus === 'publish') {
+					primaryButton.value = 'update';
+					primaryButton.id = 'update-chapter-button';
+					primaryButton.textContent = '<?php echo esc_js( __( 'Update', 'fanfiction-manager' ) ); ?>';
+					primaryButton.disabled = true;
+
+					secondaryButton.value = 'draft';
+					secondaryButton.id = 'unpublish-chapter-button';
+					secondaryButton.textContent = '<?php echo esc_js( __( 'Unpublish and save as draft', 'fanfiction-manager' ) ); ?>';
+					secondaryButton.disabled = false;
+					if (chapterId) {
+						secondaryButton.setAttribute('data-chapter-id', String(chapterId));
+					}
+					if (storyId) {
+						secondaryButton.setAttribute('data-story-id', String(storyId));
+					}
+
+					if (!viewLink && chapterViewUrl) {
+						var deleteButton = actionsContainer.querySelector('#delete-chapter-button');
+						var cancelLink = actionsContainer.querySelector('a[href*="edit-story"]');
+						viewLink = document.createElement('a');
+						viewLink.className = 'fanfic-button secondary';
+						viewLink.target = '_blank';
+						viewLink.rel = 'noopener noreferrer';
+						viewLink.setAttribute('data-fanfic-chapter-view', '1');
+						viewLink.textContent = '<?php echo esc_js( __( 'View', 'fanfiction-manager' ) ); ?>';
+						viewLink.href = chapterViewUrl;
+
+						if (deleteButton) {
+							actionsContainer.insertBefore(viewLink, deleteButton);
+						} else if (cancelLink) {
+							actionsContainer.insertBefore(viewLink, cancelLink);
+						} else {
+							actionsContainer.appendChild(viewLink);
+						}
+					} else if (viewLink && chapterViewUrl) {
+						viewLink.href = chapterViewUrl;
+					}
+				} else {
+					primaryButton.value = 'publish';
+					primaryButton.removeAttribute('id');
+					primaryButton.textContent = '<?php echo esc_js( __( 'Publish Chapter', 'fanfiction-manager' ) ); ?>';
+					primaryButton.disabled = false;
+
+					secondaryButton.value = 'update';
+					secondaryButton.id = 'update-draft-chapter-button';
+					secondaryButton.textContent = '<?php echo esc_js( __( 'Update Draft', 'fanfiction-manager' ) ); ?>';
+					secondaryButton.disabled = true;
+					secondaryButton.removeAttribute('data-chapter-id');
+					secondaryButton.removeAttribute('data-story-id');
+
+					if (viewLink) {
+						viewLink.remove();
+					}
+				}
+			}
+
 			chapterForm.addEventListener('submit', function(e) {
+				var submitter = e.submitter || document.activeElement;
+				if (submitter && (submitter.id === 'update-chapter-button' || submitter.id === 'update-draft-chapter-button')) {
+					return;
+				}
+
 				// Get content from TinyMCE editor
 				var editorContent = '';
 				if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
@@ -1593,7 +1840,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 				if (textContent.length === 0) {
 					e.preventDefault();
-					alert('<?php echo esc_js( __( 'Please enter content for your chapter.', 'fanfiction-manager' ) ); ?>');
+					showChapterFormMessage('error', '<?php echo esc_js( __( 'Please enter content for your chapter.', 'fanfiction-manager' ) ); ?>', true);
 					// Try to focus the editor
 					if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
 						tinymce.get('fanfic_chapter_content').focus();
@@ -1610,6 +1857,118 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					}
 					return false;
 				}
+
+				e.preventDefault();
+
+				var isEditMode = !!chapterForm.querySelector('input[name="fanfic_edit_chapter_submit"]');
+				var ajaxAction = isEditMode ? 'fanfic_edit_chapter' : 'fanfic_create_chapter';
+				var chapterFormData = new FormData(chapterForm);
+				chapterFormData.append('action', ajaxAction);
+
+				if (submitter && submitter.name && submitter.value) {
+					chapterFormData.set(submitter.name, submitter.value);
+				}
+
+				var allSubmitButtons = chapterForm.querySelectorAll('button[type="submit"]');
+				var originalButtonLabel = submitter ? submitter.textContent : '';
+				allSubmitButtons.forEach(function(button) {
+					button.disabled = true;
+				});
+				if (submitter) {
+					submitter.textContent = '<?php echo esc_js( __( 'Saving...', 'fanfiction-manager' ) ); ?>';
+				}
+
+				fetch(chapterAjaxUrl, {
+					method: 'POST',
+					credentials: 'same-origin',
+					body: chapterFormData
+				})
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(payload) {
+					var data = payload && payload.data ? payload.data : {};
+
+					if (!payload || !payload.success) {
+						var errorMessage = '';
+						if (data.errors && data.errors.length) {
+							errorMessage = data.errors.join(' ');
+						} else {
+							errorMessage = data.message || '<?php echo esc_js( __( 'Failed to save chapter. Please try again.', 'fanfiction-manager' ) ); ?>';
+						}
+						showChapterFormMessage('error', errorMessage, true);
+						return;
+					}
+
+					showChapterFormMessage('success', data.message || '<?php echo esc_js( __( 'Chapter saved successfully.', 'fanfiction-manager' ) ); ?>', false);
+
+					if (!isEditMode && data.chapter_id) {
+						moveChapterFormToEditMode(data.chapter_id, data.edit_nonce || '');
+					} else if (isEditMode && data.edit_nonce) {
+						var editNonceInput = chapterForm.querySelector('input[name="fanfic_edit_chapter_nonce"]');
+						if (editNonceInput) {
+							editNonceInput.value = data.edit_nonce;
+						}
+					}
+
+					var titleField = document.getElementById('fanfic_chapter_title');
+					var contentField = document.getElementById('fanfic_chapter_content');
+					var typeField = document.querySelector('.fanfic-chapter-type-input:checked');
+					var numberField = document.getElementById('fanfic_chapter_number');
+					var publishDateField = document.getElementById('fanfic_chapter_publish_date');
+					var savedContent = '';
+					if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
+						savedContent = tinymce.get('fanfic_chapter_content').getContent();
+					} else if (contentField) {
+						savedContent = contentField.value;
+					}
+
+					chapterForm.setAttribute('data-original-title', titleField ? titleField.value : '');
+					chapterForm.setAttribute('data-original-content', savedContent);
+					chapterForm.setAttribute('data-original-type', typeField ? typeField.value : '');
+					chapterForm.setAttribute('data-original-number', numberField ? numberField.value : '');
+					chapterForm.setAttribute('data-original-publish-date', publishDateField ? publishDateField.value : '');
+
+					if (data.chapter_status) {
+						var storyIdInput = chapterForm.querySelector('input[name="fanfic_story_id"]');
+						var storyId = storyIdInput ? storyIdInput.value : '';
+						syncChapterActionButtons(data.chapter_status, data.chapter_id || '', data.story_id || storyId, data.edit_url || data.redirect_url || '');
+					}
+
+					if (data.edit_url) {
+						window.history.replaceState({}, '', data.edit_url);
+					} else if (data.redirect_url) {
+						window.history.replaceState({}, '', data.redirect_url);
+					}
+
+					if (data.story_auto_drafted) {
+						showChapterFormMessage('error', '<?php echo esc_js( __( 'Story was automatically set to draft because this was its last published chapter or prologue.', 'fanfiction-manager' ) ); ?>', true);
+					}
+
+					if (data.is_first_published_chapter) {
+						showChapterFormMessage('success', '<?php echo esc_js( __( 'This is your first published chapter. You can now publish your story.', 'fanfiction-manager' ) ); ?>', false);
+					}
+				})
+				.catch(function(error) {
+					console.error('Error saving chapter via AJAX:', error);
+					showChapterFormMessage('error', '<?php echo esc_js( __( 'An unexpected error occurred while saving the chapter.', 'fanfiction-manager' ) ); ?>', true);
+				})
+				.finally(function() {
+					allSubmitButtons.forEach(function(button) {
+						button.disabled = false;
+					});
+					if (submitter) {
+						submitter.textContent = originalButtonLabel;
+					}
+					var updateButton = document.getElementById('update-chapter-button');
+					var updateDraftButton = document.getElementById('update-draft-chapter-button');
+					if (updateButton) {
+						updateButton.disabled = true;
+					}
+					if (updateDraftButton) {
+						updateDraftButton.disabled = true;
+					}
+				});
 			});
 		}
 	});

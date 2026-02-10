@@ -539,12 +539,18 @@ class Fanfic_Languages {
 
 		// If no language selected, we're done
 		if ( ! $language_id ) {
+			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+				Fanfic_Search_Index::update_index( $story_id );
+			}
 			return;
 		}
 
 		// Validate language exists and is active
 		$validated = self::filter_valid_language_id( $language_id );
 		if ( ! $validated ) {
+			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+				Fanfic_Search_Index::update_index( $story_id );
+			}
 			return;
 		}
 
@@ -558,6 +564,10 @@ class Fanfic_Languages {
 			),
 			array( '%d', '%d' )
 		);
+
+		if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+			Fanfic_Search_Index::update_index( $story_id );
+		}
 	}
 
 	/**

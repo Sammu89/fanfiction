@@ -135,116 +135,231 @@
     };
 
     // ===== WARNINGS CROSS-DISABLE MANAGER =====
-    // Note: Warnings use a single set of checkboxes with warnings_mode radio to switch between include/exclude
-    // Cross-disable prevents selecting the same warning in both modes simultaneously
+    // Warnings use two separate multiselect dropdowns (Exclude and Include).
+    // Cross-disable prevents selecting the same warning in both dropdowns simultaneously.
     var WarningsManager = {
-        // Store which warnings are selected in each mode
-        includeWarnings: {},
-        excludeWarnings: {},
-
         /**
          * Initialize warnings cross-disable logic
          */
         init: function() {
             var self = this;
-            var $warningsCheckboxes = $('input[name="warnings_slugs[]"]');
-            var $warningsModeRadios = $('input[name="warnings_mode"]');
+            var $excludeCheckboxes = $('input[name="warnings_exclude[]"]');
+            var $includeCheckboxes = $('input[name="warnings_include[]"]');
 
-            // Load initial state from form
-            this.loadState();
-
-            // Watch for changes on warning checkboxes
-            $warningsCheckboxes.on('change', function() {
-                self.onWarningCheckboxChange($(this));
-            });
-
-            // Watch for mode changes (Include/Exclude radio buttons)
-            $warningsModeRadios.on('change', function() {
-                self.onModeChange();
-            });
-        },
-
-        /**
-         * Load current state from form
-         */
-        loadState: function() {
-            // Since there's only one set of checkboxes, we store the checked values
-            // in a way that lets us restore them when switching modes
-            var $warningsCheckboxes = $('input[name="warnings_slugs[]"]');
-            var currentMode = $('input[name="warnings_mode"]:checked').val() || 'exclude';
-
-            // Initialize storage if needed
-            if (!window.fanficWarningsState) {
-                window.fanficWarningsState = {
-                    include: {},
-                    exclude: {}
-                };
+            if (!$excludeCheckboxes.length && !$includeCheckboxes.length) {
+                return;
             }
 
-            // Load current checked values into the appropriate mode storage
-            $warningsCheckboxes.each(function() {
-                var $cb = $(this);
-                var value = $cb.val();
-                window.fanficWarningsState[currentMode][value] = $cb.is(':checked');
+            // On exclude checkbox change, uncheck the same value in include
+            $excludeCheckboxes.on('change.warnings', function() {
+                if ($(this).is(':checked')) {
+                    var value = $(this).val();
+                    $includeCheckboxes.filter('[value="' + value + '"]').prop('checked', false);
+                    self.updateMultiSelectLabel($('.fanfic-warnings-include-multiselect'));
+                }
+                PillsManager.updatePills();
+            });
+
+            // On include checkbox change, uncheck the same value in exclude
+            $includeCheckboxes.on('change.warnings', function() {
+                if ($(this).is(':checked')) {
+                    var value = $(this).val();
+                    $excludeCheckboxes.filter('[value="' + value + '"]').prop('checked', false);
+                    self.updateMultiSelectLabel($('.fanfic-warnings-exclude-multiselect'));
+                }
+                PillsManager.updatePills();
             });
         },
 
         /**
-         * Handle warning checkbox change
+         * Update a multi-select dropdown label
          */
-        onWarningCheckboxChange: function($checkbox) {
-            var value = $checkbox.val();
-            var currentMode = $('input[name="warnings_mode"]:checked').val() || 'exclude';
-            var isChecked = $checkbox.is(':checked');
+        updateMultiSelectLabel: function($multiSelect) {
+            if (!$multiSelect.length) return;
+            var trigger = $multiSelect.find('.multi-select__trigger')[0];
+            if (!trigger) return;
+            var checkboxes = $multiSelect.find('input[type="checkbox"]');
+            var placeholder = $multiSelect.data('placeholder') || 'Select';
+            var checked = checkboxes.filter(':checked');
 
-            // Update state storage
-            if (!window.fanficWarningsState) {
-                window.fanficWarningsState = { include: {}, exclude: {} };
+            if (checked.length === 0) {
+                trigger.textContent = placeholder;
+            } else if (checked.length <= 2) {
+                trigger.textContent = checked.map(function() { return $(this).parent().text().trim(); }).get().join(', ');
+            } else {
+                trigger.textContent = checked.length + ' selected';
             }
-            window.fanficWarningsState[currentMode][value] = isChecked;
+        }
+    };
 
-            // If checking in one mode, uncheck in other mode
-            if (isChecked) {
-                var otherMode = currentMode === 'include' ? 'exclude' : 'include';
-                window.fanficWarningsState[otherMode][value] = false;
-            }
-
-            PillsManager.updatePills();
+    // ===== TRANSLATION DEDUPLICATOR =====
+    var TranslationDeduplicator = {
+        /**
+         * Initialize deduplication
+         */
+        init: function() {
+            this.deduplicate();
         },
 
         /**
-         * Handle mode change (Include/Exclude radio)
+         * Normalize language code to lowercase hyphen form.
          */
-        onModeChange: function() {
-            var newMode = $('input[name="warnings_mode"]:checked').val() || 'exclude';
-            var $warningsCheckboxes = $('input[name="warnings_slugs[]"]');
+        normalizeLanguageCode: function(lang) {
+            return String(lang || '').toLowerCase().replace('_', '-');
+        },
 
-            // Initialize state storage if needed
-            if (!window.fanficWarningsState) {
-                window.fanficWarningsState = { include: {}, exclude: {} };
+        /**
+         * Get base language (e.g., pt-br -> pt).
+         */
+        getBaseLanguage: function(lang) {
+            return this.normalizeLanguageCode(lang).split('-')[0];
+        },
+
+        /**
+         * Get known variants for a base language.
+         * Reuses search-bar language variant logic when available.
+         */
+        getLanguageVariants: function(baseLang) {
+            if (typeof FanficLanguageFilter !== 'undefined' && typeof FanficLanguageFilter.getLanguageVariants === 'function') {
+                return FanficLanguageFilter.getLanguageVariants(baseLang);
+            }
+            return [baseLang];
+        },
+
+        /**
+         * Build language preference order:
+         * exact browser variant -> base variant list -> English variants.
+         */
+        getBrowserLanguagePreference: function() {
+            var raw = navigator.language || navigator.userLanguage || 'en';
+            var full = this.normalizeLanguageCode(raw);
+            var base = this.getBaseLanguage(full);
+            var variants = this.getLanguageVariants(base);
+
+            var preferred = [full, base].concat(variants)
+                .filter(function(value) { return value && value.trim() !== ''; })
+                .map(function(value) { return String(value).toLowerCase(); })
+                .filter(function(value, index, arr) { return arr.indexOf(value) === index; });
+
+            return {
+                full: full,
+                base: base,
+                preferredOrder: preferred
+            };
+        },
+
+        /**
+         * Read normalized card language slug.
+         */
+        getCardLanguage: function(card) {
+            return this.normalizeLanguageCode(card.getAttribute('data-language') || '');
+        },
+
+        /**
+         * Sort cards descending by view count.
+         */
+        sortByViewsDesc: function(cards) {
+            return cards.slice().sort(function(a, b) {
+                return parseInt(b.getAttribute('data-views') || '0', 10) - parseInt(a.getAttribute('data-views') || '0', 10);
+            });
+        },
+
+        /**
+         * Run deduplication on all story cards in the results
+         */
+        deduplicate: function() {
+            var browserPreference = this.getBrowserLanguagePreference();
+            var groups = {};
+
+            // Collect all cards that belong to a translation group
+            var cards = document.querySelectorAll('.fanfic-story-card[data-translation-group]');
+            for (var i = 0; i < cards.length; i++) {
+                var card = cards[i];
+                var groupId = card.getAttribute('data-translation-group');
+                if (!groupId || groupId === '0' || groupId === '') {
+                    continue;
+                }
+                if (!groups[groupId]) {
+                    groups[groupId] = [];
+                }
+                groups[groupId].push(card);
             }
 
-            // Update checkboxes to reflect the new mode's saved state
-            $warningsCheckboxes.each(function() {
-                var $cb = $(this);
-                var value = $cb.val();
-                var shouldCheck = window.fanficWarningsState[newMode][value] || false;
-                $cb.prop('checked', shouldCheck);
-            });
+            // For each group with 2+ cards, show preferred version and hide others
+            var self = this;
+            Object.keys(groups).forEach(function(groupId) {
+                var groupCards = groups[groupId];
+                if (groupCards.length <= 1) {
+                    return;
+                }
 
-            // Update the display label in the multi-select trigger
-            var trigger = $('.fanfic-warnings-multiselect .multi-select__trigger');
-            if (trigger.length) {
-                var checked = $warningsCheckboxes.filter(':checked').length;
-                var placeholder = $('.fanfic-warnings-multiselect').data('placeholder') || 'Select Warnings';
-                if (checked === 0) {
-                    trigger.text(placeholder);
-                } else {
-                    trigger.text(checked + ' selected');
+                var preferred = self.selectPreferred(groupCards, browserPreference);
+                for (var j = 0; j < groupCards.length; j++) {
+                    if (groupCards[j] === preferred) {
+                        groupCards[j].style.display = '';
+                        groupCards[j].classList.remove('fanfic-translation-hidden');
+                    } else {
+                        groupCards[j].style.display = 'none';
+                        groupCards[j].classList.add('fanfic-translation-hidden');
+                    }
+                }
+            });
+        },
+
+        /**
+         * Select the preferred card from a group based on browser language
+         * Priority:
+         * 1) exact browser variant (e.g., pt-pt)
+         * 2) any same-base variant (e.g., any pt)
+         * 3) English variant
+         * 4) most views
+         */
+        selectPreferred: function(cards, browserPreference) {
+            var full = browserPreference.full;
+            var base = browserPreference.base;
+            var preferredOrder = browserPreference.preferredOrder || [];
+
+            // Priority 1: exact browser language variant match
+            for (var i = 0; i < cards.length; i++) {
+                if (this.getCardLanguage(cards[i]) === full) {
+                    return cards[i];
                 }
             }
 
-            PillsManager.updatePills();
+            // Priority 2a: preferred variant order (same logic used by language filter sorting)
+            for (var orderIndex = 0; orderIndex < preferredOrder.length; orderIndex++) {
+                var wantedLang = preferredOrder[orderIndex];
+                for (var j = 0; j < cards.length; j++) {
+                    if (this.getCardLanguage(cards[j]) === wantedLang) {
+                        return cards[j];
+                    }
+                }
+            }
+
+            // Priority 2b: any same-base variant, highest views wins
+            var sameBaseCards = [];
+            for (var k = 0; k < cards.length; k++) {
+                if (this.getBaseLanguage(this.getCardLanguage(cards[k])) === base) {
+                    sameBaseCards.push(cards[k]);
+                }
+            }
+            if (sameBaseCards.length > 0) {
+                return this.sortByViewsDesc(sameBaseCards)[0];
+            }
+
+            // Priority 3: English variant
+            var englishCards = [];
+            for (var m = 0; m < cards.length; m++) {
+                if (this.getBaseLanguage(this.getCardLanguage(cards[m])) === 'en') {
+                    englishCards.push(cards[m]);
+                }
+            }
+            if (englishCards.length > 0) {
+                return this.sortByViewsDesc(englishCards)[0];
+            }
+
+            // Priority 4: most views overall
+            return this.sortByViewsDesc(cards)[0];
         }
     };
 
@@ -258,14 +373,14 @@
 
         // Taxonomy order (determines pill order)
         taxonomyOrder: [
-            { key: 'match_all', label: 'Match all filters', type: 'toggle' },
+            { key: 'match_all', label: 'Match all filters', type: 'toggle', naked: true },
             { key: 'language', label: 'Language', type: 'multi-select' },
             { key: 'status', label: 'Status', type: 'multi-select' },
             { key: 'fandoms', label: 'Fandom', type: 'custom', selector: '[name="fanfic_story_fandoms[]"]' },
             { key: 'genres', label: 'Genre', type: 'multi-select' },
             { key: 'age', label: 'Age', type: 'multi-select' },
-            { key: 'warnings_include', label: 'Including', type: 'warnings', mode: 'include' },
-            { key: 'warnings_exclude', label: 'Excluding', type: 'warnings', mode: 'exclude' },
+            { key: 'warnings_include', label: 'Including', type: 'warnings' },
+            { key: 'warnings_exclude', label: 'Excluding', type: 'warnings' },
         ],
 
         /**
@@ -327,25 +442,29 @@
                 filters.fandoms = fandomLabels;
             }
 
-            // Warnings (separate by include/exclude mode)
-            var warningsMode = $('input[name="warnings_mode"]:checked').val() || 'exclude';
-            var warnings = [];
-            $('input[name="warnings_slugs[]"]:checked').each(function() {
-                warnings.push($(this).closest('label').text().trim());
+            // Exclude Warnings (separate dropdown)
+            var excludeWarnings = [];
+            $('input[name="warnings_exclude[]"]:checked').each(function() {
+                excludeWarnings.push($(this).closest('label').text().trim());
             });
-            if (warnings.length) {
-                if (warningsMode === 'include') {
-                    filters.warnings_include = warnings;
-                } else {
-                    filters.warnings_exclude = warnings;
-                }
+            if (excludeWarnings.length) {
+                filters.warnings_exclude = excludeWarnings;
+            }
+
+            // Include Warnings (separate dropdown)
+            var includeWarnings = [];
+            $('input[name="warnings_include[]"]:checked').each(function() {
+                includeWarnings.push($(this).closest('label').text().trim());
+            });
+            if (includeWarnings.length) {
+                filters.warnings_include = includeWarnings;
             }
 
             // Custom taxonomies (multi-select and single-select dropdowns)
             var singleSelectTaxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
 
             // Collect all custom taxonomy names from selectors on page
-            document.querySelectorAll('.fanfic-advanced-search-filters select:not([multiple]), .fanfic-advanced-search-filters .multi-select:not(.fanfic-warnings-multiselect)').forEach(function(elem) {
+            document.querySelectorAll('.fanfic-advanced-search-filters select:not([multiple]), .fanfic-advanced-search-filters .multi-select:not(.fanfic-warnings-exclude-multiselect):not(.fanfic-warnings-include-multiselect)').forEach(function(elem) {
                 var selector, values = [];
 
                 // Check if it's a select element (single-select custom taxonomy)
@@ -371,7 +490,7 @@
                 // Store custom taxonomy values
                 if (values.length > 0 && elem.name) {
                     var taxonomyName = elem.name.replace(/\[\]$/, ''); // Remove [] suffix if present
-                    if (taxonomyName && !['status', 'age', 'language', 'genre', 'warnings_slugs'].includes(taxonomyName)) {
+                    if (taxonomyName && !['status', 'age', 'language', 'genre', 'warnings_exclude', 'warnings_include'].includes(taxonomyName)) {
                         filters[taxonomyName] = values;
                     }
                 }
@@ -396,12 +515,6 @@
                 // Get values for this taxonomy
                 if (taxConfig.type === 'toggle') {
                     values = filters[key] ? [label] : null;
-                } else if (taxConfig.type === 'warnings') {
-                    if (taxConfig.mode === 'include') {
-                        values = filters.warnings_include || null;
-                    } else {
-                        values = filters.warnings_exclude || null;
-                    }
                 } else {
                     values = filters[key] || null;
                 }
@@ -421,19 +534,29 @@
                     return;
                 }
 
+                // Naked pills render just the value without the outer container
+                if (taxConfig.naked) {
+                    values.forEach(function(value) {
+                        var displayValue = value.charAt(0).toUpperCase() + value.slice(1);
+                        pillsHtml += '<li class="fanfic-pill fanfic-pill-naked" data-taxonomy="' + key + '" data-value="' + self.escapeAttr(value) + '">';
+                        pillsHtml += '<span class="fanfic-pill-value-text">' + self.escapeHtml(displayValue) + '</span>';
+                        pillsHtml += '<button type="button" class="fanfic-pill-value-remove" aria-label="Remove ' + self.escapeAttr(value) + '">&times;</button>';
+                        pillsHtml += '</li>';
+                    });
+                    return;
+                }
+
                 // Generate pill for this taxonomy
                 var pillHtml = '<li class="fanfic-pill" data-taxonomy="' + key + '">';
 
-                // For toggle types, don't show the label since the value IS the label
-                if (taxConfig.type !== 'toggle') {
-                    pillHtml += '<span class="fanfic-pill-label">' + label + ':</span>';
-                }
+                pillHtml += '<span class="fanfic-pill-label">' + label + ':</span>';
 
                 pillHtml += '<ul class="fanfic-pill-values">';
 
                 values.forEach(function(value) {
-                    // Capitalize first letter of value for better aesthetics
-                    var displayValue = value.charAt(0).toUpperCase() + value.slice(1);
+                    // Capitalize first letter and strip counter suffix like " (123)"
+                    var displayValue = value.replace(/\s*\([\d,]+\)\s*$/, '');
+                    displayValue = displayValue.charAt(0).toUpperCase() + displayValue.slice(1);
                     pillHtml += '<li class="fanfic-pill-value" data-value="' + self.escapeAttr(value) + '">';
                     pillHtml += '<span class="fanfic-pill-value-text">' + self.escapeHtml(displayValue) + '</span>';
                     pillHtml += '<button type="button" class="fanfic-pill-value-remove" aria-label="Remove ' + self.escapeAttr(value) + '">&times;</button>';
@@ -488,7 +611,8 @@
                 var $pill = $(this).closest('.fanfic-pill');
                 var $value = $(this).closest('.fanfic-pill-value');
                 var taxonomy = $pill.attr('data-taxonomy');
-                var valueText = $value.attr('data-value');
+                // Naked pills store data-value on the pill itself
+                var valueText = $value.length ? $value.attr('data-value') : $pill.attr('data-value');
 
                 self.removeValueFromTaxonomy(taxonomy, valueText);
             });
@@ -547,9 +671,16 @@
                     });
                     break;
 
-                case 'warnings_include':
                 case 'warnings_exclude':
-                    $('input[name="warnings_slugs[]"]').each(function() {
+                    $('input[name="warnings_exclude[]"]').each(function() {
+                        if ($(this).closest('label').text().trim() === valueText) {
+                            $(this).prop('checked', false).trigger('change');
+                        }
+                    });
+                    break;
+
+                case 'warnings_include':
+                    $('input[name="warnings_include[]"]').each(function() {
                         if ($(this).closest('label').text().trim() === valueText) {
                             $(this).prop('checked', false).trigger('change');
                         }
@@ -637,6 +768,112 @@
                     self.updatePills();
                 }, 300);
             });
+
+            // Update pills when fandoms are added/removed (custom event from fandoms JS)
+            document.addEventListener('fanfic-fandoms-changed', function() {
+                self.updatePills();
+            });
+        }
+    };
+
+    // ===== LANGUAGE FILTER MANAGER =====
+    var FanficLanguageFilter = {
+        /**
+         * Normalizes a language code to its base (e.g., "pt-BR" -> "pt").
+         * @param {string} lang The language code.
+         * @returns {string} The base language code.
+         */
+        normalizeLanguageCode: function(lang) {
+            return lang.toLowerCase().split('-')[0];
+        },
+
+        /**
+         * Gets common variant codes for a given base language.
+         * This list should be expanded based on the actual values used in your WordPress taxonomies.
+         * @param {string} baseLang The base language code (e.g., 'pt', 'es', 'zh').
+         * @returns {string[]} An array of language codes representing variants.
+         */
+        getLanguageVariants: function(baseLang) {
+            switch (baseLang) {
+                case 'pt':
+                    return ['pt', 'pt-pt', 'pt-br']; // Portuguese variants from languages.json
+                case 'es':
+                    return ['es', 'es-es', 'es-419']; // Spanish variants from languages.json
+                case 'zh':
+                    return ['zh', 'zh-hans', 'zh-hant']; // Chinese variants from languages.json
+                default:
+                    return [baseLang]; // Return the base language itself if no specific variants are defined
+            }
+        },
+
+        /**
+         * Prioritizes the user's browser language in the language filter dropdown.
+         */
+        prioritizeBrowserLanguage: function() {
+            var browserLang = navigator.language || navigator.userLanguage;
+            var normalizedFullBrowserLang = String(browserLang || '').toLowerCase().replace('_', '-');
+            var normalizedBrowserLang = this.normalizeLanguageCode(browserLang);
+            var prioritizedLangs = this.getLanguageVariants(normalizedBrowserLang);
+            var preferredLangOrder = [normalizedFullBrowserLang, normalizedBrowserLang].concat(prioritizedLangs)
+                .filter(function(value) { return value && value.trim() !== ''; })
+                .map(function(value) { return value.toLowerCase(); })
+                .filter(function(value, index, arr) { return arr.indexOf(value) === index; });
+
+            console.log('Browser Language:', browserLang, 'Normalized:', normalizedBrowserLang, 'Prioritized Variants:', prioritizedLangs);
+
+            var $languageCheckboxes = $('.multi-select input[name="language[]"]');
+            if (!$languageCheckboxes.length) {
+                return;
+            }
+
+            var $languageSelectOptions = $languageCheckboxes.first().closest('.multi-select__dropdown, .multi-select__options');
+            if (!$languageSelectOptions.length) {
+                return;
+            }
+
+            var $allLanguageLabels = $languageSelectOptions.find('label');
+            var prioritizedLabels = [];
+            var otherLabels = [];
+
+            $allLanguageLabels.each(function() {
+                var $this = $(this);
+                var langValue = String($this.find('input[name="language[]"]').val() || '').toLowerCase();
+                if (langValue && preferredLangOrder.indexOf(langValue) !== -1) {
+                    prioritizedLabels.push(this);
+                } else {
+                    otherLabels.push(this);
+                }
+            });
+
+            // If we found prioritized languages, reorder them
+            if (prioritizedLabels.length > 0) {
+                // Sort prioritized labels by desired language order first.
+                prioritizedLabels.sort(function(a, b) {
+                    var aLang = String($(a).find('input[name="language[]"]').val() || '').toLowerCase();
+                    var bLang = String($(b).find('input[name="language[]"]').val() || '').toLowerCase();
+
+                    var aIndex = preferredLangOrder.indexOf(aLang);
+                    var bIndex = preferredLangOrder.indexOf(bLang);
+                    if (aIndex === -1) {
+                        aIndex = Number.MAX_SAFE_INTEGER;
+                    }
+                    if (bIndex === -1) {
+                        bIndex = Number.MAX_SAFE_INTEGER;
+                    }
+
+                    if (aIndex !== bIndex) {
+                        return aIndex - bIndex;
+                    }
+
+                    return $(a).text().trim().localeCompare($(b).text().trim());
+                });
+
+                // Detach all labels and prepend prioritized ones, then append others
+                $languageSelectOptions.empty().append(prioritizedLabels).append(otherLabels);
+                console.log('Language filter reordered. Prioritized:', prioritizedLabels.map(function(label){ return $(label).text().trim(); }));
+            } else {
+                console.log('No matching prioritized languages found in the filter for browser language ' + browserLang);
+            }
         }
     };
 
@@ -647,6 +884,9 @@
         // Initialize warnings manager for cross-disable logic
         WarningsManager.init();
 
+        // Initialize translation deduplication
+        TranslationDeduplicator.init();
+
         var $advancedSearchToggle = $('.fanfic-advanced-search-toggle');
         var $advancedSearchFilters = $('.fanfic-advanced-search-filters');
         var $advancedActions = $('.fanfic-advanced-actions');
@@ -655,8 +895,8 @@
         var $searchInput = $('#fanfic-search-input');
         var $searchForm = $('.fanfic-stories-form');
         var $ageFilter = $('#fanfic-age-filter');
-        var $warningsModeRadios = $('input[name="warnings_mode"]');
-        var $warningsMultiSelect = $('.fanfic-warnings-multiselect');
+        var $warningsExcludeMultiSelect = $('.fanfic-warnings-exclude-multiselect');
+        var $warningsIncludeMultiSelect = $('.fanfic-warnings-include-multiselect');
         var $smartToggleCheckbox = $('#fanfic-match-all-filters');
         var $smartToggleLabel = $smartToggleCheckbox.closest('.fanfic-stories-row').find('.fanfic-toggle-label');
 
@@ -715,19 +955,24 @@
             $('.fanfic-selected-fandoms').empty();
             $('#fanfic-fandom-filter').val('');
 
-            if ($warningsModeRadios.length) {
-                $('input[name="warnings_mode"][value="exclude"]').prop('checked', true);
+            // Reset both warnings multiselects
+            if ($warningsExcludeMultiSelect.length) {
+                $warningsExcludeMultiSelect.find('input[type="checkbox"]').prop('checked', false);
+                var $excludeTrigger = $warningsExcludeMultiSelect.find('.multi-select__trigger')[0];
+                if ($excludeTrigger) {
+                    $excludeTrigger.textContent = $warningsExcludeMultiSelect.data('placeholder') || 'Select Warnings to Exclude';
+                }
             }
-            if ($warningsMultiSelect.length) {
-                $warningsMultiSelect.find('input[type="checkbox"]').prop('checked', false);
-                var $trigger = $warningsMultiSelect.find('.multi-select__trigger')[0];
-                if ($trigger) {
-                    $trigger.textContent = $warningsMultiSelect.data('placeholder') || 'Select Warnings';
+            if ($warningsIncludeMultiSelect.length) {
+                $warningsIncludeMultiSelect.find('input[type="checkbox"]').prop('checked', false);
+                var $includeTrigger = $warningsIncludeMultiSelect.find('.multi-select__trigger')[0];
+                if ($includeTrigger) {
+                    $includeTrigger.textContent = $warningsIncludeMultiSelect.data('placeholder') || 'Select Warnings to Include';
                 }
             }
 
             // Reset multi-select dropdowns (genres, languages, custom)
-            document.querySelectorAll('.multi-select:not(.fanfic-warnings-multiselect)').forEach(function(select) {
+            document.querySelectorAll('.multi-select:not(.fanfic-warnings-exclude-multiselect):not(.fanfic-warnings-include-multiselect)').forEach(function(select) {
                 var checkboxes = select.querySelectorAll('input[type="checkbox"]');
                 checkboxes.forEach(function(cb) {
                     cb.checked = false;
@@ -759,14 +1004,120 @@
             }
         });
 
-        // Warnings Mode change logic
-        $warningsModeRadios.on('change', function() {
-            if ($(this).val() === 'include') {
-                if ($ageFilter.length) {
-                    $ageFilter.val('');
-                }
+        // ===== CLEAN URL FORM SUBMISSION INTERCEPTOR =====
+        // Intercept form submission to build clean URLs with space-separated values
+        // instead of PHP array notation (e.g., ?status=abandoned+ongoing instead of ?status%5B%5D=abandoned&status%5B%5D=ongoing)
+        $searchForm.on('submit', function(e) {
+            e.preventDefault();
+
+            var baseUrl = $searchForm.attr('action') || window.location.pathname;
+            var params = {};
+
+            // 1. Search text input - include only if non-empty
+            var searchVal = $searchInput.val();
+            if (searchVal && searchVal.trim() !== '') {
+                params.search = searchVal.trim();
             }
+
+            // 2. Sort select - include only if non-empty
+            var $sortSelect = $searchForm.find('select[name="sort"]');
+            if ($sortSelect.length && $sortSelect.val()) {
+                params.sort = $sortSelect.val();
+            }
+
+            // 3. Match all filters toggle - include as match_all_filters=1 only if checked
+            if ($smartToggleCheckbox.is(':checked')) {
+                params.match_all_filters = '1';
+            }
+
+            // 4. Multi-select checkbox groups - collect checked values, join with space
+            var checkboxGroups = [
+                'status[]',
+                'genre[]',
+                'age[]',
+                'language[]',
+                'warnings_exclude[]',
+                'warnings_include[]'
+            ];
+
+            checkboxGroups.forEach(function(groupName) {
+                var values = [];
+                $searchForm.find('input[name="' + groupName + '"]:checked').each(function() {
+                    values.push($(this).val());
+                });
+                if (values.length > 0) {
+                    var cleanName = groupName.replace(/\[\]$/, '');
+                    params[cleanName] = values.join(' ');
+                }
+            });
+
+            // 5. Fandom hidden inputs - collect all values, join with space
+            var fandomValues = [];
+            $searchForm.find('input[name="fanfic_story_fandoms[]"]').each(function() {
+                if ($(this).val()) {
+                    fandomValues.push($(this).val());
+                }
+            });
+            if (fandomValues.length > 0) {
+                params.fandoms = fandomValues.join(' ');
+            }
+
+            // 6. Custom taxonomy selects and checkboxes in advanced filters
+            //    (single selects as-is, multi-select checkboxes space-joined without [])
+            $searchForm.find('.fanfic-advanced-search-filters select:not([name="sort"])').each(function() {
+                var name = $(this).attr('name');
+                if (!name) return;
+                var val = $(this).val();
+                if (val && val !== '') {
+                    var cleanName = name.replace(/\[\]$/, '');
+                    // Skip already-handled fields
+                    if (!params.hasOwnProperty(cleanName)) {
+                        params[cleanName] = val;
+                    }
+                }
+            });
+
+            // Custom taxonomy multi-select checkboxes not already handled
+            var handledNames = ['status', 'genre', 'age', 'language', 'warnings_exclude', 'warnings_include', 'fandoms'];
+            $searchForm.find('.fanfic-advanced-search-filters .multi-select input[type="checkbox"]:checked').each(function() {
+                var name = $(this).attr('name');
+                if (!name) return;
+                var cleanName = name.replace(/\[\]$/, '');
+                if (handledNames.indexOf(cleanName) !== -1) return;
+                if (!params[cleanName]) {
+                    params[cleanName] = [];
+                }
+                if (Array.isArray(params[cleanName])) {
+                    params[cleanName].push($(this).val());
+                }
+            });
+
+            // Convert any remaining arrays to space-joined strings
+            Object.keys(params).forEach(function(key) {
+                if (Array.isArray(params[key])) {
+                    params[key] = params[key].join(' ');
+                }
+            });
+
+            // 7. Build query string from non-empty params (use comma as value separator)
+            var queryParts = [];
+            Object.keys(params).forEach(function(key) {
+                if (params[key] !== '' && params[key] !== null && params[key] !== undefined) {
+                    // Encode each segment individually, join with literal comma
+                    var encoded = String(params[key]).split(/\s+/).map(encodeURIComponent).join(',');
+                    queryParts.push(encodeURIComponent(key) + '=' + encoded);
+                }
+            });
+
+            var queryString = queryParts.join('&');
+            var finalUrl = queryString ? baseUrl + '?' + queryString : baseUrl;
+
+            // Navigate to the clean URL
+            window.location.assign(finalUrl);
         });
+
+        // Prioritize browser language in the filter dropdown
+        FanficLanguageFilter.prioritizeBrowserLanguage();
 
         // Initialize custom multi-select dropdowns
         document.querySelectorAll('.multi-select').forEach(function(select) {
