@@ -514,7 +514,7 @@ class Fanfic_Core {
 		}
 
 		// Classification tables (fandoms, warnings, languages) are created
-		// lazily by wizard step 1.  Keep skipping them while:
+		// lazily by wizard completion (step 5). Keep skipping them while:
 		//   a) the activation transient is still alive, OR
 		//   b) we are actually serving the wizard page itself.
 		// Once either condition clears the fallback at the bottom will
@@ -1584,16 +1584,15 @@ class Fanfic_Core {
 
 		// Create core database tables (Phase 1).
 		// Classification tables (fandoms, warnings, languages) are deferred to
-		// the setup wizard step 1 so activation completes faster.
+		// wizard completion (step 5) so activation completes faster.
 		$db_result = Fanfic_Database_Setup::init( false );
 		if ( is_wp_error( $db_result ) ) {
 			error_log( 'Fanfiction Manager: Database setup error - ' . $db_result->get_error_message() );
 		}
 
 		// Tell maybe_initialize_database() to keep skipping classification
-		// tables until the wizard step 1 AJAX creates them (or the transient
-		// expires and the fallback path takes over).
-		set_transient( 'fanfic_skip_classification', true, 300 );
+		// tables until wizard completion prepares them.
+		set_transient( 'fanfic_skip_classification', true, HOUR_IN_SECONDS * 12 );
 
 		// Also create legacy tables for backward compatibility
 		self::create_tables();

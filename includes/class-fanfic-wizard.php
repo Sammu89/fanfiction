@@ -138,7 +138,6 @@ class Fanfic_Wizard {
 		// AJAX handlers
 		add_action( 'wp_ajax_fanfic_wizard_save_step', array( $this, 'ajax_save_step' ) );
 		add_action( 'wp_ajax_fanfic_wizard_complete', array( $this, 'ajax_complete_wizard' ) );
-		add_action( 'wp_ajax_fanfic_wizard_create_tables', array( $this, 'ajax_create_classification_tables' ) );
 
 		// Enqueue wizard assets
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_wizard_assets' ) );
@@ -285,16 +284,12 @@ class Fanfic_Wizard {
 				'nonce'                       => wp_create_nonce( 'fanfic_wizard_nonce' ),
 				'current_step'                => $this->get_current_step(),
 				'total_steps'                 => $this->total_steps,
-				'classification_tables_ready' => Fanfic_Database_Setup::classification_tables_exist(),
 				'strings'                     => array(
 					'error'           => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
 					'saving'          => __( 'Saving...', 'fanfiction-manager' ),
 					'completing'      => __( 'Completing setup...', 'fanfiction-manager' ),
 					'success'         => __( 'Settings saved successfully!', 'fanfiction-manager' ),
 					'complete_setup'  => __( 'Complete Setup', 'fanfiction-manager' ),
-					'creating_tables' => __( 'Creating tables...', 'fanfiction-manager' ),
-					'tables_ready'    => __( 'Tables ready!', 'fanfiction-manager' ),
-					'retry'           => __( 'Retry', 'fanfiction-manager' ),
 				),
 			)
 		);
@@ -1146,53 +1141,6 @@ class Fanfic_Wizard {
 	}
 
 	/**
-	 * AJAX handler – create classification tables on wizard step 1.
-	 *
-	 * Creates the fandoms / warnings / languages tables and seeds their
-	 * default data so they are ready before the user clicks Next.
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public function ajax_create_classification_tables() {
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'fanfic_wizard_nonce' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
-		}
-
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) ) );
-		}
-
-		// If tables already exist, nothing to do – return success immediately.
-		if ( Fanfic_Database_Setup::classification_tables_exist() ) {
-			wp_send_json_success( array( 'message' => __( 'Tables ready.', 'fanfiction-manager' ) ) );
-		}
-
-		$result = Fanfic_Database_Setup::create_classification_tables();
-
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-		}
-
-		// Seed default data into the freshly created tables.
-		if ( class_exists( 'Fanfic_Fandoms' ) ) {
-			Fanfic_Fandoms::maybe_seed_fandoms();
-		}
-		if ( class_exists( 'Fanfic_Warnings' ) ) {
-			Fanfic_Warnings::maybe_seed_warnings();
-		}
-		if ( class_exists( 'Fanfic_Languages' ) ) {
-			Fanfic_Languages::maybe_seed_languages();
-		}
-
-		// Drop the activation-time transient so subsequent page loads no
-		// longer skip classification in maybe_initialize_database().
-		delete_transient( 'fanfic_skip_classification' );
-
-		wp_send_json_success( array( 'message' => __( 'Tables created successfully.', 'fanfiction-manager' ) ) );
-	}
-
-	/**
 	 * AJAX handler for saving wizard steps
 	 *
 	 * @since 1.0.0
@@ -1529,6 +1477,20 @@ class Fanfic_Wizard {
 			error_log( '[Fanfic Wizard Complete] ========== COMMITTING DRAFT TO OPTIONS ==========' );
 			$this->commit_draft( $draft );
 
+			// Ensure classification tables/data are prepared at completion time.
+			// This keeps Step 1 fast and moves heavy work to the final step.
+			error_log( '[Fanfic Wizard Complete] ========== PREPARING CLASSIFICATION TABLES/DATA ==========' );
+			$classification_result = $this->prepare_classification_for_completion( $draft );
+			if ( is_wp_error( $classification_result ) ) {
+				error_log( '[Fanfic Wizard Complete] ERROR: Classification preparation failed - ' . $classification_result->get_error_message() );
+				wp_send_json_error(
+					array(
+						'message' => __( 'Failed to prepare classification data.', 'fanfiction-manager' ),
+						'details' => array( $classification_result->get_error_message() ),
+					)
+				);
+			}
+
 			// Sync homepage settings AFTER committing options
 			error_log( '[Fanfic Wizard Complete] ========== SYNCING HOMEPAGE SETTINGS ==========' );
 			if ( class_exists( 'Fanfic_Homepage_State' ) ) {
@@ -1763,6 +1725,82 @@ class Fanfic_Wizard {
 				),
 			) );
 		}
+	}
+
+	/**
+	 * Create classification tables and seed enabled datasets during wizard completion.
+	 *
+	 * @since 1.0.0
+	 * @param array $draft Wizard draft configuration.
+	 * @return true|WP_Error
+	 */
+	private function prepare_classification_for_completion( $draft ) {
+		if ( ! class_exists( 'Fanfic_Database_Setup' ) ) {
+			return new WP_Error( 'fanfic_missing_db_setup', __( 'Database setup class is unavailable.', 'fanfiction-manager' ) );
+		}
+
+		$step_4 = isset( $draft['step_4'] ) && is_array( $draft['step_4'] ) ? $draft['step_4'] : array();
+
+		$enable_fandoms = array_key_exists( 'enable_fandoms', $step_4 )
+			? (bool) $step_4['enable_fandoms']
+			: ( class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_fandom_classification', true ) : true );
+		$enable_warnings = array_key_exists( 'enable_warnings', $step_4 )
+			? (bool) $step_4['enable_warnings']
+			: ( class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_warnings', true ) : true );
+		$enable_languages = array_key_exists( 'enable_languages', $step_4 )
+			? (bool) $step_4['enable_languages']
+			: ( class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_language_classification', true ) : true );
+
+		error_log(
+			'[Fanfic Wizard Complete] Classification flags: ' . wp_json_encode(
+				array(
+					'enable_fandoms'   => $enable_fandoms,
+					'enable_warnings'  => $enable_warnings,
+					'enable_languages' => $enable_languages,
+				)
+			)
+		);
+
+		if ( ! Fanfic_Database_Setup::classification_tables_exist() ) {
+			error_log( '[Fanfic Wizard Complete] Classification tables missing, creating now...' );
+			$result = Fanfic_Database_Setup::create_classification_tables();
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+			error_log( '[Fanfic Wizard Complete] Classification tables created successfully.' );
+		} else {
+			error_log( '[Fanfic Wizard Complete] Classification tables already exist.' );
+		}
+
+		// Wizard is completing now; allow normal DB bootstrap behavior after this point.
+		delete_transient( 'fanfic_skip_classification' );
+
+		if ( ! Fanfic_Database_Setup::classification_tables_exist() ) {
+			return new WP_Error( 'fanfic_classification_tables_missing', __( 'Classification tables are still missing after creation attempt.', 'fanfiction-manager' ) );
+		}
+
+		if ( $enable_fandoms && class_exists( 'Fanfic_Fandoms' ) ) {
+			error_log( '[Fanfic Wizard Complete] Seeding fandoms (enabled).' );
+			Fanfic_Fandoms::maybe_seed_fandoms();
+		} else {
+			error_log( '[Fanfic Wizard Complete] Skipping fandom seed (disabled).' );
+		}
+
+		if ( $enable_warnings && class_exists( 'Fanfic_Warnings' ) ) {
+			error_log( '[Fanfic Wizard Complete] Seeding warnings (enabled).' );
+			Fanfic_Warnings::maybe_seed_warnings();
+		} else {
+			error_log( '[Fanfic Wizard Complete] Skipping warning seed (disabled).' );
+		}
+
+		if ( $enable_languages && class_exists( 'Fanfic_Languages' ) ) {
+			error_log( '[Fanfic Wizard Complete] Seeding languages (enabled).' );
+			Fanfic_Languages::maybe_seed_languages();
+		} else {
+			error_log( '[Fanfic Wizard Complete] Skipping language seed (disabled).' );
+		}
+
+		return true;
 	}
 
 	/**

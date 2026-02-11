@@ -152,17 +152,7 @@
 
 			$button.prop('disabled', true).html('<span class="spinner is-active" style="float: none; margin: 0 8px 0 0;"></span>' + fanficWizard.strings.saving);
 
-			if (currentStep === 1) {
-				this.createClassificationTables(function() {
-					FanficWizard.saveStep(currentStep, function(response) {
-						if (response.success) {
-							window.location.href = response.data.next_url;
-						} else {
-							$button.prop('disabled', false).text('Next');
-						}
-					});
-				});
-			} else if (currentStep === 2 || currentStep === 3 || currentStep === 4) {
+			if (currentStep === 1 || currentStep === 2 || currentStep === 3 || currentStep === 4) {
 				this.saveStep(currentStep, function(response) {
 					if (response.success) {
 						window.location.href = response.data.next_url;
@@ -456,33 +446,6 @@
 				var pathKey = $input.attr('name').match(/\[([a-z]+)\]/)[1];
 				if (path) {
 					$('.fanfic-path-preview[data-path="' + pathKey + '"]').text(path);
-				}
-			});
-		},
-
-		/**
-		 * Create classification tables via AJAX.
-		 */
-		createClassificationTables: function(callback) {
-			$.ajax({
-				url: fanficWizard.ajax_url,
-				type: 'POST',
-				dataType: 'json',
-				data: {
-					action: 'fanfic_wizard_create_tables',
-					nonce: fanficWizard.nonce
-				},
-				success: function(response) {
-					if (response.success) {
-						callback();
-					} else {
-						FanficWizard.showMessage('error', response.data.message || fanficWizard.strings.error);
-						$('.fanfic-wizard-next').prop('disabled', false).text('Next');
-					}
-				},
-				error: function() {
-					FanficWizard.showMessage('error', fanficWizard.strings.error);
-					$('.fanfic-wizard-next').prop('disabled', false).text('Next');
 				}
 			});
 		},

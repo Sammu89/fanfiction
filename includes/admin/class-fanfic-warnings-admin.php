@@ -187,7 +187,6 @@ class Fanfic_Warnings_Admin {
 								<input type="checkbox" id="cb-select-all">
 							</td>
 							<th scope="col" class="manage-column column-name"><?php esc_html_e( 'Name', 'fanfiction-manager' ); ?></th>
-							<th scope="col" class="manage-column column-slug"><?php esc_html_e( 'Slug', 'fanfiction-manager' ); ?></th>
 							<th scope="col" class="manage-column column-age"><?php esc_html_e( 'Min Age', 'fanfiction-manager' ); ?></th>
 							<th scope="col" class="manage-column column-flags"><?php esc_html_e( 'Flags', 'fanfiction-manager' ); ?></th>
 							<th scope="col" class="manage-column column-status"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
@@ -197,7 +196,7 @@ class Fanfic_Warnings_Admin {
 					<tbody>
 						<?php if ( empty( $warnings ) ) : ?>
 							<tr>
-								<td colspan="7"><?php esc_html_e( 'No warnings found.', 'fanfiction-manager' ); ?></td>
+								<td colspan="6"><?php esc_html_e( 'No warnings found.', 'fanfiction-manager' ); ?></td>
 							</tr>
 						<?php else : ?>
 							<?php foreach ( $warnings as $warning ) : ?>
@@ -224,7 +223,6 @@ class Fanfic_Warnings_Admin {
 											<a href="#" class="fanfic-edit-warning-link"
 												data-id="<?php echo esc_attr( $warning['id'] ); ?>"
 												data-name="<?php echo esc_attr( $warning['name'] ); ?>"
-												data-slug="<?php echo esc_attr( $warning['slug'] ); ?>"
 												data-min-age="<?php echo esc_attr( $warning['min_age'] ); ?>"
 												data-description="<?php echo esc_attr( $warning['description'] ); ?>"
 												data-is-sexual="<?php echo esc_attr( $is_sexual ? '1' : '0' ); ?>"
@@ -239,7 +237,6 @@ class Fanfic_Warnings_Admin {
 											<p class="description" style="margin: 5px 0 0;"><?php echo esc_html( $warning['description'] ); ?></p>
 										<?php endif; ?>
 									</td>
-									<td class="column-slug"><code><?php echo esc_html( $warning['slug'] ); ?></code></td>
 									<td class="column-age">
 										<span class="fanfic-age-badge <?php echo esc_attr( $age_badge_class ); ?>">
 											<?php echo esc_html( $age_badge_label ); ?>
@@ -316,12 +313,6 @@ class Fanfic_Warnings_Admin {
 					</p>
 
 					<p>
-						<label for="fanfic-add-warning-slug"><?php esc_html_e( 'Slug', 'fanfiction-manager' ); ?></label>
-						<input type="text" id="fanfic-add-warning-slug" name="warning_slug" class="regular-text">
-						<span class="description"><?php esc_html_e( 'Leave blank to auto-generate from name.', 'fanfiction-manager' ); ?></span>
-					</p>
-
-					<p>
 						<label for="fanfic-add-warning-age"><?php esc_html_e( 'Minimum Age', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
 						<input type="number" id="fanfic-add-warning-age" name="warning_min_age" class="regular-text" min="3" max="99" step="1" list="fanfic-warning-age-options" required>
 					</p>
@@ -368,11 +359,6 @@ class Fanfic_Warnings_Admin {
 					<p>
 						<label for="fanfic-edit-warning-name"><?php esc_html_e( 'Name', 'fanfiction-manager' ); ?> <span class="required">*</span></label>
 						<input type="text" id="fanfic-edit-warning-name" name="warning_name" class="regular-text" required>
-					</p>
-
-					<p>
-						<label for="fanfic-edit-warning-slug"><?php esc_html_e( 'Slug', 'fanfiction-manager' ); ?></label>
-						<input type="text" id="fanfic-edit-warning-slug" name="warning_slug" class="regular-text">
 					</p>
 
 					<p>
@@ -574,7 +560,6 @@ class Fanfic_Warnings_Admin {
 
 				$('#fanfic-edit-warning-id').val($dataLink.data('id'));
 				$('#fanfic-edit-warning-name').val($dataLink.data('name'));
-				$('#fanfic-edit-warning-slug').val($dataLink.data('slug'));
 				$('#fanfic-edit-warning-age').val($dataLink.data('min-age'));
 				$('#fanfic-edit-warning-description').val($dataLink.data('description'));
 				$('#fanfic-edit-warning-sexual').prop('checked', $dataLink.data('is-sexual') == '1');
@@ -758,7 +743,6 @@ class Fanfic_Warnings_Admin {
 		self::check_admin_nonce( 'fanfic_add_warning', 'fanfic_add_warning_nonce' );
 
 		$name = isset( $_POST['warning_name'] ) ? sanitize_text_field( wp_unslash( $_POST['warning_name'] ) ) : '';
-		$slug = isset( $_POST['warning_slug'] ) ? sanitize_title( wp_unslash( $_POST['warning_slug'] ) ) : '';
 		$min_age = isset( $_POST['warning_min_age'] ) ? Fanfic_Warnings::sanitize_age_label( wp_unslash( $_POST['warning_min_age'] ) ) : '';
 		$description = isset( $_POST['warning_description'] ) ? sanitize_textarea_field( wp_unslash( $_POST['warning_description'] ) ) : '';
 		$is_sexual = isset( $_POST['warning_is_sexual'] ) ? 1 : 0;
@@ -768,12 +752,8 @@ class Fanfic_Warnings_Admin {
 			self::redirect_with_message( 'error', 'missing_fields' );
 		}
 
-		// Generate slug if empty
-		if ( '' === $slug ) {
-			$slug = sanitize_title( $name );
-		}
-
-		// Ensure unique slug
+		// Slug is generated automatically from the warning name.
+		$slug = sanitize_title( $name );
 		$slug = self::ensure_unique_slug( $slug );
 
 		global $wpdb;
@@ -815,7 +795,6 @@ class Fanfic_Warnings_Admin {
 		self::check_admin_nonce( 'fanfic_update_warning_' . $warning_id, 'fanfic_update_warning_nonce' );
 
 		$name = isset( $_POST['warning_name'] ) ? sanitize_text_field( wp_unslash( $_POST['warning_name'] ) ) : '';
-		$slug = isset( $_POST['warning_slug'] ) ? sanitize_title( wp_unslash( $_POST['warning_slug'] ) ) : '';
 		$min_age = isset( $_POST['warning_min_age'] ) ? Fanfic_Warnings::sanitize_age_label( wp_unslash( $_POST['warning_min_age'] ) ) : '';
 		$description = isset( $_POST['warning_description'] ) ? sanitize_textarea_field( wp_unslash( $_POST['warning_description'] ) ) : '';
 		$is_sexual = isset( $_POST['warning_is_sexual'] ) ? 1 : 0;
@@ -825,14 +804,6 @@ class Fanfic_Warnings_Admin {
 		if ( ! $warning_id || '' === $name || '' === $min_age ) {
 			self::redirect_with_message( 'error', 'missing_fields' );
 		}
-
-		// Generate slug if empty
-		if ( '' === $slug ) {
-			$slug = sanitize_title( $name );
-		}
-
-		// Ensure unique slug (excluding current warning)
-		$slug = self::ensure_unique_slug( $slug, $warning_id );
 
 		global $wpdb;
 		$table = $wpdb->prefix . 'fanfic_warnings';
@@ -844,7 +815,6 @@ class Fanfic_Warnings_Admin {
 		$wpdb->update(
 			$table,
 			array(
-				'slug'           => $slug,
 				'name'           => $name,
 				'min_age'        => (int) $min_age,
 				'description'    => $description,
@@ -853,7 +823,7 @@ class Fanfic_Warnings_Admin {
 				'enabled'        => $enabled,
 			),
 			array( 'id' => $warning_id ),
-			array( '%s', '%s', '%d', '%s', '%d', '%d', '%d' ),
+			array( '%s', '%d', '%s', '%d', '%d', '%d' ),
 			array( '%d' )
 		);
 
