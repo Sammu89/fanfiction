@@ -12,7 +12,7 @@ Redesign the entire interaction system (views, likes, loves, thumbs up/down, rat
 * Is consistent with the existing "no IP storage" philosophy
 * Is extensible for future metrics without schema redesign
 
-This document replaces the current session-based view system and fragmented rating/like handling.
+This document defines the unified view and interaction system architecture.
 
 ---
 
@@ -277,8 +277,8 @@ Phase 1 — Schema creation
 
 Phase 2 — Write path refactor
 
-* Replace session-based view logic
-* Replace legacy rating storage
+* Consolidate all view writes into one deterministic chapter-view path
+* Consolidate ratings/likes into the unified interaction model
 * Centralize through RankingService
 
 Phase 3 — Read path cleanup
@@ -305,7 +305,7 @@ All operations indexed and O(1).
 
 The AI agent must:
 
-* Remove session-based view dedupe.
+* Enforce deterministic daily view dedupe in indexed tables.
 * Implement atomic SQL updates.
 * Ensure ISO-week (Monday) resets.
 * Centralize all ranking counters in search index tables.

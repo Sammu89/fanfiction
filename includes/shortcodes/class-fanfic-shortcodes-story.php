@@ -580,23 +580,7 @@ class Fanfic_Shortcodes_Story {
 		$total_views = Fanfic_Cache::get(
 			$cache_key,
 			function() use ( $story_id ) {
-				// Get all chapters
-				$chapters = get_posts( array(
-					'post_type'      => 'fanfiction_chapter',
-					'post_parent'    => $story_id,
-					'post_status'    => 'publish',
-					'posts_per_page' => -1,
-					'fields'         => 'ids',
-				) );
-
-				$total_views = 0;
-
-				foreach ( $chapters as $chapter_id ) {
-					$views = get_post_meta( $chapter_id, 'fanfic_views', true );
-					$total_views += absint( $views );
-				}
-
-				return $total_views;
+				return class_exists( 'Fanfic_Interactions' ) ? Fanfic_Interactions::get_story_views( $story_id ) : 0;
 			},
 			Fanfic_Cache::SHORT
 		);

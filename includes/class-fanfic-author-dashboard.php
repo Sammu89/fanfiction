@@ -1039,9 +1039,8 @@ class Fanfic_Author_Dashboard {
 			);
 			$total_chapters += count( $chapters );
 
-			// Get total views for this story
-			$story_views = get_post_meta( $story_id, '_fanfic_view_count', true );
-			$total_views += $story_views ? absint( $story_views ) : 0;
+			// Get total views from unified interactions index.
+			$total_views += class_exists( 'Fanfic_Interactions' ) ? Fanfic_Interactions::get_story_views( $story_id ) : 0;
 		}
 
 		// Get recent activity (last 5 published chapters)

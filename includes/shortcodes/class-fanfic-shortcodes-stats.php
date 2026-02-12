@@ -93,7 +93,7 @@ class Fanfic_Shortcodes_Stats {
 			return '';
 		}
 
-		$rating_data = Fanfic_Rating_System::get_story_rating( $story_id );
+		$rating_data = Fanfic_Interactions::get_story_rating( $story_id );
 
 		if ( ! $rating_data || $rating_data->total_votes === 0 ) {
 			return '<div class="fanfic-story-rating-display fanfic-no-ratings"><p>' . esc_html__( 'No ratings yet', 'fanfiction-manager' ) . '</p></div>';
@@ -103,7 +103,7 @@ class Fanfic_Shortcodes_Stats {
 		$count = $rating_data->total_votes;
 
 		$output = '<div class="fanfic-story-rating-display">';
-		$output .= Fanfic_Rating_System::get_stars_html( $rating, false, $atts['size'] );
+		$output .= Fanfic_Interactions::get_stars_html( $rating, false, $atts['size'] );
 		$output .= '<div class="fanfic-rating-info">';
 		$output .= '<span class="fanfic-rating-average">' . esc_html( number_format_i18n( $rating, 1 ) ) . '</span>';
 		$output .= '<span class="fanfic-rating-count">';
@@ -122,7 +122,7 @@ class Fanfic_Shortcodes_Stats {
 	/**
 	 * Top rated stories shortcode
 	 *
-	 * [top-rated-stories limit="10" min_ratings="5"]
+	 * [top-rated-stories limit="10" min_ratings="5" period="total"]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
@@ -134,11 +134,16 @@ class Fanfic_Shortcodes_Stats {
 			array(
 				'limit'       => 10,
 				'min_ratings' => 5,
+				'period'      => 'total',
 			),
 			'top-rated-stories'
 		);
 
-		$stories = Fanfic_Rating_System::get_top_rated_stories( absint( $atts['limit'] ), absint( $atts['min_ratings'] ) );
+		$stories = Fanfic_Interactions::get_top_rated_stories(
+			absint( $atts['limit'] ),
+			absint( $atts['min_ratings'] ),
+			sanitize_key( $atts['period'] )
+		);
 
 		if ( empty( $stories ) ) {
 			return '<div class="fanfic-top-rated fanfic-empty-state"><p>' . esc_html__( 'No rated stories found.', 'fanfiction-manager' ) . '</p></div>';
@@ -185,7 +190,7 @@ class Fanfic_Shortcodes_Stats {
 			'recently-rated-stories'
 		);
 
-		$story_ids = Fanfic_Rating_System::get_recently_rated_stories( absint( $atts['limit'] ) );
+		$story_ids = Fanfic_Interactions::get_recently_rated_stories( absint( $atts['limit'] ) );
 
 		if ( empty( $story_ids ) ) {
 			return '<div class="fanfic-recently-rated fanfic-empty-state"><p>' . esc_html__( 'No recently rated stories.', 'fanfiction-manager' ) . '</p></div>';
@@ -201,7 +206,7 @@ class Fanfic_Shortcodes_Stats {
 				continue;
 			}
 
-			$rating_data = Fanfic_Rating_System::get_story_rating( $story_id );
+			$rating_data = Fanfic_Interactions::get_story_rating( $story_id );
 			$rating = $rating_data ? $rating_data->average_rating : 0;
 			$count = $rating_data ? $rating_data->total_votes : 0;
 
@@ -678,7 +683,7 @@ class Fanfic_Shortcodes_Stats {
 			return '';
 		}
 
-		$count = Fanfic_Views::get_story_views( $story_id );
+		$count = Fanfic_Interactions::get_story_views( $story_id );
 
 		return sprintf(
 			'<span class="fanfic-view-count">%s %s</span>',
@@ -715,7 +720,7 @@ class Fanfic_Shortcodes_Stats {
 			return '';
 		}
 
-		$count = Fanfic_Views::get_chapter_views( $chapter_id );
+		$count = Fanfic_Interactions::get_chapter_views( $chapter_id );
 
 		return sprintf(
 			'<span class="fanfic-view-count">%s %s</span>',
@@ -727,7 +732,7 @@ class Fanfic_Shortcodes_Stats {
 	/**
 	 * Most viewed stories shortcode
 	 *
-	 * [most-viewed-stories limit="10" min_views="100"]
+	 * [most-viewed-stories limit="10" min_views="100" period="total"]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
@@ -739,11 +744,20 @@ class Fanfic_Shortcodes_Stats {
 			array(
 				'limit'     => 10,
 				'min_views' => 1,
+				'period'    => 'total',
 			),
 			'most-viewed-stories'
 		);
 
-		$stories = Fanfic_Views::get_most_viewed_stories( absint( $atts['limit'] ), absint( $atts['min_views'] ) );
+		$stories = Fanfic_Interactions::get_most_viewed_stories( absint( $atts['limit'] ), sanitize_key( $atts['period'] ) );
+		$stories = array_values(
+			array_filter(
+				(array) $stories,
+				function( $story_data ) use ( $atts ) {
+					return isset( $story_data['views'] ) && absint( $story_data['views'] ) >= absint( $atts['min_views'] );
+				}
+			)
+		);
 
 		if ( empty( $stories ) ) {
 			return '<div class="fanfic-most-viewed fanfic-empty-state"><p>' . esc_html__( 'No viewed stories found.', 'fanfiction-manager' ) . '</p></div>';
@@ -774,7 +788,7 @@ class Fanfic_Shortcodes_Stats {
 	/**
 	 * Trending stories shortcode
 	 *
-	 * [trending-stories limit="10"]
+	 * [trending-stories limit="10" period="week"]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
@@ -784,12 +798,13 @@ class Fanfic_Shortcodes_Stats {
 		$atts = Fanfic_Shortcodes::sanitize_atts(
 			$atts,
 			array(
-				'limit' => 10,
+				'limit'  => 10,
+				'period' => 'week',
 			),
 			'trending-stories'
 		);
 
-		$story_ids = Fanfic_Views::get_trending_stories( absint( $atts['limit'] ) );
+		$story_ids = Fanfic_Interactions::get_trending_stories( absint( $atts['limit'] ), sanitize_key( $atts['period'] ) );
 
 		if ( empty( $story_ids ) ) {
 			return '<div class="fanfic-trending fanfic-empty-state"><p>' . esc_html__( 'No trending stories found.', 'fanfiction-manager' ) . '</p></div>';
@@ -805,7 +820,7 @@ class Fanfic_Shortcodes_Stats {
 				continue;
 			}
 
-			$views = Fanfic_Views::get_story_views( $story_id );
+			$views = Fanfic_Interactions::get_story_views( $story_id );
 			$output .= self::render_story_card( $story, null, null, null, $views );
 		}
 
@@ -882,7 +897,7 @@ class Fanfic_Shortcodes_Stats {
 
 				$total_views = 0;
 				foreach ( $stories as $story_id ) {
-					$total_views += Fanfic_Views::get_story_views( $story_id );
+					$total_views += Fanfic_Interactions::get_story_views( $story_id );
 				}
 
 				// Return all stats as an object
@@ -957,7 +972,7 @@ class Fanfic_Shortcodes_Stats {
 
 		if ( null !== $rating ) {
 			$output .= '<span class="fanfic-meta-item">';
-			$output .= Fanfic_Rating_System::get_stars_html( $rating, false, 'small' );
+			$output .= Fanfic_Interactions::get_stars_html( $rating, false, 'small' );
 			$output .= ' ' . esc_html( number_format_i18n( $rating, 1 ) );
 			if ( null !== $rating_count ) {
 				$output .= ' (' . esc_html( number_format_i18n( $rating_count ) ) . ')';
@@ -1040,7 +1055,7 @@ class Fanfic_Shortcodes_Stats {
 
 		if ( null !== $rating ) {
 			$output .= '<span class="fanfic-meta-item">';
-			$output .= Fanfic_Rating_System::get_stars_html( $rating, false, 'small' );
+			$output .= Fanfic_Interactions::get_stars_html( $rating, false, 'small' );
 			$output .= ' ' . esc_html( number_format_i18n( $rating, 1 ) );
 			if ( null !== $rating_count ) {
 				$output .= ' (' . esc_html( number_format_i18n( $rating_count ) ) . ')';
@@ -1209,7 +1224,7 @@ class Fanfic_Shortcodes_Stats {
 		}
 
 		// Get like count from Like System
-		$count = Fanfic_Like_System::get_story_likes( $story_id );
+		$count = Fanfic_Interactions::get_story_likes( $story_id );
 
 		// Return empty string if no likes
 		if ( $count === 0 ) {
@@ -1243,7 +1258,7 @@ class Fanfic_Shortcodes_Stats {
 		}
 
 		// Get rating data from Rating System
-		$rating_data = Fanfic_Rating_System::get_story_rating( $story_id );
+		$rating_data = Fanfic_Interactions::get_story_rating( $story_id );
 
 		// Return "Not rated" if no ratings
 		if ( ! $rating_data || $rating_data->total_votes === 0 ) {

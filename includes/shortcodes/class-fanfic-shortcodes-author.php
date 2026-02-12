@@ -389,9 +389,8 @@ class Fanfic_Shortcodes_Author {
 				$total_views = 0;
 
 				foreach ( $stories as $story_id ) {
-					// Use Fanfic_Views class to get story views (which sums chapter views)
-					if ( class_exists( 'Fanfic_Views' ) ) {
-						$total_views += Fanfic_Views::get_story_views( $story_id );
+					if ( class_exists( 'Fanfic_Interactions' ) ) {
+						$total_views += Fanfic_Interactions::get_story_views( $story_id );
 					}
 				}
 
@@ -1125,9 +1124,8 @@ class Fanfic_Shortcodes_Author {
 				$total_views = 0;
 
 				foreach ( $stories as $story_id ) {
-					// Use Fanfic_Views class to get story views (which sums chapter views)
-					if ( class_exists( 'Fanfic_Views' ) ) {
-						$total_views += Fanfic_Views::get_story_views( $story_id );
+					if ( class_exists( 'Fanfic_Interactions' ) ) {
+						$total_views += Fanfic_Interactions::get_story_views( $story_id );
 					}
 				}
 

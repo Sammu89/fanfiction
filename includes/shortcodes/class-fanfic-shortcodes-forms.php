@@ -409,8 +409,8 @@ class Fanfic_Shortcodes_Forms {
 			return '';
 		}
 
-		// Get story rating data from new rating system
-		$rating_data = Fanfic_Rating_System::get_story_rating( $story_id );
+		// Get story rating data from unified interactions system.
+		$rating_data = Fanfic_Interactions::get_story_rating( $story_id );
 
 		if ( ! $rating_data || $rating_data->total_votes === 0 ) {
 			return '';
@@ -422,17 +422,7 @@ class Fanfic_Shortcodes_Forms {
 		ob_start();
 		?>
 		<div class="fanfic-story-rating" aria-label="<?php esc_attr_e( 'Story rating', 'fanfiction-manager' ); ?>">
-			<div class="fanfic-rating-stars fanfic-rating-readonly" data-rating="<?php echo esc_attr( $avg_rating ); ?>">
-				<?php for ( $i = 1; $i <= 5; $i++ ) : ?>
-					<?php
-					$star_class = 'fanfic-star';
-					if ( $i <= floor( $avg_rating ) ) {
-						$star_class .= ' active';
-					}
-					?>
-					<span class="<?php echo esc_attr( $star_class ); ?>" data-value="<?php echo esc_attr( $i ); ?>" aria-hidden="true">&#9734;</span>
-				<?php endfor; ?>
-			</div>
+			<?php echo Fanfic_Interactions::get_stars_html( $avg_rating, false, 'medium' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			<div class="fanfic-rating-info">
 				<span class="fanfic-rating-average"><?php echo esc_html( number_format_i18n( $avg_rating, 1 ) ); ?></span>
 				<span class="fanfic-rating-count">
@@ -468,20 +458,16 @@ class Fanfic_Shortcodes_Forms {
 			return '';
 		}
 
-		// Get chapter rating data from new rating system
-		$rating_data = Fanfic_Rating_System::get_chapter_rating_stats( $chapter_id );
-
-		$avg_rating = $rating_data ? $rating_data->average_rating : 0;
-		$total_ratings = $rating_data ? $rating_data->total_votes : 0;
+		$chapter = get_post( $chapter_id );
+		$story_id = $chapter ? absint( $chapter->post_parent ) : 0;
+		$rating_stats = Fanfic_Interactions::get_chapter_stats( $chapter_id );
+		$avg_rating = isset( $rating_stats['rating_avg'] ) ? floatval( $rating_stats['rating_avg'] ) : 0.0;
+		$total_ratings = isset( $rating_stats['rating_count'] ) ? absint( $rating_stats['rating_count'] ) : 0;
 
 		ob_start();
 		?>
-		<div class="fanfic-rating-widget" data-chapter-id="<?php echo esc_attr( $chapter_id ); ?>">
-			<div class="fanfic-rating-stars">
-				<?php for ( $i = 1; $i <= 5; $i++ ) : ?>
-					<span class="fanfic-star star" data-rating="<?php echo esc_attr( $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( '%d stars', 'fanfiction-manager' ), $i ) ); ?>">&#9734;</span>
-				<?php endfor; ?>
-			</div>
+		<div class="fanfic-rating-widget" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-chapter-id="<?php echo esc_attr( $chapter_id ); ?>">
+			<?php echo Fanfic_Interactions::get_stars_html( $avg_rating, true, 'medium' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			<div class="fanfic-rating-info">
 				<span class="fanfic-rating-average"><?php echo esc_html( number_format_i18n( $avg_rating, 1 ) ); ?></span>
 				<span class="fanfic-rating-count">

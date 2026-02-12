@@ -530,8 +530,6 @@ class Fanfic_Story_Handler {
 				set_post_thumbnail( $new_story_id, $image_attachment_id );
 			}
 
-			// Initialize view count
-			update_post_meta( $new_story_id, '_fanfic_views', 0 );
 			$coauthor_sync = self::sync_story_coauthors( $new_story_id, $current_user->ID, $coauthor_ids );
 			if ( ! empty( $coauthor_sync['errors'] ) && ! $is_ajax ) {
 				Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
@@ -975,8 +973,6 @@ class Fanfic_Story_Handler {
 			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 
-		// Initialize view count
-		update_post_meta( $story_id, '_fanfic_views', 0 );
 		$coauthor_sync = self::sync_story_coauthors( $story_id, $current_user->ID, $coauthor_ids );
 		if ( ! empty( $coauthor_sync['errors'] ) ) {
 			Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
@@ -1288,8 +1284,6 @@ class Fanfic_Story_Handler {
 			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 
-		// Initialize view count
-		update_post_meta( $story_id, '_fanfic_views', 0 );
 		$coauthor_sync = self::sync_story_coauthors( $story_id, $current_user->ID, $coauthor_ids );
 
 		// Build redirect URL to story permalink with action=add-chapter

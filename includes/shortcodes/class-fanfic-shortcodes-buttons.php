@@ -118,6 +118,7 @@ class Fanfic_Shortcodes_Buttons {
 	 */
 	private static function get_context_actions( $context ) {
 		$enable_likes = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_likes', true ) : true;
+		$enable_dislikes = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_dislikes', false ) : false;
 		$enable_subscribe = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_subscribe', true ) : true;
 		$enable_share = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_share', true ) : true;
 		$enable_report = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_report', true ) : true;
@@ -130,7 +131,7 @@ class Fanfic_Shortcodes_Buttons {
 				break;
 
 			case 'chapter':
-				$actions = array( 'follow', 'like', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
+				$actions = array( 'follow', 'like', 'dislike', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
 				break;
 
 			case 'author':
@@ -141,6 +142,9 @@ class Fanfic_Shortcodes_Buttons {
 		// Apply settings toggles.
 		if ( ! $enable_likes ) {
 			$actions = array_diff( $actions, array( 'like' ) );
+		}
+		if ( ! $enable_dislikes ) {
+			$actions = array_diff( $actions, array( 'dislike' ) );
 		}
 		if ( ! $enable_subscribe ) {
 			$actions = array_diff( $actions, array( 'subscribe' ) );
@@ -324,7 +328,7 @@ class Fanfic_Shortcodes_Buttons {
 
 		// Add count display for like button
 		if ( 'like' === $action && isset( $context_ids['chapter_id'] ) ) {
-			$like_count = Fanfic_Like_System::get_chapter_likes( $context_ids['chapter_id'] );
+			$like_count = Fanfic_Interactions::get_chapter_likes( $context_ids['chapter_id'] );
 			$output .= ' <span class="fanfic-button-count like-count">(' . absint( $like_count ) . ')</span>';
 		}
 
@@ -368,10 +372,8 @@ class Fanfic_Shortcodes_Buttons {
 				return false;
 
 			case 'like':
-				if ( isset( $context_ids['chapter_id'] ) ) {
-					// Fanfic_Like_System::user_has_liked( $chapter_id, $user_id )
-					return Fanfic_Like_System::user_has_liked( $context_ids['chapter_id'], $user_id );
-				}
+			case 'dislike':
+				// Unified interactions use localStorage as initial UI source-of-truth.
 				return false;
 
 			case 'mark-read':
@@ -449,6 +451,10 @@ class Fanfic_Shortcodes_Buttons {
 				'inactive' => __( 'Like', 'fanfiction-manager' ),
 				'active'   => __( 'Liked', 'fanfiction-manager' ),
 			),
+			'dislike' => array(
+				'inactive' => __( 'Dislike', 'fanfiction-manager' ),
+				'active'   => __( 'Disliked', 'fanfiction-manager' ),
+			),
 			'mark-read' => array(
 				'inactive' => __( 'Mark as Read', 'fanfiction-manager' ),
 				'active'   => __( 'Read', 'fanfiction-manager' ),
@@ -496,6 +502,10 @@ class Fanfic_Shortcodes_Buttons {
 			'like' => array(
 				'inactive' => '&#9829;', // Heart outline
 				'active'   => '&#9829;', // Heart filled
+			),
+			'dislike' => array(
+				'inactive' => '&#128078;', // Thumbs down
+				'active'   => '&#128078;', // Thumbs down
 			),
 			'mark-read' => array(
 				'inactive' => '&#128214;', // Book
@@ -554,6 +564,10 @@ class Fanfic_Shortcodes_Buttons {
 				'inactive' => sprintf( __( 'Like this %s', 'fanfiction-manager' ), $object_type ),
 				'active'   => sprintf( __( 'Unlike this %s', 'fanfiction-manager' ), $object_type ),
 			),
+			'dislike' => array(
+				'inactive' => sprintf( __( 'Dislike this %s', 'fanfiction-manager' ), $object_type ),
+				'active'   => sprintf( __( 'Remove dislike from this %s', 'fanfiction-manager' ), $object_type ),
+			),
 			'mark-read' => array(
 				'inactive' => __( 'Mark this chapter as read', 'fanfiction-manager' ),
 				'active'   => __( 'Chapter marked as read', 'fanfiction-manager' ),
@@ -588,6 +602,7 @@ class Fanfic_Shortcodes_Buttons {
 	private static function get_text_class_for_action( $action ) {
 		$text_classes = array(
 			'like'      => 'like-text',
+			'dislike'   => 'dislike-text',
 			'bookmark'  => 'bookmark-text',
 			'follow'    => 'follow-text',
 			'mark-read' => 'read-text',
@@ -611,6 +626,10 @@ class Fanfic_Shortcodes_Buttons {
 			'like' => array(
 				'inactive' => 'like-text',
 				'active'   => 'liked-text',
+			),
+			'dislike' => array(
+				'inactive' => 'dislike-text',
+				'active'   => 'disliked-text',
 			),
 			'bookmark' => array(
 				'inactive' => 'bookmark-text',

@@ -23,60 +23,14 @@ define( 'FANFIC_CACHE_1_HOUR', HOUR_IN_SECONDS );
 define( 'FANFIC_CACHE_6_HOURS', 6 * HOUR_IN_SECONDS );
 
 /**
- * Get cached story view count (sum of all chapter views)
- *
- * Retrieves the total view count for a story by summing all chapter views.
- * View counts are cached for 5 minutes to reduce database queries while
- * remaining relatively accurate.
+ * Get cached story view count from unified views index.
  *
  * @since 1.0.0
  * @param int $story_id Story post ID.
  * @return int Total view count, 0 if no views or on error.
  */
 function ffm_get_story_views( $story_id ) {
-	$story_id = absint( $story_id );
-
-	if ( ! $story_id ) {
-		return 0;
-	}
-
-	// Try to get from transient cache
-	$cache_key = 'fanfic_story_views_' . $story_id;
-	$cached = get_transient( $cache_key );
-
-	if ( false !== $cached ) {
-		return absint( $cached );
-	}
-
-	// Get all published chapters for this story
-	$chapters = get_posts(
-		array(
-			'post_type'      => 'fanfiction_chapter',
-			'post_parent'    => $story_id,
-			'post_status'    => 'publish',
-			'posts_per_page' => -1,
-			'fields'         => 'ids',
-			'no_found_rows'  => true,
-		)
-	);
-
-	if ( empty( $chapters ) ) {
-		set_transient( $cache_key, 0, FANFIC_CACHE_5_MINUTES );
-		return 0;
-	}
-
-	$total_views = 0;
-
-	// Sum up views from all chapters
-	foreach ( $chapters as $chapter_id ) {
-		$chapter_views = absint( get_post_meta( $chapter_id, '_fanfic_views', true ) );
-		$total_views  += $chapter_views;
-	}
-
-	// Cache for 5 minutes
-	set_transient( $cache_key, $total_views, FANFIC_CACHE_5_MINUTES );
-
-	return $total_views;
+	return class_exists( 'Fanfic_Interactions' ) ? Fanfic_Interactions::get_story_views( $story_id ) : 0;
 }
 
 /**
@@ -248,22 +202,11 @@ function ffm_get_story_rating( $story_id ) {
 		return floatval( $cached );
 	}
 
-	global $wpdb;
-
-	// Get average rating across all chapters
-	$avg_rating = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT AVG(r.rating)
-			FROM {$wpdb->prefix}fanfic_ratings r
-			INNER JOIN {$wpdb->posts} p ON r.chapter_id = p.ID
-			WHERE p.post_parent = %d
-			AND p.post_type = 'fanfiction_chapter'
-			AND p.post_status = 'publish'",
-			$story_id
-		)
-	);
-
-	$avg_rating = $avg_rating ? floatval( $avg_rating ) : 0.0;
+	$avg_rating = 0.0;
+	if ( class_exists( 'Fanfic_Interactions' ) ) {
+		$rating_data = Fanfic_Interactions::get_story_rating( $story_id );
+		$avg_rating  = $rating_data ? floatval( $rating_data->average_rating ) : 0.0;
+	}
 
 	// Cache for 5 minutes
 	set_transient( $cache_key, $avg_rating, FANFIC_CACHE_5_MINUTES );
@@ -469,35 +412,14 @@ function ffm_get_stories_by_status( $status_id, $page = 1, $per_page = 10 ) {
 /**
  * Get cached chapter views
  *
- * Returns view count for a specific chapter.
- * Cached for 5 minutes to balance accuracy and performance.
+ * Returns view count for a specific chapter from the unified index.
  *
  * @since 1.0.0
  * @param int $chapter_id Chapter post ID.
  * @return int View count, 0 if no views or on error.
  */
 function ffm_get_chapter_views( $chapter_id ) {
-	$chapter_id = absint( $chapter_id );
-
-	if ( ! $chapter_id ) {
-		return 0;
-	}
-
-	// Try to get from transient cache
-	$cache_key = 'fanfic_chapter_views_' . $chapter_id;
-	$cached    = get_transient( $cache_key );
-
-	if ( false !== $cached ) {
-		return absint( $cached );
-	}
-
-	// Get views from post meta
-	$views = absint( get_post_meta( $chapter_id, '_fanfic_views', true ) );
-
-	// Cache for 5 minutes
-	set_transient( $cache_key, $views, FANFIC_CACHE_5_MINUTES );
-
-	return $views;
+	return class_exists( 'Fanfic_Interactions' ) ? Fanfic_Interactions::get_chapter_views( $chapter_id ) : 0;
 }
 
 /**
@@ -525,19 +447,11 @@ function ffm_get_chapter_rating( $chapter_id ) {
 		return floatval( $cached );
 	}
 
-	global $wpdb;
-
-	// Get average rating for this chapter
-	$avg_rating = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT AVG(rating)
-			FROM {$wpdb->prefix}fanfic_ratings
-			WHERE chapter_id = %d",
-			$chapter_id
-		)
-	);
-
-	$avg_rating = $avg_rating ? floatval( $avg_rating ) : 0.0;
+	$avg_rating = 0.0;
+	if ( class_exists( 'Fanfic_Interactions' ) ) {
+		$stats      = Fanfic_Interactions::get_chapter_stats( $chapter_id );
+		$avg_rating = isset( $stats['rating_avg'] ) ? floatval( $stats['rating_avg'] ) : 0.0;
+	}
 
 	// Cache for 5 minutes
 	set_transient( $cache_key, $avg_rating, FANFIC_CACHE_5_MINUTES );

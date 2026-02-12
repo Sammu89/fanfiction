@@ -728,6 +728,9 @@ class Fanfic_Wizard {
 		$enable_coauthors = array_key_exists( 'enable_coauthors', $step_4 )
 			? (bool) $step_4['enable_coauthors']
 			: true;
+		$enable_dislikes = array_key_exists( 'enable_dislikes', $step_4 )
+			? (bool) $step_4['enable_dislikes']
+			: ( isset( $settings['enable_dislikes'] ) ? (bool) $settings['enable_dislikes'] : false );
 		$create_samples = array_key_exists( 'create_samples', $step_4 )
 			? (bool) $step_4['create_samples']
 			: true;
@@ -826,6 +829,18 @@ class Fanfic_Wizard {
 							<?php esc_html_e( 'Enable co-author functionality', 'fanfiction-manager' ); ?>
 						</label>
 						<p class="description"><?php esc_html_e( 'Allow authors to invite co-authors to collaborate on stories.', 'fanfiction-manager' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="fanfic_wizard_enable_dislikes"><?php esc_html_e( 'Dislikes', 'fanfiction-manager' ); ?></label>
+					</th>
+					<td>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_enable_dislikes" name="fanfic_enable_dislikes" value="1" <?php checked( $enable_dislikes, true ); ?>>
+							<?php esc_html_e( 'Enable dislike interactions', 'fanfiction-manager' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Adds a dislike action for chapters. Likes and dislikes are mutually exclusive.', 'fanfiction-manager' ); ?></p>
 					</td>
 				</tr>
 				<tr>
@@ -1065,6 +1080,16 @@ class Fanfic_Wizard {
 						<td>
 							<?php
 							echo isset( $step_4['enable_coauthors'] ) && $step_4['enable_coauthors']
+								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
+								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
+							?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Dislikes', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							echo isset( $step_4['enable_dislikes'] ) && $step_4['enable_dislikes']
 								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
 								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
 							?>
@@ -1447,6 +1472,7 @@ class Fanfic_Wizard {
 		$step_data['enable_warnings'] = isset( $_POST['fanfic_enable_warnings'] ) && '1' === $_POST['fanfic_enable_warnings'];
 		$step_data['enable_languages'] = isset( $_POST['fanfic_enable_language_classification'] ) && '1' === $_POST['fanfic_enable_language_classification'];
 		$step_data['enable_coauthors'] = isset( $_POST['fanfic_enable_coauthors'] ) && '1' === $_POST['fanfic_enable_coauthors'];
+		$step_data['enable_dislikes'] = isset( $_POST['fanfic_enable_dislikes'] ) && '1' === $_POST['fanfic_enable_dislikes'];
 		$step_data['allow_sexual'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_sexual_content'] ) && '1' === $_POST['fanfic_allow_sexual_content'];
 		$step_data['allow_pornographic'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_pornographic_content'] ) && '1' === $_POST['fanfic_allow_pornographic_content'];
 
@@ -2032,6 +2058,14 @@ class Fanfic_Wizard {
 				error_log( sprintf(
 					'[Fanfic Wizard Commit] enable_coauthors → %s',
 					$step_4['enable_coauthors'] ? 'true' : 'false'
+				) );
+			}
+
+			if ( isset( $step_4['enable_dislikes'] ) ) {
+				Fanfic_Settings::update_setting( 'enable_dislikes', $step_4['enable_dislikes'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] enable_dislikes → %s',
+					$step_4['enable_dislikes'] ? 'true' : 'false'
 				) );
 			}
 

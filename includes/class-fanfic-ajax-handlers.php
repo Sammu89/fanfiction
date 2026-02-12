@@ -39,28 +39,6 @@ class Fanfic_AJAX_Handlers {
 	 * @return void
 	 */
 	public static function init() {
-		// Rating endpoints (public + authenticated)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_submit_rating',
-			array( __CLASS__, 'ajax_submit_rating' ),
-			false, // Allow anonymous
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
-		// Like endpoints (public + authenticated)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_toggle_like',
-			array( __CLASS__, 'ajax_toggle_like' ),
-			false, // Allow anonymous
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
 		// Reading progress (authenticated only)
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_mark_as_read',
@@ -127,6 +105,39 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
+		// Unified interactions (authenticated only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_record_interaction',
+			array( __CLASS__, 'ajax_record_interaction' ),
+			true, // Require login
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'read',
+			)
+		);
+
+		// View tracking (public + authenticated)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_record_view',
+			array( __CLASS__, 'ajax_record_view' ),
+			false, // Allow anonymous
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'read',
+			)
+		);
+
+		// Sync localStorage interactions on login (authenticated only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_sync_interactions',
+			array( __CLASS__, 'ajax_sync_interactions' ),
+			true, // Require login
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'read',
+			)
+		);
+
 		// Browse/search results (public + authenticated)
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_search',
@@ -164,28 +175,6 @@ class Fanfic_AJAX_Handlers {
 			'fanfic_load_user_bookmarks',
 			array( __CLASS__, 'ajax_load_user_bookmarks' ),
 			true, // Require login
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
-		// Check rating eligibility (public + authenticated)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_check_rating_eligibility',
-			array( __CLASS__, 'ajax_check_rating_eligibility' ),
-			false, // Allow anonymous
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
-		// Check like status (public + authenticated)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_check_like_status',
-			array( __CLASS__, 'ajax_check_like_status' ),
-			false, // Allow anonymous
 			array(
 				'rate_limit'  => true,
 				'capability'  => 'read',
@@ -592,18 +581,18 @@ class Fanfic_AJAX_Handlers {
 	}
 
 	/**
-	 * AJAX: Submit or update chapter rating
+	 * AJAX: Record unified interaction.
 	 *
-	 * Handles both anonymous (cookie-based) and authenticated ratings.
+	 * Supports: like, remove_like, dislike, remove_dislike, rating, remove_rating, read.
+	 * Authenticated users only.
 	 *
-	 * @since 1.0.15
+	 * @since 1.6.0
 	 * @return void Sends JSON response.
 	 */
-	public static function ajax_submit_rating() {
-		// Get and validate parameters
+	public static function ajax_record_interaction() {
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'chapter_id', 'rating' ),
-			array()
+			array( 'chapter_id', 'type' ),
+			array( 'value' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -614,33 +603,59 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
+		$user_id    = get_current_user_id();
 		$chapter_id = absint( $params['chapter_id'] );
-		$rating = absint( $params['rating'] );
+		$type       = sanitize_key( $params['type'] );
+		$value      = isset( $params['value'] ) ? floatval( $params['value'] ) : 0;
 
-		// Validate rating value
-		if ( $rating < 1 || $rating > 5 ) {
+		if ( ! $chapter_id ) {
 			Fanfic_AJAX_Security::send_error_response(
-				'invalid_rating',
-				__( 'Rating must be between 1 and 5 stars.', 'fanfiction-manager' ),
+				'invalid_chapter',
+				__( 'Invalid chapter.', 'fanfiction-manager' ),
 				400
 			);
 		}
 
-		// Verify chapter exists
 		$chapter = get_post( $chapter_id );
 		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
 			Fanfic_AJAX_Security::send_error_response(
-				'invalid_chapter',
+				'chapter_not_found',
 				__( 'Chapter not found.', 'fanfiction-manager' ),
 				404
 			);
 		}
 
-		// Get user ID (null for anonymous - cookies handled by rating system)
-		$user_id = is_user_logged_in() ? get_current_user_id() : null;
+		$result = null;
 
-		// Submit rating
-		$result = Fanfic_Rating_System::submit_rating( $chapter_id, $rating, $user_id );
+		switch ( $type ) {
+			case 'like':
+				$result = Fanfic_Interactions::record_like( $chapter_id, $user_id );
+				break;
+			case 'remove_like':
+				$result = Fanfic_Interactions::remove_like( $chapter_id, $user_id );
+				break;
+			case 'dislike':
+				$result = Fanfic_Interactions::record_dislike( $chapter_id, $user_id );
+				break;
+			case 'remove_dislike':
+				$result = Fanfic_Interactions::remove_dislike( $chapter_id, $user_id );
+				break;
+			case 'rating':
+				$result = Fanfic_Interactions::record_rating( $chapter_id, $value, $user_id );
+				break;
+			case 'remove_rating':
+				$result = Fanfic_Interactions::remove_rating( $chapter_id, $user_id );
+				break;
+			case 'read':
+				$result = Fanfic_Interactions::record_read( $chapter_id, $user_id );
+				break;
+			default:
+				Fanfic_AJAX_Security::send_error_response(
+					'invalid_interaction_type',
+					__( 'Invalid interaction type.', 'fanfiction-manager' ),
+					400
+				);
+		}
 
 		if ( is_wp_error( $result ) ) {
 			Fanfic_AJAX_Security::send_error_response(
@@ -650,26 +665,30 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		// Return success with updated stats
+		$stats = Fanfic_Interactions::get_chapter_stats( $chapter_id );
+
 		Fanfic_AJAX_Security::send_success_response(
-			$result,
-			__( 'Rating submitted successfully.', 'fanfiction-manager' )
+			array(
+				'type'    => $type,
+				'stats'   => $stats,
+				'changed' => isset( $result['changed'] ) ? (bool) $result['changed'] : true,
+			),
+			__( 'Interaction recorded successfully.', 'fanfiction-manager' )
 		);
 	}
 
 	/**
-	 * AJAX: Toggle chapter like
+	 * AJAX: Record chapter view.
 	 *
-	 * Handles both anonymous (cookie-based) and authenticated likes.
+	 * Public endpoint (used by both anonymous and authenticated users).
 	 *
-	 * @since 1.0.15
+	 * @since 1.6.0
 	 * @return void Sends JSON response.
 	 */
-	public static function ajax_toggle_like() {
-		// Get and validate parameters
+	public static function ajax_record_view() {
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
 			array( 'chapter_id' ),
-			array()
+			array( 'story_id' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -681,23 +700,16 @@ class Fanfic_AJAX_Handlers {
 		}
 
 		$chapter_id = absint( $params['chapter_id'] );
-
-		// Verify chapter exists
-		$chapter = get_post( $chapter_id );
-		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+		$story_id   = isset( $params['story_id'] ) ? absint( $params['story_id'] ) : 0;
+		if ( ! $chapter_id ) {
 			Fanfic_AJAX_Security::send_error_response(
 				'invalid_chapter',
-				__( 'Chapter not found.', 'fanfiction-manager' ),
-				404
+				__( 'Invalid chapter.', 'fanfiction-manager' ),
+				400
 			);
 		}
 
-		// Get user ID (null for anonymous - cookies handled by like system)
-		$user_id = is_user_logged_in() ? get_current_user_id() : null;
-
-		// Toggle like
-		$result = Fanfic_Like_System::toggle_like( $chapter_id, $user_id );
-
+		$result = Fanfic_Interactions::record_view( $chapter_id, $story_id );
 		if ( is_wp_error( $result ) ) {
 			Fanfic_AJAX_Security::send_error_response(
 				$result->get_error_code(),
@@ -706,12 +718,53 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		// Return success with updated stats
+		$stats = Fanfic_Interactions::get_chapter_stats( $chapter_id );
+		Fanfic_AJAX_Security::send_success_response(
+			array(
+				'stats'   => $stats,
+				'skipped' => isset( $result['skipped'] ) ? (bool) $result['skipped'] : false,
+			),
+			__( 'View recorded successfully.', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * AJAX: Sync localStorage interactions with database.
+	 *
+	 * Authenticated users only.
+	 *
+	 * @since 1.6.0
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_sync_interactions() {
+		$params = Fanfic_AJAX_Security::get_ajax_parameters(
+			array(),
+			array( 'local_data' )
+		);
+
+		if ( is_wp_error( $params ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				$params->get_error_code(),
+				$params->get_error_message(),
+				400
+			);
+		}
+
+		$user_id = get_current_user_id();
+		$local_raw = isset( $params['local_data'] ) ? $params['local_data'] : array();
+		$local_data = array();
+
+		if ( is_string( $local_raw ) && '' !== $local_raw ) {
+			$decoded = json_decode( wp_unslash( $local_raw ), true );
+			$local_data = is_array( $decoded ) ? $decoded : array();
+		} elseif ( is_array( $local_raw ) ) {
+			$local_data = $local_raw;
+		}
+
+		$result = Fanfic_Interactions::sync_on_login( $user_id, $local_data );
 		Fanfic_AJAX_Security::send_success_response(
 			$result,
-			$result['is_liked']
-				? __( 'Chapter liked!', 'fanfiction-manager' )
-				: __( 'Like removed.', 'fanfiction-manager' )
+			__( 'Interactions synchronized successfully.', 'fanfiction-manager' )
 		);
 	}
 
@@ -1036,15 +1089,39 @@ class Fanfic_AJAX_Handlers {
 			$chapter_ids = array_slice( $chapter_ids, 0, 50 );
 		}
 
-		// Get user ID if logged in
-		$user_id = is_user_logged_in() ? get_current_user_id() : null;
+		$stats = Fanfic_Interactions::batch_get_chapter_stats( $chapter_ids );
+		$user_states = array();
 
-		// Batch load stats
-		$stats = Fanfic_Batch_Loader::batch_load_chapter_stats( $chapter_ids, $user_id );
+		if ( is_user_logged_in() ) {
+			$user_id = get_current_user_id();
+			$all_user_interactions = Fanfic_Interactions::get_all_user_interactions( $user_id );
+
+			foreach ( (array) $all_user_interactions as $key => $entry ) {
+				if ( ! is_array( $entry ) || ! preg_match( '/^story_(\d+)_chapter_(\d+)$/', (string) $key, $matches ) ) {
+					continue;
+				}
+
+				$chapter_id = absint( $matches[2] ?? 0 );
+				if ( ! $chapter_id || ! in_array( $chapter_id, $chapter_ids, true ) ) {
+					continue;
+				}
+
+				$user_states[ $chapter_id ] = array(
+					'like'    => ! empty( $entry['like'] ),
+					'dislike' => ! empty( $entry['dislike'] ),
+					'rating'  => isset( $entry['rating'] ) ? floatval( $entry['rating'] ) : null,
+					'read'    => ! empty( $entry['read'] ),
+					'viewed'  => true,
+				);
+			}
+		}
 
 		// Return stats
 		Fanfic_AJAX_Security::send_success_response(
-			array( 'stats' => $stats ),
+			array(
+				'stats'       => $stats,
+				'user_states' => $user_states,
+			),
 			__( 'Stats loaded successfully.', 'fanfiction-manager' )
 		);
 	}
@@ -1369,102 +1446,6 @@ class Fanfic_AJAX_Handlers {
 				'has_more'    => $has_more,
 			),
 			__( 'Bookmarks loaded successfully.', 'fanfiction-manager' )
-		);
-	}
-
-	/**
-	 * AJAX: Check rating eligibility
-	 *
-	 * Checks if user can rate and returns existing rating if any.
-	 * Public endpoint - allows anonymous checks.
-	 *
-	 * @since 1.0.16
-	 * @return void Sends JSON response.
-	 */
-	public static function ajax_check_rating_eligibility() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'chapter_id' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$chapter_id = absint( $params['chapter_id'] );
-
-		// Verify chapter exists
-		$chapter = get_post( $chapter_id );
-		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'invalid_chapter',
-				__( 'Chapter not found.', 'fanfiction-manager' ),
-				404
-			);
-		}
-
-		$user_id = is_user_logged_in() ? get_current_user_id() : null;
-		$existing_rating = Fanfic_Rating_System::user_has_rated( $chapter_id, $user_id );
-
-		Fanfic_AJAX_Security::send_success_response(
-			array(
-				'can_vote'        => true,
-				'existing_rating' => $existing_rating ?: null,
-			),
-			__( 'Eligibility checked.', 'fanfiction-manager' )
-		);
-	}
-
-	/**
-	 * AJAX: Check like status
-	 *
-	 * Checks if user/anonymous has liked a chapter.
-	 * Public endpoint - uses cookies for anonymous users.
-	 *
-	 * @since 1.0.16
-	 * @return void Sends JSON response.
-	 */
-	public static function ajax_check_like_status() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'chapter_id' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$chapter_id = absint( $params['chapter_id'] );
-
-		// Verify chapter exists
-		$chapter = get_post( $chapter_id );
-		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'invalid_chapter',
-				__( 'Chapter not found.', 'fanfiction-manager' ),
-				404
-			);
-		}
-
-		$user_id = is_user_logged_in() ? get_current_user_id() : null;
-		$is_liked = Fanfic_Like_System::user_has_liked( $chapter_id, $user_id );
-
-		Fanfic_AJAX_Security::send_success_response(
-			array(
-				'is_liked'    => $is_liked,
-				'like_count'  => Fanfic_Like_System::get_chapter_likes( $chapter_id ),
-			),
-			__( 'Like status retrieved.', 'fanfiction-manager' )
 		);
 	}
 

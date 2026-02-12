@@ -363,6 +363,26 @@ a.fanfic-button.is-disabled {
 	opacity: 0.9;
 }
 
+/* Dislike */
+.fanfic-button.fanfic-button-dislike {
+	background-color: #ffffff;
+	color: #546e7a;
+	border: 2px solid #546e7a;
+}
+.fanfic-button.fanfic-button-dislike:hover {
+	background-color: #546e7a;
+	color: #ffffff;
+}
+.fanfic-button.fanfic-button-disliked {
+	background-color: #546e7a;
+	color: #ffffff;
+	border: 2px solid #546e7a;
+}
+.fanfic-button.fanfic-button-disliked:hover {
+	background-color: #546e7a;
+	opacity: 0.9;
+}
+
 /* Subscribe */
 .fanfic-button.fanfic-button-subscribe {
 	background-color: #ffffff;

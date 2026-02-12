@@ -38,7 +38,7 @@ Enable independent fanfiction communities to operate on WordPress without relyin
 ## Architecture Philosophy
 - **Separation of Concerns:** The plugin separates frontend user experiences (author dashboard, reading interface, discovery) from WordPress admin functions. Authors and readers never see the WordPress admin dashboard.
 - **Data Ownership:** All plugin data is stored in WordPress (not external services), ensuring complete portability and no vendor lock-in.
-- **Performance First:** The plugin prioritizes server performance on resource-constrained hosting through caching strategies (transients for expensive queries), efficient database queries (proper indexing, pagination), and session-based view tracking (prevents database bloat from tracking every single view).
+- **Performance First:** The plugin prioritizes server performance on resource-constrained hosting through caching strategies (transients for expensive queries), efficient database queries (proper indexing, pagination), and deterministic chapter-view dedupe using indexed tables.
 - **Modularity:** The plugin is organized into focused, single-responsibility classes that can be maintained and tested independently.
 - **Extensibility:** Theme developers and plugin developers can extend the plugin through standard WordPress hooks and by overriding templates.
 

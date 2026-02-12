@@ -129,7 +129,6 @@ class Fanfic_Security {
 	 */
 	private static function is_public_action( $action ) {
 		$public_actions = array(
-			'fanfic_track_view',
 			'fanfic_search',
 		);
 

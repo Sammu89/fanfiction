@@ -15,8 +15,9 @@ Create on plugin activation for optimal query performance:
 - `(post_parent, post_type, menu_order)` - For chapter queries.
 - `(post_status, post_type)` - For public listings.
 
-**On wp_postmeta table:**
-- `(post_id, meta_key)` for `fanfic_story_views`, `fanfic_chapter_views`.
+**On view index tables:**
+- `wp_fanfic_chapter_search_index`: `(story_id)`, `(views_week)`, `(views_month)`.
+- `wp_fanfic_story_search_index`: `(view_count)`, `(views_week)`, `(views_month)`.
 
 **On custom tables:**
 - `wp_fanfic_bookmarks`: `(user_id)`, `(story_id)`.

@@ -219,16 +219,14 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-author-dashboard.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-comments.php';
 
-		// Optimized rating and like system with cookie-based anonymous tracking
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-rating-system.php';
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-like-system.php';
+		// Unified interactions system
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-interactions.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cron-cleanup.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-media-cleanup.php';
 
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-bookmarks.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-follows.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-coauthors.php';
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-views.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-reading-progress.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-batch-loader.php';
 
@@ -393,9 +391,8 @@ class Fanfic_Core {
 		// Initialize comments system
 		Fanfic_Comments::init();
 
-		// Initialize new rating and like system (v2.0)
-		Fanfic_Rating_System::init();
-		Fanfic_Like_System::init();
+		// Initialize unified interactions system.
+		Fanfic_Interactions::init();
 		Fanfic_Cron_Cleanup::init();
 		Fanfic_Media_Cleanup::init();
 
@@ -407,9 +404,6 @@ class Fanfic_Core {
 
 		// Initialize co-author system
 		Fanfic_Coauthors::init();
-
-		// Initialize views tracking
-		Fanfic_Views::init();
 
 		// Initialize notifications system
 		Fanfic_Notifications::init();
@@ -1242,6 +1236,9 @@ class Fanfic_Core {
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 					'nonce'   => wp_create_nonce( 'fanfic_ajax_nonce' ),
 					'debug'   => defined( 'WP_DEBUG' ) && WP_DEBUG,
+					'isLoggedIn' => is_user_logged_in(),
+					'needsSync'  => is_user_logged_in() ? (bool) get_transient( 'fanfic_needs_sync_' . get_current_user_id() ) : false,
+					'enableDislikes' => (bool) Fanfic_Settings::get_setting( 'enable_dislikes', false ),
 					'strings' => array(
 						'ratingSubmitted'   => __( 'Rating submitted!', 'fanfiction-manager' ),
 						'ratingUpdated'     => __( 'Rating updated!', 'fanfiction-manager' ),
@@ -1695,7 +1692,6 @@ class Fanfic_Core {
 		Fanfic_Media_Cleanup::unschedule_cron();
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-story-status-automation.php';
 		Fanfic_Story_Status_Automation::unschedule_cron();
-
 		// Unschedule old cron jobs from previous versions (pre-v2.0)
 		wp_clear_scheduled_hook( 'fanfic_daily_sync_anonymous_likes' );
 		wp_clear_scheduled_hook( 'fanfic_daily_user_role_check' );
@@ -1895,6 +1891,12 @@ class Fanfic_Core {
 			'reading_progress',
 			'read_lists',
 			'subscriptions',
+			'daily_views',
+			'interactions',
+			'chapter_search_index',
+			'story_search_index',
+			'story_filter_map',
+			'coauthors',
 			'fandoms',
 			'story_fandoms',
 			'warnings',

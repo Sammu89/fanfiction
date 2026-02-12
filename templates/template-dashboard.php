@@ -302,7 +302,7 @@ if ( isset( $_GET['error'] ) ) {
 									$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
 									$is_original_author = ( (int) get_post_field( 'post_author', $story_id ) === (int) $user_id );
 									$chapter_count = isset( $chapter_counts[ $story_id ] ) ? $chapter_counts[ $story_id ] : 0;
-									$views = get_post_meta( $story_id, '_fanfic_views', true );
+									$views = class_exists( 'Fanfic_Interactions' ) ? Fanfic_Interactions::get_story_views( $story_id ) : 0;
 									$status_terms = wp_get_post_terms( $story_id, 'fanfiction_status' );
 									$status_name = ! empty( $status_terms ) ? $status_terms[0]->name : esc_html__( 'Unknown', 'fanfiction-manager' );
 									?>

@@ -185,13 +185,13 @@ class Fanfic_Settings {
 			'cron_hour'                      => 3,
 			'recaptcha_require_logged_in'    => false,
 			'enable_likes'                   => true,
+			'enable_dislikes'                => false,
 			'enable_subscribe'               => true,
 			'enable_share'                   => true,
 			'enable_report'                  => true,
 			'enable_warnings'                => true,
 			'enable_tags'                    => true,
 			'enable_coauthors'               => false,
-			'allow_anonymous_likes'          => false,
 			'allow_anonymous_reports'        => false,
 			'enable_fandom_classification'   => false,
 			'enable_language_classification' => false,
@@ -304,6 +304,7 @@ class Fanfic_Settings {
 
 		// Feature toggles (booleans)
 		$sanitized['enable_likes']     = isset( $settings['enable_likes'] ) && $settings['enable_likes'];
+		$sanitized['enable_dislikes']  = isset( $settings['enable_dislikes'] ) && $settings['enable_dislikes'];
 		$sanitized['enable_subscribe'] = isset( $settings['enable_subscribe'] ) && $settings['enable_subscribe'];
 		$sanitized['enable_share']     = isset( $settings['enable_share'] ) && $settings['enable_share'];
 		$sanitized['enable_report']    = isset( $settings['enable_report'] ) && $settings['enable_report'];
@@ -312,7 +313,6 @@ class Fanfic_Settings {
 		$sanitized['enable_coauthors'] = isset( $settings['enable_coauthors'] ) && $settings['enable_coauthors'];
 
 		// Anonymous user permissions
-		$sanitized['allow_anonymous_likes']   = isset( $settings['allow_anonymous_likes'] ) && $settings['allow_anonymous_likes'];
 		$sanitized['allow_anonymous_reports'] = isset( $settings['allow_anonymous_reports'] ) && $settings['allow_anonymous_reports'];
 
 		// Content restrictions (NEW in 1.2.0)
@@ -1567,6 +1567,19 @@ class Fanfic_Settings {
 							</td>
 						</tr>
 
+						<!-- Enable Dislikes -->
+						<tr>
+							<th scope="row">
+								<label for="enable_dislikes"><?php esc_html_e( 'Enable Dislikes', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_dislikes" name="fanfic_settings[enable_dislikes]" value="1" <?php checked( isset( $settings['enable_dislikes'] ) ? $settings['enable_dislikes'] : false, true ); ?>>
+									<?php esc_html_e( 'Allow users to dislike chapters (mutually exclusive with likes)', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
 						<!-- Enable Co-Authors -->
 						<tr>
 							<th scope="row">
@@ -1578,22 +1591,6 @@ class Fanfic_Settings {
 									<?php esc_html_e( 'Enable co-author functionality', 'fanfiction-manager' ); ?>
 								</label>
 								<p class="description"><?php esc_html_e( 'Allow authors to invite co-authors to collaborate on stories.', 'fanfiction-manager' ); ?></p>
-							</td>
-						</tr>
-
-						<!-- Allow Anonymous Likes -->
-						<tr>
-							<th scope="row">
-								<label for="allow_anonymous_likes"><?php esc_html_e( 'Allow Anonymous Likes', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<label>
-									<input type="checkbox" id="allow_anonymous_likes" name="fanfic_settings[allow_anonymous_likes]" value="1" <?php checked( isset( $settings['allow_anonymous_likes'] ) ? $settings['allow_anonymous_likes'] : false, true ); ?>>
-									<?php esc_html_e( 'Allow non-logged users to like content (one like per IP per day, optimized with transients)', 'fanfiction-manager' ); ?>
-								</label>
-								<p class="description">
-									<?php esc_html_e( 'Uses IP-based rate limiting similar to star ratings. Likes are stored in transients and synced to database via cron for better performance.', 'fanfiction-manager' ); ?>
-								</p>
 							</td>
 						</tr>
 
@@ -3616,6 +3613,9 @@ class Fanfic_Settings {
 			'fanfic_moderation_log',
 			'fanfic_story_filter_map',
 			'fanfic_story_search_index',
+			'fanfic_chapter_search_index',
+			'fanfic_interactions',
+			'fanfic_daily_views',
 			'fanfic_story_custom_terms',
 			'fanfic_custom_terms',
 			'fanfic_custom_taxonomies',

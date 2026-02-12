@@ -93,14 +93,14 @@ class Fanfic_Export {
 
 			// Get views
 			$views = 0;
-			if ( class_exists( 'Fanfic_Views' ) ) {
-				$views = Fanfic_Views::get_story_views( $story->ID );
+			if ( class_exists( 'Fanfic_Interactions' ) ) {
+				$views = Fanfic_Interactions::get_story_views( $story->ID );
 			}
 
 			// Get average rating
 			$rating = 0.0;
-			if ( class_exists( 'Fanfic_Rating_System' ) ) {
-				$rating_data = Fanfic_Rating_System::get_story_rating( $story->ID );
+			if ( class_exists( 'Fanfic_Interactions' ) ) {
+				$rating_data = Fanfic_Interactions::get_story_rating( $story->ID );
 				$rating = $rating_data ? $rating_data->average_rating : 0.0;
 			}
 
@@ -193,15 +193,15 @@ class Fanfic_Export {
 
 			// Get views
 			$views = 0;
-			if ( class_exists( 'Fanfic_Views' ) ) {
-				$views = Fanfic_Views::get_chapter_views( $chapter->ID );
+			if ( class_exists( 'Fanfic_Interactions' ) ) {
+				$views = Fanfic_Interactions::get_chapter_views( $chapter->ID );
 			}
 
 			// Get average rating
 			$rating = 0.0;
-			if ( class_exists( 'Fanfic_Rating_System' ) ) {
-				$rating_data = Fanfic_Rating_System::get_chapter_rating( $chapter->ID );
-				$rating = $rating_data ? $rating_data->average_rating : 0.0;
+			if ( class_exists( 'Fanfic_Interactions' ) ) {
+				$stats  = Fanfic_Interactions::get_chapter_stats( $chapter->ID );
+				$rating = isset( $stats['rating_avg'] ) ? floatval( $stats['rating_avg'] ) : 0.0;
 			}
 
 			// Write row

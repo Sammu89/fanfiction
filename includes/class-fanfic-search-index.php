@@ -502,7 +502,7 @@ class Fanfic_Search_Index {
 	 * @return int View count
 	 */
 	private static function get_view_count( $story_id ) {
-		return absint( get_post_meta( $story_id, '_fanfic_views', true ) );
+		return class_exists( 'Fanfic_Interactions' ) ? Fanfic_Interactions::get_story_views( $story_id ) : 0;
 	}
 
 	/**
@@ -686,6 +686,7 @@ class Fanfic_Search_Index {
 
 		global $wpdb;
 		$table = $wpdb->prefix . 'fanfic_story_search_index';
+		$existing_columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
 
 		// Build all data
 		$translation_meta = self::get_translation_meta( $story_id );
@@ -699,34 +700,111 @@ class Fanfic_Search_Index {
 			}
 		}
 
+		$counter_columns = array(
+			'view_count',
+			'views_week',
+			'views_month',
+			'views_week_stamp',
+			'views_month_stamp',
+			'likes_total',
+			'likes_week',
+			'likes_month',
+			'likes_week_stamp',
+			'likes_month_stamp',
+			'dislikes_total',
+			'rating_sum_total',
+			'rating_count_total',
+			'rating_avg_total',
+			'rating_sum_week',
+			'rating_count_week',
+			'rating_avg_week',
+			'rating_week_stamp',
+			'rating_sum_month',
+			'rating_count_month',
+			'rating_avg_month',
+			'rating_month_stamp',
+			'trending_week',
+			'trending_month',
+		);
+		$counters = array_fill_keys( $counter_columns, 0 );
+
+		$available_counter_columns = array_values( array_intersect( $counter_columns, (array) $existing_columns ) );
+		if ( ! empty( $available_counter_columns ) ) {
+			$counter_select = implode( ', ', $available_counter_columns );
+			$existing_counter_row = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT {$counter_select} FROM {$table} WHERE story_id = %d",
+					$story_id
+				),
+				ARRAY_A
+			);
+
+			if ( is_array( $existing_counter_row ) ) {
+				foreach ( $available_counter_columns as $counter_column ) {
+					if ( isset( $existing_counter_row[ $counter_column ] ) && is_numeric( $existing_counter_row[ $counter_column ] ) ) {
+						$counters[ $counter_column ] = $existing_counter_row[ $counter_column ];
+					}
+				}
+			}
+		} elseif ( in_array( 'view_count', (array) $existing_columns, true ) ) {
+			$counters['view_count'] = self::get_view_count( $story_id );
+		}
+
 		$data = array(
-			'story_id'        => $story_id,
-			'indexed_text'    => self::build_index_text( $story_id ),
-			'story_title'     => self::get_story_title( $story_id ),
-			'story_slug'      => self::get_story_slug( $story_id ),
-			'story_summary'   => self::get_story_summary( $story_id ),
-			'story_status'    => self::get_story_status( $story_id ),
-			'author_id'       => self::get_author_id( $story_id ),
-			'coauthor_ids'    => $coauthor_ids_str,
-			'coauthor_names'  => $coauthor_names_str,
-			'published_date'  => self::get_published_date( $story_id ),
-			'updated_date'    => self::get_updated_date( $story_id ),
-			'chapter_count'   => self::get_chapter_count( $story_id ),
-			'word_count'      => self::get_word_count( $story_id ),
-			'view_count'      => self::get_view_count( $story_id ),
-			'fandom_slugs'    => self::get_fandom_slugs( $story_id ),
-			'language_slug'   => self::get_language_slug( $story_id ),
+			'story_id'             => $story_id,
+			'indexed_text'         => self::build_index_text( $story_id ),
+			'story_title'          => self::get_story_title( $story_id ),
+			'story_slug'           => self::get_story_slug( $story_id ),
+			'story_summary'        => self::get_story_summary( $story_id ),
+			'story_status'         => self::get_story_status( $story_id ),
+			'author_id'            => self::get_author_id( $story_id ),
+			'coauthor_ids'         => $coauthor_ids_str,
+			'coauthor_names'       => $coauthor_names_str,
+			'published_date'       => self::get_published_date( $story_id ),
+			'updated_date'         => self::get_updated_date( $story_id ),
+			'chapter_count'        => self::get_chapter_count( $story_id ),
+			'word_count'           => self::get_word_count( $story_id ),
+			'view_count'           => $counters['view_count'],
+			'views_week'           => $counters['views_week'],
+			'views_month'          => $counters['views_month'],
+			'views_week_stamp'     => $counters['views_week_stamp'],
+			'views_month_stamp'    => $counters['views_month_stamp'],
+			'likes_total'          => $counters['likes_total'],
+			'likes_week'           => $counters['likes_week'],
+			'likes_month'          => $counters['likes_month'],
+			'likes_week_stamp'     => $counters['likes_week_stamp'],
+			'likes_month_stamp'    => $counters['likes_month_stamp'],
+			'dislikes_total'       => $counters['dislikes_total'],
+			'rating_sum_total'     => $counters['rating_sum_total'],
+			'rating_count_total'   => $counters['rating_count_total'],
+			'rating_avg_total'     => $counters['rating_avg_total'],
+			'rating_sum_week'      => $counters['rating_sum_week'],
+			'rating_count_week'    => $counters['rating_count_week'],
+			'rating_avg_week'      => $counters['rating_avg_week'],
+			'rating_week_stamp'    => $counters['rating_week_stamp'],
+			'rating_sum_month'     => $counters['rating_sum_month'],
+			'rating_count_month'   => $counters['rating_count_month'],
+			'rating_avg_month'     => $counters['rating_avg_month'],
+			'rating_month_stamp'   => $counters['rating_month_stamp'],
+			'trending_week'        => $counters['trending_week'],
+			'trending_month'       => $counters['trending_month'],
+			'fandom_slugs'         => self::get_fandom_slugs( $story_id ),
+			'language_slug'        => self::get_language_slug( $story_id ),
 			'translation_group_id' => absint( $translation_meta['group_id'] ),
 			'translation_count'    => absint( $translation_meta['count'] ),
-			'warning_slugs'   => self::get_warning_slugs( $story_id ),
-			'age_rating'      => self::get_age_rating( $story_id ),
-			'visible_tags'    => self::get_visible_tags_string( $story_id ),
-			'invisible_tags'  => self::get_invisible_tags_string( $story_id ),
-			'genre_names'     => self::get_genre_names( $story_id ),
-			'status_name'     => self::get_status_name( $story_id ),
+			'warning_slugs'        => self::get_warning_slugs( $story_id ),
+			'age_rating'           => self::get_age_rating( $story_id ),
+			'visible_tags'         => self::get_visible_tags_string( $story_id ),
+			'invisible_tags'       => self::get_invisible_tags_string( $story_id ),
+			'genre_names'          => self::get_genre_names( $story_id ),
+			'status_name'          => self::get_status_name( $story_id ),
 		);
 
-		// Use REPLACE to insert or update
+		if ( ! empty( $existing_columns ) ) {
+			$data = array_intersect_key( $data, array_flip( $existing_columns ) );
+		}
+
+		// Keep counters stable by carrying their current values through REPLACE.
 		$wpdb->replace( $table, $data );
 
 		// Keep runtime filter facets in sync for table-driven search.
