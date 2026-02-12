@@ -139,12 +139,28 @@ class Fanfic_Shortcodes_Story {
 		$author_id = get_post_field( 'post_author', $story_id );
 		$author_name = get_the_author_meta( 'display_name', $author_id );
 		$author_url = fanfic_get_user_profile_url( $author_id );
-
-		return sprintf(
+		$links = array();
+		$links[] = sprintf(
 			'<a href="%s" class="story-author-link">%s</a>',
 			esc_url( $author_url ),
 			esc_html( $author_name )
 		);
+
+		if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+			$coauthors = Fanfic_Coauthors::get_story_coauthors( $story_id, Fanfic_Coauthors::STATUS_ACCEPTED );
+			foreach ( (array) $coauthors as $coauthor ) {
+				if ( empty( $coauthor->ID ) || empty( $coauthor->display_name ) ) {
+					continue;
+				}
+				$links[] = sprintf(
+					'<a href="%s" class="story-author-link story-coauthor-link">%s</a>',
+					esc_url( fanfic_get_user_profile_url( $coauthor->ID ) ),
+					esc_html( $coauthor->display_name )
+				);
+			}
+		}
+
+		return implode( ', ', $links );
 	}
 
 	/**

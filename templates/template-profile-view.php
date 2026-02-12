@@ -57,6 +57,10 @@ function fanfic_get_default_profile_view_template() {
 		<h2><?php esc_html_e( 'Stories', 'fanfiction-manager' ); ?></h2>
 		[author-story-list]
 	</div>
+
+	<div class="fanfic-profile-coauthored-stories">
+		[author-coauthored-stories]
+	</div>
 </div>
 <?php
 	return ob_get_clean();
@@ -106,6 +110,7 @@ $template = str_replace( '[author-story-count]', '[author-story-count author_id=
 // [content-actions] auto-detects context, no user_id parameter needed
 $template = str_replace( '[author-bio]', '[author-bio author_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-story-list]', '[author-story-list author_id="' . $user_id . '"]', $template );
+$template = str_replace( '[author-coauthored-stories]', '[author-coauthored-stories author_id="' . $user_id . '"]', $template );
 
 // Process shortcodes in the template
 echo do_shortcode( $template );

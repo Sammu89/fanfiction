@@ -720,9 +720,17 @@ class Fanfic_Wizard {
 	 */
 	private function render_taxonomy_terms_step() {
 		$settings = get_option( Fanfic_Settings::OPTION_NAME, array() );
+		$draft = get_option( 'fanfic_wizard_draft', array() );
+		$step_4 = isset( $draft['step_4'] ) && is_array( $draft['step_4'] ) ? $draft['step_4'] : array();
 		$enable_fandoms = isset( $settings['enable_fandom_classification'] ) ? (bool) $settings['enable_fandom_classification'] : true;
 		$enable_warnings = isset( $settings['enable_warnings'] ) ? (bool) $settings['enable_warnings'] : true;
 		$enable_languages = isset( $settings['enable_language_classification'] ) ? (bool) $settings['enable_language_classification'] : true;
+		$enable_coauthors = array_key_exists( 'enable_coauthors', $step_4 )
+			? (bool) $step_4['enable_coauthors']
+			: true;
+		$create_samples = array_key_exists( 'create_samples', $step_4 )
+			? (bool) $step_4['create_samples']
+			: true;
 		$allow_sexual = isset( $settings['allow_sexual_content'] ) ? (bool) $settings['allow_sexual_content'] : false;
 		$allow_pornographic = isset( $settings['allow_pornographic_content'] ) ? (bool) $settings['allow_pornographic_content'] : false;
 		?>
@@ -810,11 +818,23 @@ class Fanfic_Wizard {
 				</tr>
 				<tr>
 					<th scope="row">
+						<label for="fanfic_wizard_enable_coauthors"><?php esc_html_e( 'Co-author Functionality', 'fanfiction-manager' ); ?></label>
+					</th>
+					<td>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_enable_coauthors" name="fanfic_enable_coauthors" value="1" <?php checked( $enable_coauthors, true ); ?>>
+							<?php esc_html_e( 'Enable co-author functionality', 'fanfiction-manager' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Allow authors to invite co-authors to collaborate on stories.', 'fanfiction-manager' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
 						<label for="fanfic_wizard_create_samples"><?php esc_html_e( 'Sample Stories', 'fanfiction-manager' ); ?></label>
 					</th>
 					<td>
 						<label>
-							<input type="checkbox" id="fanfic_wizard_create_samples" name="fanfic_create_samples" value="1">
+							<input type="checkbox" id="fanfic_wizard_create_samples" name="fanfic_create_samples" value="1" <?php checked( $create_samples, true ); ?>>
 							<?php esc_html_e( 'Create 2 sample stories for testing', 'fanfiction-manager' ); ?>
 						</label>
 					</td>
@@ -1040,6 +1060,16 @@ class Fanfic_Wizard {
 						</td>
 					</tr>
 
+					<tr>
+						<td><?php esc_html_e( 'Co-author Functionality', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							echo isset( $step_4['enable_coauthors'] ) && $step_4['enable_coauthors']
+								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
+								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
+							?>
+						</td>
+					</tr>
 					<tr>
 						<td><?php esc_html_e( 'Sample Stories', 'fanfiction-manager' ); ?></td>
 						<td>
@@ -1416,6 +1446,7 @@ class Fanfic_Wizard {
 		$step_data['enable_fandoms'] = isset( $_POST['fanfic_enable_fandom_classification'] ) && '1' === $_POST['fanfic_enable_fandom_classification'];
 		$step_data['enable_warnings'] = isset( $_POST['fanfic_enable_warnings'] ) && '1' === $_POST['fanfic_enable_warnings'];
 		$step_data['enable_languages'] = isset( $_POST['fanfic_enable_language_classification'] ) && '1' === $_POST['fanfic_enable_language_classification'];
+		$step_data['enable_coauthors'] = isset( $_POST['fanfic_enable_coauthors'] ) && '1' === $_POST['fanfic_enable_coauthors'];
 		$step_data['allow_sexual'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_sexual_content'] ) && '1' === $_POST['fanfic_allow_sexual_content'];
 		$step_data['allow_pornographic'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_pornographic_content'] ) && '1' === $_POST['fanfic_allow_pornographic_content'];
 
@@ -1993,6 +2024,14 @@ class Fanfic_Wizard {
 				error_log( sprintf(
 					'[Fanfic Wizard Commit] enable_language_classification → %s',
 					$step_4['enable_languages'] ? 'true' : 'false'
+				) );
+			}
+
+			if ( isset( $step_4['enable_coauthors'] ) ) {
+				Fanfic_Settings::update_setting( 'enable_coauthors', $step_4['enable_coauthors'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] enable_coauthors → %s',
+					$step_4['enable_coauthors'] ? 'true' : 'false'
 				) );
 			}
 

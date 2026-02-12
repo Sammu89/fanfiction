@@ -34,6 +34,12 @@ class Fanfic_Notifications {
 	const TYPE_COMMENT_REPLY = 'comment_reply';
 	const TYPE_STORY_UPDATE = 'story_update';
 	const TYPE_FOLLOW_STORY = 'follow_story';
+	const TYPE_COAUTHOR_INVITE = 'coauthor_invite';
+	const TYPE_COAUTHOR_ACCEPTED = 'coauthor_accepted';
+	const TYPE_COAUTHOR_REFUSED = 'coauthor_refused';
+	const TYPE_COAUTHOR_REMOVED = 'coauthor_removed';
+	const TYPE_COAUTHOR_DISABLED = 'coauthor_disabled';
+	const TYPE_COAUTHOR_ENABLED = 'coauthor_enabled';
 
 	/**
 	 * Cron continuation hook for old-notification cleanup.
@@ -130,6 +136,12 @@ class Fanfic_Notifications {
 			self::TYPE_COMMENT_REPLY,
 			self::TYPE_STORY_UPDATE,
 			self::TYPE_FOLLOW_STORY,
+			self::TYPE_COAUTHOR_INVITE,
+			self::TYPE_COAUTHOR_ACCEPTED,
+			self::TYPE_COAUTHOR_REFUSED,
+			self::TYPE_COAUTHOR_REMOVED,
+			self::TYPE_COAUTHOR_DISABLED,
+			self::TYPE_COAUTHOR_ENABLED,
 		);
 
 		if ( ! in_array( $type, $valid_types, true ) ) {
@@ -629,6 +641,15 @@ class Fanfic_Notifications {
 			self::TYPE_NEW_FOLLOWER => __( 'New Follower', 'fanfiction-manager' ),
 			self::TYPE_NEW_CHAPTER => __( 'New Chapter', 'fanfiction-manager' ),
 			self::TYPE_NEW_STORY => __( 'New Story', 'fanfiction-manager' ),
+			self::TYPE_COMMENT_REPLY => __( 'Comment Reply', 'fanfiction-manager' ),
+			self::TYPE_STORY_UPDATE => __( 'Story Update', 'fanfiction-manager' ),
+			self::TYPE_FOLLOW_STORY => __( 'Story Follow', 'fanfiction-manager' ),
+			self::TYPE_COAUTHOR_INVITE => __( 'Co-Author Invite', 'fanfiction-manager' ),
+			self::TYPE_COAUTHOR_ACCEPTED => __( 'Co-Author Accepted', 'fanfiction-manager' ),
+			self::TYPE_COAUTHOR_REFUSED => __( 'Co-Author Refused', 'fanfiction-manager' ),
+			self::TYPE_COAUTHOR_REMOVED => __( 'Co-Author Removed', 'fanfiction-manager' ),
+			self::TYPE_COAUTHOR_DISABLED => __( 'Co-Authors Disabled', 'fanfiction-manager' ),
+			self::TYPE_COAUTHOR_ENABLED => __( 'Co-Authors Enabled', 'fanfiction-manager' ),
 		);
 	}
 
@@ -688,6 +709,12 @@ class Fanfic_Notifications {
 			self::TYPE_COMMENT_REPLY,
 			self::TYPE_STORY_UPDATE,
 			self::TYPE_FOLLOW_STORY,
+			self::TYPE_COAUTHOR_INVITE,
+			self::TYPE_COAUTHOR_ACCEPTED,
+			self::TYPE_COAUTHOR_REFUSED,
+			self::TYPE_COAUTHOR_REMOVED,
+			self::TYPE_COAUTHOR_DISABLED,
+			self::TYPE_COAUTHOR_ENABLED,
 		);
 
 		if ( ! in_array( $type, $valid_types, true ) ) {

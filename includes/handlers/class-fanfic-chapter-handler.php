@@ -212,7 +212,7 @@ class Fanfic_Chapter_Handler {
 		$story = get_post( $story_id );
 
 		// Check permissions
-		if ( ! $story || ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) ) {
+		if ( ! $story || 'fanfiction_story' !== $story->post_type || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 			if ( $is_ajax ) {
 				wp_send_json_error( array(
 					'message' => __( 'You do not have permission to create chapters for this story.', 'fanfiction-manager' ),
@@ -446,9 +446,10 @@ class Fanfic_Chapter_Handler {
 
 		$current_user = wp_get_current_user();
 		$chapter = get_post( $chapter_id );
+		$story_id = $chapter ? (int) $chapter->post_parent : 0;
 
 		// Check permissions
-		if ( ! $chapter || ( $chapter->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) ) {
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || $story_id <= 0 || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 			if ( $is_ajax ) {
 				wp_send_json_error( array(
 					'message' => __( 'You do not have permission to edit this chapter.', 'fanfiction-manager' ),
@@ -743,9 +744,10 @@ class Fanfic_Chapter_Handler {
 
 		$current_user = wp_get_current_user();
 		$chapter = get_post( $chapter_id );
+		$story_id = $chapter ? (int) $chapter->post_parent : 0;
 
 		// Check permissions
-		if ( ! $chapter || ( $chapter->post_author != $current_user->ID && ! current_user_can( 'delete_others_posts' ) ) ) {
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || $story_id <= 0 || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 			return;
 		}
 
@@ -801,8 +803,8 @@ class Fanfic_Chapter_Handler {
 			wp_send_json_error( array( 'message' => __( 'Parent story not found.', 'fanfiction-manager' ) ) );
 		}
 
-		// Check permissions - must be author or have delete_others_posts capability
-		if ( $story->post_author != $current_user->ID && ! current_user_can( 'delete_others_posts' ) ) {
+		// Check permissions - accepted co-authors can manage chapters as well.
+		if ( ! current_user_can( 'edit_fanfiction_story', $story->ID ) ) {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to delete this chapter.', 'fanfiction-manager' ) ) );
 		}
 

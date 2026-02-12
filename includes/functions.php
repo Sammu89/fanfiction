@@ -2811,6 +2811,8 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 				'translation_group_id'  => 0,
 				'translation_count'     => 0,
 				'view_count'            => 0,
+				'coauthor_ids'          => '',
+				'coauthor_names'        => '',
 			);
 		}
 	}
@@ -2830,7 +2832,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 	$placeholders = implode( ',', array_fill( 0, count( $missing_ids ), '%d' ) );
 	$rows = $wpdb->get_results(
 		$wpdb->prepare(
-			"SELECT story_id, language_slug, translation_group_id, translation_count, view_count
+			"SELECT story_id, language_slug, translation_group_id, translation_count, view_count, coauthor_ids, coauthor_names
 			FROM {$table}
 			WHERE story_id IN ({$placeholders})",
 			$missing_ids
@@ -2849,6 +2851,8 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 				'translation_group_id' => absint( $row['translation_group_id'] ?? 0 ),
 				'translation_count'    => absint( $row['translation_count'] ?? 0 ),
 				'view_count'           => absint( $row['view_count'] ?? 0 ),
+				'coauthor_ids'         => sanitize_text_field( (string) ( $row['coauthor_ids'] ?? '' ) ),
+				'coauthor_names'       => sanitize_text_field( (string) ( $row['coauthor_names'] ?? '' ) ),
 			);
 		}
 	}
@@ -2861,7 +2865,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
  *
  * @since 1.5.1
  * @param int $story_id Story ID.
- * @return array{language_slug:string,translation_group_id:int,translation_count:int,view_count:int}
+ * @return array{language_slug:string,translation_group_id:int,translation_count:int,view_count:int,coauthor_ids:string,coauthor_names:string}
  */
 function fanfic_get_story_card_index_data( $story_id ) {
 	$story_id = absint( $story_id );
@@ -2870,6 +2874,8 @@ function fanfic_get_story_card_index_data( $story_id ) {
 		'translation_group_id' => 0,
 		'translation_count'    => 0,
 		'view_count'           => 0,
+		'coauthor_ids'         => '',
+		'coauthor_names'       => '',
 	);
 
 	if ( ! $story_id ) {
@@ -2939,6 +2945,24 @@ function fanfic_get_story_card_html( $story_id ) {
 	$translation_count = absint( $card_index_data['translation_count'] );
 	$language_slug = sanitize_title( (string) $card_index_data['language_slug'] );
 	$story_views = absint( $card_index_data['view_count'] );
+	$coauthor_ids_str = (string) $card_index_data['coauthor_ids'];
+	$coauthor_names = (string) $card_index_data['coauthor_names'];
+	$coauthor_links_html = '';
+
+	if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() && '' !== $coauthor_ids_str && '' !== $coauthor_names ) {
+		$coauthor_ids = array_values( array_filter( array_map( 'absint', explode( ',', $coauthor_ids_str ) ) ) );
+		$coauthor_name_parts = array_values( array_filter( array_map( 'trim', explode( ',', $coauthor_names ) ) ) );
+		$coauthor_links = array();
+		$max = min( count( $coauthor_ids ), count( $coauthor_name_parts ) );
+
+		for ( $i = 0; $i < $max; $i++ ) {
+			$coauthor_links[] = '<a href="' . esc_url( fanfic_get_user_profile_url( $coauthor_ids[ $i ] ) ) . '">' . esc_html( $coauthor_name_parts[ $i ] ) . '</a>';
+		}
+
+		if ( ! empty( $coauthor_links ) ) {
+			$coauthor_links_html = ', ' . implode( ', ', $coauthor_links );
+		}
+	}
 
 	ob_start();
 	?>
@@ -2963,7 +2987,7 @@ function fanfic_get_story_card_html( $story_id ) {
 						printf(
 							/* translators: %s: author name */
 							esc_html__( 'by %s', 'fanfiction-manager' ),
-							'<a href="' . esc_url( fanfic_get_user_profile_url( $author_id ) ) . '">' . esc_html( $author_name ) . '</a>'
+							'<a href="' . esc_url( fanfic_get_user_profile_url( $author_id ) ) . '">' . esc_html( $author_name ) . '</a>' . $coauthor_links_html
 						);
 						?>
 					</span>

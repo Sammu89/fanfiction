@@ -315,8 +315,20 @@ class Fanfic_Roles_Caps {
 				} else {
 					// Not the author - requires 'edit_others' capability
 					if ( 'fanfiction_story' === $post->post_type ) {
+						if ( class_exists( 'Fanfic_Coauthors' )
+							&& Fanfic_Coauthors::is_enabled()
+							&& Fanfic_Coauthors::is_coauthor( $post->ID, $user_id ) ) {
+							return array( 'edit_fanfiction_stories' );
+						}
 						return array( 'edit_others_fanfiction_stories' );
 					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+						$story_id = (int) $post->post_parent;
+						if ( $story_id > 0
+							&& class_exists( 'Fanfic_Coauthors' )
+							&& Fanfic_Coauthors::is_enabled()
+							&& Fanfic_Coauthors::is_coauthor( $story_id, $user_id ) ) {
+							return array( 'edit_fanfiction_chapters' );
+						}
 						return array( 'edit_others_fanfiction_chapters' );
 					}
 				}
@@ -370,6 +382,13 @@ class Fanfic_Roles_Caps {
 					if ( 'fanfiction_story' === $post->post_type ) {
 						return array( 'delete_others_fanfiction_stories' );
 					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+						$story_id = (int) $post->post_parent;
+						if ( $story_id > 0
+							&& class_exists( 'Fanfic_Coauthors' )
+							&& Fanfic_Coauthors::is_enabled()
+							&& Fanfic_Coauthors::is_coauthor( $story_id, $user_id ) ) {
+							return array( 'delete_fanfiction_chapters' );
+						}
 						return array( 'delete_others_fanfiction_chapters' );
 					}
 				}
@@ -392,6 +411,24 @@ class Fanfic_Roles_Caps {
 				// Allow the post author to read their own drafts
 				if ( (int) $user_id === (int) $post->post_author ) {
 					return array( 'read' );
+				}
+
+				// Allow accepted co-authors to read draft stories and chapters.
+				// Allow pending co-authors read-only preview access.
+				if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+					if ( 'fanfiction_story' === $post->post_type ) {
+						if ( Fanfic_Coauthors::is_coauthor( $post->ID, $user_id ) || Fanfic_Coauthors::is_pending_coauthor( $post->ID, $user_id ) ) {
+							return array( 'read' );
+						}
+					} elseif ( 'fanfiction_chapter' === $post->post_type ) {
+						$story_id = (int) $post->post_parent;
+						if ( $story_id > 0 && (
+							Fanfic_Coauthors::is_coauthor( $story_id, $user_id ) ||
+							Fanfic_Coauthors::is_pending_coauthor( $story_id, $user_id )
+						) ) {
+							return array( 'read' );
+						}
+					}
 				}
 
 				// Allow moderators/admins to read any draft
@@ -445,6 +482,9 @@ class Fanfic_Roles_Caps {
 				if ( (int) $user_id === (int) $post->post_author ) {
 					error_log( 'User IS author - Returning: edit_fanfiction_stories' );
 					$caps = array( 'edit_fanfiction_stories' );
+				} elseif ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() && Fanfic_Coauthors::is_coauthor( $post->ID, $user_id ) ) {
+					error_log( 'User IS accepted co-author - Returning: edit_fanfiction_stories' );
+					$caps = array( 'edit_fanfiction_stories' );
 				} else {
 					error_log( 'User is NOT author - Returning: edit_others_fanfiction_stories' );
 					$caps = array( 'edit_others_fanfiction_stories' );
@@ -484,12 +524,26 @@ class Fanfic_Roles_Caps {
 			if ( 'edit_fanfiction_chapter' === $cap ) {
 				if ( (int) $user_id === (int) $post->post_author ) {
 					$caps = array( 'edit_fanfiction_chapters' );
+				} elseif ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+					$story_id = (int) $post->post_parent;
+					if ( $story_id > 0 && Fanfic_Coauthors::is_coauthor( $story_id, $user_id ) ) {
+						$caps = array( 'edit_fanfiction_chapters' );
+					} else {
+						$caps = array( 'edit_others_fanfiction_chapters' );
+					}
 				} else {
 					$caps = array( 'edit_others_fanfiction_chapters' );
 				}
 			} elseif ( 'delete_fanfiction_chapter' === $cap ) {
 				if ( (int) $user_id === (int) $post->post_author ) {
 					$caps = array( 'delete_fanfiction_chapters' );
+				} elseif ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+					$story_id = (int) $post->post_parent;
+					if ( $story_id > 0 && Fanfic_Coauthors::is_coauthor( $story_id, $user_id ) ) {
+						$caps = array( 'delete_fanfiction_chapters' );
+					} else {
+						$caps = array( 'delete_others_fanfiction_chapters' );
+					}
 				} else {
 					$caps = array( 'delete_others_fanfiction_chapters' );
 				}

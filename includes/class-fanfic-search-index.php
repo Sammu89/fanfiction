@@ -256,6 +256,16 @@ class Fanfic_Search_Index {
 			$parts[] = $author->display_name;
 		}
 
+		// 3b. Co-author display names (when enabled).
+		if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+			$coauthors = Fanfic_Coauthors::get_story_coauthors( $story_id, Fanfic_Coauthors::STATUS_ACCEPTED );
+			foreach ( (array) $coauthors as $coauthor ) {
+				if ( ! empty( $coauthor->display_name ) ) {
+					$parts[] = $coauthor->display_name;
+				}
+			}
+		}
+
 		// 4. Chapter titles
 		$chapters = get_posts(
 			array(
@@ -679,6 +689,16 @@ class Fanfic_Search_Index {
 
 		// Build all data
 		$translation_meta = self::get_translation_meta( $story_id );
+		$coauthor_ids_str = '';
+		$coauthor_names_str = '';
+		if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+			$coauthors = Fanfic_Coauthors::get_story_coauthors( $story_id, Fanfic_Coauthors::STATUS_ACCEPTED );
+			if ( ! empty( $coauthors ) ) {
+				$coauthor_ids_str = implode( ',', array_map( 'absint', wp_list_pluck( $coauthors, 'ID' ) ) );
+				$coauthor_names_str = implode( ', ', array_map( 'sanitize_text_field', wp_list_pluck( $coauthors, 'display_name' ) ) );
+			}
+		}
+
 		$data = array(
 			'story_id'        => $story_id,
 			'indexed_text'    => self::build_index_text( $story_id ),
@@ -687,6 +707,8 @@ class Fanfic_Search_Index {
 			'story_summary'   => self::get_story_summary( $story_id ),
 			'story_status'    => self::get_story_status( $story_id ),
 			'author_id'       => self::get_author_id( $story_id ),
+			'coauthor_ids'    => $coauthor_ids_str,
+			'coauthor_names'  => $coauthor_names_str,
 			'published_date'  => self::get_published_date( $story_id ),
 			'updated_date'    => self::get_updated_date( $story_id ),
 			'chapter_count'   => self::get_chapter_count( $story_id ),

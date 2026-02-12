@@ -1927,7 +1927,13 @@
 			'follow_story': 'dashicons-star-filled',
 			'new_chapter': 'dashicons-book-alt',
 			'new_story': 'dashicons-book-alt',
-			'story_update': 'dashicons-book-alt'
+			'story_update': 'dashicons-book-alt',
+			'coauthor_invite': 'dashicons-groups',
+			'coauthor_accepted': 'dashicons-groups',
+			'coauthor_refused': 'dashicons-groups',
+			'coauthor_removed': 'dashicons-groups',
+			'coauthor_disabled': 'dashicons-groups',
+			'coauthor_enabled': 'dashicons-groups'
 		};
 
 		const iconClass = icons[type] || 'dashicons-bell';

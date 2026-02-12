@@ -264,6 +264,8 @@ $current_genres = array();
 $current_status = '';
 $current_fandoms = array();
 $current_fandom_labels = array();
+$current_coauthors = array();
+$original_coauthor_ids = array();
 $is_original_work = false;
 $featured_image = '';
 $story_introduction = '';
@@ -281,12 +283,62 @@ if ( $is_edit_mode ) {
 		$current_fandom_labels = Fanfic_Fandoms::get_story_fandom_labels( $story->ID, true );
 		$is_original_work = (bool) get_post_meta( $story->ID, Fanfic_Fandoms::META_ORIGINAL, true );
 	}
+	if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+		$db_coauthors = Fanfic_Coauthors::get_all_story_coauthors( $story->ID );
+		foreach ( (array) $db_coauthors as $coauthor ) {
+			$coauthor_id = isset( $coauthor->ID ) ? absint( $coauthor->ID ) : 0;
+			if ( ! $coauthor_id ) {
+				continue;
+			}
+			$current_coauthors[] = array(
+				'id'           => $coauthor_id,
+				'display_name' => isset( $coauthor->display_name ) ? (string) $coauthor->display_name : '',
+				'status'       => isset( $coauthor->status ) ? sanitize_key( $coauthor->status ) : '',
+			);
+			$original_coauthor_ids[] = $coauthor_id;
+		}
+	}
 	$featured_image = get_post_meta( $story->ID, '_fanfic_featured_image', true );
 	$story_introduction = $story->post_excerpt;
 	$story_publish_date = mysql2date( 'Y-m-d', $story->post_date, false );
 }
 if ( isset( $_POST['fanfic_story_publish_date'] ) ) {
 	$story_publish_date = sanitize_text_field( wp_unslash( $_POST['fanfic_story_publish_date'] ) );
+}
+if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() && isset( $_POST['fanfic_story_coauthors'] ) ) {
+	$posted_coauthor_ids = array_values( array_unique( array_filter( array_map( 'absint', (array) $_POST['fanfic_story_coauthors'] ) ) ) );
+	$status_map = array();
+	foreach ( $current_coauthors as $existing_coauthor ) {
+		if ( isset( $existing_coauthor['id'] ) ) {
+			$status_map[ absint( $existing_coauthor['id'] ) ] = isset( $existing_coauthor['status'] ) ? (string) $existing_coauthor['status'] : '';
+		}
+	}
+
+	$current_coauthors = array();
+	if ( ! empty( $posted_coauthor_ids ) ) {
+		$coauthor_users = get_users(
+			array(
+				'include' => $posted_coauthor_ids,
+				'fields'  => array( 'ID', 'display_name' ),
+			)
+		);
+
+		$users_by_id = array();
+		foreach ( (array) $coauthor_users as $coauthor_user ) {
+			$users_by_id[ absint( $coauthor_user->ID ) ] = (string) $coauthor_user->display_name;
+		}
+
+		foreach ( $posted_coauthor_ids as $posted_coauthor_id ) {
+			if ( ! isset( $users_by_id[ $posted_coauthor_id ] ) ) {
+				continue;
+			}
+			$current_coauthors[] = array(
+				'id'           => $posted_coauthor_id,
+				'display_name' => $users_by_id[ $posted_coauthor_id ],
+				'status'       => isset( $status_map[ $posted_coauthor_id ] ) ? $status_map[ $posted_coauthor_id ] : '',
+			);
+		}
+	}
 }
 
 $form_mode = $is_edit_mode ? 'edit' : 'create';
@@ -311,7 +363,7 @@ $image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 $data_attrs = '';
 if ( $is_edit_mode ) {
 	$data_attrs = sprintf(
-		'data-original-title="%s" data-original-content="%s" data-original-genres="%s" data-original-status="%s" data-original-fandoms="%s" data-original-original="%s" data-original-image="%s" data-original-translations="%s" data-original-publish-date="%s"',
+		'data-original-title="%s" data-original-content="%s" data-original-genres="%s" data-original-status="%s" data-original-fandoms="%s" data-original-original="%s" data-original-image="%s" data-original-translations="%s" data-original-coauthors="%s" data-original-publish-date="%s"',
 		esc_attr( $story->post_title ),
 		esc_attr( $story->post_excerpt ),
 		esc_attr( implode( ',', $current_genres ) ),
@@ -330,6 +382,7 @@ if ( $is_edit_mode ) {
 				)
 			)
 		),
+		esc_attr( implode( ',', array_values( array_unique( array_map( 'absint', $original_coauthor_ids ) ) ) ) ),
 		esc_attr( $story_publish_date )
 	);
 }
@@ -578,6 +631,50 @@ if ( $is_edit_mode ) {
 									<?php endforeach; ?>
 								</div>
 								<p class="description"><?php esc_html_e( 'Link other stories you wrote in different languages as translations of this story.', 'fanfiction-manager' ); ?></p>
+							</div>
+						<?php endif; ?>
+
+						<?php if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) : ?>
+							<div class="fanfic-form-field fanfic-coauthors-field" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-max-coauthors="<?php echo esc_attr( Fanfic_Coauthors::MAX_COAUTHORS ); ?>">
+								<label for="fanfic_coauthor_search"><?php esc_html_e( 'Co-Authors', 'fanfiction-manager' ); ?></label>
+								<input
+									type="text"
+									id="fanfic_coauthor_search"
+									class="fanfic-input"
+									autocomplete="off"
+									placeholder="<?php esc_attr_e( 'Search users to invite as co-authors...', 'fanfiction-manager' ); ?>"
+								/>
+								<div class="fanfic-coauthor-results" role="listbox" aria-label="<?php esc_attr_e( 'Co-author search results', 'fanfiction-manager' ); ?>"></div>
+								<div class="fanfic-selected-coauthors" aria-live="polite">
+									<?php foreach ( $current_coauthors as $coauthor ) : ?>
+										<?php
+										$coauthor_id = isset( $coauthor['id'] ) ? absint( $coauthor['id'] ) : 0;
+										$coauthor_name = isset( $coauthor['display_name'] ) ? (string) $coauthor['display_name'] : '';
+										$coauthor_status = isset( $coauthor['status'] ) ? sanitize_key( $coauthor['status'] ) : '';
+										if ( ! $coauthor_id || '' === $coauthor_name ) {
+											continue;
+										}
+										?>
+										<span class="fanfic-selected-coauthor" data-id="<?php echo esc_attr( $coauthor_id ); ?>" data-status="<?php echo esc_attr( $coauthor_status ); ?>">
+											<?php echo wp_kses_post( get_avatar( $coauthor_id, 20, '', $coauthor_name, array( 'class' => 'fanfic-coauthor-avatar', 'loading' => 'lazy' ) ) ); ?>
+											<span class="fanfic-coauthor-name"><?php echo esc_html( $coauthor_name ); ?></span>
+											<?php if ( 'pending' === $coauthor_status ) : ?>
+												<span class="fanfic-coauthor-status-badge"><?php esc_html_e( 'Pending', 'fanfiction-manager' ); ?></span>
+											<?php endif; ?>
+											<button type="button" class="fanfic-remove-coauthor" aria-label="<?php esc_attr_e( 'Remove co-author', 'fanfiction-manager' ); ?>">&times;</button>
+											<input type="hidden" name="fanfic_story_coauthors[]" value="<?php echo esc_attr( $coauthor_id ); ?>">
+										</span>
+									<?php endforeach; ?>
+								</div>
+								<p class="description">
+									<?php
+									printf(
+										/* translators: %d: max co-authors per story. */
+										esc_html__( 'Invite up to %d co-authors. Accepted co-authors can edit story metadata and chapters. Pending users can preview the story until they accept or refuse.', 'fanfiction-manager' ),
+										absint( Fanfic_Coauthors::MAX_COAUTHORS )
+									);
+									?>
+								</p>
 							</div>
 						<?php endif; ?>
 
@@ -872,9 +969,11 @@ if ( $is_edit_mode ) {
 									<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 								</a>
 							<?php endif; ?>
-							<button type="button" id="delete-story-button" class="fanfic-button danger" data-story-id="<?php echo absint( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story_title ); ?>">
-								<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
-							</button>
+							<?php if ( current_user_can( 'delete_fanfiction_story', $story_id ) ) : ?>
+								<button type="button" id="delete-story-button" class="fanfic-button danger" data-story-id="<?php echo absint( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story_title ); ?>">
+									<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+								</button>
+							<?php endif; ?>
 						<?php endif; ?>
 
 						<!-- Warning for draft stories with unpublished chapters -->
@@ -1262,6 +1361,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				var warningCheckboxes = document.querySelectorAll('input[name="fanfic_story_warnings[]"]:checked');
 				var fandomInputs = document.querySelectorAll('input[name="fanfic_story_fandoms[]"]');
 				var translationInputs = document.querySelectorAll('input[name="fanfic_story_translations[]"]');
+				var coauthorInputs = document.querySelectorAll('input[name="fanfic_story_coauthors[]"]');
 				var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
 				var languageField = document.getElementById('fanfic_story_language');
 				var visibleTagsField = document.getElementById('fanfic_visible_tags');
@@ -1276,6 +1376,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				var currentWarnings = Array.from(warningCheckboxes).map(function(cb) { return cb.value; }).sort().join(',');
 				var currentFandoms = Array.from(fandomInputs).map(function(input) { return input.value; }).sort().join(',');
 				var currentTranslations = Array.from(translationInputs).map(function(input) { return input.value; }).sort().join(',');
+				var currentCoauthors = Array.from(coauthorInputs).map(function(input) { return input.value; }).sort().join(',');
 				var currentOriginal = originalCheckbox && originalCheckbox.checked ? '1' : '0';
 				var currentLanguage = languageField ? languageField.value : '';
 				var currentVisibleTags = visibleTagsField ? visibleTagsField.value : '';
@@ -1292,6 +1393,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				var originalWarnings = form.getAttribute('data-original-warnings');
 				var originalLanguage = form.getAttribute('data-original-language');
 				var originalTranslations = form.getAttribute('data-original-translations');
+				var originalCoauthors = form.getAttribute('data-original-coauthors');
 				var originalVisibleTags = form.getAttribute('data-original-visible-tags');
 				var originalInvisibleTags = form.getAttribute('data-original-invisible-tags');
 				var originalPublishDate = form.getAttribute('data-original-publish-date');
@@ -1308,6 +1410,10 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				if (null === originalTranslations) {
 					originalTranslations = currentTranslations;
 					form.setAttribute('data-original-translations', originalTranslations);
+				}
+				if (null === originalCoauthors) {
+					originalCoauthors = currentCoauthors;
+					form.setAttribute('data-original-coauthors', originalCoauthors);
 				}
 				if (null === originalVisibleTags) {
 					originalVisibleTags = currentVisibleTags;
@@ -1336,6 +1442,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 								(currentOriginal !== originalOriginal) ||
 								(currentLanguage !== originalLanguage) ||
 								(currentTranslations !== originalTranslations) ||
+								(currentCoauthors !== originalCoauthors) ||
 								(currentVisibleTags !== originalVisibleTags) ||
 								(currentInvisibleTags !== originalInvisibleTags) ||
 								(currentPublishDate !== originalPublishDate) ||
@@ -1858,6 +1965,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				var warningCheckboxes = document.querySelectorAll('input[name="fanfic_story_warnings[]"]:checked');
 				var fandomInputs = document.querySelectorAll('input[name="fanfic_story_fandoms[]"]');
 				var translationInputs = document.querySelectorAll('input[name="fanfic_story_translations[]"]');
+				var coauthorInputs = document.querySelectorAll('input[name="fanfic_story_coauthors[]"]');
 				var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
 				var languageField = document.getElementById('fanfic_story_language');
 				var visibleTagsField = document.getElementById('fanfic_visible_tags');
@@ -1910,6 +2018,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				storyForm.setAttribute('data-original-warnings', Array.from(warningCheckboxes).map(function(cb) { return cb.value; }).sort().join(','));
 				storyForm.setAttribute('data-original-fandoms', Array.from(fandomInputs).map(function(input) { return input.value; }).sort().join(','));
 				storyForm.setAttribute('data-original-translations', Array.from(translationInputs).map(function(input) { return input.value; }).sort().join(','));
+				storyForm.setAttribute('data-original-coauthors', Array.from(coauthorInputs).map(function(input) { return input.value; }).sort().join(','));
 				storyForm.setAttribute('data-original-original', originalCheckbox && originalCheckbox.checked ? '1' : '0');
 				storyForm.setAttribute('data-original-language', languageField ? languageField.value : '');
 				storyForm.setAttribute('data-original-visible-tags', visibleTagsField ? visibleTagsField.value : '');
@@ -2076,6 +2185,9 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					}
 
 					showStoryFormMessage('success', data.message || '<?php echo esc_js( __( 'Story saved successfully.', 'fanfiction-manager' ) ); ?>', false);
+					if (Array.isArray(data.coauthor_errors) && data.coauthor_errors.length > 0) {
+						showStoryFormMessage('error', data.coauthor_errors.join(' '), true);
+					}
 
 					// Keep form synchronized with the story now being in edit mode.
 					if (data.story_id) {

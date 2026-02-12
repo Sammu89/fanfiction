@@ -152,7 +152,7 @@ class Fanfic_Settings {
 			'fanfic_show_sidebar',
 			array(
 				'type'              => 'string',
-				'sanitize_callback' => array( 'Fanfic_Page_Template', 'sanitize_checkbox_option' ),
+				'sanitize_callback' => array( 'Fanfic_Templates', 'sanitize_checkbox_option' ),
 				'default'           => '1',
 			)
 		);
@@ -190,6 +190,7 @@ class Fanfic_Settings {
 			'enable_report'                  => true,
 			'enable_warnings'                => true,
 			'enable_tags'                    => true,
+			'enable_coauthors'               => false,
 			'allow_anonymous_likes'          => false,
 			'allow_anonymous_reports'        => false,
 			'enable_fandom_classification'   => false,
@@ -308,6 +309,7 @@ class Fanfic_Settings {
 		$sanitized['enable_report']    = isset( $settings['enable_report'] ) && $settings['enable_report'];
 		$sanitized['enable_warnings']  = isset( $settings['enable_warnings'] ) && $settings['enable_warnings'];
 		$sanitized['enable_tags']      = isset( $settings['enable_tags'] ) && $settings['enable_tags'];
+		$sanitized['enable_coauthors'] = isset( $settings['enable_coauthors'] ) && $settings['enable_coauthors'];
 
 		// Anonymous user permissions
 		$sanitized['allow_anonymous_likes']   = isset( $settings['allow_anonymous_likes'] ) && $settings['allow_anonymous_likes'];
@@ -497,8 +499,8 @@ class Fanfic_Settings {
 		// Handle cache clear request
 		if ( isset( $_GET['fanfic_clear_cache'] ) && $_GET['fanfic_clear_cache'] === '1' &&
 		     isset( $_GET['_wpnonce'] ) && wp_verify_nonce( $_GET['_wpnonce'], 'fanfic_clear_cache' ) ) {
-			if ( class_exists( 'Fanfic_Page_Template' ) ) {
-				Fanfic_Page_Template::clear_theme_cache();
+			if ( class_exists( 'Fanfic_Templates' ) ) {
+				Fanfic_Templates::clear_theme_cache();
 				echo '<div class="notice notice-success is-dismissible"><p><strong>Theme cache cleared!</strong> Please refresh this page to see updated template status.</p></div>';
 			}
 		}
@@ -532,8 +534,8 @@ class Fanfic_Settings {
 		global $wp_filter;
 		$filter_registered = false;
 		$filter_callbacks = array();
-		if ( isset( $wp_filter['theme_page_templates'] ) ) {
-			foreach ( $wp_filter['theme_page_templates']->callbacks as $priority => $callbacks ) {
+		if ( isset( $wp_filter['template_include'] ) ) {
+			foreach ( $wp_filter['template_include']->callbacks as $priority => $callbacks ) {
 				foreach ( $callbacks as $idx => $callback ) {
 					$filter_callbacks[] = array(
 						'priority' => $priority,
@@ -542,12 +544,17 @@ class Fanfic_Settings {
 					// Check if this is our callback
 					if ( is_array( $callback['function'] ) &&
 					     isset( $callback['function'][0] ) &&
-					     ( $callback['function'][0] === 'Fanfic_Page_Template' ||
-					       ( is_object( $callback['function'][0] ) && get_class( $callback['function'][0] ) === 'Fanfic_Page_Template' ) ) ) {
+					     ( $callback['function'][0] === 'Fanfic_Templates' ||
+					       ( is_object( $callback['function'][0] ) && get_class( $callback['function'][0] ) === 'Fanfic_Templates' ) ) &&
+					     isset( $callback['function'][1] ) &&
+					     'template_loader' === $callback['function'][1] ) {
 						$filter_registered = true;
 					}
 				}
 			}
+		}
+		if ( $filter_registered ) {
+			$template_registered = true;
 		}
 
 		// Get system pages and check their template assignment
@@ -790,7 +797,7 @@ class Fanfic_Settings {
 					<?php endif; ?>
 
 					<!-- Filter Callbacks -->
-					<h4><?php esc_html_e( 'Registered Filter Callbacks for "theme_page_templates"', 'fanfiction-manager' ); ?></h4>
+					<h4><?php esc_html_e( 'Registered Filter Callbacks for "template_include"', 'fanfiction-manager' ); ?></h4>
 					<?php if ( empty( $filter_callbacks ) ) : ?>
 						<p style="color: #dc3232;">
 							<strong><?php esc_html_e( 'No callbacks registered!', 'fanfiction-manager' ); ?></strong>
@@ -878,9 +885,9 @@ class Fanfic_Settings {
 					<table class="widefat" style="margin-top: 10px;">
 						<tbody>
 							<tr>
-								<td style="width: 40%;"><strong>Fanfic_Page_Template class exists:</strong></td>
+								<td style="width: 40%;"><strong>Fanfic_Templates class exists:</strong></td>
 								<td>
-									<code><?php echo class_exists( 'Fanfic_Page_Template' ) ? 'YES' : 'NO'; ?></code>
+									<code><?php echo class_exists( 'Fanfic_Templates' ) ? 'YES' : 'NO'; ?></code>
 								</td>
 							</tr>
 							<tr>
@@ -900,8 +907,8 @@ class Fanfic_Settings {
 								<td>
 									<code>
 										<?php
-										if ( class_exists( 'Fanfic_Page_Template' ) ) {
-											$reflection = new ReflectionClass( 'Fanfic_Page_Template' );
+										if ( class_exists( 'Fanfic_Templates' ) ) {
+											$reflection = new ReflectionClass( 'Fanfic_Templates' );
 											$constants = $reflection->getConstants();
 											echo isset( $constants['TEMPLATE_FILE'] ) ? esc_html( $constants['TEMPLATE_FILE'] ) : 'NOT DEFINED';
 										} else {
@@ -921,27 +928,27 @@ class Fanfic_Settings {
 					</p>
 					<?php
 					// Manually apply the filter to see what comes back
-					$test_templates = array();
-					$test_result = apply_filters( 'theme_page_templates', $test_templates, wp_get_theme(), null );
+					$test_template_input = '';
+					$test_result = apply_filters( 'template_include', $test_template_input );
 					?>
 					<table class="widefat" style="margin-top: 10px;">
 						<tbody>
 							<tr>
 								<td style="width: 40%;"><strong>Input to filter:</strong></td>
-								<td><code><?php echo esc_html( json_encode( $test_templates ) ); ?></code></td>
+								<td><code><?php echo esc_html( $test_template_input ); ?></code></td>
 							</tr>
 							<tr>
 								<td><strong>Output from filter:</strong></td>
 								<td>
-									<code><?php echo esc_html( json_encode( $test_result ) ); ?></code>
+									<code><?php echo esc_html( $test_result ); ?></code>
 								</td>
 							</tr>
 							<tr>
-								<td><strong>Our template in output:</strong></td>
+								<td><strong>Wrapper selected:</strong></td>
 								<td>
 									<code>
 										<?php
-										echo isset( $test_result['fanfiction-page-template.php'] ) ? 'YES - ' . esc_html( $test_result['fanfiction-page-template.php'] ) : 'NO';
+										echo ( is_string( $test_result ) && false !== strpos( $test_result, 'fanfiction-page-template.php' ) ) ? 'YES' : 'NO';
 										?>
 									</code>
 								</td>
@@ -956,7 +963,7 @@ class Fanfic_Settings {
 					</p>
 					<ol style="font-size: 12px; color: #646970; margin-left: 20px;">
 						<li><?php esc_html_e( 'Scanning theme directory for files with "Template Name:" header', 'fanfiction-manager' ); ?></li>
-						<li><?php esc_html_e( 'Using the "theme_page_templates" filter (what our plugin does)', 'fanfiction-manager' ); ?></li>
+						<li><?php esc_html_e( 'Using the "template_include" filter to choose the final template', 'fanfiction-manager' ); ?></li>
 					</ol>
 					<?php
 					// Check if our template file is in the plugin directory and has correct headers
@@ -1560,6 +1567,20 @@ class Fanfic_Settings {
 							</td>
 						</tr>
 
+						<!-- Enable Co-Authors -->
+						<tr>
+							<th scope="row">
+								<label for="fanfic_enable_coauthors"><?php esc_html_e( 'Co-Authors', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="fanfic_enable_coauthors" name="fanfic_settings[enable_coauthors]" value="1" <?php checked( isset( $settings['enable_coauthors'] ) ? $settings['enable_coauthors'] : false, true ); ?>>
+									<?php esc_html_e( 'Enable co-author functionality', 'fanfiction-manager' ); ?>
+								</label>
+								<p class="description"><?php esc_html_e( 'Allow authors to invite co-authors to collaborate on stories.', 'fanfiction-manager' ); ?></p>
+							</td>
+						</tr>
+
 						<!-- Allow Anonymous Likes -->
 						<tr>
 							<th scope="row">
@@ -1712,6 +1733,20 @@ class Fanfic_Settings {
 					$('#featured-criteria').hide();
 				}
 			});
+
+			var $coauthorCheckbox = $('#fanfic_enable_coauthors');
+			if ($coauthorCheckbox.length) {
+				var wasChecked = $coauthorCheckbox.is(':checked');
+
+				$coauthorCheckbox.on('change', function() {
+					if (wasChecked && !$(this).is(':checked')) {
+						var confirmed = confirm('<?php echo esc_js( __( 'Warning: Turning off co-authors will remove all co-author access to their stories. Every affected author and co-author will receive a notification. Co-author data will be preserved and can be restored by re-enabling this feature.', 'fanfiction-manager' ) ); ?>');
+						if (!confirmed) {
+							$(this).prop('checked', true);
+						}
+					}
+				});
+			}
 		});
 		</script>
 		<?php
@@ -2299,12 +2334,17 @@ class Fanfic_Settings {
 			wp_die( __( 'Security check failed.', 'fanfiction-manager' ) );
 		}
 
+		$old_settings = get_option( self::OPTION_NAME, self::get_default_settings() );
+		$was_coauthors_enabled = ! empty( $old_settings['enable_coauthors'] );
+
 		// Get and sanitize settings
 		$settings = isset( $_POST['fanfic_settings'] ) ? wp_unslash( $_POST['fanfic_settings'] ) : array();
 		$sanitized_settings = self::sanitize_settings( $settings );
 
 		// Update settings
 		update_option( self::OPTION_NAME, $sanitized_settings );
+		$is_coauthors_enabled = ! empty( $sanitized_settings['enable_coauthors'] );
+		self::maybe_dispatch_coauthor_toggle_notifications( $was_coauthors_enabled, $is_coauthors_enabled );
 
 		// Handle reCAPTCHA keys (stored as separate options)
 		if ( isset( $_POST['fanfic_recaptcha_site_key'] ) ) {
@@ -2329,6 +2369,26 @@ class Fanfic_Settings {
 			)
 		);
 		exit;
+	}
+
+	/**
+	 * Dispatch co-author feature toggle notifications.
+	 *
+	 * @since 1.5.3
+	 * @param bool $was_enabled Previous toggle state.
+	 * @param bool $is_enabled  New toggle state.
+	 * @return void
+	 */
+	private static function maybe_dispatch_coauthor_toggle_notifications( $was_enabled, $is_enabled ) {
+		if ( ! class_exists( 'Fanfic_Coauthors' ) ) {
+			return;
+		}
+
+		if ( $was_enabled && ! $is_enabled ) {
+			Fanfic_Coauthors::notify_feature_disabled();
+		} elseif ( ! $was_enabled && $is_enabled ) {
+			Fanfic_Coauthors::notify_feature_enabled();
+		}
 	}
 
 	/**

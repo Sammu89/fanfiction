@@ -15,10 +15,19 @@ $current_theme = get_template();
 $theme_version = wp_get_theme()->get( 'Version' );
 $transient_key = 'fanfic_theme_detections_' . md5( $current_theme . $theme_version );
 $is_block_theme = function_exists( 'wp_is_block_theme' ) && wp_is_block_theme();
+$block_header_markup = '';
+$block_footer_markup = '';
+$use_block_shell = false;
+
+if ( $is_block_theme ) {
+	$block_header_markup = trim( (string) do_blocks( '<!-- wp:template-part {"slug":"header","tagName":"header"} /-->' ) );
+	$block_footer_markup = trim( (string) do_blocks( '<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->' ) );
+	$use_block_shell = ( '' !== $block_header_markup && '' !== $block_footer_markup );
+}
 
 // Render theme header/footer in a way that works for both classic and block themes.
-$fanfic_render_theme_header = static function() use ( $is_block_theme ) {
-	if ( $is_block_theme ) {
+$fanfic_render_theme_header = static function() use ( $use_block_shell, $block_header_markup ) {
+	if ( $use_block_shell ) {
 		?>
 		<!doctype html>
 		<html <?php language_attributes(); ?>>
@@ -32,16 +41,16 @@ $fanfic_render_theme_header = static function() use ( $is_block_theme ) {
 		if ( function_exists( 'wp_body_open' ) ) {
 			wp_body_open();
 		}
-		echo do_blocks( '<!-- wp:template-part {"slug":"header","tagName":"header"} /-->' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		echo $block_header_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		return;
 	}
 
 	get_header();
 };
 
-$fanfic_render_theme_footer = static function() use ( $is_block_theme ) {
-	if ( $is_block_theme ) {
-		echo do_blocks( '<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+$fanfic_render_theme_footer = static function() use ( $use_block_shell, $block_footer_markup ) {
+	if ( $use_block_shell ) {
+		echo $block_footer_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		wp_footer();
 		?>
 		</body>
@@ -59,7 +68,7 @@ $has_h1 = false;
 $need_header_modification = false;
 $header_output = null;
 
-if ( $is_block_theme ) {
+if ( $use_block_shell ) {
 	// For block themes, render once with proper document shell.
 	$fanfic_render_theme_header();
 } else {

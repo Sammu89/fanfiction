@@ -207,9 +207,6 @@ class Fanfic_Core {
 		// Load URL Manager (centralized URL management - replaces Rewrite, Dynamic_Pages, URL_Builder)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-url-manager.php';
 
-		// Load Page Template (handles custom template that integrates with themes)
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-page-template.php';
-
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-post-types.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-taxonomies.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';
@@ -230,6 +227,7 @@ class Fanfic_Core {
 
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-bookmarks.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-follows.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-coauthors.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-views.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-reading-progress.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-batch-loader.php';
@@ -327,9 +325,6 @@ class Fanfic_Core {
 		// Initialize template system
 		Fanfic_Templates::init();
 
-		// Initialize page template system
-		Fanfic_Page_Template::init();
-
 		// Initialize shortcodes
 		Fanfic_Shortcodes::init();
 
@@ -409,6 +404,9 @@ class Fanfic_Core {
 
 		// Initialize follows system
 		Fanfic_Follows::init();
+
+		// Initialize co-author system
+		Fanfic_Coauthors::init();
 
 		// Initialize views tracking
 		Fanfic_Views::init();
@@ -1375,6 +1373,56 @@ class Fanfic_Core {
 				)
 			);
 		}
+
+		// Co-authors autocomplete for story form and invitation actions on dashboard.
+		if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+			if ( 'template-story-form.php' === $current_template ) {
+				wp_enqueue_script(
+					'fanfiction-coauthors',
+					FANFIC_PLUGIN_URL . 'assets/js/fanfiction-coauthors.js',
+					array(),
+					FANFIC_VERSION,
+					true
+				);
+
+				wp_localize_script(
+					'fanfiction-coauthors',
+					'fanficCoauthors',
+					array(
+						'restUrl'      => esc_url_raw( rest_url( Fanfic_Coauthors::REST_NAMESPACE . '/users/search' ) ),
+						'restNonce'    => wp_create_nonce( 'wp_rest' ),
+						'maxCoauthors' => Fanfic_Coauthors::MAX_COAUTHORS,
+						'strings'      => array(
+							'remove'  => __( 'Remove co-author', 'fanfiction-manager' ),
+							'pending' => __( 'Pending', 'fanfiction-manager' ),
+						),
+					)
+				);
+			}
+
+			if ( 'template-dashboard.php' === $current_template ) {
+				wp_enqueue_script(
+					'fanfiction-coauthors-dashboard',
+					FANFIC_PLUGIN_URL . 'assets/js/fanfiction-coauthors-dashboard.js',
+					array(),
+					FANFIC_VERSION,
+					true
+				);
+
+				wp_localize_script(
+					'fanfiction-coauthors-dashboard',
+					'fanficCoauthorsDashboard',
+					array(
+						'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
+						'nonce'    => wp_create_nonce( 'fanfic_ajax_nonce' ),
+						'strings'  => array(
+							'error'        => __( 'Failed to process invitation response.', 'fanfiction-manager' ),
+							'invalidStory' => __( 'Invalid story.', 'fanfiction-manager' ),
+						),
+					)
+				);
+			}
+		}
 	}
 
 	/**
@@ -1558,27 +1606,24 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-roles-caps.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-settings.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-templates.php';
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-page-template.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-cache.php';
 		require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-cache-admin.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-database-setup.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-fandoms.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-warnings.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-languages.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-coauthors.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-translations.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-story-status-automation.php';
 
-		// Initialize and verify page template system
-		self::verify_page_template_system();
-
 		// Clear theme cache so template appears immediately
-		if ( class_exists( 'Fanfic_Page_Template' ) ) {
-			Fanfic_Page_Template::clear_theme_cache();
+		if ( class_exists( 'Fanfic_Templates' ) ) {
+			Fanfic_Templates::clear_theme_cache();
 
 			// Store initial theme type for future theme switch detection
-			$theme_type = Fanfic_Page_Template::is_block_theme() ? 'block' : 'classic';
+			$theme_type = Fanfic_Templates::is_block_theme() ? 'block' : 'classic';
 			update_option( 'fanfic_theme_type', $theme_type );
 		}
 
@@ -1690,7 +1735,6 @@ class Fanfic_Core {
 		// Critical template files that must exist
 		$required_templates = array(
 			'fanfiction-page-template.php' => 'Main page template',
-			'template-story-archive.php' => 'Story archive template',
 			'template-story-view.php'  => 'Single story template',
 			'template-chapter-view.php' => 'Single chapter template',
 		);
@@ -1712,50 +1756,6 @@ class Fanfic_Core {
 		// Set transient if any files are missing
 		if ( ! empty( $missing_files ) ) {
 			set_transient( 'fanfic_missing_templates', $missing_files, 60 );
-		}
-	}
-
-	/**
-	 * Initialize and verify page template system
-	 *
-	 * Ensures the page template system is properly initialized and registered.
-	 * Sets a transient for admin notice if registration fails.
-	 *
-	 * @since 1.0.0
-	 */
-	private static function verify_page_template_system() {
-		// Initialize the page template system
-		if ( class_exists( 'Fanfic_Page_Template' ) ) {
-			Fanfic_Page_Template::init();
-
-			// Verify the template filter was registered
-			// We check if our filter callback is registered for 'theme_page_templates'
-			global $wp_filter;
-
-			$template_registered = false;
-			if ( isset( $wp_filter['theme_page_templates'] ) ) {
-				foreach ( $wp_filter['theme_page_templates']->callbacks as $priority => $callbacks ) {
-					foreach ( $callbacks as $callback ) {
-						// Check if this is our callback
-						if ( is_array( $callback['function'] ) &&
-						     isset( $callback['function'][0] ) &&
-						     $callback['function'][0] === 'Fanfic_Page_Template' &&
-						     isset( $callback['function'][1] ) &&
-						     $callback['function'][1] === 'register_page_template' ) {
-							$template_registered = true;
-							break 2;
-						}
-					}
-				}
-			}
-
-			// Set transient if template registration failed
-			if ( ! $template_registered ) {
-				set_transient( 'fanfic_template_not_registered', true, 60 );
-			}
-		} else {
-			// Class doesn't exist - serious error
-			set_transient( 'fanfic_template_class_missing', true, 60 );
 		}
 	}
 
@@ -1805,31 +1805,6 @@ class Fanfic_Core {
 			<?php
 		}
 
-		// Check for template class missing
-		if ( get_transient( 'fanfic_template_class_missing' ) ) {
-			delete_transient( 'fanfic_template_class_missing' );
-			?>
-			<div class="notice error-message">
-				<p>
-					<strong>Fanfiction Manager:</strong> The page template system class is missing.
-					Please reinstall the plugin or contact support.
-				</p>
-			</div>
-			<?php
-		}
-
-		// Check for template not registered
-		if ( get_transient( 'fanfic_template_not_registered' ) ) {
-			delete_transient( 'fanfic_template_not_registered' );
-			?>
-			<div class="notice notice-warning">
-				<p>
-					<strong>Fanfiction Manager:</strong> The page template failed to register with WordPress.
-					This may indicate a theme compatibility issue. The plugin will still function, but page templates may not display correctly.
-				</p>
-			</div>
-			<?php
-		}
 	}
 
 	/**

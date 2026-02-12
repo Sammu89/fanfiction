@@ -47,6 +47,10 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 }
 
 $current_user = wp_get_current_user();
+$user_id = get_current_user_id();
+
+$coauthors_enabled = class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled();
+$pending_invitations = $coauthors_enabled ? Fanfic_Coauthors::get_pending_invitations( $user_id ) : array();
 ?>
 
 <!-- Breadcrumb Navigation -->
@@ -179,26 +183,76 @@ if ( isset( $_GET['error'] ) ) {
 <!-- Main Dashboard Content -->
 <div class="fanfic-dashboard-main">
 	<div class="fanfic-dashboard-primary">
+		<?php if ( $coauthors_enabled && ! empty( $pending_invitations ) ) : ?>
+			<section class="fanfic-dashboard-invitations" aria-labelledby="coauthor-invitations-heading">
+				<h2 id="coauthor-invitations-heading"><?php esc_html_e( 'Pending Co-Author Invitations', 'fanfiction-manager' ); ?></h2>
+				<div class="fanfic-invitations-list">
+					<?php foreach ( $pending_invitations as $invitation ) : ?>
+						<?php
+						$story_id = isset( $invitation->story_id ) ? absint( $invitation->story_id ) : 0;
+						if ( ! $story_id ) {
+							continue;
+						}
+						$story_link = get_permalink( $story_id );
+						$story_title = isset( $invitation->story_title ) ? (string) $invitation->story_title : '';
+						$inviter_name = isset( $invitation->inviter_name ) ? (string) $invitation->inviter_name : '';
+						?>
+						<div class="fanfic-invitation-item">
+							<p class="fanfic-invitation-text">
+								<?php
+								printf(
+									/* translators: 1: inviter display name, 2: story title with link. */
+									esc_html__( '%1$s invited you to co-author %2$s.', 'fanfiction-manager' ),
+									esc_html( $inviter_name ),
+									'"' . esc_html( $story_title ) . '"'
+								);
+								?>
+								<?php if ( $story_link ) : ?>
+									<a href="<?php echo esc_url( $story_link ); ?>" class="fanfic-invitation-story-link"><?php esc_html_e( 'View Story', 'fanfiction-manager' ); ?></a>
+								<?php endif; ?>
+							</p>
+							<div class="fanfic-invitation-actions">
+								<button type="button" class="fanfic-button fanfic-accept-invitation" data-story-id="<?php echo esc_attr( $story_id ); ?>">
+									<?php esc_html_e( 'Accept', 'fanfiction-manager' ); ?>
+								</button>
+								<button type="button" class="fanfic-button danger fanfic-refuse-invitation" data-story-id="<?php echo esc_attr( $story_id ); ?>">
+									<?php esc_html_e( 'Refuse', 'fanfiction-manager' ); ?>
+								</button>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			</section>
+		<?php endif; ?>
+
 		<!-- Manage Stories Section -->
 		<section class="fanfic-dashboard-stories" id="my-stories" aria-labelledby="stories-heading">
 			<h2 id="stories-heading"><?php esc_html_e( 'Your Stories', 'fanfiction-manager' ); ?></h2>
 
 			<?php
-			// Get current user ID
-			$user_id = get_current_user_id();
 			$paged = get_query_var( 'paged' ) ? get_query_var( 'paged' ) : 1;
 			$posts_per_page = 10;
 
-			// Query user's stories
-			$query = new WP_Query( array(
+			$coauthored_ids = array();
+			if ( $coauthors_enabled ) {
+				$coauthored_ids = Fanfic_Coauthors::get_user_coauthored_stories( $user_id, 'accepted' );
+			}
+
+			$query_args = array(
 				'post_type'      => 'fanfiction_story',
-				'author'         => $user_id,
 				'post_status'    => array( 'publish', 'draft', 'pending' ),
 				'posts_per_page' => $posts_per_page,
 				'paged'          => $paged,
 				'orderby'        => 'modified',
 				'order'          => 'DESC',
-			) );
+				'author'         => $user_id,
+			);
+			if ( ! empty( $coauthored_ids ) ) {
+				$query_args['fanfic_include_coauthored'] = $coauthored_ids;
+			}
+
+			// Query user's own + co-authored stories
+			$query = new WP_Query( $query_args );
 
 			// Pre-fetch chapter counts to avoid N+1 queries
 			$chapter_counts = array();
@@ -246,6 +300,7 @@ if ( isset( $_GET['error'] ) ) {
 									<?php
 									$story_id = get_the_ID();
 									$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
+									$is_original_author = ( (int) get_post_field( 'post_author', $story_id ) === (int) $user_id );
 									$chapter_count = isset( $chapter_counts[ $story_id ] ) ? $chapter_counts[ $story_id ] : 0;
 									$views = get_post_meta( $story_id, '_fanfic_views', true );
 									$status_terms = wp_get_post_terms( $story_id, 'fanfiction_status' );
@@ -261,6 +316,9 @@ if ( isset( $_GET['error'] ) ) {
 											<?php endif; ?>
 											<?php if ( 'publish' !== get_post_status() ) : ?>
 												<span class="fanfic-badge fanfic-badge-draft"><?php echo esc_html( ucfirst( get_post_status() ) ); ?></span>
+											<?php endif; ?>
+											<?php if ( $coauthors_enabled && ! $is_original_author ) : ?>
+												<span class="fanfic-badge fanfic-badge-coauthor"><?php esc_html_e( 'Co-author', 'fanfiction-manager' ); ?></span>
 											<?php endif; ?>
 										</td>
 										<td><?php echo esc_html( $is_blocked ? __( 'Blocked', 'fanfiction-manager' ) : $status_name ); ?></td>
@@ -289,14 +347,16 @@ if ( isset( $_GET['error'] ) ) {
 												<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button small">
 													<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 												</a>
-												<form method="post" style="display: inline;" onsubmit="return confirm('<?php esc_attr_e( 'Are you sure you want to delete this story and all its chapters? This action cannot be undone.', 'fanfiction-manager' ); ?>');">
-													<?php wp_nonce_field( 'fanfic_delete_story_' . $story_id, 'fanfic_delete_story_nonce' ); ?>
-													<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
-													<input type="hidden" name="fanfic_delete_story_submit" value="1" />
-													<button type="submit" class="fanfic-button small danger">
-														<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
-													</button>
-												</form>
+												<?php if ( $is_original_author && current_user_can( 'delete_fanfiction_story', $story_id ) ) : ?>
+													<form method="post" style="display: inline;" onsubmit="return confirm('<?php esc_attr_e( 'Are you sure you want to delete this story and all its chapters? This action cannot be undone.', 'fanfiction-manager' ); ?>');">
+														<?php wp_nonce_field( 'fanfic_delete_story_' . $story_id, 'fanfic_delete_story_nonce' ); ?>
+														<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
+														<input type="hidden" name="fanfic_delete_story_submit" value="1" />
+														<button type="submit" class="fanfic-button small danger">
+															<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+														</button>
+													</form>
+												<?php endif; ?>
 											<?php endif; ?>
 										</td>
 									</tr>
@@ -376,6 +436,14 @@ if ( isset( $_GET['error'] ) ) {
 										case Fanfic_Notifications::TYPE_NEW_STORY:
 										case Fanfic_Notifications::TYPE_STORY_UPDATE:
 											echo '<span class="dashicons dashicons-book-alt"></span>';
+											break;
+										case Fanfic_Notifications::TYPE_COAUTHOR_INVITE:
+										case Fanfic_Notifications::TYPE_COAUTHOR_ACCEPTED:
+										case Fanfic_Notifications::TYPE_COAUTHOR_REFUSED:
+										case Fanfic_Notifications::TYPE_COAUTHOR_REMOVED:
+										case Fanfic_Notifications::TYPE_COAUTHOR_DISABLED:
+										case Fanfic_Notifications::TYPE_COAUTHOR_ENABLED:
+											echo '<span class="dashicons dashicons-groups"></span>';
 											break;
 										case Fanfic_Notifications::TYPE_FOLLOW_STORY:
 											echo '<span class="dashicons dashicons-star-filled"></span>';

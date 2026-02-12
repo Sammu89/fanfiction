@@ -41,6 +41,7 @@ class Fanfic_Shortcodes_Author {
 		add_shortcode( 'author-total-views', array( __CLASS__, 'author_total_views' ) );
 		add_shortcode( 'author-average-rating', array( __CLASS__, 'author_average_rating' ) );
 		add_shortcode( 'author-story-list', array( __CLASS__, 'author_story_list' ) );
+		add_shortcode( 'author-coauthored-stories', array( __CLASS__, 'author_coauthored_stories' ) );
 		add_shortcode( 'author-stories-grid', array( __CLASS__, 'author_stories_grid' ) );
 		add_shortcode( 'author-completed-stories', array( __CLASS__, 'author_completed_stories' ) );
 		add_shortcode( 'author-ongoing-stories', array( __CLASS__, 'author_ongoing_stories' ) );
@@ -534,6 +535,74 @@ class Fanfic_Shortcodes_Author {
 		}
 
 		return self::render_story_list( $author_id, $atts, 'list' );
+	}
+
+	/**
+	 * Author co-authored stories shortcode.
+	 *
+	 * [author-coauthored-stories author_id="5" author_username="john" limit="10" paginate="true"]
+	 *
+	 * @since 1.5.3
+	 * @param array $atts Shortcode attributes.
+	 * @return string
+	 */
+	public static function author_coauthored_stories( $atts ) {
+		if ( ! class_exists( 'Fanfic_Coauthors' ) || ! Fanfic_Coauthors::is_enabled() ) {
+			return '';
+		}
+
+		$atts = Fanfic_Shortcodes::sanitize_atts(
+			$atts,
+			array(
+				'author_id'       => 0,
+				'author_username' => '',
+				'limit'           => 10,
+				'paginate'        => 'true',
+			),
+			'author-coauthored-stories'
+		);
+
+		$author_id = self::get_author_id( $atts );
+		if ( ! $author_id ) {
+			return '';
+		}
+
+		$coauthored_ids = Fanfic_Coauthors::get_user_coauthored_stories( $author_id, 'accepted' );
+		if ( empty( $coauthored_ids ) ) {
+			return '';
+		}
+
+		$paged = get_query_var( 'paged' ) ? get_query_var( 'paged' ) : 1;
+		$query_args = array(
+			'post_type'      => 'fanfiction_story',
+			'post_status'    => 'publish',
+			'post__in'       => array_map( 'absint', $coauthored_ids ),
+			'posts_per_page' => absint( $atts['limit'] ),
+			'paged'          => $paged,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+		);
+
+		$stories = new WP_Query( $query_args );
+		if ( ! $stories->have_posts() ) {
+			wp_reset_postdata();
+			return '';
+		}
+
+		$output = '<h2>' . esc_html__( 'Co-Authored Stories', 'fanfiction-manager' ) . '</h2>';
+		$output .= '<div class="author-stories-list author-coauthored-stories-list">';
+		while ( $stories->have_posts() ) {
+			$stories->the_post();
+			$output .= self::render_story_item( get_the_ID() );
+		}
+		$output .= '</div>';
+
+		if ( 'true' === $atts['paginate'] ) {
+			$output .= self::render_story_pagination( $stories );
+		}
+
+		wp_reset_postdata();
+		return $output;
 	}
 
 	/**

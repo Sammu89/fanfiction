@@ -25,6 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_follows: Unified story and author follows
  * - wp_fanfic_email_subscriptions: Email-only subscriptions
  * - wp_fanfic_notifications: In-app notifications
+ * - wp_fanfic_coauthors: Story co-author relationships
  * - wp_fanfic_fandoms: Fandom definitions
  * - wp_fanfic_story_fandoms: Story-fandom relations
  * - wp_fanfic_warnings: Warning definitions (NEW in 1.2.0)
@@ -48,7 +49,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.5.2';
+	const DB_VERSION = '1.5.3';
 
 	/**
 	 * Option name for database version tracking
@@ -237,7 +238,28 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create notifications table';
 		}
 
-		// 8-13. Classification tables (fandoms, warnings, languages).
+		// 8. Co-Authors Table
+		$table_coauthors = $prefix . 'fanfic_coauthors';
+		$sql_coauthors   = "CREATE TABLE IF NOT EXISTS {$table_coauthors} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			story_id bigint(20) UNSIGNED NOT NULL,
+			user_id bigint(20) UNSIGNED NOT NULL,
+			invited_by bigint(20) UNSIGNED NOT NULL,
+			status enum('pending','accepted','refused') NOT NULL DEFAULT 'pending',
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			responded_at datetime DEFAULT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY unique_story_user (story_id, user_id),
+			KEY idx_user_status (user_id, status),
+			KEY idx_story_status (story_id, status)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_coauthors );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_coauthors ) ) {
+			$errors[] = 'Failed to create coauthors table';
+		}
+
+		// 9-14. Classification tables (fandoms, warnings, languages).
 		// Skipped on activation when $include_classification is false;
 		// the setup wizard creates them on demand in step 1.
 		if ( $include_classification ) {
@@ -437,6 +459,8 @@ class Fanfic_Database_Setup {
 			story_summary text,
 			story_status varchar(20) DEFAULT 'publish',
 			author_id bigint(20) UNSIGNED DEFAULT 0,
+			coauthor_ids varchar(500) DEFAULT '',
+			coauthor_names varchar(1000) DEFAULT '',
 			published_date datetime DEFAULT NULL,
 			updated_date datetime DEFAULT NULL,
 			chapter_count int(11) DEFAULT 0,
@@ -509,6 +533,7 @@ class Fanfic_Database_Setup {
 		self::migrate_warnings_age_schema();
 		self::migrate_search_index_age_schema();
 		self::migrate_search_index_translations_schema();
+		self::migrate_search_index_coauthors_schema();
 		self::migrate_story_filter_map_schema();
 
 		// Return errors if any
@@ -878,7 +903,9 @@ class Fanfic_Database_Setup {
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN story_summary text AFTER story_slug" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN story_status varchar(20) DEFAULT 'publish' AFTER story_summary" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN author_id bigint(20) UNSIGNED DEFAULT 0 AFTER story_status" );
-		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN published_date datetime DEFAULT NULL AFTER author_id" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN coauthor_ids varchar(500) DEFAULT '' AFTER author_id" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN coauthor_names varchar(1000) DEFAULT '' AFTER coauthor_ids" );
+		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN published_date datetime DEFAULT NULL AFTER coauthor_names" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN updated_date datetime DEFAULT NULL AFTER published_date" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN chapter_count int(11) DEFAULT 0 AFTER updated_date" );
 		$wpdb->query( "ALTER TABLE {$table} ADD COLUMN word_count bigint(20) DEFAULT 0 AFTER chapter_count" );
@@ -1068,6 +1095,34 @@ class Fanfic_Database_Setup {
 				) stats ON stats.story_id = idx.story_id
 				SET idx.translation_count = stats.translation_count"
 			);
+		}
+	}
+
+	/**
+	 * Migrate search index co-author columns.
+	 *
+	 * Ensures preloaded story-card metadata includes co-author names and IDs
+	 * without per-card relational queries.
+	 *
+	 * @since 1.5.3
+	 * @return void
+	 */
+	private static function migrate_search_index_coauthors_schema() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_story_search_index';
+
+		if ( ! self::verify_table_exists( $table ) ) {
+			return;
+		}
+
+		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+
+		if ( ! in_array( 'coauthor_ids', (array) $columns, true ) ) {
+			$wpdb->query( "ALTER TABLE {$table} ADD COLUMN coauthor_ids varchar(500) DEFAULT '' AFTER author_id" );
+		}
+
+		if ( ! in_array( 'coauthor_names', (array) $columns, true ) ) {
+			$wpdb->query( "ALTER TABLE {$table} ADD COLUMN coauthor_names varchar(1000) DEFAULT '' AFTER coauthor_ids" );
 		}
 	}
 
@@ -1281,6 +1336,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_bookmarks',
@@ -1321,6 +1377,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_warnings',
@@ -1365,6 +1422,7 @@ class Fanfic_Database_Setup {
 			'total_follows'       => 0,
 			'total_reads'         => 0,
 			'total_notifications' => 0,
+			'total_coauthors'     => 0,
 			'total_subscriptions' => 0,
 		);
 
@@ -1391,6 +1449,10 @@ class Fanfic_Database_Setup {
 
 		$stats['total_notifications'] = (int) $wpdb->get_var(
 			"SELECT COUNT(*) FROM {$prefix}fanfic_notifications"
+		);
+
+		$stats['total_coauthors'] = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$prefix}fanfic_coauthors"
 		);
 
 		$stats['total_subscriptions'] = (int) $wpdb->get_var(
@@ -1441,6 +1503,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_warnings',
@@ -1523,6 +1586,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_warnings',
@@ -1567,6 +1631,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_warnings',
@@ -1624,6 +1689,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_story_warnings',
 			$prefix . 'fanfic_warnings',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_bookmarks',
