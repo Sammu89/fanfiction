@@ -96,20 +96,7 @@ class Fanfic_Email_Queue {
 
 		$author_id = $story->post_author;
 
-		// Step 1: Get logged-in followers with email enabled (from fanfic_follows table)
-		$logged_in_followers = $wpdb->get_results( $wpdb->prepare(
-			"SELECT DISTINCT u.ID, u.user_email, u.display_name, f.email_enabled, f.follow_type
-			FROM {$wpdb->prefix}fanfic_follows f
-			INNER JOIN {$wpdb->users} u ON f.user_id = u.ID
-			WHERE (
-				(f.target_id = %d AND f.follow_type = 'story') OR
-				(f.target_id = %d AND f.follow_type = 'author')
-			)",
-			$story_id,
-			$author_id
-		) );
-
-		// Step 2: Get email subscribers (from fanfic_email_subscriptions table, verified only)
+		// Step 1: Get verified email subscribers only.
 		$email_subscribers = $wpdb->get_results( $wpdb->prepare(
 			"SELECT DISTINCT email, subscription_type
 			FROM {$wpdb->prefix}fanfic_email_subscriptions
@@ -122,67 +109,15 @@ class Fanfic_Email_Queue {
 			$author_id
 		) );
 
-		// Step 3: Create in-app notifications for logged-in followers (all followers, not just email-enabled)
-		if ( ! empty( $logged_in_followers ) && class_exists( 'Fanfic_Notifications' ) ) {
-			$user_ids = array();
-			foreach ( $logged_in_followers as $follower ) {
-				$user_ids[] = $follower->ID;
-			}
-
-			// Use batch notification creation
-			$notification_data = array(
-				'chapter_id'     => $chapter_id,
-				'story_id'       => $story_id,
-				'story_title'    => $story->post_title,
-				'chapter_title'  => $post->post_title,
-				'chapter_number' => get_post_meta( $chapter_id, '_chapter_number', true ),
-				'author_id'      => $author_id,
-			);
-
-			Fanfic_Notifications::batch_create_notifications(
-				$user_ids,
-				'new_chapter',
-				sprintf(
-					/* translators: %s: story title */
-					__( 'New chapter published in "%s"', 'fanfiction-manager' ),
-					$story->post_title
-				),
-				$notification_data
-			);
-		}
-
-		// Step 4: Prepare email recipient list
+		// Step 2: Prepare email recipient list.
 		$email_recipients = array();
 
-		// Add logged-in followers with email enabled
-		foreach ( $logged_in_followers as $follower ) {
-			if ( $follower->email_enabled ) {
-				$email_recipients[] = array(
-					'type'         => 'user',
-					'email'        => $follower->user_email,
-					'display_name' => $follower->display_name,
-					'user_id'      => $follower->ID,
-				);
-			}
-		}
-
-		// Add email-only subscribers
+		// Add email subscribers.
 		foreach ( $email_subscribers as $subscriber ) {
-			// Check if this email is not already in the list (avoid duplicates)
-			$existing = false;
-			foreach ( $email_recipients as $recipient ) {
-				if ( $recipient['email'] === $subscriber->email ) {
-					$existing = true;
-					break;
-				}
-			}
-
-			if ( ! $existing ) {
-				$email_recipients[] = array(
-					'type'  => 'subscriber',
-					'email' => $subscriber->email,
-				);
-			}
+			$email_recipients[] = array(
+				'type'  => 'subscriber',
+				'email' => $subscriber->email,
+			);
 		}
 
 		// Step 5: Batch and schedule emails
@@ -279,7 +214,7 @@ class Fanfic_Email_Queue {
 					"A new chapter has been published in \"%2\$s\"!\n\n" .
 					"Chapter %3\$s: %4\$s\n\n" .
 					"Read it now:\n%5\$s\n\n" .
-					"Thank you for following!\n" .
+					"Thank you for reading!\n" .
 					"%6\$s",
 					'fanfiction-manager'
 				),

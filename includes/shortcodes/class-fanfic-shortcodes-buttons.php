@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Fanfic_Shortcodes_Buttons
  *
- * Context-aware action buttons (bookmark, like, follow, subscribe, etc.).
+ * Context-aware action buttons (bookmark, like, subscribe, etc.).
  *
  * @since 2.0.0
  */
@@ -127,15 +127,15 @@ class Fanfic_Shortcodes_Buttons {
 
 		switch ( $context ) {
 			case 'story':
-				$actions = array( 'follow', 'bookmark', 'subscribe', 'share', 'report', 'edit' );
+				$actions = array( 'bookmark', 'subscribe', 'share', 'report', 'edit' );
 				break;
 
 			case 'chapter':
-				$actions = array( 'follow', 'like', 'dislike', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
+				$actions = array( 'like', 'dislike', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
 				break;
 
 			case 'author':
-				$actions = array( 'follow', 'share' );
+				$actions = array( 'share' );
 				break;
 		}
 
@@ -268,18 +268,7 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		// Add action-specific data attributes
-		if ( 'follow' === $action ) {
-			// Determine target_id and follow_type based on context
-			if ( isset( $context_ids['story_id'] ) ) {
-				// Story or chapter context - follow the story
-				$data_attrs['data-target-id'] = $context_ids['story_id'];
-				$data_attrs['data-follow-type'] = 'story';
-			} elseif ( isset( $context_ids['author_id'] ) ) {
-				// Author context - follow the author
-				$data_attrs['data-target-id'] = $context_ids['author_id'];
-				$data_attrs['data-follow-type'] = 'author';
-			}
-		} elseif ( 'bookmark' === $action ) {
+		if ( 'bookmark' === $action ) {
 			// Add post-id and story-id for bookmark buttons (localStorage key = story_N_chapter_M)
 			if ( isset( $context_ids['chapter_id'] ) ) {
 				$data_attrs['data-post-id']    = $context_ids['chapter_id'];
@@ -359,17 +348,6 @@ class Fanfic_Shortcodes_Buttons {
 				// Bookmarks use localStorage as initial UI source-of-truth (same as likes).
 				return false;
 
-			case 'follow':
-				// Determine follow type based on available IDs
-				if ( isset( $context_ids['story_id'] ) && ! isset( $context_ids['chapter_id'] ) ) {
-					// Story context - follow the story
-					return Fanfic_Follows::is_following( $user_id, $context_ids['story_id'], 'story' );
-				} elseif ( isset( $context_ids['author_id'] ) ) {
-					// Author context - follow the author
-					return Fanfic_Follows::is_following( $user_id, $context_ids['author_id'], 'author' );
-				}
-				return false;
-
 			case 'like':
 			case 'dislike':
 				// Unified interactions use localStorage as initial UI source-of-truth.
@@ -416,7 +394,6 @@ class Fanfic_Shortcodes_Buttons {
 	private static function action_requires_login( $action ) {
 		// Actions that require login
 		$login_required = array(
-			'follow',
 			'mark-read',
 		);
 
@@ -440,10 +417,6 @@ class Fanfic_Shortcodes_Buttons {
 			'subscribe' => array(
 				'inactive' => __( 'Subscribe', 'fanfiction-manager' ),
 				'active'   => __( 'Subscribed', 'fanfiction-manager' ),
-			),
-			'follow' => array(
-				'inactive' => __( 'Follow', 'fanfiction-manager' ),
-				'active'   => __( 'Following', 'fanfiction-manager' ),
 			),
 			'like' => array(
 				'inactive' => __( 'Like', 'fanfiction-manager' ),
@@ -492,10 +465,6 @@ class Fanfic_Shortcodes_Buttons {
 			'subscribe' => array(
 				'inactive' => '&#128276;', // Bell
 				'active'   => '&#128276;', // Bell
-			),
-			'follow' => array(
-				'inactive' => '&#10133;', // Plus
-				'active'   => '&#10003;', // Check
 			),
 			'like' => array(
 				'inactive' => '&#9829;', // Heart outline
@@ -554,10 +523,6 @@ class Fanfic_Shortcodes_Buttons {
 				'inactive' => sprintf( __( 'Subscribe to updates for this %s', 'fanfiction-manager' ), $object_type ),
 				'active'   => sprintf( __( 'Unsubscribe from this %s', 'fanfiction-manager' ), $object_type ),
 			),
-			'follow' => array(
-				'inactive' => __( 'Follow this author', 'fanfiction-manager' ),
-				'active'   => __( 'Unfollow this author', 'fanfiction-manager' ),
-			),
 			'like' => array(
 				'inactive' => sprintf( __( 'Like this %s', 'fanfiction-manager' ), $object_type ),
 				'active'   => sprintf( __( 'Unlike this %s', 'fanfiction-manager' ), $object_type ),
@@ -602,7 +567,6 @@ class Fanfic_Shortcodes_Buttons {
 			'like'      => 'like-text',
 			'dislike'   => 'dislike-text',
 			'bookmark'  => 'bookmark-text',
-			'follow'    => 'follow-text',
 			'mark-read' => 'read-text',
 			// 'subscribe' is NOT a toggle button - it opens a subscription form
 		);
@@ -632,10 +596,6 @@ class Fanfic_Shortcodes_Buttons {
 			'bookmark' => array(
 				'inactive' => 'bookmark-text',
 				'active'   => 'bookmarked-text',
-			),
-			'follow' => array(
-				'inactive' => 'follow-text',
-				'active'   => 'following-text',
 			),
 			'mark-read' => array(
 				'inactive' => 'unread-text',

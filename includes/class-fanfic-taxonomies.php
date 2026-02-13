@@ -104,7 +104,7 @@ class Fanfic_Taxonomies {
 	/**
 	 * Ensure taxonomy defaults exist.
 	 *
-	 * Genres follow "empty => seed, non-empty => keep".
+	 * Genres use "empty => seed, non-empty => keep".
 	 * Status terms always ensure canonical defaults exist.
 	 *
 	 * @return void

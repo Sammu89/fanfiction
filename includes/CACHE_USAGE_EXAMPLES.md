@@ -119,11 +119,11 @@ add_action( 'save_post_fanfiction_chapter', function( $post_id ) {
 
 ### User Invalidation
 
-When user data changes (bookmarks, follows, profile):
+When user data changes (bookmarks, profile):
 
 ```php
 // Invalidates:
-// - User bookmarks, follows, followers
+// - User bookmarks
 // - User stories, notifications, statistics
 Fanfic_Cache::invalidate_user( $user_id );
 ```

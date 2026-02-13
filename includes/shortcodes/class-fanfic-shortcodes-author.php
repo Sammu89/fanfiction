@@ -46,7 +46,6 @@ class Fanfic_Shortcodes_Author {
 		add_shortcode( 'author-completed-stories', array( __CLASS__, 'author_completed_stories' ) );
 		add_shortcode( 'author-ongoing-stories', array( __CLASS__, 'author_ongoing_stories' ) );
 		add_shortcode( 'author-featured-stories', array( __CLASS__, 'author_featured_stories' ) );
-		add_shortcode( 'author-follow-list', array( __CLASS__, 'author_follow_list' ) );
 	}
 
 	/**
@@ -773,94 +772,6 @@ class Fanfic_Shortcodes_Author {
 		$output .= self::render_story_pagination( $stories );
 
 		wp_reset_postdata();
-
-		return $output;
-	}
-
-	/**
-	 * Author follow list shortcode
-	 *
-	 * [author-follow-list user_id="5"]
-	 *
-	 * @since 1.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Author follow list HTML.
-	 */
-	public static function author_follow_list( $atts ) {
-		$atts = Fanfic_Shortcodes::sanitize_atts(
-			$atts,
-			array(
-				'user_id' => 0,
-			),
-			'author-follow-list'
-		);
-
-		// Get user ID
-		$user_id = absint( $atts['user_id'] );
-		if ( ! $user_id ) {
-			$user_id = get_current_user_id();
-		}
-
-		if ( ! $user_id ) {
-			return '';
-		}
-
-		// Use cached follow list (1 hour cache)
-		$cache_key = Fanfic_Cache::get_key( 'user', 'follow_list', $user_id );
-		$followed_authors = Fanfic_Cache::get(
-			$cache_key,
-			function() use ( $user_id ) {
-				global $wpdb;
-
-				$table_name = $wpdb->prefix . 'fanfic_follows';
-
-				// Check if table exists
-				if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) !== $table_name ) {
-					return array();
-				}
-
-				$results = $wpdb->get_results(
-					$wpdb->prepare(
-						"SELECT author_id FROM $table_name WHERE user_id = %d ORDER BY followed_at DESC",
-						$user_id
-					)
-				);
-
-				return $results ? wp_list_pluck( $results, 'author_id' ) : array();
-			},
-			HOUR_IN_SECONDS
-		);
-
-		if ( empty( $followed_authors ) ) {
-			return '<div class="author-follow-list author-no-follows"><p>' . esc_html__( 'Not following any authors yet.', 'fanfiction-manager' ) . '</p></div>';
-		}
-
-		// Build output
-		$output = '<div class="author-follow-list" role="region" aria-label="' . esc_attr__( 'Followed authors', 'fanfiction-manager' ) . '">';
-		$output .= '<ul class="followed-authors-list">';
-
-		foreach ( $followed_authors as $author_id ) {
-			$author_id = absint( $author_id );
-			$author = get_userdata( $author_id );
-
-			if ( ! $author ) {
-				continue;
-			}
-
-			$author_name = esc_html( $author->display_name );
-			$author_url = esc_url( fanfic_get_user_profile_url( $author_id ) );
-			$avatar = get_avatar( $author_id, 48, '', $author_name, array( 'class' => 'followed-author-avatar', 'loading' => 'lazy' ) );
-
-			$output .= '<li class="followed-author-item">';
-			$output .= '<a href="' . $author_url . '" class="followed-author-link">';
-			$output .= $avatar;
-			$output .= '<span class="followed-author-name">' . $author_name . '</span>';
-			$output .= '</a>';
-			$output .= '</li>';
-		}
-
-		$output .= '</ul>';
-		$output .= '</div>';
 
 		return $output;
 	}

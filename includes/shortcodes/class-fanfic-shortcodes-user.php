@@ -47,7 +47,6 @@ class Fanfic_Shortcodes_User {
 		// Note: [user-dashboard] shortcode removed - dashboard now uses template-dashboard.php
 		add_shortcode( 'user-favorites', array( __CLASS__, 'user_favorites' ) );
 		add_shortcode( 'user-favorites-count', array( __CLASS__, 'user_favorites_count' ) );
-		add_shortcode( 'user-followed-authors', array( __CLASS__, 'user_followed_authors' ) );
 		add_shortcode( 'user-reading-history', array( __CLASS__, 'user_reading_history' ) );
 		add_shortcode( 'user-notifications', array( __CLASS__, 'user_notifications' ) );
 		add_shortcode( 'user-story-list', array( __CLASS__, 'user_story_list' ) );
@@ -215,120 +214,6 @@ class Fanfic_Shortcodes_User {
 		set_transient( $cache_key, $count, 5 * MINUTE_IN_SECONDS );
 
 		return '<span class="user-favorites-count">' . Fanfic_Shortcodes::format_number( $count ) . '</span>';
-	}
-
-	/**
-	 * User followed authors shortcode
-	 *
-	 * [user-followed-authors]
-	 *
-	 * @since 1.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Followed authors list HTML.
-	 */
-	public static function user_followed_authors( $atts ) {
-		// Check if user is logged in
-		if ( ! is_user_logged_in() ) {
-			return self::login_prompt( __( 'Please log in to view your followed authors.', 'fanfiction-manager' ) );
-		}
-
-		$atts = shortcode_atts( array(
-			'per_page' => 20,
-		), $atts, 'user-followed-authors' );
-
-		$user_id = get_current_user_id();
-		$paged = get_query_var( 'paged' ) ? get_query_var( 'paged' ) : 1;
-
-		global $wpdb;
-		$follows_table = $wpdb->prefix . 'fanfic_follows';
-		$offset = ( $paged - 1 ) * absint( $atts['per_page'] );
-
-		// Get total count
-		$total_follows = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$follows_table} WHERE follower_id = %d",
-			$user_id
-		) );
-
-		if ( ! $total_follows ) {
-			return '<div class="fanfic-user-follows fanfic-empty-state"><p>' . esc_html__( 'Not following anyone yet. Discover authors to follow!', 'fanfiction-manager' ) . '</p></div>';
-		}
-
-		// Get followed authors
-		$follows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT author_id, created_at FROM {$follows_table}
-			WHERE follower_id = %d
-			ORDER BY created_at DESC
-			LIMIT %d OFFSET %d",
-			$user_id,
-			absint( $atts['per_page'] ),
-			$offset
-		) );
-
-		if ( ! $follows ) {
-			return '<div class="fanfic-user-follows fanfic-empty-state"><p>' . esc_html__( 'Not following anyone yet. Discover authors to follow!', 'fanfiction-manager' ) . '</p></div>';
-		}
-
-		// Build output
-		$output = '<div class="fanfic-user-follows" role="region" aria-label="' . esc_attr__( 'Authors I follow', 'fanfiction-manager' ) . '">';
-		$output .= '<h2>' . esc_html__( 'Authors I Follow', 'fanfiction-manager' ) . '</h2>';
-		$output .= '<ul class="fanfic-follows-list">';
-
-		foreach ( $follows as $follow ) {
-			$author_id = $follow->author_id;
-			$author_name = get_the_author_meta( 'display_name', $author_id );
-			$author_url = fanfic_get_user_profile_url( $author_id );
-			$followed_date = mysql2date( get_option( 'date_format' ), $follow->created_at );
-
-			// Get author's latest story
-			$latest_story = get_posts( array(
-				'post_type'      => 'fanfiction_story',
-				'posts_per_page' => 1,
-				'author'         => $author_id,
-				'post_status'    => 'publish',
-				'orderby'        => 'date',
-				'order'          => 'DESC',
-			) );
-
-			$output .= '<li class="fanfic-follow-item" data-author-id="' . esc_attr( $author_id ) . '">';
-			$output .= '<div class="fanfic-follow-info">';
-			$output .= '<h3><a href="' . esc_url( $author_url ) . '">' . esc_html( $author_name ) . '</a></h3>';
-
-			if ( ! empty( $latest_story ) ) {
-				$story = $latest_story[0];
-				$output .= '<p class="fanfic-latest-story">';
-				$output .= sprintf(
-					/* translators: %s: story title with link */
-					esc_html__( 'Latest: %s', 'fanfiction-manager' ),
-					'<a href="' . esc_url( get_permalink( $story->ID ) ) . '">' . esc_html( $story->post_title ) . '</a>'
-				);
-				$output .= '</p>';
-			}
-
-			$output .= '<p class="fanfic-follow-meta">';
-			$output .= sprintf(
-				/* translators: %s: followed date */
-				esc_html__( 'Following since %s', 'fanfiction-manager' ),
-				esc_html( $followed_date )
-			);
-			$output .= '</p>';
-			$output .= '</div>';
-			$output .= '<button class="fanfic-unfollow-author" data-author-id="' . esc_attr( $author_id ) . '" data-nonce="' . esc_attr( wp_create_nonce( 'fanfic_unfollow_author_' . $author_id ) ) . '">';
-			$output .= esc_html__( 'Unfollow', 'fanfiction-manager' );
-			$output .= '</button>';
-			$output .= '</li>';
-		}
-
-		$output .= '</ul>';
-
-		// Pagination
-		if ( $total_follows > $atts['per_page'] ) {
-			$total_pages = ceil( $total_follows / $atts['per_page'] );
-			$output .= self::pagination( $paged, $total_pages );
-		}
-
-		$output .= '</div>';
-
-		return $output;
 	}
 
 	/**
@@ -715,11 +600,9 @@ class Fanfic_Shortcodes_User {
 		$defaults = array(
 			'email_new_chapter'      => true,
 			'email_new_comment'      => true,
-			'email_new_follower'     => true,
 			'email_author_update'    => true,
 			'inapp_new_chapter'      => true,
 			'inapp_new_comment'      => true,
-			'inapp_new_follower'     => true,
 			'inapp_author_update'    => true,
 			'email_frequency'        => 'instant', // instant, daily, weekly
 		);
@@ -743,7 +626,7 @@ class Fanfic_Shortcodes_User {
 
 		$output .= self::checkbox_field(
 			'email_new_chapter',
-			__( 'New chapter from followed authors', 'fanfiction-manager' ),
+			__( 'New chapter updates', 'fanfiction-manager' ),
 			$settings['email_new_chapter']
 		);
 
@@ -754,14 +637,8 @@ class Fanfic_Shortcodes_User {
 		);
 
 		$output .= self::checkbox_field(
-			'email_new_follower',
-			__( 'New followers', 'fanfiction-manager' ),
-			$settings['email_new_follower']
-		);
-
-		$output .= self::checkbox_field(
 			'email_author_update',
-			__( 'Updates from followed authors', 'fanfiction-manager' ),
+			__( 'Story update notifications', 'fanfiction-manager' ),
 			$settings['email_author_update']
 		);
 
@@ -772,7 +649,7 @@ class Fanfic_Shortcodes_User {
 
 		$output .= self::checkbox_field(
 			'inapp_new_chapter',
-			__( 'New chapter from followed authors', 'fanfiction-manager' ),
+			__( 'New chapter updates', 'fanfiction-manager' ),
 			$settings['inapp_new_chapter']
 		);
 
@@ -783,14 +660,8 @@ class Fanfic_Shortcodes_User {
 		);
 
 		$output .= self::checkbox_field(
-			'inapp_new_follower',
-			__( 'New followers', 'fanfiction-manager' ),
-			$settings['inapp_new_follower']
-		);
-
-		$output .= self::checkbox_field(
 			'inapp_author_update',
-			__( 'Updates from followed authors', 'fanfiction-manager' ),
+			__( 'Story update notifications', 'fanfiction-manager' ),
 			$settings['inapp_author_update']
 		);
 
@@ -833,11 +704,9 @@ class Fanfic_Shortcodes_User {
 		$settings = array(
 			'email_new_chapter'   => isset( $_POST['email_new_chapter'] ),
 			'email_new_comment'   => isset( $_POST['email_new_comment'] ),
-			'email_new_follower'  => isset( $_POST['email_new_follower'] ),
 			'email_author_update' => isset( $_POST['email_author_update'] ),
 			'inapp_new_chapter'   => isset( $_POST['inapp_new_chapter'] ),
 			'inapp_new_comment'   => isset( $_POST['inapp_new_comment'] ),
-			'inapp_new_follower'  => isset( $_POST['inapp_new_follower'] ),
 			'inapp_author_update' => isset( $_POST['inapp_author_update'] ),
 			'email_frequency'     => isset( $_POST['email_frequency'] ) ? sanitize_text_field( $_POST['email_frequency'] ) : 'instant',
 		);

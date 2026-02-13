@@ -151,7 +151,7 @@ class Fanfic_Roles_Caps {
 
 		// NOTE: WordPress administrators do NOT get fanfiction capabilities added to their role.
 		// Instead, they inherit all permissions automatically via the cascade system in map_meta_cap().
-		// This follows the hierarchy: WordPress Admin >> Fanfic Admin > Fanfic Moderator > Fanfic Author > Fanfic Reader
+		// This uses the hierarchy: WordPress Admin >> Fanfic Admin > Fanfic Moderator > Fanfic Author > Fanfic Reader
 	}
 
 	/**

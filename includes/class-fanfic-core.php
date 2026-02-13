@@ -225,7 +225,6 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-media-cleanup.php';
 
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-bookmarks.php';
-		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-follows.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-coauthors.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-reading-progress.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-batch-loader.php';
@@ -395,9 +394,6 @@ class Fanfic_Core {
 		Fanfic_Interactions::init();
 		Fanfic_Cron_Cleanup::init();
 		Fanfic_Media_Cleanup::init();
-
-		// Initialize follows system
-		Fanfic_Follows::init();
 
 		// Initialize co-author system
 		Fanfic_Coauthors::init();
@@ -1243,10 +1239,6 @@ class Fanfic_Core {
 						'unliked'           => '', // No balloon - button text change is enough
 						'bookmarkAdded'     => '', // No balloon - button text change is enough
 						'bookmarkRemoved'   => '', // No balloon - button text change is enough
-						'followAdded'       => __( 'Now following!', 'fanfiction-manager' ),
-						'followRemoved'     => __( 'Unfollowed', 'fanfiction-manager' ),
-						'emailEnabled'      => __( 'Email notifications enabled', 'fanfiction-manager' ),
-						'emailDisabled'     => __( 'Email notifications disabled', 'fanfiction-manager' ),
 						'markedRead'        => '', // No balloon - button text change is enough
 						'subscribed'        => __( 'Subscription successful!', 'fanfiction-manager' ),
 						'error'             => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
@@ -1881,7 +1873,6 @@ class Fanfic_Core {
 		$tables = array(
 			'ratings',
 			'bookmarks',
-			'follows',
 			'notifications',
 			'reports',
 			'likes',

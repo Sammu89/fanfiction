@@ -40,12 +40,6 @@ class Fanfic_Shortcodes_Stats {
 		add_shortcode( 'story-bookmark-count', array( __CLASS__, 'story_bookmark_count' ) );
 		add_shortcode( 'most-bookmarked-stories', array( __CLASS__, 'most_bookmarked_stories' ) );
 
-		// Follow shortcodes
-		add_shortcode( 'author-follow-button', array( __CLASS__, 'author_follow_button' ) );
-		add_shortcode( 'author-follower-count', array( __CLASS__, 'author_follower_count' ) );
-		add_shortcode( 'top-authors', array( __CLASS__, 'top_authors' ) );
-		add_shortcode( 'most-followed-authors', array( __CLASS__, 'most_followed_authors' ) );
-
 		// View shortcodes
 		add_shortcode( 'story-view-count', array( __CLASS__, 'story_view_count' ) );
 		add_shortcode( 'chapter-view-count', array( __CLASS__, 'chapter_view_count' ) );
@@ -261,12 +255,15 @@ class Fanfic_Shortcodes_Stats {
 			: esc_html__( 'Bookmark', 'fanfiction-manager' );
 
 		return sprintf(
-			'<button class="fanfic-button fanfic-button-bookmark %s" data-story-id="%d" data-action="%s">
+			'<button type="button" class="fanfic-button fanfic-button-bookmark fanfic-bookmark-button %s" data-post-id="%d" data-story-id="%d" data-chapter-id="0" data-bookmark-text="%s" data-bookmarked-text="%s" data-action="%s">
 				<span class="fanfic-icon">%s</span>
-				<span class="fanfic-text">%s</span>
+				<span class="fanfic-text bookmark-text">%s</span>
 			</button>',
 			esc_attr( $bookmark_class ),
 			absint( $story_id ),
+			absint( $story_id ),
+			esc_attr__( 'Bookmark', 'fanfiction-manager' ),
+			esc_attr__( 'Bookmarked', 'fanfiction-manager' ),
 			$is_bookmarked ? 'unbookmark' : 'bookmark',
 			$is_bookmarked ? '&#9733;' : '&#9734;',
 			$bookmark_text
@@ -404,250 +401,6 @@ class Fanfic_Shortcodes_Stats {
 			}
 
 			$output .= self::render_story_card_with_thumbnail( $story, null, null, $bookmark_count, null, $thumbnail );
-		}
-
-		$output .= '</div>';
-		$output .= '</div>';
-
-		return $output;
-	}
-
-	/**
-	 * Author follow button shortcode
-	 *
-	 * [author-follow-button author_id="123"]
-	 *
-	 * @since 1.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Follow button HTML.
-	 */
-	public static function author_follow_button( $atts ) {
-		global $post;
-
-		$atts = Fanfic_Shortcodes::sanitize_atts(
-			$atts,
-			array(
-				'author_id' => 0,
-			),
-			'author-follow-button'
-		);
-
-		$author_id = absint( $atts['author_id'] );
-
-		if ( ! $author_id && $post ) {
-			$author_id = absint( $post->post_author );
-		}
-
-		if ( ! $author_id ) {
-			return '';
-		}
-
-		// Don't show follow button to the author themselves
-		if ( is_user_logged_in() && get_current_user_id() === $author_id ) {
-			return '';
-		}
-
-		$is_logged_in = is_user_logged_in();
-		$user_id = get_current_user_id();
-		$is_following = false;
-
-		if ( $is_logged_in ) {
-			$is_following = Fanfic_Follows::is_following( $author_id, $user_id );
-		}
-
-		$follow_class = $is_following ? 'fanfic-button-following' : '';
-		$follow_text = $is_following
-			? esc_html__( 'Following', 'fanfiction-manager' )
-			: esc_html__( 'Follow', 'fanfiction-manager' );
-
-		return sprintf(
-			'<button class="fanfic-button fanfic-button-follow %s" data-author-id="%d" data-action="%s">
-				<span class="fanfic-icon">%s</span>
-				<span class="fanfic-text">%s</span>
-			</button>',
-			esc_attr( $follow_class ),
-			absint( $author_id ),
-			$is_following ? 'unfollow' : 'follow',
-			$is_following ? '&#10003;' : '&#43;',
-			$follow_text
-		);
-	}
-
-	/**
-	 * Author follower count shortcode
-	 *
-	 * [author-follower-count author_id="123"]
-	 *
-	 * @since 1.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Follower count HTML.
-	 */
-	public static function author_follower_count( $atts ) {
-		global $post;
-
-		$atts = Fanfic_Shortcodes::sanitize_atts(
-			$atts,
-			array(
-				'author_id' => 0,
-			),
-			'author-follower-count'
-		);
-
-		$author_id = absint( $atts['author_id'] );
-
-		if ( ! $author_id && $post ) {
-			$author_id = absint( $post->post_author );
-		}
-
-		if ( ! $author_id ) {
-			return '';
-		}
-
-		$count = Fanfic_Follows::get_follower_count( $author_id );
-
-		return sprintf(
-			'<span class="fanfic-follower-count">%s %s</span>',
-			esc_html( number_format_i18n( $count ) ),
-			esc_html( _n( 'follower', 'followers', $count, 'fanfiction-manager' ) )
-		);
-	}
-
-	/**
-	 * Top authors shortcode
-	 *
-	 * [top-authors limit="10" min_followers="5"]
-	 *
-	 * @since 1.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Top authors list HTML.
-	 */
-	public static function top_authors( $atts ) {
-		$atts = Fanfic_Shortcodes::sanitize_atts(
-			$atts,
-			array(
-				'limit'         => 10,
-				'min_followers' => 5,
-			),
-			'top-authors'
-		);
-
-		$authors = Fanfic_Follows::get_top_authors( absint( $atts['limit'] ), absint( $atts['min_followers'] ) );
-
-		if ( empty( $authors ) ) {
-			return '<div class="fanfic-top-authors fanfic-empty-state"><p>' . esc_html__( 'No authors found.', 'fanfiction-manager' ) . '</p></div>';
-		}
-
-		$output = '<div class="fanfic-top-authors">';
-		$output .= '<h3>' . esc_html__( 'Top Authors', 'fanfiction-manager' ) . '</h3>';
-		$output .= '<div class="fanfic-author-cards">';
-
-		foreach ( $authors as $author_data ) {
-			$author_id = $author_data->author_id;
-			$follower_count = $author_data->follower_count;
-
-			$author = get_userdata( $author_id );
-			if ( ! $author ) {
-				continue;
-			}
-
-			$output .= self::render_author_card( $author, $follower_count );
-		}
-
-		$output .= '</div>';
-		$output .= '</div>';
-
-		return $output;
-	}
-
-	/**
-	 * Most followed authors shortcode with timeframe support
-	 *
-	 * [most-followed-authors limit="10" timeframe="all-time"]
-	 *
-	 * @since 1.0.0
-	 * @param array $atts Shortcode attributes.
-	 * @return string Most followed authors list HTML.
-	 */
-	public static function most_followed_authors( $atts ) {
-		$atts = Fanfic_Shortcodes::sanitize_atts(
-			$atts,
-			array(
-				'limit'         => 10,
-				'min_followers' => 1,
-				'timeframe'     => 'all-time',
-			),
-			'most-followed-authors'
-		);
-
-		// Build transient cache key including timeframe
-		$cache_key = 'fanfic_most_followed_' . absint( $atts['limit'] ) . '_' . sanitize_key( $atts['timeframe'] );
-		$authors = get_transient( $cache_key );
-
-		if ( false === $authors ) {
-			global $wpdb;
-			$table_name = $wpdb->prefix . 'fanfic_follows';
-
-			// Calculate date filter based on timeframe
-			$date_filter = '';
-			$timeframe = sanitize_key( $atts['timeframe'] );
-
-			if ( 'all-time' !== $timeframe ) {
-				$date_threshold = self::get_date_threshold( $timeframe );
-				if ( $date_threshold ) {
-					$date_filter = $wpdb->prepare( ' AND f.created_at >= %s', $date_threshold );
-				}
-			}
-
-			// Query for most followed authors with optional timeframe filter
-			$query = $wpdb->prepare(
-				"SELECT f.author_id, COUNT(f.id) as follower_count
-				FROM {$table_name} f
-				INNER JOIN {$wpdb->users} u ON f.author_id = u.ID
-				WHERE 1=1
-				{$date_filter}
-				GROUP BY f.author_id
-				HAVING follower_count >= %d
-				ORDER BY follower_count DESC
-				LIMIT %d",
-				absint( $atts['min_followers'] ),
-				absint( $atts['limit'] )
-			);
-
-			$authors = $wpdb->get_results( $query );
-
-			// Cache for 1 hour
-			set_transient( $cache_key, $authors, HOUR_IN_SECONDS );
-		}
-
-		if ( empty( $authors ) ) {
-			return '<div class="fanfic-most-followed-authors fanfic-empty-state"><p>' . esc_html__( 'No authors found.', 'fanfiction-manager' ) . '</p></div>';
-		}
-
-		// Build timeframe heading
-		$timeframe_label = self::get_timeframe_label( $atts['timeframe'] );
-		$heading = sprintf(
-			/* translators: %s: timeframe label */
-			esc_html__( 'Most Followed Authors %s', 'fanfiction-manager' ),
-			$timeframe_label
-		);
-
-		$output = '<div class="fanfic-most-followed-authors" role="region" aria-label="' . esc_attr( $heading ) . '">';
-		$output .= '<h3>' . esc_html( $heading ) . '</h3>';
-		$output .= '<div class="fanfic-author-cards">';
-
-		foreach ( $authors as $author_data ) {
-			$author_id = $author_data->author_id;
-			$follower_count = $author_data->follower_count;
-
-			$author = get_userdata( $author_id );
-			if ( ! $author ) {
-				continue;
-			}
-
-			// Get story count for this author
-			$story_count = count_user_posts( $author_id, 'fanfiction_story' );
-
-			$output .= self::render_author_card_with_story_count( $author, $follower_count, $story_count );
 		}
 
 		$output .= '</div>';
@@ -884,9 +637,6 @@ class Fanfic_Shortcodes_Stats {
 				) );
 				$chapter_count = count( $chapters );
 
-				// Get follower count
-				$follower_count = Fanfic_Follows::get_follower_count( $author_id );
-
 				// Get total views
 				$stories = get_posts( array(
 					'post_type'      => 'fanfiction_story',
@@ -903,10 +653,9 @@ class Fanfic_Shortcodes_Stats {
 
 				// Return all stats as an object
 				return array(
-					'story_count'    => $story_count,
-					'chapter_count'  => $chapter_count,
-					'follower_count' => $follower_count,
-					'total_views'    => $total_views,
+					'story_count'   => $story_count,
+					'chapter_count' => $chapter_count,
+					'total_views'   => $total_views,
 				);
 			},
 			Fanfic_Cache::MEDIUM
@@ -915,7 +664,6 @@ class Fanfic_Shortcodes_Stats {
 		// Extract stats from cached object
 		$story_count = $stats['story_count'];
 		$chapter_count = $stats['chapter_count'];
-		$follower_count = $stats['follower_count'];
 		$total_views = $stats['total_views'];
 
 		$output = '<div class="fanfic-author-stats" role="region" aria-label="' . esc_attr__( 'Author statistics', 'fanfiction-manager' ) . '">';
@@ -930,11 +678,6 @@ class Fanfic_Shortcodes_Stats {
 		$output .= '<div class="fanfic-stat-item">';
 		$output .= '<span class="fanfic-stat-value">' . esc_html( number_format_i18n( $chapter_count ) ) . '</span>';
 		$output .= '<span class="fanfic-stat-label">' . esc_html( _n( 'Chapter', 'Chapters', $chapter_count, 'fanfiction-manager' ) ) . '</span>';
-		$output .= '</div>';
-
-		$output .= '<div class="fanfic-stat-item">';
-		$output .= '<span class="fanfic-stat-value">' . esc_html( number_format_i18n( $follower_count ) ) . '</span>';
-		$output .= '<span class="fanfic-stat-label">' . esc_html( _n( 'Follower', 'Followers', $follower_count, 'fanfiction-manager' ) ) . '</span>';
 		$output .= '</div>';
 
 		$output .= '<div class="fanfic-stat-item">';
@@ -989,34 +732,6 @@ class Fanfic_Shortcodes_Stats {
 			$output .= '<span class="fanfic-meta-item">&#128065; ' . esc_html( number_format_i18n( $views ) ) . ' ' . esc_html( _n( 'view', 'views', $views, 'fanfiction-manager' ) ) . '</span>';
 		}
 
-		$output .= '</div>';
-		$output .= '</div>';
-
-		return $output;
-	}
-
-	/**
-	 * Render author card helper
-	 *
-	 * @since 1.0.0
-	 * @param WP_User $author         Author user object.
-	 * @param int     $follower_count Follower count.
-	 * @return string Author card HTML.
-	 */
-	private static function render_author_card( $author, $follower_count ) {
-		$author_url = fanfic_get_user_profile_url( $author->ID );
-		$story_count = count_user_posts( $author->ID, 'fanfiction_story' );
-
-		$output = '<div class="fanfic-author-card">';
-		// Add lazy loading to avatar for performance optimization
-		$output .= '<div class="fanfic-author-avatar">' . get_avatar( $author->ID, 64, '', '', array( 'loading' => 'lazy' ) ) . '</div>';
-		$output .= '<div class="fanfic-author-info">';
-		$output .= '<h4><a href="' . esc_url( $author_url ) . '">' . esc_html( $author->display_name ) . '</a></h4>';
-		$output .= '<p class="fanfic-author-meta">';
-		$output .= esc_html( number_format_i18n( $story_count ) ) . ' ' . esc_html( _n( 'story', 'stories', $story_count, 'fanfiction-manager' ) );
-		$output .= ' &middot; ';
-		$output .= esc_html( number_format_i18n( $follower_count ) ) . ' ' . esc_html( _n( 'follower', 'followers', $follower_count, 'fanfiction-manager' ) );
-		$output .= '</p>';
 		$output .= '</div>';
 		$output .= '</div>';
 
@@ -1080,34 +795,6 @@ class Fanfic_Shortcodes_Stats {
 	}
 
 	/**
-	 * Render author card with story count helper
-	 *
-	 * @since 1.0.0
-	 * @param WP_User $author         Author user object.
-	 * @param int     $follower_count Follower count.
-	 * @param int     $story_count    Story count.
-	 * @return string Author card HTML.
-	 */
-	private static function render_author_card_with_story_count( $author, $follower_count, $story_count ) {
-		$author_url = fanfic_get_user_profile_url( $author->ID );
-
-		$output = '<div class="fanfic-author-card">';
-		// Add lazy loading to avatar for performance optimization
-		$output .= '<div class="fanfic-author-avatar">' . get_avatar( $author->ID, 64, '', '', array( 'loading' => 'lazy' ) ) . '</div>';
-		$output .= '<div class="fanfic-author-info">';
-		$output .= '<h4><a href="' . esc_url( $author_url ) . '">' . esc_html( $author->display_name ) . '</a></h4>';
-		$output .= '<p class="fanfic-author-meta">';
-		$output .= '<span class="fanfic-meta-item">' . esc_html( number_format_i18n( $story_count ) ) . ' ' . esc_html( _n( 'story', 'stories', $story_count, 'fanfiction-manager' ) ) . '</span>';
-		$output .= ' &middot; ';
-		$output .= '<span class="fanfic-meta-item">' . esc_html( number_format_i18n( $follower_count ) ) . ' ' . esc_html( _n( 'follower', 'followers', $follower_count, 'fanfiction-manager' ) ) . '</span>';
-		$output .= '</p>';
-		$output .= '</div>';
-		$output .= '</div>';
-
-		return $output;
-	}
-
-	/**
 	 * Render most bookmarked stories (direct call helper)
 	 *
 	 * Helper method for direct template calls without shortcode processing overhead.
@@ -1126,27 +813,6 @@ class Fanfic_Shortcodes_Stats {
 
 		// Call the existing shortcode method directly
 		return self::most_bookmarked_stories( $args );
-	}
-
-	/**
-	 * Render most followed authors (direct call helper)
-	 *
-	 * Helper method for direct template calls without shortcode processing overhead.
-	 *
-	 * @since 1.0.0
-	 * @param array $args Arguments array.
-	 * @return string HTML output.
-	 */
-	public static function render_most_followed( $args = array() ) {
-		$defaults = array(
-			'limit'         => 5,
-			'timeframe'     => 'week',
-			'min_followers' => 1,
-		);
-		$args = wp_parse_args( $args, $defaults );
-
-		// Call the existing shortcode method directly
-		return self::most_followed_authors( $args );
 	}
 
 	/**

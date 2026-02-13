@@ -36,7 +36,6 @@ class Fanfic_Rate_Limit {
 		'rate'       => array( 'limit' => 10, 'window' => 60 ),      // 10 ratings per minute
 		'like'       => array( 'limit' => 10, 'window' => 60 ),      // 10 likes per minute
 		'bookmark'   => array( 'limit' => 5, 'window' => 60 ),       // 5 bookmarks per minute
-		'follow'     => array( 'limit' => 3, 'window' => 60 ),       // 3 follows per minute
 		'subscribe'  => array( 'limit' => 2, 'window' => 60 ),       // 2 subscriptions per minute
 		'comment'    => array( 'limit' => 5, 'window' => 300 ),      // 5 comments per 5 minutes
 		'view'       => array( 'limit' => 100, 'window' => 60 ),     // 100 views per minute

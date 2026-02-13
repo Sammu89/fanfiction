@@ -134,15 +134,11 @@ class Fanfic_Batch_Loader {
 		$result = array();
 		foreach ( $story_ids as $story_id ) {
 			$result[ $story_id ] = array(
-				'follower_count'  => 0,
-				'bookmark_count'  => 0,
-				'is_bookmarked'   => false,
-				'is_following'    => false,
-				'email_enabled'   => false,
+				'bookmark_count' => 0,
+				'is_bookmarked'  => false,
 			);
 		}
 
-		$table_follows       = $wpdb->prefix . 'fanfic_follows';
 		$table_interactions  = $wpdb->prefix . 'fanfic_interactions';
 		$table_story_index   = $wpdb->prefix . 'fanfic_story_search_index';
 
@@ -162,20 +158,6 @@ class Fanfic_Batch_Loader {
 			$result[ $story_id ]['bookmark_count'] = absint( $row['bookmark_count'] );
 		}
 
-		// Query 1b: Follower counts from follows table (no pre-computed column).
-		$follow_stats = $wpdb->get_results( $wpdb->prepare(
-			"SELECT target_id as story_id, COUNT(*) as follower_count
-			FROM {$table_follows}
-			WHERE target_id IN ($placeholders) AND follow_type = 'story'
-			GROUP BY target_id",
-			$story_ids
-		), ARRAY_A );
-
-		foreach ( $follow_stats as $stat ) {
-			$story_id = absint( $stat['story_id'] );
-			$result[ $story_id ]['follower_count'] = absint( $stat['follower_count'] );
-		}
-
 		// If user_id provided, load user-specific data
 		if ( $user_id ) {
 			// Query 2: User bookmarks (targeted IN query — uses idx_type_chapter index).
@@ -190,18 +172,7 @@ class Fanfic_Batch_Loader {
 				$result[ $story_id ]['is_bookmarked'] = true;
 			}
 
-			// Query 3: User follows
-			$user_follows = $wpdb->get_results( $wpdb->prepare(
-				"SELECT target_id, email_enabled FROM {$table_follows}
-				WHERE target_id IN ($placeholders) AND user_id = %d AND follow_type = 'story'",
-				array_merge( $story_ids, array( $user_id ) )
-			), ARRAY_A );
-
-			foreach ( $user_follows as $follow ) {
-				$story_id = absint( $follow['target_id'] );
-				$result[ $story_id ]['is_following']  = true;
-				$result[ $story_id ]['email_enabled'] = (bool) $follow['email_enabled'];
-			}
+			// Deprecated relationship flags are intentionally disabled.
 		}
 
 		return $result;
@@ -231,31 +202,14 @@ class Fanfic_Batch_Loader {
 		$result = array();
 		foreach ( $author_ids as $author_id ) {
 			$result[ $author_id ] = array(
-				'follower_count' => 0,
 				'story_count'    => 0,
 			);
 		}
 
-		$table_follows = $wpdb->prefix . 'fanfic_follows';
-
 		// Build placeholders for IN clause
 		$placeholders = implode( ',', array_fill( 0, count( $author_ids ), '%d' ) );
 
-		// Query 1: Load follower counts
-		$follower_stats = $wpdb->get_results( $wpdb->prepare(
-			"SELECT target_id as author_id, COUNT(*) as follower_count
-			FROM {$table_follows}
-			WHERE target_id IN ($placeholders) AND follow_type = 'author'
-			GROUP BY target_id",
-			$author_ids
-		), ARRAY_A );
-
-		foreach ( $follower_stats as $stat ) {
-			$author_id = absint( $stat['author_id'] );
-			$result[ $author_id ]['follower_count'] = absint( $stat['follower_count'] );
-		}
-
-		// Query 2: Load story counts
+		// Query: Load story counts
 		$story_stats = $wpdb->get_results( $wpdb->prepare(
 			"SELECT post_author as author_id, COUNT(*) as story_count
 			FROM {$wpdb->posts}
@@ -272,26 +226,6 @@ class Fanfic_Batch_Loader {
 		}
 
 		return $result;
-	}
-
-	/**
-	 * Batch load follow status for multiple targets
-	 *
-	 * Efficient method to check if user is following multiple targets.
-	 *
-	 * @since 1.0.0
-	 * @param int    $user_id     User ID.
-	 * @param array  $target_ids  Array of target IDs.
-	 * @param string $follow_type Type: 'story' or 'author'.
-	 * @return array Array[ target_id => [ is_following, email_enabled ] ].
-	 */
-	public static function batch_load_follow_status( $user_id, $target_ids, $follow_type = 'story' ) {
-		// Delegate to Fanfic_Follows class
-		if ( class_exists( 'Fanfic_Follows' ) ) {
-			return Fanfic_Follows::batch_get_follow_status( $user_id, $target_ids, $follow_type );
-		}
-
-		return array();
 	}
 
 	/**

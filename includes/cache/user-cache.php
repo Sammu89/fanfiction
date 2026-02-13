@@ -3,7 +3,7 @@
  * User and Interaction Cache Functions
  *
  * Provides caching functions for user-specific operations including profiles,
- * bookmarks, follows, and notifications. Uses WordPress transients API with
+ * bookmarks, and notifications. Uses WordPress transients API with
  * appropriate TTL values optimized for different data types.
  *
  * @package FanfictionManager
@@ -59,8 +59,6 @@ if ( ! defined( 'FANFIC_CACHE_30_MINUTES' ) ) {
  *     @type string $description     User bio/description.
  *     @type string $user_url        User website URL.
  *     @type int    $story_count     Number of published stories.
- *     @type int    $follower_count  Number of followers.
- *     @type int    $following_count Number of authors followed.
  * }
  */
 function ffm_get_user_profile( $user_id ) {
@@ -98,8 +96,6 @@ function ffm_get_user_profile( $user_id ) {
 		'description'     => get_user_meta( $user_id, 'description', true ),
 		'user_url'        => $user->user_url,
 		'story_count'     => ffm_get_user_story_count( $user_id ),
-		'follower_count'  => ffm_get_user_follower_count( $user_id ),
-		'following_count' => ffm_get_user_following_count( $user_id ),
 	);
 
 	// Cache for 5 minutes
@@ -153,339 +149,6 @@ function ffm_get_user_story_count( $user_id ) {
 	set_transient( $cache_key, $count, FANFIC_CACHE_30_MINUTES );
 
 	return $count;
-}
-
-/**
- * Get cached user follower count
- *
- * Returns the number of users following this author.
- * Cached for 10 minutes to balance real-time accuracy and performance.
- *
- * @since 1.0.0
- * @param int $user_id User ID (author being followed).
- * @return int Follower count, 0 on error or if no followers.
- */
-function ffm_get_user_follower_count( $user_id ) {
-	$user_id = absint( $user_id );
-
-	if ( ! $user_id ) {
-		return 0;
-	}
-
-	// Try to get from transient cache
-	$cache_key = 'fanfic_user_follower_count_' . $user_id;
-	$cached    = get_transient( $cache_key );
-
-	if ( false !== $cached ) {
-		return absint( $cached );
-	}
-
-	global $wpdb;
-
-	// Direct count query
-	$count = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT COUNT(*)
-			FROM {$wpdb->prefix}fanfic_follows
-			WHERE author_id = %d",
-			$user_id
-		)
-	);
-
-	$count = absint( $count );
-
-	// Cache for 10 minutes
-	set_transient( $cache_key, $count, FANFIC_CACHE_10_MINUTES );
-
-	return $count;
-}
-
-/**
- * Get cached user following count
- *
- * Returns the number of authors this user is following.
- * Cached for 10 minutes to balance real-time accuracy and performance.
- *
- * @since 1.0.0
- * @param int $user_id User ID (follower).
- * @return int Following count, 0 on error or if not following anyone.
- */
-function ffm_get_user_following_count( $user_id ) {
-	$user_id = absint( $user_id );
-
-	if ( ! $user_id ) {
-		return 0;
-	}
-
-	// Try to get from transient cache
-	$cache_key = 'fanfic_user_following_count_' . $user_id;
-	$cached    = get_transient( $cache_key );
-
-	if ( false !== $cached ) {
-		return absint( $cached );
-	}
-
-	global $wpdb;
-
-	// Direct count query
-	$count = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT COUNT(*)
-			FROM {$wpdb->prefix}fanfic_follows
-			WHERE follower_id = %d",
-			$user_id
-		)
-	);
-
-	$count = absint( $count );
-
-	// Cache for 10 minutes
-	set_transient( $cache_key, $count, FANFIC_CACHE_10_MINUTES );
-
-	return $count;
-}
-
-/* ============================================================================
- * FOLLOW FUNCTIONS
- * ========================================================================= */
-
-/**
- * Get user follows with pagination (cached)
- *
- * Returns paginated list of authors followed by a user, ordered by
- * follow creation date (most recent first). Cached for 5 minutes.
- *
- * @since 1.0.0
- * @param int $user_id  User ID (follower).
- * @param int $page     Page number (1-indexed).
- * @param int $per_page Number of follows per page (10, 15, or 20).
- * @return array Array of follow objects with author data, empty array on error.
- */
-function ffm_get_user_follows( $user_id, $page = 1, $per_page = 10 ) {
-	$user_id  = absint( $user_id );
-	$page     = absint( $page );
-	$per_page = absint( $per_page );
-
-	if ( ! $user_id ) {
-		return array();
-	}
-	if ( ! $page ) {
-		$page = 1;
-	}
-	if ( ! in_array( $per_page, array( 10, 15, 20 ), true ) ) {
-		$per_page = 10;
-	}
-
-	// Try to get from transient cache
-	$cache_key = 'fanfic_user_follows_' . $user_id . '_' . $page . '_' . $per_page;
-	$cached    = get_transient( $cache_key );
-
-	if ( false !== $cached ) {
-		return $cached;
-	}
-
-	global $wpdb;
-
-	// Calculate offset
-	$offset = ( $page - 1 ) * $per_page;
-
-	// Query follows with author user data
-	$follows = $wpdb->get_results(
-		$wpdb->prepare(
-			"SELECT f.id, f.author_id, f.created_at, u.user_login, u.display_name, u.user_nicename
-			FROM {$wpdb->prefix}fanfic_follows f
-			INNER JOIN {$wpdb->users} u ON f.author_id = u.ID
-			WHERE f.follower_id = %d
-			ORDER BY f.created_at DESC
-			LIMIT %d OFFSET %d",
-			$user_id,
-			$per_page,
-			$offset
-		)
-	);
-
-	if ( empty( $follows ) ) {
-		$follows = array();
-	}
-
-	// Cache for 5 minutes
-	set_transient( $cache_key, $follows, FANFIC_CACHE_5_MINUTES );
-
-	return $follows;
-}
-
-/**
- * Get author followers with pagination (cached)
- *
- * Returns paginated list of users following an author, ordered by
- * follow creation date (most recent first). Cached for 10 minutes.
- *
- * @since 1.0.0
- * @param int $author_id Author user ID.
- * @param int $page      Page number (1-indexed).
- * @param int $per_page  Number of followers per page (10, 15, or 20).
- * @return array Array of follower objects with user data, empty array on error.
- */
-function ffm_get_author_followers( $author_id, $page = 1, $per_page = 10 ) {
-	$author_id = absint( $author_id );
-	$page      = absint( $page );
-	$per_page  = absint( $per_page );
-
-	if ( ! $author_id ) {
-		return array();
-	}
-	if ( ! $page ) {
-		$page = 1;
-	}
-	if ( ! in_array( $per_page, array( 10, 15, 20 ), true ) ) {
-		$per_page = 10;
-	}
-
-	// Try to get from transient cache
-	$cache_key = 'fanfic_author_followers_' . $author_id . '_' . $page . '_' . $per_page;
-	$cached    = get_transient( $cache_key );
-
-	if ( false !== $cached ) {
-		return $cached;
-	}
-
-	global $wpdb;
-
-	// Calculate offset
-	$offset = ( $page - 1 ) * $per_page;
-
-	// Query followers with user data
-	$followers = $wpdb->get_results(
-		$wpdb->prepare(
-			"SELECT f.id, f.follower_id, f.created_at, u.user_login, u.display_name, u.user_nicename
-			FROM {$wpdb->prefix}fanfic_follows f
-			INNER JOIN {$wpdb->users} u ON f.follower_id = u.ID
-			WHERE f.author_id = %d
-			ORDER BY f.created_at DESC
-			LIMIT %d OFFSET %d",
-			$author_id,
-			$per_page,
-			$offset
-		)
-	);
-
-	if ( empty( $followers ) ) {
-		$followers = array();
-	}
-
-	// Cache for 10 minutes
-	set_transient( $cache_key, $followers, FANFIC_CACHE_10_MINUTES );
-
-	return $followers;
-}
-
-/**
- * Check if user is following an author (cached)
- *
- * Quick check to determine if a user is following a specific author.
- * Cached for 5 minutes for frequently accessed data.
- *
- * @since 1.0.0
- * @param int $user_id   User ID (follower).
- * @param int $author_id Author user ID.
- * @return bool True if following, false otherwise.
- */
-function ffm_is_author_followed( $user_id, $author_id ) {
-	$user_id   = absint( $user_id );
-	$author_id = absint( $author_id );
-
-	if ( ! $user_id || ! $author_id ) {
-		return false;
-	}
-
-	// Try to get from transient cache
-	$cache_key = 'fanfic_is_following_' . $user_id . '_' . $author_id;
-	$cached    = get_transient( $cache_key );
-
-	if ( false !== $cached ) {
-		return (bool) $cached;
-	}
-
-	global $wpdb;
-
-	// Check if follow exists
-	$exists = $wpdb->get_var(
-		$wpdb->prepare(
-			"SELECT COUNT(*)
-			FROM {$wpdb->prefix}fanfic_follows
-			WHERE follower_id = %d
-			AND author_id = %d",
-			$user_id,
-			$author_id
-		)
-	);
-
-	$is_following = ( $exists > 0 );
-
-	// Cache for 5 minutes
-	set_transient( $cache_key, (int) $is_following, FANFIC_CACHE_5_MINUTES );
-
-	return $is_following;
-}
-
-/**
- * Get top authors by follower count (cached)
- *
- * Returns site-wide leaderboard of authors with the most followers.
- * Useful for "Popular Authors" or "Top Authors" sections.
- * Cached for 30 minutes as popularity changes slowly.
- *
- * @since 1.0.0
- * @param int $limit Number of authors to return.
- * @param int $page  Page number for pagination (1-indexed).
- * @return array Array of author data with follower counts, empty array on error.
- */
-function ffm_get_top_authors( $limit = 10, $page = 1 ) {
-	$limit = absint( $limit );
-	$page  = absint( $page );
-
-	if ( ! $limit ) {
-		$limit = 10;
-	}
-	if ( ! $page ) {
-		$page = 1;
-	}
-
-	// Try to get from transient cache
-	$cache_key = 'fanfic_top_authors_' . $limit . '_' . $page;
-	$cached    = get_transient( $cache_key );
-
-	if ( false !== $cached ) {
-		return $cached;
-	}
-
-	global $wpdb;
-
-	// Calculate offset
-	$offset = ( $page - 1 ) * $limit;
-
-	// Query top authors by follower count
-	$authors = $wpdb->get_results(
-		$wpdb->prepare(
-			"SELECT u.ID, u.user_login, u.display_name, u.user_nicename, COUNT(f.id) as follower_count
-			FROM {$wpdb->users} u
-			INNER JOIN {$wpdb->prefix}fanfic_follows f ON u.ID = f.author_id
-			GROUP BY u.ID
-			ORDER BY follower_count DESC, u.user_registered DESC
-			LIMIT %d OFFSET %d",
-			$limit,
-			$offset
-		)
-	);
-
-	if ( empty( $authors ) ) {
-		$authors = array();
-	}
-
-	// Cache for 30 minutes
-	set_transient( $cache_key, $authors, FANFIC_CACHE_30_MINUTES );
-
-	return $authors;
 }
 
 /* ============================================================================
@@ -663,7 +326,7 @@ function ffm_mark_notifications_read( $user_id, $notification_ids ) {
  * Clear all user-related caches
  *
  * Clears all cached data for a specific user including profile,
- * bookmarks, follows, and notifications.
+ * bookmarks and notifications.
  *
  * @since 1.0.0
  * @param int $user_id User ID.
@@ -679,14 +342,9 @@ function ffm_clear_user_cache( $user_id ) {
 	// Clear profile and stats caches
 	delete_transient( 'fanfic_user_profile_' . $user_id );
 	delete_transient( 'fanfic_user_story_count_' . $user_id );
-	delete_transient( 'fanfic_user_follower_count_' . $user_id );
-	delete_transient( 'fanfic_user_following_count_' . $user_id );
 
 	// Clear bookmark caches
 	ffm_clear_bookmark_cache( $user_id );
-
-	// Clear follow caches
-	ffm_clear_follow_cache( $user_id );
 
 	// Clear notification caches
 	ffm_clear_notification_cache( $user_id );
@@ -734,70 +392,6 @@ function ffm_clear_bookmark_cache( $user_id, $story_id = 0 ) {
 		WHERE option_name LIKE '_transient_fanfic_most_bookmarked_stories_%'
 		OR option_name LIKE '_transient_timeout_fanfic_most_bookmarked_stories_%'"
 	);
-}
-
-/**
- * Clear follow-related caches for a user
- *
- * Clears all paginated follow/follower caches for a user.
- * Also clears site-wide top authors cache.
- *
- * @since 1.0.0
- * @param int $user_id   User ID.
- * @param int $author_id Optional. Specific author ID to clear follow status for.
- * @return void
- */
-function ffm_clear_follow_cache( $user_id, $author_id = 0 ) {
-	$user_id   = absint( $user_id );
-	$author_id = absint( $author_id );
-
-	if ( ! $user_id ) {
-		return;
-	}
-
-	// Clear follow/follower counts
-	delete_transient( 'fanfic_user_following_count_' . $user_id );
-	delete_transient( 'fanfic_user_follower_count_' . $user_id );
-
-	// Clear paginated follow lists for common pagination sizes
-	$pagination_sizes = array( 10, 15, 20 );
-	foreach ( $pagination_sizes as $per_page ) {
-		for ( $page = 1; $page <= 10; $page++ ) {
-			// User's follows (as follower)
-			delete_transient( 'fanfic_user_follows_' . $user_id . '_' . $page . '_' . $per_page );
-			// User's followers (as author)
-			delete_transient( 'fanfic_author_followers_' . $user_id . '_' . $page . '_' . $per_page );
-		}
-	}
-
-	// Clear specific follow status if author provided
-	if ( $author_id ) {
-		delete_transient( 'fanfic_is_following_' . $user_id . '_' . $author_id );
-
-		// Also clear the reverse check
-		delete_transient( 'fanfic_user_follower_count_' . $author_id );
-
-		// Clear author's follower lists
-		foreach ( $pagination_sizes as $per_page ) {
-			for ( $page = 1; $page <= 10; $page++ ) {
-				delete_transient( 'fanfic_author_followers_' . $author_id . '_' . $page . '_' . $per_page );
-			}
-		}
-	}
-
-	// Clear site-wide top authors cache
-	global $wpdb;
-	$wpdb->query(
-		"DELETE FROM {$wpdb->options}
-		WHERE option_name LIKE '_transient_fanfic_top_authors_%'
-		OR option_name LIKE '_transient_timeout_fanfic_top_authors_%'"
-	);
-
-	// Clear user profile cache to update follower/following counts
-	delete_transient( 'fanfic_user_profile_' . $user_id );
-	if ( $author_id ) {
-		delete_transient( 'fanfic_user_profile_' . $author_id );
-	}
 }
 
 /**
@@ -874,3 +468,4 @@ function ffm_clear_paginated_cache( $prefix ) {
 
 	return intval( $count );
 }
+

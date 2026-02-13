@@ -403,7 +403,6 @@ class Fanfic_Email_Sender {
 			'story_url'     => home_url( '/test-story' ),
 			'chapter_title' => 'Test Chapter Title',
 			'chapter_url'   => home_url( '/test-chapter' ),
-			'follower_name' => 'Test Follower',
 			'comment_text'  => 'This is a test comment to demonstrate the email template.',
 		);
 

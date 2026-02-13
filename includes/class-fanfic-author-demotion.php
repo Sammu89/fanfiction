@@ -428,7 +428,7 @@ This is an automatic process to keep our user roles accurate. If you publish a n
 You can still:
 - Read and bookmark stories
 - Comment on stories
-- Follow your favorite authors
+- Discover stories from your favorite authors
 - Manage your reading preferences
 
 To regain Author status, simply publish a new story!

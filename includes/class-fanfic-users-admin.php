@@ -795,7 +795,7 @@ class Fanfic_Users_Admin {
 					<div class="notice notice-info inline">
 						<h3><?php esc_html_e( 'User Roles', 'fanfiction-manager' ); ?></h3>
 						<ul>
-							<li><strong><?php esc_html_e( 'Reader:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Default role for registered users. Can bookmark stories, follow authors, rate chapters, comment, and manage their profile.', 'fanfiction-manager' ); ?></li>
+							<li><strong><?php esc_html_e( 'Reader:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Default role for registered users. Can bookmark stories, rate chapters, comment, and manage their profile.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Author:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Automatically assigned when a user publishes their first story (cannot be manually promoted). Can create, edit, and delete their own stories and chapters. Inherits all Reader permissions.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Moderator:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Can edit any story, access the moderation queue, suspend users, and manage the platform user list. Inherits all Author and Reader permissions.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Administrator:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Full access to plugin settings, custom taxonomies, notification templates, URL configuration, and custom CSS. Inherits all Moderator permissions.', 'fanfiction-manager' ); ?></li>

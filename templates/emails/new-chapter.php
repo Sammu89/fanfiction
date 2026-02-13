@@ -2,7 +2,7 @@
 /**
  * Email Template: New Chapter Published
  *
- * Sent when author publishes a new chapter in a followed story.
+ * Sent when an author publishes a new chapter in a subscribed story.
  *
  * Available variables:
  * - {display_name}   - Recipient's display name
@@ -126,7 +126,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 		</div>
 
 		<div class="email-footer">
-			<p><?php printf( esc_html__( 'You are receiving this email because you are following "%s" on %s.', 'fanfiction-manager' ), '{story_title}', '{site_name}' ); ?></p>
+			<p><?php printf( esc_html__( 'You are receiving this email because you subscribed to "%s" on %s.', 'fanfiction-manager' ), '{story_title}', '{site_name}' ); ?></p>
 			<p><a href="{unsubscribe_url}"><?php esc_html_e( 'Unsubscribe from this story', 'fanfiction-manager' ); ?></a></p>
 		</div>
 	</div>

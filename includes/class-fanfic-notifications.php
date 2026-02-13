@@ -28,12 +28,10 @@ class Fanfic_Notifications {
 	 * Notification type constants
 	 */
 	const TYPE_NEW_COMMENT = 'new_comment';
-	const TYPE_NEW_FOLLOWER = 'new_follower';
 	const TYPE_NEW_CHAPTER = 'new_chapter';
 	const TYPE_NEW_STORY = 'new_story';
 	const TYPE_COMMENT_REPLY = 'comment_reply';
 	const TYPE_STORY_UPDATE = 'story_update';
-	const TYPE_FOLLOW_STORY = 'follow_story';
 	const TYPE_COAUTHOR_INVITE = 'coauthor_invite';
 	const TYPE_COAUTHOR_ACCEPTED = 'coauthor_accepted';
 	const TYPE_COAUTHOR_REFUSED = 'coauthor_refused';
@@ -88,7 +86,6 @@ class Fanfic_Notifications {
 		// Register cron hooks
 		add_action( 'fanfic_cleanup_old_notifications', array( __CLASS__, 'delete_old_notifications' ) );
 		add_action( self::CLEANUP_CONTINUATION_HOOK, array( __CLASS__, 'delete_old_notifications' ) );
-		add_action( 'fanfic_process_debounced_notification', array( __CLASS__, 'process_debounced_notification' ), 10, 1 );
 		add_action( 'update_option_fanfic_settings', array( __CLASS__, 'reschedule_on_settings_change' ), 10, 2 );
 
 		// Schedule cron job on init if not already scheduled
@@ -130,12 +127,10 @@ class Fanfic_Notifications {
 
 		$valid_types = array(
 			self::TYPE_NEW_COMMENT,
-			self::TYPE_NEW_FOLLOWER,
 			self::TYPE_NEW_CHAPTER,
 			self::TYPE_NEW_STORY,
 			self::TYPE_COMMENT_REPLY,
 			self::TYPE_STORY_UPDATE,
-			self::TYPE_FOLLOW_STORY,
 			self::TYPE_COAUTHOR_INVITE,
 			self::TYPE_COAUTHOR_ACCEPTED,
 			self::TYPE_COAUTHOR_REFUSED,
@@ -638,12 +633,10 @@ class Fanfic_Notifications {
 	public static function get_notification_types() {
 		return array(
 			self::TYPE_NEW_COMMENT => __( 'New Comment', 'fanfiction-manager' ),
-			self::TYPE_NEW_FOLLOWER => __( 'New Follower', 'fanfiction-manager' ),
 			self::TYPE_NEW_CHAPTER => __( 'New Chapter', 'fanfiction-manager' ),
 			self::TYPE_NEW_STORY => __( 'New Story', 'fanfiction-manager' ),
 			self::TYPE_COMMENT_REPLY => __( 'Comment Reply', 'fanfiction-manager' ),
 			self::TYPE_STORY_UPDATE => __( 'Story Update', 'fanfiction-manager' ),
-			self::TYPE_FOLLOW_STORY => __( 'Story Follow', 'fanfiction-manager' ),
 			self::TYPE_COAUTHOR_INVITE => __( 'Co-Author Invite', 'fanfiction-manager' ),
 			self::TYPE_COAUTHOR_ACCEPTED => __( 'Co-Author Accepted', 'fanfiction-manager' ),
 			self::TYPE_COAUTHOR_REFUSED => __( 'Co-Author Refused', 'fanfiction-manager' ),
@@ -703,12 +696,10 @@ class Fanfic_Notifications {
 		// Validate type
 		$valid_types = array(
 			self::TYPE_NEW_COMMENT,
-			self::TYPE_NEW_FOLLOWER,
 			self::TYPE_NEW_CHAPTER,
 			self::TYPE_NEW_STORY,
 			self::TYPE_COMMENT_REPLY,
 			self::TYPE_STORY_UPDATE,
-			self::TYPE_FOLLOW_STORY,
 			self::TYPE_COAUTHOR_INVITE,
 			self::TYPE_COAUTHOR_ACCEPTED,
 			self::TYPE_COAUTHOR_REFUSED,
@@ -759,63 +750,9 @@ class Fanfic_Notifications {
 	}
 
 	/**
-	 * Create follow notification
-	 *
-	 * Notifies content creator when someone follows them or their story.
-	 *
-	 * @since 1.0.0
-	 * @param int    $follower_id Follower user ID.
-	 * @param int    $creator_id  Content creator user ID.
-	 * @param string $follow_type Follow type: 'story' or 'author'.
-	 * @param int    $target_id   Target ID (story ID or author ID).
-	 * @return int|false Notification ID on success, false on failure.
-	 */
-	public static function create_follow_notification( $follower_id, $creator_id, $follow_type, $target_id ) {
-		$follower = get_userdata( $follower_id );
-		if ( ! $follower ) {
-			return false;
-		}
-
-		if ( 'story' === $follow_type ) {
-			$story = get_post( $target_id );
-			if ( ! $story ) {
-				return false;
-			}
-
-			$message = sprintf(
-				/* translators: 1: follower name, 2: story title */
-				__( '%1$s is now following your story "%2$s"', 'fanfiction-manager' ),
-				$follower->display_name,
-				$story->post_title
-			);
-
-			$data = array(
-				'follower_id'   => $follower_id,
-				'follower_name' => $follower->display_name,
-				'story_id'      => $target_id,
-				'story_title'   => $story->post_title,
-			);
-		} else {
-			$message = sprintf(
-				/* translators: %s: follower name */
-				__( '%s is now following you', 'fanfiction-manager' ),
-				$follower->display_name
-			);
-
-			$data = array(
-				'follower_id'   => $follower_id,
-				'follower_name' => $follower->display_name,
-			);
-		}
-
-		return self::create_notification( $creator_id, self::TYPE_NEW_FOLLOWER, $message, $data );
-	}
-
-	/**
 	 * Create chapter notification
 	 *
-	 * Called when new chapter is published. Creates in-app notifications for followers.
-	 * Email notifications are handled by Email Queue class.
+	 * Legacy chapter notifications are disabled.
 	 *
 	 * @since 1.0.0
 	 * @param int $chapter_id Chapter ID.
@@ -823,45 +760,7 @@ class Fanfic_Notifications {
 	 * @return int Count of notifications created.
 	 */
 	public static function create_chapter_notification( $chapter_id, $story_id ) {
-		global $wpdb;
-
-		$chapter = get_post( $chapter_id );
-		$story = get_post( $story_id );
-
-		if ( ! $chapter || ! $story ) {
-			return 0;
-		}
-
-		$author_id = $story->post_author;
-
-		// Get all followers (both story and author follows)
-		$followers = $wpdb->get_col( $wpdb->prepare(
-			"SELECT DISTINCT user_id FROM {$wpdb->prefix}fanfic_follows
-			WHERE (target_id = %d AND follow_type = 'story')
-			OR (target_id = %d AND follow_type = 'author')",
-			$story_id,
-			$author_id
-		) );
-
-		if ( empty( $followers ) ) {
-			return 0;
-		}
-
-		$message = sprintf(
-			/* translators: %s: story title */
-			__( 'New chapter published in "%s"', 'fanfiction-manager' ),
-			$story->post_title
-		);
-
-		$data = array(
-			'chapter_id'     => $chapter_id,
-			'story_id'       => $story_id,
-			'story_title'    => $story->post_title,
-			'chapter_title'  => $chapter->post_title,
-			'chapter_number' => get_post_meta( $chapter_id, '_chapter_number', true ),
-		);
-
-		return self::batch_create_notifications( $followers, self::TYPE_NEW_CHAPTER, $message, $data );
+		return 0;
 	}
 
 	/**
@@ -1014,7 +913,7 @@ class Fanfic_Notifications {
 	/**
 	 * Handle taxonomy changes for stories
 	 *
-	 * Notifies story followers when taxonomies change (genre, status, custom taxonomies).
+	 * Handles story taxonomy change events.
 	 *
 	 * @since 1.0.16
 	 * @param int    $object_id  Object ID (post ID).
@@ -1073,7 +972,7 @@ class Fanfic_Notifications {
 	/**
 	 * Handle title changes for stories and chapters
 	 *
-	 * Notifies story followers when story or chapter titles change.
+	 * Handles story/chapter title change events.
 	 *
 	 * @since 1.0.16
 	 * @param int     $post_id     Post ID.
@@ -1128,166 +1027,6 @@ class Fanfic_Notifications {
 	}
 
 	/**
-	 * Notify followers when story title changes
-	 *
-	 * @since 1.0.16
-	 * @param int    $story_id  Story ID.
-	 * @param string $old_title Old title.
-	 * @param string $new_title New title.
-	 * @param int    $author_id Author ID.
-	 * @return void
-	 */
-	private static function notify_story_title_change( $story_id, $old_title, $new_title, $author_id ) {
-		// Get story followers
-		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
-
-		if ( empty( $followers ) ) {
-			return;
-		}
-
-		$story_url = get_permalink( $story_id );
-
-		// Build notification message
-		$message = sprintf(
-			/* translators: 1: Old title, 2: New title */
-			__( 'Story title changed from "%1$s" to "%2$s"', 'fanfiction-manager' ),
-			$old_title,
-			$new_title
-		);
-
-		// Notify all followers
-		foreach ( $followers as $follower ) {
-			$follower_id = absint( $follower['user_id'] );
-
-			// Don't notify the story author
-			if ( $follower_id === absint( $author_id ) ) {
-				continue;
-			}
-
-			// Create notification
-			self::create_notification(
-				$follower_id,
-				self::TYPE_STORY_UPDATE,
-				$message,
-				array(
-					'story_id'  => $story_id,
-					'story_url' => $story_url,
-					'old_title' => $old_title,
-					'new_title' => $new_title,
-				)
-			);
-
-			// Queue email if user has email notifications enabled
-			if ( ! empty( $follower['email_enabled'] ) ) {
-				Fanfic_Email_Queue::queue_email(
-					$follower_id,
-					'story_title_update',
-					$message,
-					array(
-						'story_id'  => $story_id,
-						'story_url' => $story_url,
-						'old_title' => $old_title,
-						'new_title' => $new_title,
-					)
-				);
-			}
-		}
-	}
-
-	/**
-	 * Notify followers when chapter title changes
-	 *
-	 * @since 1.0.16
-	 * @param int    $chapter_id Chapter ID.
-	 * @param string $old_title  Old title.
-	 * @param string $new_title  New title.
-	 * @param int    $story_id   Parent story ID.
-	 * @param int    $author_id  Author ID.
-	 * @return void
-	 */
-	private static function notify_chapter_title_change( $chapter_id, $old_title, $new_title, $story_id, $author_id ) {
-		// Get story followers (followers follow the story, not individual chapters)
-		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
-
-		if ( empty( $followers ) ) {
-			return;
-		}
-
-		$story_title = get_the_title( $story_id );
-		$chapter_url = get_permalink( $chapter_id );
-
-		// Get chapter label (Prologue, Chapter X, Epilogue)
-		$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
-		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
-
-		if ( 'prologue' === $chapter_type || 'prologue' === $chapter_number ) {
-			$chapter_label = __( 'Prologue', 'fanfiction-manager' );
-		} elseif ( 'epilogue' === $chapter_type || 'epilogue' === $chapter_number ) {
-			$chapter_label = __( 'Epilogue', 'fanfiction-manager' );
-		} else {
-			$chapter_label = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number );
-		}
-
-		// Handle empty titles (optional titles)
-		$old_display = ! empty( $old_title ) ? $old_title : $chapter_label;
-		$new_display = ! empty( $new_title ) ? $new_title : $chapter_label;
-
-		// Build notification message
-		$message = sprintf(
-			/* translators: 1: Story title, 2: Chapter label, 3: Old title, 4: New title */
-			__( 'Story "%1$s" - %2$s title changed from "%3$s" to "%4$s"', 'fanfiction-manager' ),
-			$story_title,
-			$chapter_label,
-			$old_display,
-			$new_display
-		);
-
-		// Notify all followers
-		foreach ( $followers as $follower ) {
-			$follower_id = absint( $follower['user_id'] );
-
-			// Don't notify the story author
-			if ( $follower_id === absint( $author_id ) ) {
-				continue;
-			}
-
-			// Create notification
-			self::create_notification(
-				$follower_id,
-				self::TYPE_STORY_UPDATE,
-				$message,
-				array(
-					'story_id'      => $story_id,
-					'story_title'   => $story_title,
-					'chapter_id'    => $chapter_id,
-					'chapter_url'   => $chapter_url,
-					'chapter_label' => $chapter_label,
-					'old_title'     => $old_title,
-					'new_title'     => $new_title,
-				)
-			);
-
-			// Queue email if user has email notifications enabled
-			if ( ! empty( $follower['email_enabled'] ) ) {
-				Fanfic_Email_Queue::queue_email(
-					$follower_id,
-					'chapter_title_update',
-					$message,
-					array(
-						'story_id'      => $story_id,
-						'story_title'   => $story_title,
-						'chapter_id'    => $chapter_id,
-						'chapter_url'   => $chapter_url,
-						'chapter_label' => $chapter_label,
-						'old_title'     => $old_title,
-						'new_title'     => $new_title,
-					)
-				);
-			}
-		}
-	}
-
-	/**
 	 * Queue a debounced notification for story updates
 	 *
 	 * Instead of sending notifications immediately, this queues the notification
@@ -1301,38 +1040,7 @@ class Fanfic_Notifications {
 	 * @return void
 	 */
 	private static function queue_debounced_notification( $story_id, $change_type, $change_data ) {
-		$story_id = absint( $story_id );
-		$transient_key = 'fanfic_debounced_notify_' . $story_id;
-
-		// Get existing pending notification data
-		$pending = get_transient( $transient_key );
-
-		if ( false === $pending ) {
-			// First change - capture original state
-			$pending = array(
-				'story_id'       => $story_id,
-				'original_state' => self::capture_story_state( $story_id ),
-				'changes'        => array(),
-				'first_change'   => current_time( 'timestamp' ),
-			);
-		}
-
-		// Add this change to the pending changes
-		$pending['changes'][ $change_type ] = $change_data;
-		$pending['last_change'] = current_time( 'timestamp' );
-
-		// Store updated pending notification (expires in 30 minutes as safety)
-		set_transient( $transient_key, $pending, 30 * MINUTE_IN_SECONDS );
-
-		// Cancel any existing scheduled notification
-		$hook = 'fanfic_process_debounced_notification';
-		$scheduled_time = wp_next_scheduled( $hook, array( $story_id ) );
-		if ( $scheduled_time ) {
-			wp_unschedule_event( $scheduled_time, $hook, array( $story_id ) );
-		}
-
-		// Schedule new notification for 20 minutes from now
-		wp_schedule_single_event( time() + ( 20 * MINUTE_IN_SECONDS ), $hook, array( $story_id ) );
+		return;
 	}
 
 	/**
@@ -1347,150 +1055,7 @@ class Fanfic_Notifications {
 	 */
 	public static function process_debounced_notification( $story_id ) {
 		$story_id = absint( $story_id );
-		$transient_key = 'fanfic_debounced_notify_' . $story_id;
-
-		// Get pending notification data
-		$pending = get_transient( $transient_key );
-
-		if ( false === $pending ) {
-			// No pending notification (maybe already processed or expired)
-			return;
-		}
-
-		// Get current state
-		$current_state = self::capture_story_state( $story_id );
-		$original_state = $pending['original_state'];
-
-		// Get story post
-		$story = get_post( $story_id );
-		if ( ! $story || 'publish' !== $story->post_status ) {
-			// Story no longer exists or not published
-			delete_transient( $transient_key );
-			return;
-		}
-
-		// Get story followers
-		$followers = Fanfic_Follows::get_target_followers( $story_id, 'story', 999 );
-
-		if ( empty( $followers ) ) {
-			// No followers, clean up and exit
-			delete_transient( $transient_key );
-			return;
-		}
-
-		// Compare states and build list of net changes
-		$net_changes = array();
-
-		// Check title change
-		if ( $original_state['title'] !== $current_state['title'] ) {
-			$net_changes['title'] = array(
-				'old' => $original_state['title'],
-				'new' => $current_state['title'],
-			);
-		}
-
-		// Check taxonomy changes
-		foreach ( array( 'fanfiction_genre', 'fanfiction_status' ) as $taxonomy ) {
-			$orig_terms = isset( $original_state['taxonomies'][ $taxonomy ] ) ? $original_state['taxonomies'][ $taxonomy ] : array();
-			$curr_terms = isset( $current_state['taxonomies'][ $taxonomy ] ) ? $current_state['taxonomies'][ $taxonomy ] : array();
-
-			// Sort for comparison
-			sort( $orig_terms );
-			sort( $curr_terms );
-
-			if ( $orig_terms !== $curr_terms ) {
-				$net_changes['taxonomy_' . $taxonomy] = array(
-					'taxonomy' => $taxonomy,
-					'old'      => $orig_terms,
-					'new'      => $curr_terms,
-				);
-			}
-		}
-
-		// Check custom taxonomies
-		if ( isset( $original_state['custom_taxonomies'] ) ) {
-			foreach ( $original_state['custom_taxonomies'] as $custom_tax ) {
-				$orig_terms = isset( $original_state['taxonomies'][ $custom_tax ] ) ? $original_state['taxonomies'][ $custom_tax ] : array();
-				$curr_terms = isset( $current_state['taxonomies'][ $custom_tax ] ) ? $current_state['taxonomies'][ $custom_tax ] : array();
-
-				sort( $orig_terms );
-				sort( $curr_terms );
-
-				if ( $orig_terms !== $curr_terms ) {
-					$net_changes['taxonomy_' . $custom_tax] = array(
-						'taxonomy' => $custom_tax,
-						'old'      => $orig_terms,
-						'new'      => $curr_terms,
-					);
-				}
-			}
-		}
-
-		// Check chapter title changes
-		$orig_chapters = isset( $original_state['chapters'] ) ? $original_state['chapters'] : array();
-		$curr_chapters = isset( $current_state['chapters'] ) ? $current_state['chapters'] : array();
-
-		foreach ( $curr_chapters as $chapter_id => $curr_title ) {
-			// Check if chapter existed in original state and title changed
-			if ( isset( $orig_chapters[ $chapter_id ] ) && $orig_chapters[ $chapter_id ] !== $curr_title ) {
-				$net_changes[ 'chapter_title_' . $chapter_id ] = array(
-					'chapter_id' => $chapter_id,
-					'old'        => $orig_chapters[ $chapter_id ],
-					'new'        => $curr_title,
-				);
-			}
-		}
-
-		// If no net changes, don't send notification
-		if ( empty( $net_changes ) ) {
-			delete_transient( $transient_key );
-			return;
-		}
-
-		// Build consolidated notification message
-		$message = self::build_consolidated_message( $story_id, $net_changes );
-		$story_url = get_permalink( $story_id );
-
-		// Notify all followers
-		foreach ( $followers as $follower ) {
-			$follower_id = absint( $follower['user_id'] );
-
-			// Don't notify the story author
-			if ( $follower_id === absint( $story->post_author ) ) {
-				continue;
-			}
-
-			// Create notification
-			self::create_notification(
-				$follower_id,
-				self::TYPE_STORY_UPDATE,
-				$message,
-				array(
-					'story_id'    => $story_id,
-					'story_title' => $current_state['title'],
-					'story_url'   => $story_url,
-					'changes'     => $net_changes,
-				)
-			);
-
-			// Queue email if user has email notifications enabled
-			if ( ! empty( $follower['email_enabled'] ) ) {
-				Fanfic_Email_Queue::queue_email(
-					$follower_id,
-					'story_updates',
-					$message,
-					array(
-						'story_id'    => $story_id,
-						'story_title' => $current_state['title'],
-						'story_url'   => $story_url,
-						'changes'     => $net_changes,
-					)
-				);
-			}
-		}
-
-		// Clean up transient
-		delete_transient( $transient_key );
+		delete_transient( 'fanfic_debounced_notify_' . $story_id );
 	}
 
 	/**

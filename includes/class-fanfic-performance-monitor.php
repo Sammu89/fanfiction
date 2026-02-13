@@ -312,11 +312,6 @@ class Fanfic_Performance_Monitor {
 			"SELECT COUNT(*) FROM {$interactions_table} WHERE interaction_type = 'like'"
 		);
 
-		// Count follows
-		$stats['total_follows'] = $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$wpdb->prefix}fanfic_follows"
-		);
-
 		// Count bookmarks (from unified interactions table)
 		$stats['total_bookmarks'] = $wpdb->get_var(
 			"SELECT COUNT(*) FROM {$interactions_table} WHERE interaction_type = 'bookmark'"
@@ -350,7 +345,6 @@ class Fanfic_Performance_Monitor {
 
 		$tables = array(
 			'fanfic_interactions',
-			'fanfic_follows',
 			'fanfic_email_subscriptions',
 			'fanfic_email_queue',
 			'fanfic_notifications',

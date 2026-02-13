@@ -56,9 +56,6 @@ class Fanfic_Author_Dashboard {
 
 		// Hook to automatically promote reader to author on first published story
 		add_action( 'fanfic_story_validated', array( $this, 'maybe_promote_to_author' ), 10, 2 );
-
-		// Hook to notify followers when chapter is published
-		add_action( 'transition_post_status', array( $this, 'notify_followers_on_chapter_publish' ), 10, 3 );
 	}
 
 	/**
@@ -1241,98 +1238,4 @@ class Fanfic_Author_Dashboard {
 		}
 	}
 
-	/**
-	 * Notify followers when author publishes a new chapter
-	 *
-	 * Triggered on post status transition for fanfiction_chapter posts.
-	 *
-	 * @since 1.0.0
-	 * @param string  $new_status New post status.
-	 * @param string  $old_status Old post status.
-	 * @param WP_Post $post       Post object.
-	 * @return void
-	 */
-	public function notify_followers_on_chapter_publish( $new_status, $old_status, $post ) {
-		// Only proceed if this is a chapter being published
-		if ( 'fanfiction_chapter' !== $post->post_type ) {
-			return;
-		}
-
-		// Only notify if transitioning to publish (not if already published)
-		if ( 'publish' !== $new_status || 'publish' === $old_status ) {
-			return;
-		}
-
-		$author_id = absint( $post->post_author );
-
-		// Get all followers of this author
-		$followers = Fanfic_Follows::get_author_followers( $author_id );
-
-		if ( empty( $followers ) ) {
-			return;
-		}
-
-		$chapter_title = get_the_title( $post->ID );
-		$chapter_url = get_permalink( $post->ID );
-		$author = get_userdata( $author_id );
-		$author_name = $author ? $author->display_name : __( 'Unknown Author', 'fanfiction-manager' );
-
-		// Get parent story title if available
-		$story_title = '';
-		if ( $post->post_parent ) {
-			$story = get_post( $post->post_parent );
-			if ( $story ) {
-				$story_title = get_the_title( $story->ID );
-			}
-		}
-
-		// Create notification message
-		if ( $story_title ) {
-			$message = sprintf(
-				/* translators: 1: author name, 2: chapter title, 3: story title */
-				__( '%1$s published a new chapter "%2$s" in "%3$s"', 'fanfiction-manager' ),
-				$author_name,
-				$chapter_title,
-				$story_title
-			);
-		} else {
-			$message = sprintf(
-				/* translators: 1: author name, 2: chapter title */
-				__( '%1$s published a new chapter: "%2$s"', 'fanfiction-manager' ),
-				$author_name,
-				$chapter_title
-			);
-		}
-
-		foreach ( $followers as $follower ) {
-			$follower_id = absint( $follower->follower_id );
-
-			// Create in-app notification if user preferences allow
-			if ( Fanfic_Notification_Preferences::should_create_inapp( $follower_id, Fanfic_Notifications::TYPE_NEW_CHAPTER ) ) {
-				Fanfic_Notifications::create_notification(
-					$follower_id,
-					Fanfic_Notifications::TYPE_NEW_CHAPTER,
-					$message,
-					$chapter_url
-				);
-			}
-
-			// Queue email notification if user preferences allow
-			if ( Fanfic_Notification_Preferences::should_send_email( $follower_id, Fanfic_Notifications::TYPE_NEW_CHAPTER ) ) {
-				Fanfic_Email_Sender::queue_email(
-					$follower_id,
-					Fanfic_Notifications::TYPE_NEW_CHAPTER,
-					array(
-						'author_name'   => $author_name,
-						'content_title' => $chapter_title,
-						'story_title'   => $story_title,
-						'content_url'   => $chapter_url,
-					)
-				);
-			}
-		}
-
-		// Trigger action for extensibility
-		do_action( 'fanfic_author_published_chapter', $author_id, $post->ID, $followers );
-	}
 }

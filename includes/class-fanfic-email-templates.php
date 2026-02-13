@@ -32,7 +32,6 @@ class Fanfic_Email_Templates {
 	 * Template types
 	 */
 	const TYPE_NEW_COMMENT = 'new_comment';
-	const TYPE_NEW_FOLLOWER = 'new_follower';
 	const TYPE_NEW_CHAPTER = 'new_chapter';
 	const TYPE_NEW_STORY = 'new_story';
 
@@ -97,10 +96,6 @@ class Fanfic_Email_Templates {
 				'subject' => __( 'New comment on "{{story_title}}"', 'fanfiction-manager' ),
 				'body'    => self::get_default_comment_template(),
 			),
-			self::TYPE_NEW_FOLLOWER => array(
-				'subject' => __( '{{follower_name}} is now following you!', 'fanfiction-manager' ),
-				'body'    => self::get_default_follower_template(),
-			),
 			self::TYPE_NEW_CHAPTER => array(
 				'subject' => __( 'New chapter: "{{chapter_title}}" by {{author_name}}', 'fanfiction-manager' ),
 				'body'    => self::get_default_new_chapter_template(),
@@ -135,7 +130,6 @@ class Fanfic_Email_Templates {
 			'story_url'      => '',
 			'chapter_title'  => '',
 			'chapter_url'    => '',
-			'follower_name'  => '',
 			'comment_text'   => '',
 			'settings_url'   => '', // Will be set below
 		);
@@ -189,9 +183,6 @@ class Fanfic_Email_Templates {
 				'chapter_title' => __( 'Chapter title', 'fanfiction-manager' ),
 				'chapter_url'   => __( 'Chapter URL', 'fanfiction-manager' ),
 				'comment_text'  => __( 'Comment text (truncated)', 'fanfiction-manager' ),
-			),
-			self::TYPE_NEW_FOLLOWER => array(
-				'follower_name' => __( 'New follower\'s name', 'fanfiction-manager' ),
 			),
 			self::TYPE_NEW_CHAPTER => array(
 				'author_name'   => __( 'Story author name', 'fanfiction-manager' ),
@@ -312,57 +303,6 @@ class Fanfic_Email_Templates {
 	}
 
 	/**
-	 * Default template for new follower notification
-	 *
-	 * @since 1.0.0
-	 * @return string HTML template.
-	 */
-	private static function get_default_follower_template() {
-		ob_start();
-		?>
-<!DOCTYPE html>
-<html>
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title><?php esc_html_e( 'New Follower', 'fanfiction-manager' ); ?></title>
-	<style>
-		body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
-		.container { max-width: 600px; margin: 20px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-		.header { background: #0073aa; color: #fff; padding: 20px; text-align: center; }
-		.content { padding: 30px; }
-		.footer { background: #f8f8f8; padding: 20px; text-align: center; font-size: 12px; color: #666; }
-		.button { display: inline-block; padding: 12px 24px; background: #0073aa; color: #fff !important; text-decoration: none; border-radius: 4px; margin: 10px 0; }
-		.highlight { background: #e6f7ff; padding: 20px; border-radius: 4px; text-align: center; margin: 20px 0; }
-	</style>
-</head>
-<body>
-	<div class="container">
-		<div class="header">
-			<h1><?php esc_html_e( 'New Follower!', 'fanfiction-manager' ); ?></h1>
-		</div>
-		<div class="content">
-			<p><?php esc_html_e( 'Hello {{user_name}},', 'fanfiction-manager' ); ?></p>
-			<div class="highlight">
-				<h2 style="margin: 0;"><?php esc_html_e( '{{follower_name}} is now following you!', 'fanfiction-manager' ); ?></h2>
-			</div>
-			<p><?php esc_html_e( 'They will be notified when you publish new stories and chapters.', 'fanfiction-manager' ); ?></p>
-			<p style="text-align: center;">
-				<a href="{{site_url}}" class="button"><?php esc_html_e( 'Visit Your Profile', 'fanfiction-manager' ); ?></a>
-			</p>
-		</div>
-		<div class="footer">
-			<p><?php esc_html_e( 'You received this email because you have notifications enabled for {{site_name}}.', 'fanfiction-manager' ); ?></p>
-			<p><a href="{{settings_url}}" style="color: #0073aa;"><?php esc_html_e( 'Manage your notification preferences', 'fanfiction-manager' ); ?></a></p>
-		</div>
-	</div>
-</body>
-</html>
-		<?php
-		return ob_get_clean();
-	}
-
-	/**
 	 * Default template for new chapter notification
 	 *
 	 * @since 1.0.0
@@ -401,7 +341,7 @@ class Fanfic_Email_Templates {
 			</p>
 		</div>
 		<div class="footer">
-			<p><?php esc_html_e( 'You received this email because you follow {{author_name}} on {{site_name}}.', 'fanfiction-manager' ); ?></p>
+			<p><?php esc_html_e( 'You received this email because you subscribed to updates from {{author_name}} on {{site_name}}.', 'fanfiction-manager' ); ?></p>
 			<p><a href="{{settings_url}}" style="color: #0073aa;"><?php esc_html_e( 'Manage your notification preferences', 'fanfiction-manager' ); ?></a></p>
 		</div>
 	</div>
@@ -449,7 +389,7 @@ class Fanfic_Email_Templates {
 			</p>
 		</div>
 		<div class="footer">
-			<p><?php esc_html_e( 'You received this email because you follow {{author_name}} on {{site_name}}.', 'fanfiction-manager' ); ?></p>
+			<p><?php esc_html_e( 'You received this email because you subscribed to updates from {{author_name}} on {{site_name}}.', 'fanfiction-manager' ); ?></p>
 			<p><a href="{{settings_url}}" style="color: #0073aa;"><?php esc_html_e( 'Manage your notification preferences', 'fanfiction-manager' ); ?></a></p>
 		</div>
 	</div>

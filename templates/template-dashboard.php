@@ -5,7 +5,7 @@
  *
  * This template displays:
  * - Welcome message with avatar
- * - Statistics cards (stories, chapters, views, following)
+ * - Statistics cards (stories, chapters, views, bookmarks)
  * - Quick action buttons
  * - Recent stories management
  * - Notifications
@@ -145,13 +145,13 @@ if ( isset( $_GET['error'] ) ) {
 			</div>
 		</div>
 
-		<!-- Stories Following -->
+		<!-- Bookmarked Stories -->
 		<div class="fanfic-stat-card">
 			<div class="fanfic-stat-icon" aria-hidden="true">
 				<span class="dashicons dashicons-heart"></span>
 			</div>
 			<div class="fanfic-stat-content">
-				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Stories Following', 'fanfiction-manager' ); ?></h3>
+				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Bookmarked Stories', 'fanfiction-manager' ); ?></h3>
 				<p class="fanfic-stat-value"><?php echo Fanfic_Shortcodes_User::get_favorites_count(); ?></p>
 			</div>
 		</div>
@@ -429,9 +429,6 @@ if ( isset( $_GET['error'] ) ) {
 										case Fanfic_Notifications::TYPE_COMMENT_REPLY:
 											echo '<span class="dashicons dashicons-admin-comments"></span>';
 											break;
-										case Fanfic_Notifications::TYPE_NEW_FOLLOWER:
-											echo '<span class="dashicons dashicons-heart"></span>';
-											break;
 										case Fanfic_Notifications::TYPE_NEW_CHAPTER:
 										case Fanfic_Notifications::TYPE_NEW_STORY:
 										case Fanfic_Notifications::TYPE_STORY_UPDATE:
@@ -444,9 +441,6 @@ if ( isset( $_GET['error'] ) ) {
 										case Fanfic_Notifications::TYPE_COAUTHOR_DISABLED:
 										case Fanfic_Notifications::TYPE_COAUTHOR_ENABLED:
 											echo '<span class="dashicons dashicons-groups"></span>';
-											break;
-										case Fanfic_Notifications::TYPE_FOLLOW_STORY:
-											echo '<span class="dashicons dashicons-star-filled"></span>';
 											break;
 										default:
 											echo '<span class="dashicons dashicons-bell"></span>';

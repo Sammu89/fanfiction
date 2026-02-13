@@ -147,7 +147,7 @@ class Fanfic_Security {
 	 *
 	 * @since 1.0.15
 	 * @param int    $user_id User ID to check.
-	 * @param string $action  Action type: 'read', 'rate', 'like', 'bookmark', 'follow', 'comment', 'subscribe'.
+	 * @param string $action  Action type: 'read', 'rate', 'like', 'bookmark', 'comment', 'subscribe'.
 	 * @return true|WP_Error True on success, WP_Error on failure.
 	 */
 	public static function verify_capabilities( $user_id, $action ) {
@@ -211,7 +211,6 @@ class Fanfic_Security {
 			'rate'       => 'read',
 			'like'       => 'read',
 			'bookmark'   => 'read',
-			'follow'     => 'read',
 			'subscribe'  => 'read',
 			'comment'    => 'read',
 			'edit_story' => 'edit_fanfiction_stories',

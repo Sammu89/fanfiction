@@ -19,7 +19,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Creates and manages custom tables:
  * - wp_fanfic_reading_progress: Mark chapters as read
- * - wp_fanfic_follows: Unified story and author follows
  * - wp_fanfic_email_subscriptions: Email-only subscriptions
  * - wp_fanfic_notifications: In-app notifications
  * - wp_fanfic_coauthors: Story co-author relationships
@@ -117,26 +116,6 @@ class Fanfic_Database_Setup {
 		$result = dbDelta( $sql_reading );
 		if ( empty( $result ) || ! self::verify_table_exists( $table_reading ) ) {
 			$errors[] = 'Failed to create reading progress table';
-		}
-
-		// 2. Follows Table (Unified for stories and authors)
-		$table_follows = $prefix . 'fanfic_follows';
-		$sql_follows   = "CREATE TABLE IF NOT EXISTS {$table_follows} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) UNSIGNED NOT NULL,
-			target_id bigint(20) UNSIGNED NOT NULL,
-			follow_type enum('story','author') NOT NULL,
-			email_enabled tinyint(1) NOT NULL DEFAULT 1,
-			created_at datetime DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY  (id),
-			UNIQUE KEY unique_follow (user_id, target_id, follow_type),
-			KEY idx_target_type (target_id, follow_type),
-			KEY idx_user_type (user_id, follow_type)
-		) $charset_collate;";
-
-		$result = dbDelta( $sql_follows );
-		if ( empty( $result ) || ! self::verify_table_exists( $table_follows ) ) {
-			$errors[] = 'Failed to create follows table';
 		}
 
 		// 4. Email Subscriptions Table
@@ -994,7 +973,6 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_email_subscriptions',
-			$prefix . 'fanfic_follows',
 
 			$prefix . 'fanfic_reading_progress',
 			$prefix . 'fanfic_story_fandoms',
@@ -1025,8 +1003,6 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_reading_progress',
-
-			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_coauthors',
@@ -1073,7 +1049,6 @@ class Fanfic_Database_Setup {
 			'total_ratings'       => 0,
 			'total_likes'         => 0,
 			'total_bookmarks'     => 0,
-			'total_follows'       => 0,
 			'total_reads'         => 0,
 			'total_notifications' => 0,
 			'total_coauthors'     => 0,
@@ -1091,10 +1066,6 @@ class Fanfic_Database_Setup {
 
 		$stats['total_bookmarks'] = (int) $wpdb->get_var(
 			"SELECT COUNT(*) FROM {$prefix}fanfic_interactions WHERE interaction_type = 'bookmark'"
-		);
-
-		$stats['total_follows'] = (int) $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$prefix}fanfic_follows"
 		);
 
 		$stats['total_reads'] = (int) $wpdb->get_var(
@@ -1151,8 +1122,6 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_reading_progress',
-
-			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_coauthors',
@@ -1234,8 +1203,6 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_reading_progress',
-
-			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_coauthors',
@@ -1279,8 +1246,6 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_reading_progress',
-
-			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_coauthors',
@@ -1347,7 +1312,6 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_notifications',
 			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_email_subscriptions',
-			$prefix . 'fanfic_follows',
 
 			$prefix . 'fanfic_reading_progress',
 			$prefix . 'fanfic_story_fandoms',

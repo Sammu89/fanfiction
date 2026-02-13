@@ -55,8 +55,6 @@ class Fanfic_Cache_Hooks {
 		// Plugin-specific interaction hooks
 		add_action( 'fanfic_bookmark_added', array( __CLASS__, 'on_bookmark_add' ), 10, 2 );
 		add_action( 'fanfic_bookmark_removed', array( __CLASS__, 'on_bookmark_remove' ), 10, 2 );
-		add_action( 'fanfic_author_followed', array( __CLASS__, 'on_follow_add' ), 10, 2 );
-		add_action( 'fanfic_author_unfollowed', array( __CLASS__, 'on_follow_remove' ), 10, 2 );
 		add_action( 'fanfic_translations_updated', array( __CLASS__, 'invalidate_translation_caches' ), 10, 2 );
 	}
 
@@ -395,44 +393,6 @@ class Fanfic_Cache_Hooks {
 	}
 
 	/**
-	 * Handle follow add event
-	 *
-	 * Invalidates caches when a user follows an author.
-	 * Note: The actual follow cache clearing is handled by
-	 * Fanfic_Follows::clear_follow_cache(), but we clear
-	 * additional related caches here.
-	 *
-	 * @since 1.0.0
-	 * @param int $author_id   Author user ID.
-	 * @param int $follower_id Follower user ID.
-	 * @return void
-	 */
-	public static function on_follow_add( $author_id, $follower_id ) {
-		// Clear popular authors lists that might be affected
-		delete_transient( 'fanfic_most_followed_authors_10' );
-		delete_transient( 'fanfic_most_followed_authors_20' );
-	}
-
-	/**
-	 * Handle follow remove event
-	 *
-	 * Invalidates caches when a user unfollows an author.
-	 * Note: The actual follow cache clearing is handled by
-	 * Fanfic_Follows::clear_follow_cache(), but we clear
-	 * additional related caches here.
-	 *
-	 * @since 1.0.0
-	 * @param int $author_id   Author user ID.
-	 * @param int $follower_id Follower user ID.
-	 * @return void
-	 */
-	public static function on_follow_remove( $author_id, $follower_id ) {
-		// Clear popular authors lists that might be affected
-		delete_transient( 'fanfic_most_followed_authors_10' );
-		delete_transient( 'fanfic_most_followed_authors_20' );
-	}
-
-	/**
 	 * Clear story-specific caches
 	 *
 	 * Clears all transients related to a specific story.
@@ -514,8 +474,6 @@ class Fanfic_Cache_Hooks {
 		delete_transient( 'fanfic_author_story_count_' . $author_id );
 		delete_transient( 'fanfic_author_total_words_' . $author_id );
 
-		// Clear follower count
-		delete_transient( 'fanfic_author_follower_count_' . $author_id );
 	}
 
 	/**
@@ -698,7 +656,6 @@ class Fanfic_Cache_Hooks {
 
 			case 'stats':
 				delete_transient( 'fanfic_bookmark_stats' );
-				delete_transient( 'fanfic_follow_stats' );
 				delete_transient( 'fanfic_rating_stats' );
 				return true;
 

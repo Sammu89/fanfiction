@@ -40,9 +40,6 @@ class Fanfic_Email_Subscriptions {
 		// Hook into comment notifications
 		add_action( 'wp_insert_comment', array( __CLASS__, 'handle_comment_notify' ), 10, 2 );
 
-		// Hook into follow notifications
-		add_action( 'fanfic_toggle_follow', array( __CLASS__, 'handle_follow_notify' ), 10, 4 );
-
 		// AJAX handlers are now registered in class-fanfic-ajax-handlers.php
 
 		// Handle unsubscribe from query parameters
@@ -75,7 +72,7 @@ class Fanfic_Email_Subscriptions {
 		}
 
 		// Validate subscription type
-		$subscription_type = Fanfic_Input_Validation::validate_follow_type( $subscription_type );
+		$subscription_type = Fanfic_Input_Validation::validate_subscription_type( $subscription_type );
 		if ( is_wp_error( $subscription_type ) ) {
 			return $subscription_type;
 		}
@@ -516,28 +513,6 @@ class Fanfic_Email_Subscriptions {
 		// Create notification for post author (handled by Notifications class)
 		if ( class_exists( 'Fanfic_Notifications' ) ) {
 			Fanfic_Notifications::create_comment_notification( $comment_id );
-		}
-	}
-
-	/**
-	 * Handle follow notification
-	 *
-	 * @since 1.0.0
-	 * @param int    $user_id     Follower user ID.
-	 * @param int    $target_id   Target ID (story or author).
-	 * @param string $follow_type Follow type: 'story' or 'author'.
-	 * @param bool   $is_follow   True if following, false if unfollowing.
-	 * @return void
-	 */
-	public static function handle_follow_notify( $user_id, $target_id, $follow_type, $is_follow ) {
-		// Only process follows (not unfollows)
-		if ( ! $is_follow ) {
-			return;
-		}
-
-		// Create notification (handled by Notifications class)
-		if ( class_exists( 'Fanfic_Notifications' ) ) {
-			Fanfic_Notifications::create_follow_notification( $user_id, $target_id, $follow_type, $target_id );
 		}
 	}
 

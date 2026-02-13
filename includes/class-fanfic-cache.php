@@ -377,7 +377,7 @@ class Fanfic_Cache {
 	/**
 	 * Invalidate all caches related to a specific user
 	 *
-	 * Clears user-specific data like bookmarks, follows, notifications,
+	 * Clears user-specific data like bookmarks, notifications,
 	 * and authored stories.
 	 *
 	 * @since 1.0.0
@@ -395,8 +395,6 @@ class Fanfic_Cache {
 		// User-specific caches
 		$types = array(
 			'bookmarks',
-			'follows',
-			'followers',
 			'stories',
 			'notifications',
 			'statistics',

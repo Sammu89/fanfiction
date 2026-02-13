@@ -458,6 +458,88 @@ class Fanfic_Interactions {
 	}
 
 	/**
+	 * Toggle bookmark with minimal queries.
+	 *
+	 * Uses a delete-first strategy:
+	 * - If a bookmark row existed, delete succeeds and bookmark is removed.
+	 * - If no row existed, create bookmark via upsert.
+	 *
+	 * This avoids pre-check + re-check query duplication in toggle flows.
+	 *
+	 * @since 1.8.0
+	 * @param int         $post_id        Post ID (story or chapter).
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return array|WP_Error
+	 */
+	public static function toggle_bookmark( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+		global $wpdb;
+
+		$post_id = absint( $post_id );
+		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $post_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_bookmark_toggle_payload', __( 'Invalid post or identity for bookmark toggle.', 'fanfiction-manager' ) );
+		}
+
+		$table = $wpdb->prefix . 'fanfic_interactions';
+		if ( ! self::table_exists( $table ) ) {
+			return new WP_Error( 'bookmark_table_missing', __( 'Bookmark storage is unavailable.', 'fanfiction-manager' ) );
+		}
+
+		if ( $actor['user_id'] > 0 ) {
+			$deleted = $wpdb->delete(
+				$table,
+				array(
+					'user_id'          => $actor['user_id'],
+					'chapter_id'       => $post_id,
+					'interaction_type' => 'bookmark',
+				),
+				array( '%d', '%d', '%s' )
+			);
+		} else {
+			$deleted = $wpdb->delete(
+				$table,
+				array(
+					'anon_hash'        => $actor['anonymous_hash'],
+					'chapter_id'       => $post_id,
+					'interaction_type' => 'bookmark',
+				),
+				array( '%s', '%d', '%s' )
+			);
+		}
+
+		if ( false === $deleted ) {
+			return new WP_Error( 'bookmark_toggle_delete_failed', __( 'Could not update bookmark state.', 'fanfiction-manager' ) );
+		}
+
+		// Existing bookmark removed.
+		if ( $deleted > 0 ) {
+			self::apply_bookmark_increment( $post_id, -1 );
+			do_action( 'fanfic_bookmark_removed', $post_id, $actor['user_id'] );
+			return array(
+				'success'       => true,
+				'changed'       => true,
+				'is_bookmarked' => false,
+			);
+		}
+
+		// No existing bookmark: create it.
+		$ok = self::upsert_interaction( $actor['user_id'], $post_id, 'bookmark', null, $actor['anonymous_hash'] );
+		if ( ! $ok ) {
+			return new WP_Error( 'bookmark_toggle_insert_failed', __( 'Could not save bookmark.', 'fanfiction-manager' ) );
+		}
+
+		self::apply_bookmark_increment( $post_id, 1 );
+		do_action( 'fanfic_bookmark_added', $post_id, $actor['user_id'] );
+
+		return array(
+			'success'       => true,
+			'changed'       => true,
+			'is_bookmarked' => true,
+		);
+	}
+
+	/**
 	 * Check if bookmark exists.
 	 *
 	 * @since 1.8.0

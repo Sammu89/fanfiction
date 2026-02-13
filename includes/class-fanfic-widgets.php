@@ -28,7 +28,6 @@ class Fanfic_Widgets {
 	const CACHE_RECENT_STORIES = 600;     // 10 minutes
 	const CACHE_FEATURED_STORIES = 1800;  // 30 minutes
 	const CACHE_BOOKMARKED = 300;         // 5 minutes
-	const CACHE_TOP_AUTHORS = 900;        // 15 minutes
 
 	/**
 	 * Register all widgets
@@ -48,13 +47,11 @@ class Fanfic_Widgets {
 		require_once FANFIC_INCLUDES_DIR . 'widgets/class-fanfic-widget-recent-stories.php';
 		require_once FANFIC_INCLUDES_DIR . 'widgets/class-fanfic-widget-featured-stories.php';
 		require_once FANFIC_INCLUDES_DIR . 'widgets/class-fanfic-widget-most-bookmarked.php';
-		require_once FANFIC_INCLUDES_DIR . 'widgets/class-fanfic-widget-top-authors.php';
 
 		// Register widgets with WordPress
 		register_widget( 'Fanfic_Widget_Recent_Stories' );
 		register_widget( 'Fanfic_Widget_Featured_Stories' );
 		register_widget( 'Fanfic_Widget_Most_Bookmarked' );
-		register_widget( 'Fanfic_Widget_Top_Authors' );
 	}
 
 	/**
@@ -254,26 +251,6 @@ class Fanfic_Widgets {
 			sprintf(
 				/* translators: %d: number of stories */
 				_n( '%d story', '%d stories', $count, 'fanfiction-manager' ),
-				absint( $count )
-			)
-		);
-	}
-
-	/**
-	 * Render follower count badge
-	 *
-	 * Outputs follower count badge HTML.
-	 *
-	 * @since 1.0.0
-	 * @param int $count Follower count.
-	 * @return string Badge HTML.
-	 */
-	public static function get_follower_count_badge( $count ) {
-		return sprintf(
-			'<span class="fanfic-widget-count">%s</span>',
-			sprintf(
-				/* translators: %d: number of followers */
-				_n( '%d follower', '%d followers', $count, 'fanfiction-manager' ),
 				absint( $count )
 			)
 		);

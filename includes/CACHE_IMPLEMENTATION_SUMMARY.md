@@ -117,7 +117,7 @@ const WEEK = 604800;        // 7 days - rarely changing data
     - Fires action hook: `fanfic_cache_invalidate_chapter`
 
 11. **invalidate_user( $user_id )**
-    - Clears: bookmarks, follows, followers
+    - Clears: bookmarks
     - Also clears: stories, notifications, statistics, profile
     - Fires action hook: `fanfic_cache_invalidate_user`
 
@@ -182,7 +182,6 @@ const WEEK = 604800;        // 7 days - rarely changing data
 - ✅ Chapter count caching
 - ✅ Ratings system (Phase 8)
 - ✅ Bookmarks system (Phase 8)
-- ✅ Follows system (Phase 8)
 - ✅ Views tracking (Phase 8)
 - ✅ Shortcodes (all phases)
 - ✅ Archive pages
@@ -311,7 +310,7 @@ No syntax errors detected in class-fanfic-cache.php
 ```
 
 ### Code Quality
-- ✅ Follows WordPress coding standards
+- ✅ Uses WordPress coding standards
 - ✅ Comprehensive PHPDoc comments
 - ✅ Type hints where appropriate
 - ✅ Error handling implemented
@@ -358,8 +357,7 @@ No syntax errors detected in class-fanfic-cache.php
 1. Update `class-fanfic-validation.php` to use caching
 2. Update `class-fanfic-ratings.php` to use caching
 3. Update `class-fanfic-bookmarks.php` to use caching
-4. Update `class-fanfic-follows.php` to use caching
-5. Update shortcodes to use caching
+4. Update shortcodes to use caching
 
 ### Admin Integration
 1. Add cache stats to admin dashboard

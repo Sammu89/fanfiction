@@ -212,9 +212,8 @@ class Fanfic_Settings {
 	private static function get_default_email_templates() {
 		return array(
 			'new_comment' => "Hi {user_name},\n\n{commenter_name} left a comment on your story \"{story_title}\":\n\n{comment_content}\n\nView the comment: {comment_url}\n\nBest regards,\n{site_name}",
-			'new_story_from_author' => "Hi {user_name},\n\n{author_name}, an author you follow, has published a new story: \"{story_title}\"\n\n{story_summary}\n\nRead it now: {story_url}\n\nBest regards,\n{site_name}",
-			'new_follower' => "Hi {user_name},\n\n{follower_name} is now following you! They'll receive notifications when you publish new stories.\n\nView their profile: {follower_url}\n\nBest regards,\n{site_name}",
-			'new_chapter' => "Hi {user_name},\n\nA new chapter has been published in \"{story_title}\", a story you're following!\n\nChapter {chapter_number}: {chapter_title}\n\nRead it now: {chapter_url}\n\nBest regards,\n{site_name}",
+			'new_story_from_author' => "Hi {user_name},\n\n{author_name}, an author you subscribed to, has published a new story: \"{story_title}\"\n\n{story_summary}\n\nRead it now: {story_url}\n\nBest regards,\n{site_name}",
+			'new_chapter' => "Hi {user_name},\n\nA new chapter has been published in \"{story_title}\", a story you subscribed to.\n\nChapter {chapter_number}: {chapter_title}\n\nRead it now: {chapter_url}\n\nBest regards,\n{site_name}",
 		);
 	}
 
@@ -331,7 +330,7 @@ class Fanfic_Settings {
 	 */
 	public static function sanitize_email_templates( $templates ) {
 		$sanitized = array();
-		$valid_keys = array( 'new_comment', 'new_story_from_author', 'new_follower', 'new_chapter' );
+		$valid_keys = array( 'new_comment', 'new_story_from_author', 'new_chapter' );
 
 		foreach ( $valid_keys as $key ) {
 			$sanitized[ $key ] = isset( $templates[ $key ] )
@@ -1763,7 +1762,7 @@ class Fanfic_Settings {
 
 		// Get current active template type
 		$active_template = isset( $_GET['template_type'] ) ? sanitize_text_field( wp_unslash( $_GET['template_type'] ) ) : 'new_comment';
-		$allowed_types = array( 'new_comment', 'new_follower', 'new_chapter', 'new_story' );
+		$allowed_types = array( 'new_comment', 'new_chapter', 'new_story' );
 		$active_template = in_array( $active_template, $allowed_types, true ) ? $active_template : 'new_comment';
 
 		// Get current user for test email
@@ -1772,7 +1771,6 @@ class Fanfic_Settings {
 		// Template type labels
 		$template_labels = array(
 			'new_comment'  => __( 'New Comment', 'fanfiction-manager' ),
-			'new_follower' => __( 'New Follower', 'fanfiction-manager' ),
 			'new_chapter'  => __( 'New Chapter', 'fanfiction-manager' ),
 			'new_story'    => __( 'New Story', 'fanfiction-manager' ),
 		);
@@ -2485,7 +2483,7 @@ class Fanfic_Settings {
 
 		// Get template type
 		$template_type = isset( $_POST['template_type'] ) ? sanitize_text_field( wp_unslash( $_POST['template_type'] ) ) : '';
-		$allowed_types = array( 'new_comment', 'new_follower', 'new_chapter', 'new_story' );
+		$allowed_types = array( 'new_comment', 'new_chapter', 'new_story' );
 
 		if ( ! in_array( $template_type, $allowed_types, true ) ) {
 			wp_die( __( 'Invalid template type.', 'fanfiction-manager' ) );
@@ -2826,7 +2824,7 @@ class Fanfic_Settings {
 
 		// Get template type
 		$template_type = isset( $_POST['template_type'] ) ? sanitize_text_field( wp_unslash( $_POST['template_type'] ) ) : '';
-		$allowed_types = array( 'new_comment', 'new_follower', 'new_chapter', 'new_story' );
+		$allowed_types = array( 'new_comment', 'new_chapter', 'new_story' );
 
 		if ( ! in_array( $template_type, $allowed_types, true ) ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid template type.', 'fanfiction-manager' ) ) );
@@ -2878,7 +2876,7 @@ class Fanfic_Settings {
 
 		// Get template type
 		$template_type = isset( $_POST['template_type'] ) ? sanitize_text_field( wp_unslash( $_POST['template_type'] ) ) : '';
-		$allowed_types = array( 'new_comment', 'new_follower', 'new_chapter', 'new_story' );
+		$allowed_types = array( 'new_comment', 'new_chapter', 'new_story' );
 
 		if ( ! in_array( $template_type, $allowed_types, true ) ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid template type.', 'fanfiction-manager' ) ) );
@@ -2948,7 +2946,7 @@ class Fanfic_Settings {
 
 		// Get template type
 		$template_type = isset( $_POST['template_type'] ) ? sanitize_text_field( wp_unslash( $_POST['template_type'] ) ) : '';
-		$allowed_types = array( 'new_comment', 'new_follower', 'new_chapter', 'new_story' );
+		$allowed_types = array( 'new_comment', 'new_chapter', 'new_story' );
 
 		if ( ! in_array( $template_type, $allowed_types, true ) ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid template type.', 'fanfiction-manager' ) ) );
@@ -2995,9 +2993,6 @@ class Fanfic_Settings {
 				'chapter_title' => 'Chapter 5: The Adventure Begins',
 				'chapter_url'   => home_url( '/story/sample-story/chapter-5' ),
 				'comment_text'  => 'This is a great chapter! I really enjoyed the character development and can\'t wait to see what happens next.',
-			),
-			'new_follower' => array(
-				'follower_name' => 'Alice Johnson',
 			),
 			'new_chapter' => array(
 				'author_name'   => 'Bob Williams',
@@ -3612,7 +3607,6 @@ class Fanfic_Settings {
 		$table_names = array(
 			// Current tables
 			'fanfic_interactions',
-			'fanfic_follows',
 			'fanfic_reading_progress',
 			'fanfic_notifications',
 			'fanfic_email_subscriptions',
@@ -3727,7 +3721,7 @@ class Fanfic_Settings {
 		// Keep classification creation/seeding deferred until wizard step 1 explicitly runs.
 		// This prevents background admin requests from triggering heavy rebuilds right after deletion.
 		set_transient( 'fanfic_skip_classification', true, HOUR_IN_SECONDS * 12 );
-		// Enable short-lived post-delete diagnostics to trace any follow-up fatals.
+		// Enable short-lived post-delete diagnostics to trace any subsequent fatals.
 		set_transient( 'fanfic_post_delete_debug', true, HOUR_IN_SECONDS );
 
 		// Restore original memory limit if it completes.

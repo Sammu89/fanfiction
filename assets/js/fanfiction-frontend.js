@@ -1494,8 +1494,8 @@
 				$toggle.attr('aria-expanded', !isExpanded);
 			});
 
-			// Update aria-pressed on toggle buttons (bookmark, follow, etc.)
-			$(document).on('click', '[data-toggle-button], .fanfic-bookmark-button, .fanfic-follow-button', function() {
+			// Update aria-pressed on toggle buttons
+			$(document).on('click', '[data-toggle-button], .fanfic-bookmark-button', function() {
 				const $button = $(this);
 				const isPressed = $button.attr('aria-pressed') === 'true';
 				$button.attr('aria-pressed', !isPressed);
@@ -1923,8 +1923,6 @@
 		const icons = {
 			'new_comment': 'dashicons-admin-comments',
 			'comment_reply': 'dashicons-admin-comments',
-			'new_follower': 'dashicons-heart',
-			'follow_story': 'dashicons-star-filled',
 			'new_chapter': 'dashicons-book-alt',
 			'new_story': 'dashicons-book-alt',
 			'story_update': 'dashicons-book-alt',

@@ -24,6 +24,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Bookmarks {
 
 	/**
+	 * In-request cache for read chapters by user/story.
+	 *
+	 * @var array<string,array<int>>
+	 */
+	private static $read_chapters_cache = array();
+
+	/**
+	 * In-request cache for latest chapter by story.
+	 *
+	 * @var array<int,WP_Post|false>
+	 */
+	private static $latest_chapter_cache = array();
+
+	/**
 	 * Toggle bookmark for a post (story or chapter).
 	 *
 	 * @since 1.8.0
@@ -45,21 +59,17 @@ class Fanfic_Bookmarks {
 			return array( 'success' => false, 'error' => 'Post not found' );
 		}
 
-		if ( Fanfic_Interactions::has_bookmark( $post_id, $user_id, $anonymous_uuid ) ) {
-			$result = Fanfic_Interactions::remove_bookmark( $post_id, $user_id, $anonymous_uuid );
-			if ( is_wp_error( $result ) ) {
-				return array( 'success' => false, 'error' => $result->get_error_message() );
-			}
-			self::clear_bookmark_cache( $post_id, $user_id );
-			return array( 'success' => true, 'is_bookmarked' => false );
-		}
-
-		$result = Fanfic_Interactions::record_bookmark( $post_id, $user_id, $anonymous_uuid );
+		$result = Fanfic_Interactions::toggle_bookmark( $post_id, $user_id, $anonymous_uuid );
 		if ( is_wp_error( $result ) ) {
 			return array( 'success' => false, 'error' => $result->get_error_message() );
 		}
+
 		self::clear_bookmark_cache( $post_id, $user_id );
-		return array( 'success' => true, 'is_bookmarked' => true );
+
+		return array(
+			'success'       => true,
+			'is_bookmarked' => ! empty( $result['is_bookmarked'] ),
+		);
 	}
 
 	/**
@@ -429,12 +439,10 @@ class Fanfic_Bookmarks {
 
 		$formatted_date = wp_date( get_option( 'date_format' ), strtotime( $story->post_date ) );
 
-		$chapters       = self::get_story_chapters_helper( $story->ID );
-		$latest_chapter = null;
+		$latest_chapter = self::get_latest_story_chapter_helper( $story->ID );
 		$is_read        = false;
 
-		if ( ! empty( $chapters ) ) {
-			$latest_chapter        = end( $chapters );
+		if ( $latest_chapter ) {
 			$latest_chapter_number = get_post_meta( $latest_chapter->ID, '_fanfic_chapter_number', true );
 			$latest_chapter_label  = self::get_chapter_label_helper( $latest_chapter->ID );
 
@@ -445,7 +453,7 @@ class Fanfic_Bookmarks {
 
 			$current_user_id = get_current_user_id();
 			if ( $current_user_id && class_exists( 'Fanfic_Reading_Progress' ) ) {
-				$read_chapters = Fanfic_Reading_Progress::batch_load_read_chapters( $current_user_id, $story->ID );
+				$read_chapters = self::get_cached_read_chapters_helper( $current_user_id, $story->ID );
 				$is_read       = in_array( absint( $latest_chapter_number ), $read_chapters, true );
 			}
 		}
@@ -510,7 +518,7 @@ class Fanfic_Bookmarks {
 		$current_user_id = get_current_user_id();
 		$is_read         = false;
 		if ( $current_user_id && class_exists( 'Fanfic_Reading_Progress' ) ) {
-			$read_chapters = Fanfic_Reading_Progress::batch_load_read_chapters( $current_user_id, $story->ID );
+			$read_chapters = self::get_cached_read_chapters_helper( $current_user_id, $story->ID );
 			$is_read       = in_array( absint( $chapter_number ), $read_chapters, true );
 		}
 
@@ -554,36 +562,72 @@ class Fanfic_Bookmarks {
 				delete_transient( 'fanfic_most_bookmarked_stories_' . $i . '_' . $j );
 			}
 		}
+
+		// Reset in-request bookmark rendering caches.
+		self::$read_chapters_cache = array();
+		self::$latest_chapter_cache = array();
 	}
 
 	/**
-	 * Get story chapters (helper).
+	 * Get read chapters from in-request cache.
 	 *
 	 * @since 1.8.0
+	 * @param int $user_id  User ID.
 	 * @param int $story_id Story ID.
 	 * @return array
 	 */
-	private static function get_story_chapters_helper( $story_id ) {
+	private static function get_cached_read_chapters_helper( $user_id, $story_id ) {
+		$user_id  = absint( $user_id );
+		$story_id = absint( $story_id );
+		if ( ! $user_id || ! $story_id || ! class_exists( 'Fanfic_Reading_Progress' ) ) {
+			return array();
+		}
+
+		$cache_key = $user_id . ':' . $story_id;
+		if ( isset( self::$read_chapters_cache[ $cache_key ] ) ) {
+			return self::$read_chapters_cache[ $cache_key ];
+		}
+
+		$read_chapters = Fanfic_Reading_Progress::batch_load_read_chapters( $user_id, $story_id );
+		self::$read_chapters_cache[ $cache_key ] = is_array( $read_chapters ) ? $read_chapters : array();
+
+		return self::$read_chapters_cache[ $cache_key ];
+	}
+
+	/**
+	 * Get latest published chapter for a story.
+	 *
+	 * @since 1.8.0
+	 * @param int $story_id Story ID.
+	 * @return WP_Post|null
+	 */
+	private static function get_latest_story_chapter_helper( $story_id ) {
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return null;
+		}
+
+		if ( array_key_exists( $story_id, self::$latest_chapter_cache ) ) {
+			return self::$latest_chapter_cache[ $story_id ] ?: null;
+		}
+
 		$chapters = get_posts( array(
 			'post_type'      => 'fanfiction_chapter',
 			'post_parent'    => $story_id,
 			'post_status'    => 'publish',
-			'posts_per_page' => -1,
-			'orderby'        => 'date',
-			'order'          => 'ASC',
+			'posts_per_page' => 1,
+			'meta_key'       => '_fanfic_chapter_number',
+			'orderby'        => 'meta_value_num',
+			'order'          => 'DESC',
 		) );
 
 		if ( empty( $chapters ) ) {
-			return array();
+			self::$latest_chapter_cache[ $story_id ] = false;
+			return null;
 		}
 
-		usort( $chapters, function( $a, $b ) {
-			$number_a = absint( get_post_meta( $a->ID, '_fanfic_chapter_number', true ) );
-			$number_b = absint( get_post_meta( $b->ID, '_fanfic_chapter_number', true ) );
-			return $number_a - $number_b;
-		} );
-
-		return $chapters;
+		self::$latest_chapter_cache[ $story_id ] = $chapters[0];
+		return $chapters[0];
 	}
 
 	/**

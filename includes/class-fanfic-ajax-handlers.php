@@ -22,7 +22,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - Chapter likes (anonymous + authenticated)
  * - Reading progress (authenticated only)
  * - Story/chapter bookmarks (anonymous + authenticated)
- * - Story/author follows (authenticated only)
  * - Email subscriptions (anonymous + authenticated)
  * - Batch stats loading
  *
@@ -55,28 +54,6 @@ class Fanfic_AJAX_Handlers {
 			'fanfic_toggle_bookmark',
 			array( __CLASS__, 'ajax_toggle_bookmark' ),
 			false, // Allow anonymous
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
-		// Follow endpoints (authenticated only)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_toggle_follow',
-			array( __CLASS__, 'ajax_toggle_follow' ),
-			true, // Require login
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
-		// Email notification toggle (authenticated only)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_toggle_email_notifications',
-			array( __CLASS__, 'ajax_toggle_email_notifications' ),
-			true, // Require login
 			array(
 				'rate_limit'  => true,
 				'capability'  => 'read',
@@ -666,7 +643,11 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		$stats = Fanfic_Interactions::get_chapter_stats( $chapter_id );
+		// Interaction methods already return stats for like/dislike/rating paths.
+		// Reuse those to avoid an extra DB read on every request.
+		$stats = ( isset( $result['stats'] ) && is_array( $result['stats'] ) )
+			? $result['stats']
+			: Fanfic_Interactions::get_chapter_stats( $chapter_id );
 
 		Fanfic_AJAX_Security::send_success_response(
 			array(
@@ -859,125 +840,6 @@ class Fanfic_AJAX_Handlers {
 			$result['is_bookmarked']
 				? __( 'Bookmark added!', 'fanfiction-manager' )
 				: __( 'Bookmark removed.', 'fanfiction-manager' )
-		);
-	}
-
-	/**
-	 * AJAX: Toggle follow (story or author)
-	 *
-	 * Authenticated users only.
-	 *
-	 * @since 1.0.15
-	 * @return void Sends JSON response.
-	 */
-	public static function ajax_toggle_follow() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'target_id', 'follow_type' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$target_id = absint( $params['target_id'] );
-		$follow_type = sanitize_text_field( $params['follow_type'] );
-		$user_id = get_current_user_id();
-
-		// Validate follow type
-		if ( ! in_array( $follow_type, array( 'story', 'author' ), true ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'invalid_follow_type',
-				__( 'Invalid follow type.', 'fanfiction-manager' ),
-				400
-			);
-		}
-
-		// Toggle follow
-		$result = Fanfic_Follows::toggle_follow( $user_id, $target_id, $follow_type );
-
-		if ( ! isset( $result['success'] ) || ! $result['success'] ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'follow_failed',
-				isset( $result['error'] ) ? $result['error'] : __( 'Failed to toggle follow.', 'fanfiction-manager' ),
-				400
-			);
-		}
-
-		// Return success
-		Fanfic_AJAX_Security::send_success_response(
-			array(
-				'is_following' => $result['is_following'],
-				'email_enabled' => $result['email_enabled'] ?? false,
-			),
-			$result['is_following']
-				? __( 'Now following!', 'fanfiction-manager' )
-				: __( 'Unfollowed.', 'fanfiction-manager' )
-		);
-	}
-
-	/**
-	 * AJAX: Toggle email notifications for a follow
-	 *
-	 * Authenticated users only.
-	 *
-	 * @since 1.0.15
-	 * @return void Sends JSON response.
-	 */
-	public static function ajax_toggle_email_notifications() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'target_id', 'follow_type' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$target_id = absint( $params['target_id'] );
-		$follow_type = sanitize_text_field( $params['follow_type'] );
-		$user_id = get_current_user_id();
-
-		// Validate follow type
-		if ( ! in_array( $follow_type, array( 'story', 'author' ), true ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'invalid_follow_type',
-				__( 'Invalid follow type.', 'fanfiction-manager' ),
-				400
-			);
-		}
-
-		// Get current state
-		$current_state = Fanfic_Follows::is_email_enabled( $user_id, $target_id, $follow_type );
-
-		// Toggle to opposite state
-		$new_state = ! $current_state;
-		$result = Fanfic_Follows::toggle_email_notifications( $user_id, $target_id, $follow_type, $new_state );
-
-		if ( false === $result ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'toggle_failed',
-				__( 'Failed to toggle email notifications.', 'fanfiction-manager' ),
-				400
-			);
-		}
-
-		// Return success
-		Fanfic_AJAX_Security::send_success_response(
-			array( 'email_enabled' => $new_state ),
-			$new_state
-				? __( 'Email notifications enabled.', 'fanfiction-manager' )
-				: __( 'Email notifications disabled.', 'fanfiction-manager' )
 		);
 	}
 
