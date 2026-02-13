@@ -252,7 +252,7 @@ class Fanfic_Shortcodes_Stats {
 		$is_bookmarked = false;
 
 		if ( $is_logged_in ) {
-			$is_bookmarked = Fanfic_Bookmarks::is_bookmarked( $story_id, $user_id );
+			$is_bookmarked = Fanfic_Bookmarks::is_bookmarked( $user_id, $story_id );
 		}
 
 		$bookmark_class = $is_bookmarked ? 'fanfic-button-bookmarked' : 'not-bookmarked';
@@ -336,7 +336,7 @@ class Fanfic_Shortcodes_Stats {
 
 		if ( false === $stories ) {
 			global $wpdb;
-			$table_name = $wpdb->prefix . 'fanfic_bookmarks';
+			$table_name = $wpdb->prefix . 'fanfic_interactions';
 
 			// Calculate date filter based on timeframe
 			$date_filter = '';
@@ -351,13 +351,14 @@ class Fanfic_Shortcodes_Stats {
 
 			// Query for most bookmarked stories with optional timeframe filter
 			$query = $wpdb->prepare(
-				"SELECT b.story_id, COUNT(b.id) as bookmark_count
+				"SELECT b.chapter_id AS story_id, COUNT(b.id) as bookmark_count
 				FROM {$table_name} b
-				INNER JOIN {$wpdb->posts} p ON b.story_id = p.ID
-				WHERE p.post_type = 'fanfiction_story'
+				INNER JOIN {$wpdb->posts} p ON b.chapter_id = p.ID
+				WHERE b.interaction_type = 'bookmark'
+				AND p.post_type = 'fanfiction_story'
 				AND p.post_status = 'publish'
 				{$date_filter}
-				GROUP BY b.story_id
+				GROUP BY b.chapter_id
 				HAVING bookmark_count >= %d
 				ORDER BY bookmark_count DESC
 				LIMIT %d",

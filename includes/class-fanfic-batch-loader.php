@@ -61,64 +61,46 @@ class Fanfic_Batch_Loader {
 			);
 		}
 
-		$table_ratings = $wpdb->prefix . 'fanfic_ratings';
-		$table_likes   = $wpdb->prefix . 'fanfic_likes';
-		$table_reading = $wpdb->prefix . 'fanfic_reading_progress';
+		$table_chapter_index = $wpdb->prefix . 'fanfic_chapter_search_index';
+		$table_interactions  = $wpdb->prefix . 'fanfic_interactions';
 
 		// Build placeholders for IN clause
 		$placeholders = implode( ',', array_fill( 0, count( $chapter_ids ), '%d' ) );
 
-		// Query 1: Load aggregate rating and like stats
-		$query = "
-			SELECT
-				c.chapter_id,
-				COUNT(DISTINCT r.id) as rating_count,
-				AVG(r.rating) as avg_rating,
-				COUNT(DISTINCT l.id) as like_count
-			FROM (SELECT " . implode( ' AS chapter_id UNION SELECT ', $chapter_ids ) . " AS chapter_id) c
-			LEFT JOIN {$table_ratings} r ON c.chapter_id = r.chapter_id
-			LEFT JOIN {$table_likes} l ON c.chapter_id = l.chapter_id
-			GROUP BY c.chapter_id
-		";
+		// Query 1: Pre-computed aggregate stats from chapter search index (single PK lookup).
+		$index_rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT chapter_id, likes_total, rating_avg_total, rating_count_total, views_total
+			FROM {$table_chapter_index}
+			WHERE chapter_id IN ($placeholders)",
+			$chapter_ids
+		), ARRAY_A );
 
-		$stats = $wpdb->get_results( $query, ARRAY_A );
-
-		foreach ( $stats as $stat ) {
-			$chapter_id = absint( $stat['chapter_id'] );
-			$result[ $chapter_id ]['rating_count'] = absint( $stat['rating_count'] );
-			$result[ $chapter_id ]['avg_rating']   = $stat['avg_rating'] ? round( floatval( $stat['avg_rating'] ), 1 ) : 0.0;
-			$result[ $chapter_id ]['like_count']   = absint( $stat['like_count'] );
+		foreach ( $index_rows as $row ) {
+			$chapter_id = absint( $row['chapter_id'] );
+			$result[ $chapter_id ]['like_count']   = absint( $row['likes_total'] );
+			$result[ $chapter_id ]['avg_rating']   = $row['rating_avg_total'] ? round( floatval( $row['rating_avg_total'] ), 1 ) : 0.0;
+			$result[ $chapter_id ]['rating_count'] = absint( $row['rating_count_total'] );
 		}
 
-		// If user_id provided, load user-specific data
+		// Query 2 (only when user provided): User-specific like + rating in one pass.
+		// Uses idx_type_chapter composite index for efficient filtering.
 		if ( $user_id ) {
-			// Query 2: User ratings
-			$user_ratings = $wpdb->get_results( $wpdb->prepare(
-				"SELECT chapter_id, rating FROM {$table_ratings}
-				WHERE chapter_id IN ($placeholders) AND user_id = %d",
-				array_merge( $chapter_ids, array( $user_id ) )
+			$user_interactions = $wpdb->get_results( $wpdb->prepare(
+				"SELECT chapter_id, interaction_type, value
+				FROM {$table_interactions}
+				WHERE user_id = %d AND chapter_id IN ($placeholders)
+				AND interaction_type IN ('rating','like')",
+				array_merge( array( $user_id ), $chapter_ids )
 			), ARRAY_A );
 
-			foreach ( $user_ratings as $rating ) {
-				$chapter_id = absint( $rating['chapter_id'] );
-				$result[ $chapter_id ]['user_rating'] = absint( $rating['rating'] );
+			foreach ( $user_interactions as $row ) {
+				$chapter_id = absint( $row['chapter_id'] );
+				if ( 'rating' === $row['interaction_type'] ) {
+					$result[ $chapter_id ]['user_rating'] = $row['value'] ? floatval( $row['value'] ) : null;
+				} elseif ( 'like' === $row['interaction_type'] ) {
+					$result[ $chapter_id ]['user_liked'] = true;
+				}
 			}
-
-			// Query 3: User likes
-			$user_likes = $wpdb->get_col( $wpdb->prepare(
-				"SELECT chapter_id FROM {$table_likes}
-				WHERE chapter_id IN ($placeholders) AND user_id = %d",
-				array_merge( $chapter_ids, array( $user_id ) )
-			) );
-
-			foreach ( $user_likes as $chapter_id ) {
-				$chapter_id = absint( $chapter_id );
-				$result[ $chapter_id ]['user_liked'] = true;
-			}
-
-			// Query 4: Reading progress (which chapters are marked as read)
-			// Note: We need story_id to query reading_progress, so this is optional
-			// For now, we'll skip this unless we have story context
 		}
 
 		return $result;
@@ -160,39 +142,47 @@ class Fanfic_Batch_Loader {
 			);
 		}
 
-		$table_follows   = $wpdb->prefix . 'fanfic_follows';
-		$table_bookmarks = $wpdb->prefix . 'fanfic_bookmarks';
+		$table_follows       = $wpdb->prefix . 'fanfic_follows';
+		$table_interactions  = $wpdb->prefix . 'fanfic_interactions';
+		$table_story_index   = $wpdb->prefix . 'fanfic_story_search_index';
 
 		// Build placeholders for IN clause
 		$placeholders = implode( ',', array_fill( 0, count( $story_ids ), '%d' ) );
 
-		// Query 1: Load aggregate follow and bookmark stats
-		$query = "
-			SELECT
-				s.story_id,
-				COUNT(DISTINCT f.id) as follower_count,
-				COUNT(DISTINCT b.id) as bookmark_count
-			FROM (SELECT " . implode( ' AS story_id UNION SELECT ', $story_ids ) . " AS story_id) s
-			LEFT JOIN {$table_follows} f ON s.story_id = f.target_id AND f.follow_type = 'story'
-			LEFT JOIN {$table_bookmarks} b ON s.story_id = b.post_id AND b.bookmark_type = 'story'
-			GROUP BY s.story_id
-		";
+		// Query 1a: Bookmark counts from pre-computed story search index (PK lookup — fast).
+		$index_rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT story_id, bookmark_count
+			FROM {$table_story_index}
+			WHERE story_id IN ($placeholders)",
+			$story_ids
+		), ARRAY_A );
 
-		$stats = $wpdb->get_results( $query, ARRAY_A );
+		foreach ( $index_rows as $row ) {
+			$story_id = absint( $row['story_id'] );
+			$result[ $story_id ]['bookmark_count'] = absint( $row['bookmark_count'] );
+		}
 
-		foreach ( $stats as $stat ) {
+		// Query 1b: Follower counts from follows table (no pre-computed column).
+		$follow_stats = $wpdb->get_results( $wpdb->prepare(
+			"SELECT target_id as story_id, COUNT(*) as follower_count
+			FROM {$table_follows}
+			WHERE target_id IN ($placeholders) AND follow_type = 'story'
+			GROUP BY target_id",
+			$story_ids
+		), ARRAY_A );
+
+		foreach ( $follow_stats as $stat ) {
 			$story_id = absint( $stat['story_id'] );
 			$result[ $story_id ]['follower_count'] = absint( $stat['follower_count'] );
-			$result[ $story_id ]['bookmark_count'] = absint( $stat['bookmark_count'] );
 		}
 
 		// If user_id provided, load user-specific data
 		if ( $user_id ) {
-			// Query 2: User bookmarks
+			// Query 2: User bookmarks (targeted IN query — uses idx_type_chapter index).
 			$user_bookmarks = $wpdb->get_col( $wpdb->prepare(
-				"SELECT post_id FROM {$table_bookmarks}
-				WHERE post_id IN ($placeholders) AND user_id = %d AND bookmark_type = 'story'",
-				array_merge( $story_ids, array( $user_id ) )
+				"SELECT chapter_id FROM {$table_interactions}
+				WHERE user_id = %d AND chapter_id IN ($placeholders) AND interaction_type = 'bookmark'",
+				array_merge( array( $user_id ), $story_ids )
 			) );
 
 			foreach ( $user_bookmarks as $story_id ) {
@@ -353,16 +343,16 @@ class Fanfic_Batch_Loader {
 			);
 		}
 
-		$table_ratings = $wpdb->prefix . 'fanfic_ratings';
+		$table_interactions = $wpdb->prefix . 'fanfic_interactions';
 
 		// Build placeholders for IN clause
 		$placeholders = implode( ',', array_fill( 0, count( $chapter_ids ), '%d' ) );
 
-		// Single query to get rating stats
+		// Single query to get rating stats from interactions table
 		$stats = $wpdb->get_results( $wpdb->prepare(
-			"SELECT chapter_id, COUNT(*) as rating_count, AVG(rating) as avg_rating
-			FROM {$table_ratings}
-			WHERE chapter_id IN ($placeholders)
+			"SELECT chapter_id, COUNT(*) as rating_count, AVG(value) as avg_rating
+			FROM {$table_interactions}
+			WHERE chapter_id IN ($placeholders) AND interaction_type = 'rating'
 			GROUP BY chapter_id",
 			$chapter_ids
 		), ARRAY_A );
@@ -399,16 +389,16 @@ class Fanfic_Batch_Loader {
 		// Initialize result array
 		$result = array_fill_keys( $chapter_ids, 0 );
 
-		$table_likes = $wpdb->prefix . 'fanfic_likes';
+		$table_interactions = $wpdb->prefix . 'fanfic_interactions';
 
 		// Build placeholders for IN clause
 		$placeholders = implode( ',', array_fill( 0, count( $chapter_ids ), '%d' ) );
 
-		// Single query to get like counts
+		// Single query to get like counts from interactions table
 		$stats = $wpdb->get_results( $wpdb->prepare(
 			"SELECT chapter_id, COUNT(*) as like_count
-			FROM {$table_likes}
-			WHERE chapter_id IN ($placeholders)
+			FROM {$table_interactions}
+			WHERE chapter_id IN ($placeholders) AND interaction_type = 'like'
 			GROUP BY chapter_id",
 			$chapter_ids
 		), ARRAY_A );

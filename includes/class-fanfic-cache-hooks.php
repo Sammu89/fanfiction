@@ -53,8 +53,8 @@ class Fanfic_Cache_Hooks {
 		add_action( 'deleted_comment', array( __CLASS__, 'on_comment_deleted' ), 10, 2 );
 
 		// Plugin-specific interaction hooks
-		add_action( 'fanfic_story_bookmarked', array( __CLASS__, 'on_bookmark_add' ), 10, 2 );
-		add_action( 'fanfic_story_unbookmarked', array( __CLASS__, 'on_bookmark_remove' ), 10, 2 );
+		add_action( 'fanfic_bookmark_added', array( __CLASS__, 'on_bookmark_add' ), 10, 2 );
+		add_action( 'fanfic_bookmark_removed', array( __CLASS__, 'on_bookmark_remove' ), 10, 2 );
 		add_action( 'fanfic_author_followed', array( __CLASS__, 'on_follow_add' ), 10, 2 );
 		add_action( 'fanfic_author_unfollowed', array( __CLASS__, 'on_follow_remove' ), 10, 2 );
 		add_action( 'fanfic_translations_updated', array( __CLASS__, 'invalidate_translation_caches' ), 10, 2 );

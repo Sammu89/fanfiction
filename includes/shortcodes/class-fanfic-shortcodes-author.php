@@ -461,18 +461,15 @@ class Fanfic_Shortcodes_Author {
 					return 0;
 				}
 
-				// Get average rating from wp_fanfic_ratings table
-				$chapter_ids = implode( ',', array_map( 'absint', $chapters ) );
-				$table_name = $wpdb->prefix . 'fanfic_ratings';
+				// Get average rating from unified interactions table
+				$chapter_ids  = array_map( 'absint', $chapters );
+				$placeholders = implode( ',', array_fill( 0, count( $chapter_ids ), '%d' ) );
 
-				// Check if table exists
-				if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) !== $table_name ) {
-					return 0;
-				}
-
-				$average = $wpdb->get_var(
-					"SELECT AVG(rating) FROM $table_name WHERE chapter_id IN ($chapter_ids)"
-				);
+				$average = $wpdb->get_var( $wpdb->prepare(
+					"SELECT AVG(value) FROM {$wpdb->prefix}fanfic_interactions
+					WHERE interaction_type = 'rating' AND chapter_id IN ($placeholders)",
+					$chapter_ids
+				) );
 
 				return $average ? floatval( $average ) : 0;
 			},

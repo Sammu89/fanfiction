@@ -396,9 +396,6 @@ class Fanfic_Core {
 		Fanfic_Cron_Cleanup::init();
 		Fanfic_Media_Cleanup::init();
 
-		// Initialize bookmarks system
-		Fanfic_Bookmarks::init();
-
 		// Initialize follows system
 		Fanfic_Follows::init();
 

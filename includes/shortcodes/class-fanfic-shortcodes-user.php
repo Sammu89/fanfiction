@@ -89,12 +89,15 @@ class Fanfic_Shortcodes_User {
 		}
 
 		global $wpdb;
-		$bookmarks_table = $wpdb->prefix . 'fanfic_bookmarks';
+		$interactions_table = $wpdb->prefix . 'fanfic_interactions';
 		$offset = ( $paged - 1 ) * absint( $atts['per_page'] );
 
-		// Get total count for pagination
+		// Get total count for pagination (story bookmarks only)
 		$total_bookmarks = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$bookmarks_table} WHERE user_id = %d",
+			"SELECT COUNT(*) FROM {$interactions_table} i
+			INNER JOIN {$wpdb->posts} p ON i.chapter_id = p.ID
+			WHERE i.user_id = %d AND i.interaction_type = 'bookmark'
+			AND p.post_type = 'fanfiction_story' AND p.post_status = 'publish'",
 			$user_id
 		) );
 
@@ -104,9 +107,11 @@ class Fanfic_Shortcodes_User {
 
 		// Get bookmarked stories
 		$bookmarks = $wpdb->get_results( $wpdb->prepare(
-			"SELECT story_id, created_at FROM {$bookmarks_table}
-			WHERE user_id = %d
-			ORDER BY created_at DESC
+			"SELECT i.chapter_id AS story_id, i.created_at FROM {$interactions_table} i
+			INNER JOIN {$wpdb->posts} p ON i.chapter_id = p.ID
+			WHERE i.user_id = %d AND i.interaction_type = 'bookmark'
+			AND p.post_type = 'fanfiction_story' AND p.post_status = 'publish'
+			ORDER BY i.created_at DESC
 			LIMIT %d OFFSET %d",
 			$user_id,
 			absint( $atts['per_page'] ),
@@ -196,11 +201,11 @@ class Fanfic_Shortcodes_User {
 		}
 
 		global $wpdb;
-		$bookmarks_table = $wpdb->prefix . 'fanfic_bookmarks';
+		$interactions_table = $wpdb->prefix . 'fanfic_interactions';
 
 		// Get total count
 		$count = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$bookmarks_table} WHERE user_id = %d",
+			"SELECT COUNT(*) FROM {$interactions_table} WHERE user_id = %d AND interaction_type = 'bookmark'",
 			$user_id
 		) );
 
@@ -949,11 +954,11 @@ class Fanfic_Shortcodes_User {
 		}
 
 		global $wpdb;
-		$bookmarks_table = $wpdb->prefix . 'fanfic_bookmarks';
+		$interactions_table = $wpdb->prefix . 'fanfic_interactions';
 
 		// Get total count
 		$count = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$bookmarks_table} WHERE user_id = %d",
+			"SELECT COUNT(*) FROM {$interactions_table} WHERE user_id = %d AND interaction_type = 'bookmark'",
 			$user_id
 		) );
 

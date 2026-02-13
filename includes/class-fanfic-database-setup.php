@@ -19,7 +19,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Creates and manages custom tables:
  * - wp_fanfic_reading_progress: Mark chapters as read
- * - wp_fanfic_bookmarks: Story and chapter bookmarks
  * - wp_fanfic_follows: Unified story and author follows
  * - wp_fanfic_email_subscriptions: Email-only subscriptions
  * - wp_fanfic_notifications: In-app notifications
@@ -49,7 +48,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.6.0';
+	const DB_VERSION = '1.7.0';
 
 	/**
 	 * Option name for database version tracking
@@ -120,26 +119,7 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create reading progress table';
 		}
 
-		// 2. Bookmarks Table (Updated with bookmark_type)
-		$table_bookmarks = $prefix . 'fanfic_bookmarks';
-		$sql_bookmarks   = "CREATE TABLE IF NOT EXISTS {$table_bookmarks} (
-			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) UNSIGNED NOT NULL,
-			post_id bigint(20) UNSIGNED NOT NULL,
-			bookmark_type enum('story','chapter') NOT NULL DEFAULT 'story',
-			created_at datetime DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY  (id),
-			UNIQUE KEY unique_bookmark (user_id, post_id, bookmark_type),
-			KEY idx_user_type (user_id, bookmark_type),
-			KEY idx_created (created_at)
-		) $charset_collate;";
-
-		$result = dbDelta( $sql_bookmarks );
-		if ( empty( $result ) || ! self::verify_table_exists( $table_bookmarks ) ) {
-			$errors[] = 'Failed to create bookmarks table';
-		}
-
-		// 3. Follows Table (Unified for stories and authors)
+		// 2. Follows Table (Unified for stories and authors)
 		$table_follows = $prefix . 'fanfic_follows';
 		$sql_follows   = "CREATE TABLE IF NOT EXISTS {$table_follows} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -414,14 +394,21 @@ class Fanfic_Database_Setup {
 		// 17. Unified Interactions Table
 		$table_interactions = $prefix . 'fanfic_interactions';
 		$sql_interactions   = "CREATE TABLE IF NOT EXISTS {$table_interactions} (
-			user_id bigint(20) UNSIGNED NOT NULL,
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) UNSIGNED NULL DEFAULT NULL,
+			anon_hash binary(32) DEFAULT NULL,
 			chapter_id bigint(20) UNSIGNED NOT NULL,
-			interaction_type enum('like','dislike','rating','view','read') NOT NULL,
+			interaction_type enum('like','dislike','rating','view','read','bookmark') NOT NULL,
 			`value` decimal(3,1) DEFAULT NULL,
 			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			PRIMARY KEY  (user_id, chapter_id, interaction_type),
-			KEY idx_chapter (chapter_id)
+			PRIMARY KEY  (id),
+			UNIQUE KEY uq_user_chapter_type (user_id, chapter_id, interaction_type),
+			UNIQUE KEY uq_anon_chapter_type (anon_hash, chapter_id, interaction_type),
+			KEY idx_chapter (chapter_id),
+			KEY idx_type_chapter (interaction_type, chapter_id),
+			KEY idx_gc_anon (user_id, updated_at, id),
+			KEY idx_anon_hash_updated (anon_hash, updated_at)
 		) $charset_collate;";
 
 		$result = dbDelta( $sql_interactions );
@@ -512,6 +499,7 @@ class Fanfic_Database_Setup {
 			rating_month_stamp int(11) NOT NULL DEFAULT 0,
 			trending_week double NOT NULL DEFAULT 0,
 			trending_month double NOT NULL DEFAULT 0,
+			bookmark_count bigint(20) NOT NULL DEFAULT 0,
 			fandom_slugs text,
 			language_slug varchar(50) DEFAULT '',
 			translation_group_id bigint(20) UNSIGNED DEFAULT 0,
@@ -535,6 +523,7 @@ class Fanfic_Database_Setup {
 			KEY idx_rating_avg_month (rating_avg_month),
 			KEY idx_trending_week (trending_week),
 			KEY idx_trending_month (trending_month),
+			KEY idx_bookmark_count (bookmark_count),
 			KEY idx_language (language_slug),
 			KEY idx_translation_group (translation_group_id),
 			KEY idx_age_rating (age_rating),
@@ -966,6 +955,7 @@ class Fanfic_Database_Setup {
 		return $result === $table_name;
 	}
 
+
 	/**
 	 * Drop all custom tables
 	 *
@@ -1005,7 +995,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_follows',
-			$prefix . 'fanfic_bookmarks',
+
 			$prefix . 'fanfic_reading_progress',
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_fandoms',
@@ -1035,7 +1025,7 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_reading_progress',
-			$prefix . 'fanfic_bookmarks',
+
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
@@ -1100,7 +1090,7 @@ class Fanfic_Database_Setup {
 		);
 
 		$stats['total_bookmarks'] = (int) $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$prefix}fanfic_bookmarks"
+			"SELECT COUNT(*) FROM {$prefix}fanfic_interactions WHERE interaction_type = 'bookmark'"
 		);
 
 		$stats['total_follows'] = (int) $wpdb->get_var(
@@ -1161,7 +1151,7 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_reading_progress',
-			$prefix . 'fanfic_bookmarks',
+
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
@@ -1244,7 +1234,7 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_reading_progress',
-			$prefix . 'fanfic_bookmarks',
+
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
@@ -1289,7 +1279,7 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_reading_progress',
-			$prefix . 'fanfic_bookmarks',
+
 			$prefix . 'fanfic_follows',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
@@ -1358,7 +1348,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_follows',
-			$prefix . 'fanfic_bookmarks',
+
 			$prefix . 'fanfic_reading_progress',
 			$prefix . 'fanfic_story_fandoms',
 			$prefix . 'fanfic_fandoms',

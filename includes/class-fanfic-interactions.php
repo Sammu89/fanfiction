@@ -85,24 +85,25 @@ class Fanfic_Interactions {
 	 * Record like.
 	 *
 	 * @since 1.6.0
-	 * @param int $chapter_id Chapter ID.
-	 * @param int $user_id    User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param int         $user_id         User ID.
+	 * @param string|null $anonymous_uuid  Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function record_like( $chapter_id, $user_id ) {
+	public static function record_like( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
 		$chapter_id = absint( $chapter_id );
-		$user_id    = absint( $user_id );
 		$story_id   = self::get_story_id_from_chapter( $chapter_id );
-		if ( ! $chapter_id || ! $user_id || ! $story_id ) {
-			return new WP_Error( 'invalid_like_payload', __( 'Invalid chapter or user for like interaction.', 'fanfiction-manager' ) );
+		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_like_payload', __( 'Invalid chapter or identity for like interaction.', 'fanfiction-manager' ) );
 		}
 
-		$current = self::get_user_chapter_interactions_raw( $user_id, $chapter_id );
+		$current     = self::get_user_chapter_interactions_raw( $actor['user_id'], $chapter_id, $actor['anonymous_hash'] );
 		$has_like = isset( $current['like'] );
 		$has_dislike = isset( $current['dislike'] );
 
 		if ( ! $has_like ) {
-			$ok = self::upsert_interaction( $user_id, $chapter_id, 'like', null );
+			$ok = self::upsert_interaction( $actor['user_id'], $chapter_id, 'like', null, $actor['anonymous_hash'] );
 			if ( ! $ok ) {
 				return new WP_Error( 'like_write_failed', __( 'Could not save like interaction.', 'fanfiction-manager' ) );
 			}
@@ -110,7 +111,7 @@ class Fanfic_Interactions {
 		}
 
 		if ( $has_dislike ) {
-			self::delete_interaction( $user_id, $chapter_id, 'dislike' );
+			self::delete_interaction( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
 			self::apply_dislike_increment( $chapter_id, $story_id, -1 );
 		}
 
@@ -127,19 +128,20 @@ class Fanfic_Interactions {
 	 * Remove like.
 	 *
 	 * @since 1.6.0
-	 * @param int $chapter_id Chapter ID.
-	 * @param int $user_id    User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param int         $user_id         User ID.
+	 * @param string|null $anonymous_uuid  Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function remove_like( $chapter_id, $user_id ) {
+	public static function remove_like( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
 		$chapter_id = absint( $chapter_id );
-		$user_id    = absint( $user_id );
 		$story_id   = self::get_story_id_from_chapter( $chapter_id );
-		if ( ! $chapter_id || ! $user_id || ! $story_id ) {
-			return new WP_Error( 'invalid_like_remove_payload', __( 'Invalid chapter or user for like removal.', 'fanfiction-manager' ) );
+		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_like_remove_payload', __( 'Invalid chapter or identity for like removal.', 'fanfiction-manager' ) );
 		}
 
-		if ( ! self::has_interaction( $user_id, $chapter_id, 'like' ) ) {
+		if ( ! self::has_interaction( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] ) ) {
 			return array(
 				'success' => true,
 				'changed' => false,
@@ -147,7 +149,7 @@ class Fanfic_Interactions {
 			);
 		}
 
-		self::delete_interaction( $user_id, $chapter_id, 'like' );
+		self::delete_interaction( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
 		self::apply_like_increment( $chapter_id, $story_id, -1 );
 		self::delete_stats_cache( $chapter_id, $story_id );
 
@@ -162,24 +164,25 @@ class Fanfic_Interactions {
 	 * Record dislike.
 	 *
 	 * @since 1.6.0
-	 * @param int $chapter_id Chapter ID.
-	 * @param int $user_id    User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param int         $user_id         User ID.
+	 * @param string|null $anonymous_uuid  Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function record_dislike( $chapter_id, $user_id ) {
+	public static function record_dislike( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
 		$chapter_id = absint( $chapter_id );
-		$user_id    = absint( $user_id );
 		$story_id   = self::get_story_id_from_chapter( $chapter_id );
-		if ( ! $chapter_id || ! $user_id || ! $story_id ) {
-			return new WP_Error( 'invalid_dislike_payload', __( 'Invalid chapter or user for dislike interaction.', 'fanfiction-manager' ) );
+		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_dislike_payload', __( 'Invalid chapter or identity for dislike interaction.', 'fanfiction-manager' ) );
 		}
 
-		$current = self::get_user_chapter_interactions_raw( $user_id, $chapter_id );
+		$current     = self::get_user_chapter_interactions_raw( $actor['user_id'], $chapter_id, $actor['anonymous_hash'] );
 		$has_like = isset( $current['like'] );
 		$has_dislike = isset( $current['dislike'] );
 
 		if ( ! $has_dislike ) {
-			$ok = self::upsert_interaction( $user_id, $chapter_id, 'dislike', null );
+			$ok = self::upsert_interaction( $actor['user_id'], $chapter_id, 'dislike', null, $actor['anonymous_hash'] );
 			if ( ! $ok ) {
 				return new WP_Error( 'dislike_write_failed', __( 'Could not save dislike interaction.', 'fanfiction-manager' ) );
 			}
@@ -187,7 +190,7 @@ class Fanfic_Interactions {
 		}
 
 		if ( $has_like ) {
-			self::delete_interaction( $user_id, $chapter_id, 'like' );
+			self::delete_interaction( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
 			self::apply_like_increment( $chapter_id, $story_id, -1 );
 		}
 
@@ -204,19 +207,20 @@ class Fanfic_Interactions {
 	 * Remove dislike.
 	 *
 	 * @since 1.6.0
-	 * @param int $chapter_id Chapter ID.
-	 * @param int $user_id    User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param int         $user_id         User ID.
+	 * @param string|null $anonymous_uuid  Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function remove_dislike( $chapter_id, $user_id ) {
+	public static function remove_dislike( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
 		$chapter_id = absint( $chapter_id );
-		$user_id    = absint( $user_id );
 		$story_id   = self::get_story_id_from_chapter( $chapter_id );
-		if ( ! $chapter_id || ! $user_id || ! $story_id ) {
-			return new WP_Error( 'invalid_dislike_remove_payload', __( 'Invalid chapter or user for dislike removal.', 'fanfiction-manager' ) );
+		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_dislike_remove_payload', __( 'Invalid chapter or identity for dislike removal.', 'fanfiction-manager' ) );
 		}
 
-		if ( ! self::has_interaction( $user_id, $chapter_id, 'dislike' ) ) {
+		if ( ! self::has_interaction( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] ) ) {
 			return array(
 				'success' => true,
 				'changed' => false,
@@ -224,7 +228,7 @@ class Fanfic_Interactions {
 			);
 		}
 
-		self::delete_interaction( $user_id, $chapter_id, 'dislike' );
+		self::delete_interaction( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
 		self::apply_dislike_increment( $chapter_id, $story_id, -1 );
 		self::delete_stats_cache( $chapter_id, $story_id );
 
@@ -239,22 +243,23 @@ class Fanfic_Interactions {
 	 * Record rating.
 	 *
 	 * @since 1.6.0
-	 * @param int   $chapter_id Chapter ID.
-	 * @param float $rating     Rating value.
-	 * @param int   $user_id    User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param float       $rating          Rating value.
+	 * @param int         $user_id         User ID.
+	 * @param string|null $anonymous_uuid  Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function record_rating( $chapter_id, $rating, $user_id ) {
+	public static function record_rating( $chapter_id, $rating, $user_id = 0, $anonymous_uuid = '' ) {
 		$chapter_id = absint( $chapter_id );
-		$user_id    = absint( $user_id );
 		$story_id   = self::get_story_id_from_chapter( $chapter_id );
 		$rating     = self::normalize_rating( $rating );
+		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
 
-		if ( ! $chapter_id || ! $user_id || ! $story_id || false === $rating ) {
-			return new WP_Error( 'invalid_rating_payload', __( 'Invalid chapter, rating, or user for rating interaction.', 'fanfiction-manager' ) );
+		if ( ! $chapter_id || ! $story_id || false === $rating || empty( $actor ) ) {
+			return new WP_Error( 'invalid_rating_payload', __( 'Invalid chapter, rating, or identity for rating interaction.', 'fanfiction-manager' ) );
 		}
 
-		$current = self::get_user_chapter_interactions_raw( $user_id, $chapter_id );
+		$current    = self::get_user_chapter_interactions_raw( $actor['user_id'], $chapter_id, $actor['anonymous_hash'] );
 		$old_rating = isset( $current['rating']['value'] ) ? floatval( $current['rating']['value'] ) : null;
 		if ( null !== $old_rating && abs( $old_rating - $rating ) < 0.001 ) {
 			return array(
@@ -264,7 +269,7 @@ class Fanfic_Interactions {
 			);
 		}
 
-		$ok = self::upsert_interaction( $user_id, $chapter_id, 'rating', $rating );
+		$ok = self::upsert_interaction( $actor['user_id'], $chapter_id, 'rating', $rating, $actor['anonymous_hash'] );
 		if ( ! $ok ) {
 			return new WP_Error( 'rating_write_failed', __( 'Could not save rating interaction.', 'fanfiction-manager' ) );
 		}
@@ -291,19 +296,20 @@ class Fanfic_Interactions {
 	 * Remove rating.
 	 *
 	 * @since 1.6.0
-	 * @param int $chapter_id Chapter ID.
-	 * @param int $user_id    User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param int         $user_id         User ID.
+	 * @param string|null $anonymous_uuid  Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function remove_rating( $chapter_id, $user_id ) {
+	public static function remove_rating( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
 		$chapter_id = absint( $chapter_id );
-		$user_id    = absint( $user_id );
 		$story_id   = self::get_story_id_from_chapter( $chapter_id );
-		if ( ! $chapter_id || ! $user_id || ! $story_id ) {
-			return new WP_Error( 'invalid_rating_remove_payload', __( 'Invalid chapter or user for rating removal.', 'fanfiction-manager' ) );
+		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_rating_remove_payload', __( 'Invalid chapter or identity for rating removal.', 'fanfiction-manager' ) );
 		}
 
-		$current = self::get_user_chapter_interactions_raw( $user_id, $chapter_id );
+		$current = self::get_user_chapter_interactions_raw( $actor['user_id'], $chapter_id, $actor['anonymous_hash'] );
 		if ( ! isset( $current['rating']['value'] ) ) {
 			return array(
 				'success' => true,
@@ -313,7 +319,7 @@ class Fanfic_Interactions {
 		}
 
 		$old_rating = floatval( $current['rating']['value'] );
-		self::delete_interaction( $user_id, $chapter_id, 'rating' );
+		self::delete_interaction( $actor['user_id'], $chapter_id, 'rating', $actor['anonymous_hash'] );
 		self::apply_rating_update( $chapter_id, $story_id, 0.0, $old_rating, false, true );
 		self::delete_stats_cache( $chapter_id, $story_id );
 
@@ -393,6 +399,84 @@ class Fanfic_Interactions {
 	}
 
 	/**
+	 * Record bookmark.
+	 *
+	 * @since 1.8.0
+	 * @param int         $post_id        Post ID (story or chapter).
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return array|WP_Error
+	 */
+	public static function record_bookmark( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+		$post_id = absint( $post_id );
+		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $post_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_bookmark_payload', __( 'Invalid post or identity for bookmark.', 'fanfiction-manager' ) );
+		}
+
+		if ( self::has_interaction( $actor['user_id'], $post_id, 'bookmark', $actor['anonymous_hash'] ) ) {
+			return array( 'success' => true, 'changed' => false );
+		}
+
+		$ok = self::upsert_interaction( $actor['user_id'], $post_id, 'bookmark', null, $actor['anonymous_hash'] );
+		if ( ! $ok ) {
+			return new WP_Error( 'bookmark_write_failed', __( 'Could not save bookmark.', 'fanfiction-manager' ) );
+		}
+
+		self::apply_bookmark_increment( $post_id, 1 );
+		do_action( 'fanfic_bookmark_added', $post_id, $actor['user_id'] );
+
+		return array( 'success' => true, 'changed' => true );
+	}
+
+	/**
+	 * Remove bookmark.
+	 *
+	 * @since 1.8.0
+	 * @param int         $post_id        Post ID (story or chapter).
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return array|WP_Error
+	 */
+	public static function remove_bookmark( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+		$post_id = absint( $post_id );
+		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $post_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_bookmark_remove_payload', __( 'Invalid post or identity for bookmark removal.', 'fanfiction-manager' ) );
+		}
+
+		if ( ! self::has_interaction( $actor['user_id'], $post_id, 'bookmark', $actor['anonymous_hash'] ) ) {
+			return array( 'success' => true, 'changed' => false );
+		}
+
+		self::delete_interaction( $actor['user_id'], $post_id, 'bookmark', $actor['anonymous_hash'] );
+
+		self::apply_bookmark_increment( $post_id, -1 );
+		do_action( 'fanfic_bookmark_removed', $post_id, $actor['user_id'] );
+
+		return array( 'success' => true, 'changed' => true );
+	}
+
+	/**
+	 * Check if bookmark exists.
+	 *
+	 * @since 1.8.0
+	 * @param int         $post_id        Post ID (story or chapter).
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return bool
+	 */
+	public static function has_bookmark( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+		$post_id = absint( $post_id );
+		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $post_id || empty( $actor ) ) {
+			return false;
+		}
+
+		return self::has_interaction( $actor['user_id'], $post_id, 'bookmark', $actor['anonymous_hash'] );
+	}
+
+	/**
 	 * Get chapter stats.
 	 *
 	 * @since 1.6.0
@@ -447,16 +531,17 @@ class Fanfic_Interactions {
 	 *
 	 * @since 1.6.0
 	 * @param int $story_id Story ID.
-	 * @return array{views:int,likes:int,dislikes:int,rating_avg:float,rating_count:int}
+	 * @return array{views:int,likes:int,dislikes:int,rating_avg:float,rating_count:int,bookmark_count:int}
 	 */
 	public static function get_story_stats( $story_id ) {
 		$story_id = absint( $story_id );
 		$defaults = array(
-			'views'        => 0,
-			'likes'        => 0,
-			'dislikes'     => 0,
-			'rating_avg'   => 0.0,
-			'rating_count' => 0,
+			'views'          => 0,
+			'likes'          => 0,
+			'dislikes'       => 0,
+			'rating_avg'     => 0.0,
+			'rating_count'   => 0,
+			'bookmark_count' => 0,
 		);
 
 		if ( ! $story_id ) {
@@ -471,7 +556,7 @@ class Fanfic_Interactions {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT view_count, likes_total, dislikes_total, rating_avg_total, rating_count_total
+				"SELECT view_count, likes_total, dislikes_total, rating_avg_total, rating_count_total, bookmark_count
 				FROM {$table}
 				WHERE story_id = %d",
 				$story_id
@@ -484,11 +569,12 @@ class Fanfic_Interactions {
 		}
 
 		return array(
-			'views'        => absint( $row['view_count'] ?? 0 ),
-			'likes'        => absint( $row['likes_total'] ?? 0 ),
-			'dislikes'     => absint( $row['dislikes_total'] ?? 0 ),
-			'rating_avg'   => round( floatval( $row['rating_avg_total'] ?? 0 ), 2 ),
-			'rating_count' => absint( $row['rating_count_total'] ?? 0 ),
+			'views'          => absint( $row['view_count'] ?? 0 ),
+			'likes'          => absint( $row['likes_total'] ?? 0 ),
+			'dislikes'       => absint( $row['dislikes_total'] ?? 0 ),
+			'rating_avg'     => round( floatval( $row['rating_avg_total'] ?? 0 ), 2 ),
+			'rating_count'   => absint( $row['rating_count_total'] ?? 0 ),
+			'bookmark_count' => absint( $row['bookmark_count'] ?? 0 ),
 		);
 	}
 
@@ -594,7 +680,33 @@ class Fanfic_Interactions {
 			$updated_at = isset( $row['updated_at'] ) ? strtotime( (string) $row['updated_at'] ) : 0;
 			$timestamp  = $updated_at > 0 ? ( $updated_at * 1000 ) : (int) round( microtime( true ) * 1000 );
 
-			if ( ! $chapter_id || ! $story_id || ! $type ) {
+			if ( ! $chapter_id || ! $type ) {
+				continue;
+			}
+
+			// Bookmarks: chapter_id is actually a post ID (story or chapter).
+			if ( 'bookmark' === $type ) {
+				$post      = get_post( $chapter_id );
+				$post_type = $post ? $post->post_type : '';
+				if ( 'fanfiction_story' === $post_type ) {
+					$key = self::build_local_key( $chapter_id, 0 );
+				} elseif ( 'fanfiction_chapter' === $post_type ) {
+					$parent_id = absint( $post->post_parent );
+					$key = self::build_local_key( $parent_id, $chapter_id );
+				} else {
+					continue;
+				}
+				if ( ! isset( $data[ $key ] ) ) {
+					$data[ $key ] = array( 'timestamp' => $timestamp );
+				}
+				if ( $timestamp > absint( $data[ $key ]['timestamp'] ?? 0 ) ) {
+					$data[ $key ]['timestamp'] = $timestamp;
+				}
+				$data[ $key ]['bookmark'] = true;
+				continue;
+			}
+
+			if ( ! $story_id ) {
 				continue;
 			}
 
@@ -627,18 +739,24 @@ class Fanfic_Interactions {
 	 * Sync localStorage payload on login.
 	 *
 	 * @since 1.6.0
-	 * @param int   $user_id    User ID.
-	 * @param array $local_data Local payload.
+	 * @param int         $user_id         User ID.
+	 * @param array       $local_data      Local payload.
+	 * @param string|null $anonymous_uuid  Anonymous UUID from client.
 	 * @return array{merged:array<string,array<string,mixed>>}
 	 */
-	public static function sync_on_login( $user_id, $local_data ) {
+	public static function sync_on_login( $user_id, $local_data, $anonymous_uuid = '' ) {
 		$user_id = absint( $user_id );
 		if ( ! $user_id ) {
 			return array( 'merged' => array() );
 		}
 
-		$db_data = self::get_all_user_interactions( $user_id );
+		$anonymous_hash = self::hash_anonymous_uuid( $anonymous_uuid );
+		if ( ! empty( $anonymous_hash ) ) {
+			self::reattribute_anonymous_rows_to_user( $user_id, $anonymous_hash );
+		}
+
 		$local_data = is_array( $local_data ) ? $local_data : array();
+		$db_data = self::get_all_user_interactions( $user_id );
 		$merged = array();
 
 		$all_keys = array_unique( array_merge( array_keys( $db_data ), array_keys( $local_data ) ) );
@@ -1216,6 +1334,67 @@ class Fanfic_Interactions {
 	}
 
 	/**
+	 * Apply bookmark increment/decrement to story search index.
+	 *
+	 * Bookmarks are tracked at the story level only (chapter bookmarks still
+	 * credit the parent story's bookmark_count for sort/filter purposes).
+	 *
+	 * @since 1.9.0
+	 * @param int $post_id Post ID (story or chapter).
+	 * @param int $delta   +1 to add, -1 to remove.
+	 * @return void
+	 */
+	private static function apply_bookmark_increment( $post_id, $delta ) {
+		global $wpdb;
+
+		$post_id = absint( $post_id );
+		$delta   = (int) $delta;
+		if ( ! $post_id || 0 === $delta ) {
+			return;
+		}
+
+		// Determine the story_id: bookmarks can be on a story or a chapter.
+		$post_type = get_post_type( $post_id );
+		if ( 'fanfiction_story' === $post_type ) {
+			$story_id = $post_id;
+		} elseif ( 'fanfiction_chapter' === $post_type ) {
+			$story_id = absint( wp_get_post_parent_id( $post_id ) );
+		} else {
+			return;
+		}
+
+		if ( ! $story_id ) {
+			return;
+		}
+
+		$story_table = $wpdb->prefix . 'fanfic_story_search_index';
+		if ( ! self::table_exists( $story_table ) ) {
+			return;
+		}
+
+		if ( $delta > 0 ) {
+			$wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO {$story_table} (story_id, indexed_text, bookmark_count)
+					VALUES (%d, '', 1)
+					ON DUPLICATE KEY UPDATE
+						bookmark_count = bookmark_count + 1",
+					$story_id
+				)
+			);
+		} else {
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$story_table}
+					SET bookmark_count = GREATEST(0, bookmark_count - 1)
+					WHERE story_id = %d",
+					$story_id
+				)
+			);
+		}
+	}
+
+	/**
 	 * Apply rating updates to chapter and story rollups.
 	 *
 	 * @since 1.6.0
@@ -1591,6 +1770,103 @@ class Fanfic_Interactions {
 	}
 
 	/**
+	 * Resolve interaction actor.
+	 *
+	 * @since 1.7.0
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return array{user_id:int,anonymous_hash:string}|array{}
+	 */
+	private static function resolve_interaction_actor( $user_id, $anonymous_uuid = '' ) {
+		$user_id = absint( $user_id );
+		if ( $user_id > 0 ) {
+			return array(
+				'user_id'        => $user_id,
+				'anonymous_hash' => '',
+			);
+		}
+
+		$anonymous_hash = self::hash_anonymous_uuid( $anonymous_uuid );
+		if ( empty( $anonymous_hash ) ) {
+			return array();
+		}
+
+		return array(
+			'user_id'        => 0,
+			'anonymous_hash' => $anonymous_hash,
+		);
+	}
+
+	/**
+	 * Hash anonymous UUID for storage.
+	 *
+	 * @since 1.7.0
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return string Binary hash.
+	 */
+	private static function hash_anonymous_uuid( $anonymous_uuid ) {
+		$anonymous_uuid = sanitize_text_field( (string) $anonymous_uuid );
+		$anonymous_uuid = trim( $anonymous_uuid );
+		if ( '' === $anonymous_uuid || strlen( $anonymous_uuid ) > 128 ) {
+			return '';
+		}
+
+		return hash_hmac( 'sha256', $anonymous_uuid, wp_salt( 'auth' ), true );
+	}
+
+	/**
+	 * Re-attribute anonymous rows to user on login.
+	 *
+	 * This method does not touch aggregate counters because anonymous writes already
+	 * contributed to totals when originally recorded.
+	 *
+	 * @since 1.7.0
+	 * @param int    $user_id        User ID.
+	 * @param string $anonymous_hash Binary anonymous hash.
+	 * @return void
+	 */
+	private static function reattribute_anonymous_rows_to_user( $user_id, $anonymous_hash ) {
+		$user_id = absint( $user_id );
+		if ( ! $user_id || empty( $anonymous_hash ) ) {
+			return;
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_interactions';
+		if ( ! self::table_exists( $table ) ) {
+			return;
+		}
+
+		// If a user row already exists for the same chapter/type, keep user row and drop anon duplicate.
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE anon
+				FROM {$table} anon
+				INNER JOIN {$table} usr
+					ON usr.user_id = %d
+					AND usr.chapter_id = anon.chapter_id
+					AND usr.interaction_type = anon.interaction_type
+				WHERE anon.anon_hash = %s
+				  AND anon.user_id IS NULL",
+				$user_id,
+				$anonymous_hash
+			)
+		);
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table}
+				SET user_id = %d,
+					anon_hash = NULL
+				WHERE anon_hash = %s
+				  AND user_id IS NULL",
+				$user_id,
+				$anonymous_hash
+			)
+		);
+	}
+
+	/**
 	 * Apply one local entry to DB.
 	 *
 	 * @since 1.6.0
@@ -1641,9 +1917,23 @@ class Fanfic_Interactions {
 			self::delete_interaction( $user_id, $chapter_id, 'read' );
 		}
 
+		// Bookmark sync: chapter_id=0 means story bookmark, else chapter bookmark.
+		if ( ! empty( $entry['bookmark'] ) ) {
+			$bookmark_post_id = ( $chapter_id > 0 ) ? $chapter_id : $story_id;
+			self::record_bookmark( $bookmark_post_id, $user_id );
+		} else {
+			// Check if DB has a bookmark for this key and remove it.
+			$bookmark_post_id = ( $chapter_id > 0 ) ? $chapter_id : $story_id;
+			if ( self::has_interaction( $user_id, $bookmark_post_id, 'bookmark' ) ) {
+				self::remove_bookmark( $bookmark_post_id, $user_id );
+			}
+		}
+
 		// Entry existence means chapter was viewed.
-		self::upsert_interaction( $user_id, $chapter_id, 'view', null );
-		$active_types[] = 'view';
+		if ( $chapter_id > 0 ) {
+			self::upsert_interaction( $user_id, $chapter_id, 'view', null );
+			$active_types[] = 'view';
+		}
 
 		$timestamp = absint( $entry['timestamp'] ?? 0 );
 		if ( $timestamp > 0 ) {
@@ -1752,14 +2042,19 @@ class Fanfic_Interactions {
 	 * Upsert one interaction.
 	 *
 	 * @since 1.6.0
-	 * @param int        $user_id    User ID.
-	 * @param int        $chapter_id Chapter ID.
-	 * @param string     $type       Interaction type.
-	 * @param float|null $value      Optional value.
+	 * @param int         $user_id         User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param string      $type            Interaction type.
+	 * @param float|null  $value           Optional value.
+	 * @param string|null $anonymous_hash  Binary anonymous hash.
 	 * @return bool
 	 */
-	private static function upsert_interaction( $user_id, $chapter_id, $type, $value = null ) {
+	private static function upsert_interaction( $user_id, $chapter_id, $type, $value = null, $anonymous_hash = '' ) {
 		global $wpdb;
+
+		$user_id      = absint( $user_id );
+		$chapter_id   = absint( $chapter_id );
+		$anonymous_hash = is_string( $anonymous_hash ) ? $anonymous_hash : '';
 
 		$table = $wpdb->prefix . 'fanfic_interactions';
 		if ( ! self::table_exists( $table ) ) {
@@ -1767,39 +2062,80 @@ class Fanfic_Interactions {
 		}
 
 		$type = sanitize_key( $type );
-		if ( ! in_array( $type, array( 'like', 'dislike', 'rating', 'view', 'read' ), true ) ) {
+		if ( ! in_array( $type, array( 'like', 'dislike', 'rating', 'view', 'read', 'bookmark' ), true ) ) {
 			return false;
 		}
 
-		if ( null === $value ) {
-			$ok = $wpdb->query(
-				$wpdb->prepare(
-					"INSERT INTO {$table}
-						(user_id, chapter_id, interaction_type, `value`, created_at, updated_at)
-					VALUES (%d, %d, %s, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-					ON DUPLICATE KEY UPDATE
-						`value` = NULL,
-						updated_at = CURRENT_TIMESTAMP",
-					$user_id,
-					$chapter_id,
-					$type
-				)
-			);
+		if ( ! $chapter_id || ( ! $user_id && empty( $anonymous_hash ) ) ) {
+			return false;
+		}
+
+		if ( $user_id > 0 ) {
+			if ( null === $value ) {
+				$ok = $wpdb->query(
+					$wpdb->prepare(
+						"INSERT INTO {$table}
+							(user_id, anon_hash, chapter_id, interaction_type, `value`, created_at, updated_at)
+						VALUES (%d, NULL, %d, %s, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+						ON DUPLICATE KEY UPDATE
+							anon_hash = NULL,
+							`value` = NULL,
+							updated_at = CURRENT_TIMESTAMP",
+						$user_id,
+						$chapter_id,
+						$type
+					)
+				);
+			} else {
+				$ok = $wpdb->query(
+					$wpdb->prepare(
+						"INSERT INTO {$table}
+							(user_id, anon_hash, chapter_id, interaction_type, `value`, created_at, updated_at)
+						VALUES (%d, NULL, %d, %s, %f, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+						ON DUPLICATE KEY UPDATE
+							anon_hash = NULL,
+							`value` = VALUES(`value`),
+							updated_at = CURRENT_TIMESTAMP",
+						$user_id,
+						$chapter_id,
+						$type,
+						floatval( $value )
+					)
+				);
+			}
 		} else {
-			$ok = $wpdb->query(
-				$wpdb->prepare(
-					"INSERT INTO {$table}
-						(user_id, chapter_id, interaction_type, `value`, created_at, updated_at)
-					VALUES (%d, %d, %s, %f, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-					ON DUPLICATE KEY UPDATE
-						`value` = VALUES(`value`),
-						updated_at = CURRENT_TIMESTAMP",
-					$user_id,
-					$chapter_id,
-					$type,
-					floatval( $value )
-				)
-			);
+			if ( null === $value ) {
+				$ok = $wpdb->query(
+					$wpdb->prepare(
+						"INSERT INTO {$table}
+							(user_id, anon_hash, chapter_id, interaction_type, `value`, created_at, updated_at)
+						VALUES (NULL, %s, %d, %s, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+						ON DUPLICATE KEY UPDATE
+							user_id = NULL,
+							`value` = NULL,
+							updated_at = CURRENT_TIMESTAMP",
+						$anonymous_hash,
+						$chapter_id,
+						$type
+					)
+				);
+			} else {
+				$ok = $wpdb->query(
+					$wpdb->prepare(
+						"INSERT INTO {$table}
+							(user_id, anon_hash, chapter_id, interaction_type, `value`, created_at, updated_at)
+						VALUES (NULL, %s, %d, %s, %f, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+						ON DUPLICATE KEY UPDATE
+							user_id = NULL,
+							`value` = VALUES(`value`),
+							updated_at = CURRENT_TIMESTAMP",
+						$anonymous_hash,
+						$chapter_id,
+						$type,
+						floatval( $value )
+					)
+				);
+			}
 		}
 
 		return false !== $ok;
@@ -1809,28 +2145,49 @@ class Fanfic_Interactions {
 	 * Delete interaction row.
 	 *
 	 * @since 1.6.0
-	 * @param int    $user_id    User ID.
-	 * @param int    $chapter_id Chapter ID.
-	 * @param string $type       Interaction type.
+	 * @param int         $user_id         User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param string      $type            Interaction type.
+	 * @param string|null $anonymous_hash  Binary anonymous hash.
 	 * @return bool
 	 */
-	private static function delete_interaction( $user_id, $chapter_id, $type ) {
+	private static function delete_interaction( $user_id, $chapter_id, $type, $anonymous_hash = '' ) {
 		global $wpdb;
+
+		$user_id      = absint( $user_id );
+		$chapter_id   = absint( $chapter_id );
+		$anonymous_hash = is_string( $anonymous_hash ) ? $anonymous_hash : '';
 
 		$table = $wpdb->prefix . 'fanfic_interactions';
 		if ( ! self::table_exists( $table ) ) {
 			return false;
 		}
 
-		$deleted = $wpdb->delete(
-			$table,
-			array(
-				'user_id'          => absint( $user_id ),
-				'chapter_id'       => absint( $chapter_id ),
-				'interaction_type' => sanitize_key( $type ),
-			),
-			array( '%d', '%d', '%s' )
-		);
+		if ( ! $chapter_id || ( ! $user_id && empty( $anonymous_hash ) ) ) {
+			return false;
+		}
+
+		if ( $user_id > 0 ) {
+			$deleted = $wpdb->delete(
+				$table,
+				array(
+					'user_id'          => $user_id,
+					'chapter_id'       => $chapter_id,
+					'interaction_type' => sanitize_key( $type ),
+				),
+				array( '%d', '%d', '%s' )
+			);
+		} else {
+			$deleted = $wpdb->delete(
+				$table,
+				array(
+					'anon_hash'        => $anonymous_hash,
+					'chapter_id'       => $chapter_id,
+					'interaction_type' => sanitize_key( $type ),
+				),
+				array( '%s', '%d', '%s' )
+			);
+		}
 
 		return false !== $deleted;
 	}
@@ -1839,30 +2196,53 @@ class Fanfic_Interactions {
 	 * Check interaction row exists.
 	 *
 	 * @since 1.6.0
-	 * @param int    $user_id    User ID.
-	 * @param int    $chapter_id Chapter ID.
-	 * @param string $type       Type.
+	 * @param int         $user_id         User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param string      $type            Type.
+	 * @param string|null $anonymous_hash  Binary anonymous hash.
 	 * @return bool
 	 */
-	private static function has_interaction( $user_id, $chapter_id, $type ) {
+	private static function has_interaction( $user_id, $chapter_id, $type, $anonymous_hash = '' ) {
 		global $wpdb;
+
+		$user_id      = absint( $user_id );
+		$chapter_id   = absint( $chapter_id );
+		$anonymous_hash = is_string( $anonymous_hash ) ? $anonymous_hash : '';
 
 		$table = $wpdb->prefix . 'fanfic_interactions';
 		if ( ! self::table_exists( $table ) ) {
 			return false;
 		}
 
-		$exists = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT 1 FROM {$table}
-				WHERE user_id = %d
-				  AND chapter_id = %d
-				  AND interaction_type = %s",
-				absint( $user_id ),
-				absint( $chapter_id ),
-				sanitize_key( $type )
-			)
-		);
+		if ( ! $chapter_id || ( ! $user_id && empty( $anonymous_hash ) ) ) {
+			return false;
+		}
+
+		if ( $user_id > 0 ) {
+			$exists = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT 1 FROM {$table}
+					WHERE user_id = %d
+					  AND chapter_id = %d
+					  AND interaction_type = %s",
+					$user_id,
+					$chapter_id,
+					sanitize_key( $type )
+				)
+			);
+		} else {
+			$exists = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT 1 FROM {$table}
+					WHERE anon_hash = %s
+					  AND chapter_id = %d
+					  AND interaction_type = %s",
+					$anonymous_hash,
+					$chapter_id,
+					sanitize_key( $type )
+				)
+			);
+		}
 
 		return ! empty( $exists );
 	}
@@ -1871,14 +2251,16 @@ class Fanfic_Interactions {
 	 * Get raw interaction rows indexed by type.
 	 *
 	 * @since 1.6.0
-	 * @param int $user_id    User ID.
-	 * @param int $chapter_id Chapter ID.
+	 * @param int         $user_id         User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param string|null $anonymous_hash  Binary anonymous hash.
 	 * @return array<string,array<string,mixed>>
 	 */
-	private static function get_user_chapter_interactions_raw( $user_id, $chapter_id ) {
-		$user_id    = absint( $user_id );
-		$chapter_id = absint( $chapter_id );
-		if ( ! $user_id || ! $chapter_id ) {
+	private static function get_user_chapter_interactions_raw( $user_id, $chapter_id, $anonymous_hash = '' ) {
+		$user_id      = absint( $user_id );
+		$chapter_id   = absint( $chapter_id );
+		$anonymous_hash = is_string( $anonymous_hash ) ? $anonymous_hash : '';
+		if ( ! $chapter_id || ( ! $user_id && empty( $anonymous_hash ) ) ) {
 			return array();
 		}
 
@@ -1888,17 +2270,31 @@ class Fanfic_Interactions {
 			return array();
 		}
 
-		$rows = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT interaction_type, `value`, updated_at
-				FROM {$table}
-				WHERE user_id = %d
-				  AND chapter_id = %d",
-				$user_id,
-				$chapter_id
-			),
-			ARRAY_A
-		);
+		if ( $user_id > 0 ) {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT interaction_type, `value`, updated_at
+					FROM {$table}
+					WHERE user_id = %d
+					  AND chapter_id = %d",
+					$user_id,
+					$chapter_id
+				),
+				ARRAY_A
+			);
+		} else {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT interaction_type, `value`, updated_at
+					FROM {$table}
+					WHERE anon_hash = %s
+					  AND chapter_id = %d",
+					$anonymous_hash,
+					$chapter_id
+				),
+				ARRAY_A
+			);
+		}
 
 		$indexed = array();
 		foreach ( (array) $rows as $row ) {
@@ -1910,6 +2306,28 @@ class Fanfic_Interactions {
 		}
 
 		return $indexed;
+	}
+
+	/**
+	 * Get raw interaction rows indexed by type for anonymous UUID + chapter.
+	 *
+	 * @since 1.7.0
+	 * @param string $anonymous_uuid Anonymous UUID.
+	 * @param int    $chapter_id     Chapter ID.
+	 * @return array<string,array<string,mixed>>
+	 */
+	public static function get_user_chapter_interactions_raw_by_uuid( $anonymous_uuid, $chapter_id ) {
+		$chapter_id = absint( $chapter_id );
+		if ( ! $chapter_id ) {
+			return array();
+		}
+
+		$anonymous_hash = self::hash_anonymous_uuid( $anonymous_uuid );
+		if ( empty( $anonymous_hash ) ) {
+			return array();
+		}
+
+		return self::get_user_chapter_interactions_raw( 0, $chapter_id, $anonymous_hash );
 	}
 
 	/**
@@ -1991,6 +2409,10 @@ class Fanfic_Interactions {
 
 		if ( ! empty( $entry['view'] ) ) {
 			$data['view'] = true;
+		}
+
+		if ( ! empty( $entry['bookmark'] ) ) {
+			$data['bookmark'] = true;
 		}
 
 		if ( array_key_exists( 'rating', $entry ) ) {

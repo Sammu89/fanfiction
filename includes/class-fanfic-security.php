@@ -130,6 +130,13 @@ class Fanfic_Security {
 	private static function is_public_action( $action ) {
 		$public_actions = array(
 			'fanfic_search',
+			'fanfic_subscribe_email',
+			'fanfic_get_chapter_stats',
+			'fanfic_record_interaction',
+			'fanfic_record_view',
+			'fanfic_verify_subscription',
+			'fanfic_report_content',
+			'fanfic_toggle_bookmark',
 		);
 
 		return in_array( $action, $public_actions, true );
@@ -306,6 +313,10 @@ class Fanfic_Security {
 					case 'comment':
 					case 'message':
 						$sanitized[ $key ] = wp_kses_post( $value );
+						break;
+
+					case 'value':
+						$sanitized[ $key ] = floatval( $value );
 						break;
 
 					default:

@@ -3610,11 +3610,16 @@ class Fanfic_Settings {
 		// Drop known plugin tables directly (avoid loading large result sets in memory).
 		self::log_delete_data_progress( 'dropping_tables' );
 		$table_names = array(
+			// Current tables
+			'fanfic_interactions',
+			'fanfic_follows',
+			'fanfic_reading_progress',
+			'fanfic_notifications',
+			'fanfic_email_subscriptions',
 			'fanfic_moderation_log',
 			'fanfic_story_filter_map',
 			'fanfic_story_search_index',
 			'fanfic_chapter_search_index',
-			'fanfic_interactions',
 			'fanfic_daily_views',
 			'fanfic_story_custom_terms',
 			'fanfic_custom_terms',
@@ -3624,16 +3629,12 @@ class Fanfic_Settings {
 			'fanfic_story_translations',
 			'fanfic_story_warnings',
 			'fanfic_warnings',
-			'fanfic_notifications',
-			'fanfic_email_subscriptions',
-			'fanfic_follows',
-			'fanfic_bookmarks',
-			'fanfic_reading_progress',
-			'fanfic_likes',
-			'fanfic_ratings',
 			'fanfic_story_fandoms',
 			'fanfic_fandoms',
-			// Legacy tables kept for backwards compatibility.
+			// Legacy tables — safe to drop if they somehow exist.
+			'fanfic_likes',
+			'fanfic_ratings',
+			'fanfic_bookmarks',
 			'fanfic_reports',
 			'fanfic_read_lists',
 			'fanfic_subscriptions',

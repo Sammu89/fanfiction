@@ -511,24 +511,53 @@ if ( isset( $_GET['error'] ) ) {
 			</div>
 		</section>
 
-		<!-- User's Bookmarked Stories & Chapters -->
-		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarks-heading">
-			<h3 id="bookmarks-heading"><?php esc_html_e( 'My Bookmarks', 'fanfiction-manager' ); ?></h3>
-			<div class="fanfic-user-bookmarks" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-current-offset="0">
+		<!-- Bookmarked Stories -->
+		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarks-stories-heading">
+			<h3 id="bookmarks-stories-heading"><?php esc_html_e( 'Bookmarked Stories', 'fanfiction-manager' ); ?></h3>
+			<div class="fanfic-user-bookmarks" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-bookmark-type="story" data-current-offset="0">
 				<div class="fanfic-bookmarks-list">
 					<?php
 					echo Fanfic_Bookmarks::render_user_bookmarks_dashboard(
 						get_current_user_id(),
-						20,  // Limit to 20 items per page
-						0    // Start at offset 0
+						'story',
+						20,
+						0
 					);
 					?>
 				</div>
 				<?php
-				$total_bookmarks = Fanfic_Bookmarks::get_bookmarks_count( get_current_user_id() );
-				if ( $total_bookmarks > 20 ) :
+				$total_story_bookmarks = Fanfic_Bookmarks::get_bookmarks_count( get_current_user_id(), 'story' );
+				if ( $total_story_bookmarks > 20 ) :
 				?>
-					<button class="fanfic-load-more-bookmarks" data-offset="20">
+					<button class="fanfic-load-more-bookmarks" data-offset="20" data-bookmark-type="story">
+						<?php esc_html_e( 'Show More', 'fanfiction-manager' ); ?>
+					</button>
+				<?php endif; ?>
+				<div class="fanfic-bookmarks-loading" style="display: none;">
+					<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
+				</div>
+			</div>
+		</section>
+
+		<!-- Bookmarked Chapters -->
+		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarks-chapters-heading">
+			<h3 id="bookmarks-chapters-heading"><?php esc_html_e( 'Bookmarked Chapters', 'fanfiction-manager' ); ?></h3>
+			<div class="fanfic-user-bookmarks" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-bookmark-type="chapter" data-current-offset="0">
+				<div class="fanfic-bookmarks-list">
+					<?php
+					echo Fanfic_Bookmarks::render_user_bookmarks_dashboard(
+						get_current_user_id(),
+						'chapter',
+						20,
+						0
+					);
+					?>
+				</div>
+				<?php
+				$total_chapter_bookmarks = Fanfic_Bookmarks::get_bookmarks_count( get_current_user_id(), 'chapter' );
+				if ( $total_chapter_bookmarks > 20 ) :
+				?>
+					<button class="fanfic-load-more-bookmarks" data-offset="20" data-bookmark-type="chapter">
 						<?php esc_html_e( 'Show More', 'fanfiction-manager' ); ?>
 					</button>
 				<?php endif; ?>

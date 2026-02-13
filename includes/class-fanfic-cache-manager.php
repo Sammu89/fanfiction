@@ -225,9 +225,9 @@ class Fanfic_Cache_Manager {
 			global $wpdb;
 
 			$result = $wpdb->get_row( $wpdb->prepare(
-				"SELECT COUNT(*) as count, AVG(rating) as average, SUM(rating) as sum
-				FROM {$wpdb->prefix}fanfic_ratings
-				WHERE chapter_id = %d",
+				"SELECT COUNT(*) as count, AVG(value) as average, SUM(value) as sum
+				FROM {$wpdb->prefix}fanfic_interactions
+				WHERE chapter_id = %d AND interaction_type = 'rating'",
 				$chapter_id
 			), ARRAY_A );
 
@@ -278,7 +278,7 @@ class Fanfic_Cache_Manager {
 			global $wpdb;
 
 			$like_count = $wpdb->get_var( $wpdb->prepare(
-				"SELECT COUNT(*) FROM {$wpdb->prefix}fanfic_likes WHERE chapter_id = %d",
+				"SELECT COUNT(*) FROM {$wpdb->prefix}fanfic_interactions WHERE chapter_id = %d AND interaction_type = 'like'",
 				$chapter_id
 			) );
 
@@ -469,16 +469,15 @@ class Fanfic_Cache_Manager {
 	public static function warm_chapter_cache( $chapter_id ) {
 		global $wpdb;
 
-		// Get stats from database
+		// Get stats from interactions table
 		$stats = $wpdb->get_row( $wpdb->prepare(
 			"SELECT
-				COUNT(r.id) as rating_count,
-				AVG(r.rating) as rating_average,
-				SUM(r.rating) as rating_sum,
-				(SELECT COUNT(*) FROM {$wpdb->prefix}fanfic_likes WHERE chapter_id = %d) as like_count
-			FROM {$wpdb->prefix}fanfic_ratings r
-			WHERE r.chapter_id = %d",
-			$chapter_id,
+				COUNT(CASE WHEN interaction_type = 'rating' THEN id END) as rating_count,
+				AVG(CASE WHEN interaction_type = 'rating' THEN value END) as rating_average,
+				SUM(CASE WHEN interaction_type = 'rating' THEN value END) as rating_sum,
+				COUNT(CASE WHEN interaction_type = 'like' THEN id END) as like_count
+			FROM {$wpdb->prefix}fanfic_interactions
+			WHERE chapter_id = %d AND interaction_type IN ('rating','like')",
 			$chapter_id
 		), ARRAY_A );
 

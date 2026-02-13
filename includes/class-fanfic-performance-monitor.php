@@ -288,15 +288,7 @@ class Fanfic_Performance_Monitor {
 		);
 
 		// Count database records
-		$tables = array(
-			'stories'        => $wpdb->posts,
-			'chapters'       => $wpdb->posts,
-			'ratings'        => $wpdb->prefix . 'fanfic_ratings',
-			'likes'          => $wpdb->prefix . 'fanfic_likes',
-			'follows'        => $wpdb->prefix . 'fanfic_follows',
-			'bookmarks'      => $wpdb->prefix . 'fanfic_bookmarks',
-			'subscriptions'  => $wpdb->prefix . 'fanfic_email_subscriptions',
-		);
+		$interactions_table = $wpdb->prefix . 'fanfic_interactions';
 
 		// Count stories
 		$stats['total_stories'] = $wpdb->get_var( $wpdb->prepare(
@@ -310,14 +302,14 @@ class Fanfic_Performance_Monitor {
 			'fanfiction_chapter'
 		) );
 
-		// Count ratings
+		// Count ratings (from unified interactions table)
 		$stats['total_ratings'] = $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$wpdb->prefix}fanfic_ratings"
+			"SELECT COUNT(*) FROM {$interactions_table} WHERE interaction_type = 'rating'"
 		);
 
-		// Count likes
+		// Count likes (from unified interactions table)
 		$stats['total_likes'] = $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$wpdb->prefix}fanfic_likes"
+			"SELECT COUNT(*) FROM {$interactions_table} WHERE interaction_type = 'like'"
 		);
 
 		// Count follows
@@ -325,9 +317,9 @@ class Fanfic_Performance_Monitor {
 			"SELECT COUNT(*) FROM {$wpdb->prefix}fanfic_follows"
 		);
 
-		// Count bookmarks
+		// Count bookmarks (from unified interactions table)
 		$stats['total_bookmarks'] = $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$wpdb->prefix}fanfic_bookmarks"
+			"SELECT COUNT(*) FROM {$interactions_table} WHERE interaction_type = 'bookmark'"
 		);
 
 		// Count subscriptions
@@ -357,15 +349,12 @@ class Fanfic_Performance_Monitor {
 		global $wpdb;
 
 		$tables = array(
-			'fanfic_ratings',
-			'fanfic_likes',
+			'fanfic_interactions',
 			'fanfic_follows',
-			'fanfic_bookmarks',
 			'fanfic_email_subscriptions',
 			'fanfic_email_queue',
 			'fanfic_notifications',
 			'fanfic_reading_progress',
-			'fanfic_views',
 		);
 
 		$sizes = array();

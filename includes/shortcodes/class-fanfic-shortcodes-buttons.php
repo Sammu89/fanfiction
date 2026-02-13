@@ -280,13 +280,15 @@ class Fanfic_Shortcodes_Buttons {
 				$data_attrs['data-follow-type'] = 'author';
 			}
 		} elseif ( 'bookmark' === $action ) {
-			// Add bookmark_type for bookmark buttons
+			// Add post-id and story-id for bookmark buttons (localStorage key = story_N_chapter_M)
 			if ( isset( $context_ids['chapter_id'] ) ) {
-				$data_attrs['data-bookmark-type'] = 'chapter';
-				$data_attrs['data-post-id'] = $context_ids['chapter_id'];
+				$data_attrs['data-post-id']    = $context_ids['chapter_id'];
+				$data_attrs['data-story-id']   = isset( $context_ids['story_id'] ) ? $context_ids['story_id'] : 0;
+				$data_attrs['data-chapter-id'] = $context_ids['chapter_id'];
 			} elseif ( isset( $context_ids['story_id'] ) ) {
-				$data_attrs['data-bookmark-type'] = 'story';
-				$data_attrs['data-post-id'] = $context_ids['story_id'];
+				$data_attrs['data-post-id']    = $context_ids['story_id'];
+				$data_attrs['data-story-id']   = $context_ids['story_id'];
+				$data_attrs['data-chapter-id'] = 0;
 			}
 		}
 
@@ -354,10 +356,7 @@ class Fanfic_Shortcodes_Buttons {
 
 		switch ( $action ) {
 			case 'bookmark':
-				if ( isset( $context_ids['story_id'] ) ) {
-					// Fanfic_Bookmarks::is_bookmarked( $user_id, $post_id, $bookmark_type )
-					return Fanfic_Bookmarks::is_bookmarked( $user_id, $context_ids['story_id'], 'story' );
-				}
+				// Bookmarks use localStorage as initial UI source-of-truth (same as likes).
 				return false;
 
 			case 'follow':
@@ -417,7 +416,6 @@ class Fanfic_Shortcodes_Buttons {
 	private static function action_requires_login( $action ) {
 		// Actions that require login
 		$login_required = array(
-			'bookmark',
 			'follow',
 			'mark-read',
 		);

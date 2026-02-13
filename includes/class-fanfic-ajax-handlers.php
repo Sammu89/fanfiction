@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - Chapter ratings (anonymous + authenticated)
  * - Chapter likes (anonymous + authenticated)
  * - Reading progress (authenticated only)
- * - Story/chapter bookmarks (authenticated only)
+ * - Story/chapter bookmarks (anonymous + authenticated)
  * - Story/author follows (authenticated only)
  * - Email subscriptions (anonymous + authenticated)
  * - Batch stats loading
@@ -50,11 +50,11 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
-		// Bookmark endpoints (authenticated only)
+		// Bookmark endpoints (public + authenticated)
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_toggle_bookmark',
 			array( __CLASS__, 'ajax_toggle_bookmark' ),
-			true, // Require login
+			false, // Allow anonymous
 			array(
 				'rate_limit'  => true,
 				'capability'  => 'read',
@@ -105,11 +105,11 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
-		// Unified interactions (authenticated only)
+		// Unified interactions (public + authenticated)
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_record_interaction',
 			array( __CLASS__, 'ajax_record_interaction' ),
-			true, // Require login
+			false, // Allow anonymous
 			array(
 				'rate_limit'  => true,
 				'capability'  => 'read',
@@ -592,7 +592,7 @@ class Fanfic_AJAX_Handlers {
 	public static function ajax_record_interaction() {
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
 			array( 'chapter_id', 'type' ),
-			array( 'value' )
+			array( 'value', 'anonymous_uuid' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -607,6 +607,7 @@ class Fanfic_AJAX_Handlers {
 		$chapter_id = absint( $params['chapter_id'] );
 		$type       = sanitize_key( $params['type'] );
 		$value      = isset( $params['value'] ) ? floatval( $params['value'] ) : 0;
+		$anonymous_uuid = isset( $params['anonymous_uuid'] ) ? sanitize_text_field( $params['anonymous_uuid'] ) : '';
 
 		if ( ! $chapter_id ) {
 			Fanfic_AJAX_Security::send_error_response(
@@ -629,22 +630,22 @@ class Fanfic_AJAX_Handlers {
 
 		switch ( $type ) {
 			case 'like':
-				$result = Fanfic_Interactions::record_like( $chapter_id, $user_id );
+				$result = Fanfic_Interactions::record_like( $chapter_id, $user_id, $anonymous_uuid );
 				break;
 			case 'remove_like':
-				$result = Fanfic_Interactions::remove_like( $chapter_id, $user_id );
+				$result = Fanfic_Interactions::remove_like( $chapter_id, $user_id, $anonymous_uuid );
 				break;
 			case 'dislike':
-				$result = Fanfic_Interactions::record_dislike( $chapter_id, $user_id );
+				$result = Fanfic_Interactions::record_dislike( $chapter_id, $user_id, $anonymous_uuid );
 				break;
 			case 'remove_dislike':
-				$result = Fanfic_Interactions::remove_dislike( $chapter_id, $user_id );
+				$result = Fanfic_Interactions::remove_dislike( $chapter_id, $user_id, $anonymous_uuid );
 				break;
 			case 'rating':
-				$result = Fanfic_Interactions::record_rating( $chapter_id, $value, $user_id );
+				$result = Fanfic_Interactions::record_rating( $chapter_id, $value, $user_id, $anonymous_uuid );
 				break;
 			case 'remove_rating':
-				$result = Fanfic_Interactions::remove_rating( $chapter_id, $user_id );
+				$result = Fanfic_Interactions::remove_rating( $chapter_id, $user_id, $anonymous_uuid );
 				break;
 			case 'read':
 				$result = Fanfic_Interactions::record_read( $chapter_id, $user_id );
@@ -739,7 +740,7 @@ class Fanfic_AJAX_Handlers {
 	public static function ajax_sync_interactions() {
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
 			array(),
-			array( 'local_data' )
+			array( 'local_data', 'anonymous_uuid' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -761,7 +762,8 @@ class Fanfic_AJAX_Handlers {
 			$local_data = $local_raw;
 		}
 
-		$result = Fanfic_Interactions::sync_on_login( $user_id, $local_data );
+		$anonymous_uuid = isset( $params['anonymous_uuid'] ) ? sanitize_text_field( $params['anonymous_uuid'] ) : '';
+		$result = Fanfic_Interactions::sync_on_login( $user_id, $local_data, $anonymous_uuid );
 		Fanfic_AJAX_Security::send_success_response(
 			$result,
 			__( 'Interactions synchronized successfully.', 'fanfiction-manager' )
@@ -824,8 +826,8 @@ class Fanfic_AJAX_Handlers {
 	public static function ajax_toggle_bookmark() {
 		// Get and validate parameters
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'post_id', 'bookmark_type' ),
-			array()
+			array( 'post_id' ),
+			array( 'bookmark_type', 'anonymous_uuid' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -836,21 +838,12 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		$post_id = absint( $params['post_id'] );
-		$bookmark_type = sanitize_text_field( $params['bookmark_type'] );
-		$user_id = get_current_user_id();
-
-		// Validate bookmark type
-		if ( ! in_array( $bookmark_type, array( 'story', 'chapter' ), true ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'invalid_bookmark_type',
-				__( 'Invalid bookmark type.', 'fanfiction-manager' ),
-				400
-			);
-		}
+		$post_id        = absint( $params['post_id'] );
+		$user_id        = get_current_user_id();
+		$anonymous_uuid = isset( $params['anonymous_uuid'] ) ? sanitize_text_field( $params['anonymous_uuid'] ) : '';
 
 		// Toggle bookmark
-		$result = Fanfic_Bookmarks::toggle_bookmark( $user_id, $post_id, $bookmark_type );
+		$result = Fanfic_Bookmarks::toggle_bookmark( $user_id, $post_id, $anonymous_uuid );
 
 		if ( ! isset( $result['success'] ) || ! $result['success'] ) {
 			Fanfic_AJAX_Security::send_error_response(
@@ -1388,8 +1381,8 @@ class Fanfic_AJAX_Handlers {
 	public static function ajax_load_user_bookmarks() {
 		// Get and validate parameters
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'offset' ),
-			array( 'bookmark_type' )
+			array( 'offset', 'bookmark_type' ),
+			array()
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -1400,34 +1393,31 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		$offset = absint( $params['offset'] );
-		$bookmark_type = isset( $params['bookmark_type'] ) ? sanitize_text_field( $params['bookmark_type'] ) : 'all';
-		$user_id = get_current_user_id();
+		$offset        = absint( $params['offset'] );
+		$bookmark_type = sanitize_text_field( $params['bookmark_type'] );
+		$user_id       = get_current_user_id();
 
-		// Validate bookmark_type
-		$allowed_types = array( 'all', 'story', 'chapter' );
+		// Validate bookmark_type — must be 'story' or 'chapter'
+		$allowed_types = array( 'story', 'chapter' );
 		if ( ! in_array( $bookmark_type, $allowed_types, true ) ) {
 			Fanfic_AJAX_Security::send_error_response(
 				'invalid_bookmark_type',
-				__( 'Invalid bookmark type.', 'fanfiction-manager' ),
+				__( 'Invalid bookmark type. Must be "story" or "chapter".', 'fanfiction-manager' ),
 				400
 			);
 		}
 
-		// Convert 'all' to null for get_user_bookmarks function
-		$bookmark_type_param = ( 'all' === $bookmark_type ) ? null : $bookmark_type;
-
 		// Get bookmarks (20 per page)
-		$per_page = 20;
-		$bookmarks = Fanfic_Bookmarks::get_user_bookmarks( $user_id, $bookmark_type_param, $per_page, $offset );
+		$per_page  = 20;
+		$bookmarks = Fanfic_Bookmarks::get_user_bookmarks( $user_id, $bookmark_type, $per_page, $offset );
 
 		// Get total count for has_more calculation
-		$total_count = Fanfic_Bookmarks::get_bookmarks_count( $user_id, $bookmark_type_param );
+		$total_count = Fanfic_Bookmarks::get_bookmarks_count( $user_id, $bookmark_type );
 
 		// Build HTML for each bookmark
 		$html_output = '';
 		foreach ( $bookmarks as $bookmark ) {
-			if ( 'chapter' === $bookmark['bookmark_type'] ) {
+			if ( 'chapter' === $bookmark_type ) {
 				$html_output .= Fanfic_Bookmarks::render_chapter_bookmark_item( $bookmark );
 			} else {
 				$html_output .= Fanfic_Bookmarks::render_story_bookmark_item( $bookmark );
