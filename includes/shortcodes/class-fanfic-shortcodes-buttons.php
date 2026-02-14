@@ -244,7 +244,11 @@ class Fanfic_Shortcodes_Buttons {
 		);
 
 		if ( $current_state ) {
-			$classes[] = 'fanfic-button-' . $action . 'ed';
+			if ( 'mark-read' === $action ) {
+				$classes[] = 'fanfic-button-marked-read';
+			} else {
+				$classes[] = 'fanfic-button-' . $action . 'ed';
+			}
 		}
 
 		// Add disabled class for login-required buttons when not logged in
@@ -315,10 +319,15 @@ class Fanfic_Shortcodes_Buttons {
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
 		$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '">' . esc_html( $label ) . '</span>';
 
-		// Add count display for like button
+		// Add count display for like/dislike buttons
 		if ( 'like' === $action && isset( $context_ids['chapter_id'] ) ) {
 			$like_count = Fanfic_Interactions::get_chapter_likes( $context_ids['chapter_id'] );
-			$output .= ' <span class="fanfic-button-count like-count">(' . absint( $like_count ) . ')</span>';
+			$output .= ' <span class="fanfic-button-count like-count" data-count="' . absint( $like_count ) . '">(' . absint( $like_count ) . ')</span>';
+		}
+		if ( 'dislike' === $action && isset( $context_ids['chapter_id'] ) ) {
+			$stats         = Fanfic_Interactions::get_chapter_stats( $context_ids['chapter_id'] );
+			$dislike_count = absint( $stats['dislikes'] ?? 0 );
+			$output .= ' <span class="fanfic-button-count dislike-count" data-count="' . $dislike_count . '">(' . $dislike_count . ')</span>';
 		}
 
 		$output .= '</button>';

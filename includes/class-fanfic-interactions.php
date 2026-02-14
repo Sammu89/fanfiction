@@ -399,6 +399,41 @@ class Fanfic_Interactions {
 	}
 
 	/**
+	 * Remove read.
+	 *
+	 * @since 1.6.0
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param int         $user_id         User ID.
+	 * @param string|null $anonymous_uuid  Anonymous UUID.
+	 * @return array|WP_Error
+	 */
+	public static function remove_read( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
+		$chapter_id = absint( $chapter_id );
+		$story_id   = self::get_story_id_from_chapter( $chapter_id );
+		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_read_remove_payload', __( 'Invalid chapter or identity for read removal.', 'fanfiction-manager' ) );
+		}
+
+		if ( ! self::has_interaction( $actor['user_id'], $chapter_id, 'read', $actor['anonymous_hash'] ) ) {
+			return array(
+				'success' => true,
+				'changed' => false,
+				'stats'   => self::get_chapter_stats( $chapter_id ),
+			);
+		}
+
+		self::delete_interaction( $actor['user_id'], $chapter_id, 'read', $actor['anonymous_hash'] );
+		self::delete_stats_cache( $chapter_id, $story_id );
+
+		return array(
+			'success' => true,
+			'changed' => true,
+			'stats'   => self::get_chapter_stats( $chapter_id ),
+		);
+	}
+
+	/**
 	 * Record follow.
 	 *
 	 * @since 1.8.0

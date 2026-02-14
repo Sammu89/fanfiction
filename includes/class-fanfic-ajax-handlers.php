@@ -541,7 +541,7 @@ class Fanfic_AJAX_Handlers {
 	/**
 	 * AJAX: Record unified interaction.
 	 *
-	 * Supports: like, remove_like, dislike, remove_dislike, rating, remove_rating, read.
+	 * Supports: like, remove_like, dislike, remove_dislike, rating, remove_rating, read, remove_read.
 	 * Authenticated users only.
 	 *
 	 * @since 1.6.0
@@ -607,6 +607,9 @@ class Fanfic_AJAX_Handlers {
 				break;
 			case 'read':
 				$result = Fanfic_Interactions::record_read( $chapter_id, $user_id );
+				break;
+			case 'remove_read':
+				$result = Fanfic_Interactions::remove_read( $chapter_id, $user_id, $anonymous_uuid );
 				break;
 			default:
 				Fanfic_AJAX_Security::send_error_response(

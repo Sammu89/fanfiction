@@ -1633,14 +1633,15 @@ class Fanfic_Wizard {
 			error_log( '[Fanfic Wizard Complete] Gate 1: Verifying base slug persistence' );
 
 			// Check if user chose "no base slug" mode in step 2 (use_base_slug is set in URL settings step)
-			$use_base_slug = isset( $draft['step_2']['use_base_slug'] ) ? (int) $draft['step_2']['use_base_slug'] : 1;
+			$step_2 = isset( $draft['step_2'] ) && is_array( $draft['step_2'] ) ? $draft['step_2'] : array();
+			$use_base_slug = isset( $step_2['use_base_slug'] ) ? (int) $step_2['use_base_slug'] : 1;
 
 			if ( 0 === $use_base_slug ) {
 				// No base slug mode - expect empty string
 				$expected_base_slug = '';
 			} else {
 				// Base slug mode - use the value from step 2 or default to 'fanfiction'
-				$expected_base_slug = array_key_exists( 'base_slug', $draft['step_2'] ) ? $draft['step_2']['base_slug'] : 'fanfiction';
+				$expected_base_slug = isset( $step_2['base_slug'] ) ? $step_2['base_slug'] : 'fanfiction';
 			}
 
 			$actual_base_slug = get_option( 'fanfic_base_slug', '' );

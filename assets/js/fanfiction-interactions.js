@@ -342,28 +342,51 @@
 		initReadingProgress: function() {
 			const self = this;
 
-			$(document).on('click', '.fanfic-mark-read-button', function(e) {
+			$(document).on('click', '.fanfic-mark-read-button, .fanfic-button-mark-read', function(e) {
 				e.preventDefault();
 
 				const $button = $(this);
-				const storyId = $button.data('story-id');
-				const chapterNumber = $button.data('chapter-number');
+				const storyId = parseInt($button.data('story-id'), 10) || 0;
+				const chapterNumber = parseInt($button.data('chapter-number'), 10) || 0;
+				const chapterId = parseInt($button.data('chapter-id'), 10) || 0;
 
 				// Prevent double-click
 				if ($button.hasClass('loading')) {
 					return;
 				}
 
-				// Check current read state - check for 'is-markredd' class added by PHP
-				const isCurrentlyRead = $button.hasClass('is-markredd') || $button.hasClass('read');
+				// Support legacy and current read-state classes.
+				const isCurrentlyRead = $button.hasClass('fanfic-button-marked-read') ||
+					$button.hasClass('fanfic-button-mark-readed') ||
+					$button.hasClass('marked-read') ||
+					$button.hasClass('is-markredd') ||
+					$button.hasClass('read');
 
 				self.log('Mark as read clicked:', { storyId, chapterNumber, isCurrentlyRead });
 
 				// Optimistic UI update (toggle)
 				self.updateReadDisplay($button, !isCurrentlyRead);
 
-				// Toggle read status
-				self.markAsRead(storyId, chapterNumber, $button, isCurrentlyRead);
+				// Persist optimistic local state and manual override:
+				// - unread manually chosen => suppress future auto-read for this chapter
+				// - manual read => clear suppression
+				if (storyId && chapterId) {
+					FanficLocalStore.setRead(storyId, chapterId, !isCurrentlyRead);
+					FanficLocalStore.setReadAutoSuppressed(storyId, chapterId, isCurrentlyRead);
+					if (window.FanficUnifiedInteractions && typeof window.FanficUnifiedInteractions.applyUiFromLocal === 'function') {
+						window.FanficUnifiedInteractions.applyUiFromLocal();
+					}
+				}
+
+				// If user manually unmarks, stop any in-flight auto-read timer immediately.
+				if (isCurrentlyRead && window.FanficUnifiedInteractions && window.FanficUnifiedInteractions.readTimer) {
+					window.clearInterval(window.FanficUnifiedInteractions.readTimer);
+					window.FanficUnifiedInteractions.readTimer = null;
+					window.FanficUnifiedInteractions.activeReadSeconds = 0;
+				}
+
+				// Apply read/unread status to server (explicit endpoint, not toggle ambiguity).
+				self.markAsRead(storyId, chapterNumber, chapterId, $button, isCurrentlyRead);
 			});
 		},
 
@@ -654,8 +677,10 @@
 		/**
 		 * Toggle chapter read status on server
 		 */
-		markAsRead: function(storyId, chapterNumber, $button, wasRead) {
+		markAsRead: function(storyId, chapterNumber, chapterId, $button, wasRead) {
 			const self = this;
+			const endpointAction = wasRead ? 'fanfic_unmark_as_read' : 'fanfic_mark_as_read';
+			const desiredReadState = !wasRead;
 
 			$button.addClass('loading');
 
@@ -663,7 +688,7 @@
 				url: this.config.ajaxUrl,
 				type: 'POST',
 				data: {
-					action: 'fanfic_mark_as_read',
+					action: endpointAction,
 					nonce: this.config.nonce,
 					story_id: storyId,
 					chapter_number: chapterNumber
@@ -672,13 +697,39 @@
 					self.log('Mark as read response:', response);
 
 					if (response.success) {
-						const isRead = response.data.is_read;
+						const payload = response && response.data ? (response.data.data || response.data) : {};
+						const isRead = payload && payload.is_read !== undefined ? !!payload.is_read : desiredReadState;
 						// Update from server response
 						self.updateReadDisplay($button, isRead);
-						self.showSuccess($button, response.data.message || self.strings.markedRead);
+						if (storyId && chapterId) {
+							FanficLocalStore.setRead(storyId, chapterId, isRead);
+							FanficLocalStore.setReadAutoSuppressed(storyId, chapterId, !isRead);
+							if (window.FanficUnifiedInteractions && typeof window.FanficUnifiedInteractions.applyUiFromLocal === 'function') {
+								window.FanficUnifiedInteractions.applyUiFromLocal();
+							}
+						}
+
+						// Keep unified interactions DB consistent with manual read/unread choice.
+						if (self.config.isLoggedIn && chapterId) {
+							$.post(self.config.ajaxUrl, {
+								action: 'fanfic_record_interaction',
+								nonce: self.config.nonce,
+								chapter_id: chapterId,
+								type: isRead ? 'read' : 'remove_read'
+							});
+						}
+
+						self.showSuccess($button, (response.data && response.data.message) || self.strings.markedRead);
 					} else {
 						// Revert optimistic update on error
 						self.updateReadDisplay($button, wasRead);
+						if (storyId && chapterId) {
+							FanficLocalStore.setRead(storyId, chapterId, wasRead);
+							FanficLocalStore.setReadAutoSuppressed(storyId, chapterId, !wasRead);
+							if (window.FanficUnifiedInteractions && typeof window.FanficUnifiedInteractions.applyUiFromLocal === 'function') {
+								window.FanficUnifiedInteractions.applyUiFromLocal();
+							}
+						}
 						self.showError($button, response.data.message || self.strings.error);
 					}
 				},
@@ -686,6 +737,13 @@
 					self.log('Mark as read error:', xhr);
 					// Revert optimistic update on error
 					self.updateReadDisplay($button, wasRead);
+					if (storyId && chapterId) {
+						FanficLocalStore.setRead(storyId, chapterId, wasRead);
+						FanficLocalStore.setReadAutoSuppressed(storyId, chapterId, !wasRead);
+						if (window.FanficUnifiedInteractions && typeof window.FanficUnifiedInteractions.applyUiFromLocal === 'function') {
+							window.FanficUnifiedInteractions.applyUiFromLocal();
+						}
+					}
 					self.handleAjaxError(xhr, $button);
 				},
 				complete: function() {
@@ -773,10 +831,11 @@
 		 */
 		updateReadDisplay: function($button, isRead) {
 			if (isRead) {
-				$button.addClass('fanfic-button-marked-read');
+				$button.addClass('fanfic-button-marked-read marked-read is-markredd read');
+				$button.removeClass('fanfic-button-mark-readed');
 				$button.find('.read-text').text($button.data('read-text') || 'Read');
 			} else {
-				$button.removeClass('fanfic-button-marked-read');
+				$button.removeClass('fanfic-button-marked-read fanfic-button-mark-readed marked-read is-markredd read');
 				$button.find('.read-text').text($button.data('unread-text') || 'Mark as Read');
 			}
 		},
@@ -1043,6 +1102,23 @@
 			return entry;
 		},
 
+		setReadAutoSuppressed: function(storyId, chapterId, suppressed) {
+			const entry = this.getChapter(storyId, chapterId) || {};
+			if (suppressed) {
+				entry.read_auto_suppressed = true;
+			} else {
+				delete entry.read_auto_suppressed;
+			}
+			entry.timestamp = Date.now();
+			this.setChapter(storyId, chapterId, entry);
+			return entry;
+		},
+
+		isReadAutoSuppressed: function(storyId, chapterId) {
+			const entry = this.getChapter(storyId, chapterId) || {};
+			return !!entry.read_auto_suppressed;
+		},
+
 		toggleFollow: function(storyId, chapterId) {
 			const entry = this.getChapter(storyId, chapterId) || {};
 			if (entry.follow) {
@@ -1085,16 +1161,23 @@
 			this.config = {
 				ajaxUrl: fanficAjax.ajaxUrl || '/wp-admin/admin-ajax.php',
 				nonce: fanficAjax.nonce || '',
+				debug: !!fanficAjax.debug,
 				isLoggedIn: !!fanficAjax.isLoggedIn,
 				needsSync: !!fanficAjax.needsSync,
 				enableDislikes: !!fanficAjax.enableDislikes
 			};
+			this._readDebugLastHiddenLogAt = 0;
 			this.context = this.detectChapterContext();
 			this.activeReadSeconds = 0;
 			this.readTimer = null;
 			this.anonymousUuid = FanficLocalStore.getAnonymousUuid();
+			this.debugRead('Unified interactions init', {
+				context: this.context,
+				isLoggedIn: this.config.isLoggedIn
+			});
 
 			if (!this.context) {
+				this.debugRead('No chapter context detected; read tracking will not start');
 				return;
 			}
 
@@ -1108,13 +1191,23 @@
 		},
 
 		detectChapterContext: function() {
-			const $node = $('[data-story-id][data-chapter-id]').first();
+			const $allNodes = $('[data-story-id][data-chapter-id]');
+			this.debugRead('Detecting chapter context', { nodesFound: $allNodes.length });
+			const $chapterNode = $allNodes.filter(function() {
+				const storyId = parseInt($(this).data('story-id'), 10);
+				const chapterId = parseInt($(this).data('chapter-id'), 10);
+				return !!storyId && !!chapterId;
+			}).first();
+			const $node = $chapterNode.length ? $chapterNode : $allNodes.first();
 			if (!$node.length) {
+				this.debugRead('No [data-story-id][data-chapter-id] nodes found');
 				return null;
 			}
 			const storyId = parseInt($node.data('story-id'), 10);
 			const chapterId = parseInt($node.data('chapter-id'), 10);
+			this.debugRead('Candidate chapter context', { storyId, chapterId });
 			if (!storyId || !chapterId) {
+				this.debugRead('Invalid chapter context candidate', { storyId, chapterId });
 				return null;
 			}
 			return { storyId, chapterId };
@@ -1153,28 +1246,60 @@
 
 		initReadTracking: function() {
 			if (!this.context) {
+				this.debugRead('Read tracking skipped: no context');
 				return;
 			}
 			const entry = FanficLocalStore.getChapter(this.context.storyId, this.context.chapterId) || {};
+			if (entry.read_auto_suppressed) {
+				this.debugRead('Read tracking disabled by manual unread override', {
+					storyId: this.context.storyId,
+					chapterId: this.context.chapterId
+				});
+				return;
+			}
+			this.debugRead('Read tracking initial state', {
+				storyId: this.context.storyId,
+				chapterId: this.context.chapterId,
+				alreadyRead: !!entry.read
+			});
 			if (entry.read) {
+				this.debugRead('Read tracking skipped: chapter already read in local storage');
 				return;
 			}
 			const self = this;
 			this.readTimer = window.setInterval(function() {
 				if (document.hidden) {
+					const now = Date.now();
+					if (!self._readDebugLastHiddenLogAt || (now - self._readDebugLastHiddenLogAt) >= 5000) {
+						self.debugRead('Timer paused: tab hidden', { activeReadSeconds: self.activeReadSeconds });
+						self._readDebugLastHiddenLogAt = now;
+					}
 					return;
 				}
 				self.activeReadSeconds += 1;
+				if (self.activeReadSeconds === 1 || self.activeReadSeconds % 10 === 0 || self.activeReadSeconds >= 115) {
+					self.debugRead('Active read timer tick', { activeReadSeconds: self.activeReadSeconds });
+				}
 				if (self.activeReadSeconds < 120) {
 					return;
 				}
+				self.debugRead('Read threshold reached; applying read state', {
+					activeReadSeconds: self.activeReadSeconds,
+					storyId: self.context.storyId,
+					chapterId: self.context.chapterId
+				});
 				window.clearInterval(self.readTimer);
+				self.readTimer = null;
 				FanficLocalStore.setRead(self.context.storyId, self.context.chapterId, true);
+				FanficLocalStore.setReadAutoSuppressed(self.context.storyId, self.context.chapterId, false);
+				self.debugRead('Local read state saved', FanficLocalStore.getChapter(self.context.storyId, self.context.chapterId) || {});
 				self.applyUiFromLocal();
 				if (self.config.isLoggedIn) {
+					self.debugRead('Posting read interaction to server');
 					self.postInteraction('read');
 				}
 			}, 1000);
+			this.debugRead('Read timer started');
 		},
 
 		bindLikeDislike: function() {
@@ -1189,9 +1314,8 @@
 				self.applyUiFromLocal();
 
 				// Optimistic like count update
-				self.adjustCount('.fanfic-like-count', hadLike ? -1 : 1, function(count) {
-					if (count === 1) { return '1 like'; }
-					return count + ' likes';
+				self.adjustCount('.like-count', hadLike ? -1 : 1, function(count) {
+					return '(' + count + ')';
 				});
 
 				self.postInteraction(entry.like ? 'like' : 'remove_like', null, chapterId);
@@ -1204,8 +1328,16 @@
 				}
 				const storyId = parseInt($(this).data('story-id'), 10);
 				const chapterId = parseInt($(this).data('chapter-id'), 10);
+				const wasDisliked = FanficLocalStore.getChapter(storyId, chapterId);
+				const hadDislike = !!(wasDisliked && wasDisliked.dislike);
 				const entry = FanficLocalStore.toggleDislike(storyId, chapterId);
 				self.applyUiFromLocal();
+
+				// Optimistic dislike count update
+				self.adjustCount('.dislike-count', hadDislike ? -1 : 1, function(count) {
+					return '(' + count + ')';
+				});
+
 				self.postInteraction(entry.dislike ? 'dislike' : 'remove_dislike', null, chapterId);
 			});
 		},
@@ -1381,15 +1513,20 @@
 			}
 
 			if (stats.likes !== undefined) {
-				$('.fanfic-like-count').each(function() {
+				$('.like-count').each(function() {
 					var $el = $(this);
 					var count = parseInt(stats.likes, 10);
 					$el.data('count', count);
-					if (count === 0) {
-						$el.text('');
-					} else {
-						$el.text(count + (count === 1 ? ' like' : ' likes'));
-					}
+					$el.text('(' + count + ')');
+				});
+			}
+
+			if (stats.dislikes !== undefined) {
+				$('.dislike-count').each(function() {
+					var $el = $(this);
+					var count = parseInt(stats.dislikes, 10);
+					$el.data('count', count);
+					$el.text('(' + count + ')');
 				});
 			}
 
@@ -1421,15 +1558,45 @@
 
 		applyUiFromLocal: function() {
 			if (!this.context) {
+				this.debugRead('applyUiFromLocal skipped: no context');
 				return;
 			}
+			const self = this;
 			const storyId = this.context.storyId;
 			const chapterId = this.context.chapterId;
 			const entry = FanficLocalStore.getChapter(storyId, chapterId) || {};
+			this.debugRead('Applying UI from local state', {
+				storyId,
+				chapterId,
+				entryRead: !!entry.read
+			});
 
 			$('.fanfic-like-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], .fanfic-button-like[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').toggleClass('fanfic-button-liked', !!entry.like);
 			$('.fanfic-dislike-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], .fanfic-button-dislike[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').toggleClass('fanfic-button-disliked', !!entry.dislike);
 			$('.fanfic-read-indicator[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').toggleClass('fanfic-read-indicator-read', !!entry.read);
+
+			const $readButtons = $('.fanfic-mark-read-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], .fanfic-button-mark-read[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]');
+			this.debugRead('Read button sync target count', { count: $readButtons.length });
+			$readButtons.each(function(index) {
+				const $btn = $(this);
+				const isRead = !!entry.read;
+
+				if (isRead) {
+					$btn.addClass('fanfic-button-marked-read marked-read is-markredd read');
+					$btn.removeClass('fanfic-button-mark-readed');
+					$btn.find('.read-text').text($btn.data('read-text') || 'Read');
+				} else {
+					$btn.removeClass('fanfic-button-marked-read fanfic-button-mark-readed marked-read is-markredd read');
+					$btn.find('.read-text').text($btn.data('unread-text') || 'Mark as Read');
+				}
+
+				if (index === 0) {
+					self.debugRead('Read button after sync', {
+						className: $btn.attr('class'),
+						label: $btn.find('.read-text').text()
+					});
+				}
+			});
 
 			const rating = entry.rating ? parseFloat(entry.rating) : 0;
 			$('.fanfic-rating-stars-half[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').each(function() {
@@ -1460,6 +1627,25 @@
 
 			// Update badges
 			FanficInteractions.updateBadges();
+		},
+
+		isReadDebugEnabled: function() {
+			if (this.config && this.config.debug) {
+				return true;
+			}
+			try {
+				if (window.localStorage.getItem('fanfic_read_debug') === '1') {
+					return true;
+				}
+			} catch (e) {}
+			return /(?:\?|&)fanfic_read_debug=1(?:&|$)/.test(window.location.search || '');
+		},
+
+		debugRead: function() {
+			if (!this.isReadDebugEnabled()) {
+				return;
+			}
+			console.log('[FanficReadDebug]', ...arguments);
 		}
 	};
 
