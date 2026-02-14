@@ -4,8 +4,7 @@
  * Unified interaction handling for all user actions:
  * - Ratings (1-5 stars)
  * - Likes (toggle)
- * - Bookmarks (toggle)
- * - Email subscriptions
+ * - Follows (toggle) with optional email subscription
  * - Reading progress
  *
  * Features:
@@ -44,10 +43,9 @@
 			ratingUpdated: 'Rating updated!',
 			liked: 'Liked!',
 			unliked: 'Like removed',
-			bookmarkAdded: 'Bookmark added!',
-			bookmarkRemoved: 'Bookmark removed',
+			followAdded: 'Follow added!',
+			followRemoved: 'Follow removed',
 			markedRead: 'Marked as read',
-			subscribed: 'Subscription successful!',
 			error: 'An error occurred. Please try again.',
 			rateLimited: 'Too many requests. Please wait a moment.',
 			loginRequired: 'You must be logged in to do that.'
@@ -62,19 +60,17 @@
 			// Rating widgets
 			this.initRatingWidgets();
 
-			// Bookmark buttons
-			this.initBookmarkButtons();
+			// Follow buttons
+			this.initFollowButtons();
 
-			// Email subscription forms
-			this.initEmailSubscriptionForms();
+			// Follow email modal handlers
+			this.initFollowEmailModal();
 
 			// Reading progress
 			this.initReadingProgress();
 
 			// Share buttons
 			this.initShareButtons();
-		// Subscribe buttons (open modal)
-		this.initSubscribeButtons();
 		// Report buttons
 		this.initReportButtons();
 		// Login-required buttons
@@ -105,8 +101,14 @@
 
 				self.log('Rating clicked:', { chapterId, rating });
 
-				// Optimistic UI update
+				// Get old user rating for optimistic average calculation
+				const oldRating = parseFloat($widget.attr('data-user-rating')) || 0;
+
+				// Optimistic UI update (stars)
 				self.updateRatingDisplay($widget, rating);
+
+				// Optimistic average/count update
+				FanficUnifiedInteractions.optimisticRatingUpdate(oldRating, rating);
 
 				// Submit rating
 				self.submitRating(chapterId, rating, $widget);
@@ -150,72 +152,187 @@
 		},
 
 		/**
-		 * Initialize bookmark buttons (localStorage-first, anonymous-capable)
+		 * Initialize follow buttons (localStorage-first, anonymous-capable)
 		 */
-		initBookmarkButtons: function() {
+		initFollowButtons: function() {
 			const self = this;
 
-			$(document).on('click', '.fanfic-bookmark-button, .fanfic-button-bookmark', function(e) {
+			$(document).on('click', '.fanfic-follow-button, .fanfic-button-follow', function(e) {
 				e.preventDefault();
 
 				const $button = $(this);
 				const postId = parseInt($button.data('post-id'), 10);
 				const storyId = parseInt($button.data('story-id'), 10) || 0;
 				const chapterId = parseInt($button.data('chapter-id'), 10) || 0;
+				const isLoggedIn = !!parseInt($button.data('user-logged-in'), 10);
 
 				// Prevent double-click
 				if ($button.hasClass('loading')) {
 					return;
 				}
 
-				self.log('Bookmark button clicked:', { postId, storyId, chapterId });
+				self.log('Follow button clicked:', { postId, storyId, chapterId, isLoggedIn });
 
 				// Toggle in localStorage immediately
-				const entry = FanficLocalStore.toggleBookmark(storyId, chapterId);
-				const isNowBookmarked = !!entry.bookmark;
+				const entry = FanficLocalStore.toggleFollow(storyId, chapterId);
+				const isNowFollowed = !!entry.follow;
+
+				// Auto-follow parent story when following a chapter
+				if (isNowFollowed && chapterId > 0 && storyId > 0) {
+					FanficLocalStore.setFollow(storyId, 0, true);
+					// Update any story-level follow buttons on page
+					self.updateStoryFollowButtons(storyId, true);
+					self.updateBadges();
+				}
 
 				// Optimistic UI update
-				self.updateBookmarkDisplay($button, isNowBookmarked);
+				self.updateFollowDisplay($button, isNowFollowed);
+				self.updateBadges();
+
+				// Optimistic follow count update
+				self.adjustCount('.fanfic-follow-count', isNowFollowed ? 1 : -1, function(count) {
+					if (count === 0) { return ''; }
+					return count + (count === 1 ? ' follow' : ' follows');
+				});
+
+				// For logged-out users following (not unfollowing), show email modal
+				if (!isLoggedIn && isNowFollowed) {
+					self._pendingFollowData = { postId: postId, $button: $button, wasFollowed: !isNowFollowed, storyId: storyId, chapterId: chapterId };
+					self.showFollowEmailModal();
+					return;
+				}
+
+				// For logged-out users unfollowing, pass saved email so server can unsubscribe
+				var unfollowEmail = null;
+				if (!isLoggedIn && !isNowFollowed) {
+					try {
+						unfollowEmail = window.localStorage.getItem('fanfic_user_email') || null;
+					} catch (err) {}
+				}
 
 				// AJAX to server
-				self.toggleBookmark(postId, $button, !isNowBookmarked);
+				self.toggleFollow(postId, $button, !isNowFollowed, unfollowEmail);
 			});
 		},
 
 		/**
-		 * Initialize email subscription forms
+		 * Initialize follow email modal handlers
 		 */
-		initEmailSubscriptionForms: function() {
+		initFollowEmailModal: function() {
 			const self = this;
+			const $modal = $('#fanfic-follow-email-modal');
 
-			$(document).on('submit', '.fanfic-email-subscription-form', function(e) {
+			if (!$modal.length) {
+				return;
+			}
+
+			// Close modal handlers
+			$modal.on('click', '.fanfic-modal-overlay, .fanfic-modal-close', function(e) {
 				e.preventDefault();
+				self.closeFollowEmailModal('follow_only');
+			});
 
-				const $form = $(this);
-				const $submitButton = $form.find('button[type="submit"]');
-				const $emailInput = $form.find('input[type="email"]');
-				const email = $emailInput.val().trim();
-				const targetId = $form.data('target-id');
-				const subscriptionType = $form.data('subscription-type') || 'story';
+			// "Follow Only" button
+			$modal.on('click', '.fanfic-follow-only-btn', function(e) {
+				e.preventDefault();
+				self.closeFollowEmailModal('follow_only');
+			});
 
-				// Validate email
+			// "Follow & Subscribe" button
+			$modal.on('click', '.fanfic-follow-subscribe-btn', function(e) {
+				e.preventDefault();
+				const email = $modal.find('.fanfic-follow-email-input').val().trim();
+
 				if (!self.validateEmail(email)) {
-					self.showError($form, 'Please enter a valid email address.');
+					self.showError($modal.find('.fanfic-modal-body'), 'Please enter a valid email address.');
 					return;
 				}
 
-				// Prevent double-submit
-				if ($submitButton.hasClass('loading')) {
-					return;
+				// Store email for future use
+				try {
+					window.localStorage.setItem('fanfic_user_email', email);
+				} catch (err) {}
+
+				self.closeFollowEmailModal('follow_subscribe', email);
+			});
+
+			// Close on Escape key
+			$(document).on('keydown', function(e) {
+				if (e.key === 'Escape' && $modal.is(':visible')) {
+					self.closeFollowEmailModal('follow_only');
 				}
+			});
+		},
 
-				self.log('Email subscription form submitted:', { email, targetId, subscriptionType });
+		/**
+		 * Show the follow email modal for logged-out users
+		 */
+		showFollowEmailModal: function() {
+			const $modal = $('#fanfic-follow-email-modal');
+			if (!$modal.length) {
+				// No modal on page — just send AJAX without email
+				if (this._pendingFollowData) {
+					this.toggleFollow(this._pendingFollowData.postId, this._pendingFollowData.$button, this._pendingFollowData.wasFollowed);
+					this._pendingFollowData = null;
+				}
+				return;
+			}
 
-				// Show loading state
-				$submitButton.addClass('loading').prop('disabled', true);
+			// Pre-fill email from localStorage
+			var savedEmail = '';
+			try {
+				savedEmail = window.localStorage.getItem('fanfic_user_email') || '';
+			} catch (err) {}
+			$modal.find('.fanfic-follow-email-input').val(savedEmail);
 
-				// Submit subscription
-				self.subscribeEmail(email, targetId, subscriptionType, $form);
+			// Show modal
+			$modal.fadeIn(200);
+		},
+
+		/**
+		 * Close follow email modal and send AJAX
+		 */
+		closeFollowEmailModal: function(action, email) {
+			$('#fanfic-follow-email-modal').fadeOut(200);
+
+			if (!this._pendingFollowData) {
+				return;
+			}
+
+			var data = this._pendingFollowData;
+			this._pendingFollowData = null;
+
+			// Send AJAX with or without email
+			this.toggleFollow(data.postId, data.$button, data.wasFollowed, email || null);
+		},
+
+		/**
+		 * Update all story-level follow buttons on the page
+		 */
+		updateStoryFollowButtons: function(storyId, isFollowed) {
+			var self = this;
+			$('.fanfic-follow-button[data-story-id="' + storyId + '"][data-chapter-id="0"], .fanfic-button-follow[data-story-id="' + storyId + '"][data-chapter-id="0"]').each(function() {
+				self.updateFollowDisplay($(this), isFollowed);
+			});
+		},
+
+		/**
+		 * Update badge visibility from localStorage
+		 */
+		updateBadges: function() {
+			// Following badges (story-level: chapter_id = 0)
+			$('.fanfic-badge-following[data-badge-story-id]').each(function() {
+				var storyId = parseInt($(this).data('badge-story-id'), 10);
+				var entry = FanficLocalStore.getChapter(storyId, 0);
+				$(this).toggle(!!(entry && entry.follow));
+			});
+
+			// Bookmarked badges (chapter-level)
+			$('.fanfic-badge-bookmarked[data-badge-story-id][data-badge-chapter-id]').each(function() {
+				var storyId = parseInt($(this).data('badge-story-id'), 10);
+				var chapterId = parseInt($(this).data('badge-chapter-id'), 10);
+				var entry = FanficLocalStore.getChapter(storyId, chapterId);
+				$(this).toggle(!!(entry && entry.follow));
 			});
 		},
 
@@ -373,36 +490,6 @@
 	},
 
 	/**
-	 * Initialize subscribe buttons (open modal)
-	 */
-	initSubscribeButtons: function() {
-		const self = this;
-
-		$(document).on('click', '.fanfic-subscribe-button', function(e) {
-			e.preventDefault();
-
-			const $button = $(this);
-			const targetId = $button.data('target-id');
-			const subscriptionType = $button.data('subscription-type');
-
-			self.log('Subscribe button clicked:', { targetId, subscriptionType });
-
-			// Open the subscription modal
-			const modalId = 'fanfic-subscribe-modal-' + subscriptionType + '-' + targetId;
-			
-			// Use EnhancedModal if available, otherwise use basic Modal
-			if (typeof window.EnhancedModal !== 'undefined') {
-				window.EnhancedModal.open(modalId);
-			} else if (typeof window.Modal !== 'undefined') {
-				window.Modal.open(modalId);
-			} else {
-				// Fallback: just show the modal
-				$('#' + modalId).fadeIn(200);
-			}
-		});
-	},
-
-	/**
 	 * Initialize login-required buttons (show balloon on hover)
 	 */
 	initLoginRequiredButtons: function() {
@@ -488,15 +575,15 @@
 		},
 
 		/**
-		 * Toggle bookmark on server (supports anonymous via UUID)
+		 * Toggle follow on server (supports anonymous via UUID)
 		 */
-		toggleBookmark: function(postId, $button, wasBookmarked) {
+		toggleFollow: function(postId, $button, wasFollowed, email) {
 			const self = this;
 
 			$button.addClass('loading');
 
 			const payload = {
-				action: 'fanfic_toggle_bookmark',
+				action: 'fanfic_toggle_follow',
 				nonce: this.config.nonce,
 				post_id: postId
 			};
@@ -506,28 +593,45 @@
 					payload.anonymous_uuid = anonymousUuid;
 				}
 			}
+			if (email) {
+				payload.email = email;
+			}
 
 			$.ajax({
 				url: this.config.ajaxUrl,
 				type: 'POST',
 				data: payload,
 				success: function(response) {
-					self.log('Bookmark response:', response);
+					self.log('Follow response:', response);
 
 					if (response.success) {
-						const isBookmarked = response.data.data.is_bookmarked;
-						self.updateBookmarkDisplay($button, isBookmarked);
-						self.showSuccess($button, response.data.message || (isBookmarked ? self.strings.bookmarkAdded : self.strings.bookmarkRemoved));
+						const isFollowed = response.data.data.is_followed;
+						self.updateFollowDisplay($button, isFollowed);
+						self.updateBadges();
+
+						// Server-authoritative follow count correction
+						if (response.data.data.follow_count !== undefined) {
+							$('.fanfic-follow-count').each(function() {
+								var $el = $(this);
+								var count = parseInt(response.data.data.follow_count, 10);
+								$el.data('count', count);
+								if (count === 0) { $el.text(''); }
+								else { $el.text(count + (count === 1 ? ' follow' : ' follows')); }
+							});
+						}
+
+						self.showSuccess($button, response.data.message || (isFollowed ? self.strings.followAdded : self.strings.followRemoved));
 					} else {
 						// Revert optimistic update + localStorage
-						self.revertBookmarkLocal($button, wasBookmarked);
+						self.revertFollowLocal($button, wasFollowed);
+						self.updateBadges();
 						self.showError($button, response.data.message || self.strings.error);
 					}
 				},
 				error: function(xhr) {
-					self.log('Bookmark error:', xhr);
+					self.log('Follow error:', xhr);
 					// Revert optimistic update + localStorage
-					self.revertBookmarkLocal($button, wasBookmarked);
+					self.revertFollowLocal($button, wasFollowed);
 					self.handleAjaxError(xhr, $button);
 				},
 				complete: function() {
@@ -537,52 +641,14 @@
 		},
 
 		/**
-		 * Revert bookmark in localStorage and UI on error
+		 * Revert follow in localStorage and UI on error
 		 */
-		revertBookmarkLocal: function($button, wasBookmarked) {
+		revertFollowLocal: function($button, wasFollowed) {
 			const storyId = parseInt($button.data('story-id'), 10) || 0;
 			const chapterId = parseInt($button.data('chapter-id'), 10) || 0;
 			// Toggle back to previous state
-			FanficLocalStore.toggleBookmark(storyId, chapterId);
-			this.updateBookmarkDisplay($button, wasBookmarked);
-		},
-
-		/**
-		 * Subscribe email on server
-		 */
-		subscribeEmail: function(email, targetId, subscriptionType, $form) {
-			const self = this;
-			const $submitButton = $form.find('button[type="submit"]');
-
-			$.ajax({
-				url: this.config.ajaxUrl,
-				type: 'POST',
-				data: {
-					action: 'fanfic_subscribe_email',
-					nonce: this.config.nonce,
-					email: email,
-					target_id: targetId,
-					subscription_type: subscriptionType
-				},
-				success: function(response) {
-					self.log('Email subscription response:', response);
-
-					if (response.success) {
-						// Clear form
-						$form.find('input[type="email"]').val('');
-						self.showSuccess($form, response.data.message || self.strings.subscribed);
-					} else {
-						self.showError($form, response.data.message || self.strings.error);
-					}
-				},
-				error: function(xhr) {
-					self.log('Email subscription error:', xhr);
-					self.handleAjaxError(xhr, $form);
-				},
-				complete: function() {
-					$submitButton.removeClass('loading').prop('disabled', false);
-				}
-			});
+			FanficLocalStore.toggleFollow(storyId, chapterId);
+			this.updateFollowDisplay($button, wasFollowed);
 		},
 
 		/**
@@ -690,15 +756,15 @@
 		},
 
 		/**
-		 * Update bookmark display (optimistic)
+		 * Update follow display (optimistic)
 		 */
-		updateBookmarkDisplay: function($button, isBookmarked) {
-			if (isBookmarked) {
-				$button.addClass('fanfic-button-bookmarked');
-				$button.find('.bookmark-text').text($button.data('bookmarked-text') || 'Bookmarked');
+		updateFollowDisplay: function($button, isFollowed) {
+			if (isFollowed) {
+				$button.addClass('fanfic-button-followed');
+				$button.find('.follow-text').text($button.data('followed-text') || 'Followed');
 			} else {
-				$button.removeClass('fanfic-button-bookmarked');
-				$button.find('.bookmark-text').text($button.data('bookmark-text') || 'Bookmark');
+				$button.removeClass('fanfic-button-followed');
+				$button.find('.follow-text').text($button.data('follow-text') || 'Follow');
 			}
 		},
 
@@ -722,11 +788,13 @@
 			// Update average rating
 			if (data.rating_average !== undefined) {
 				$widget.find('.fanfic-rating-average').text(data.rating_average.toFixed(1));
+				$widget.data('avg', data.rating_average);
 			}
 
 			// Update count display
 			if (data.rating_count !== undefined) {
 				const count = parseInt(data.rating_count);
+				$widget.data('count', count);
 				const $countEl = $widget.find('.fanfic-rating-count');
 
 				if (count === 0) {
@@ -975,21 +1043,33 @@
 			return entry;
 		},
 
-		toggleBookmark: function(storyId, chapterId) {
+		toggleFollow: function(storyId, chapterId) {
 			const entry = this.getChapter(storyId, chapterId) || {};
-			if (entry.bookmark) {
-				delete entry.bookmark;
+			if (entry.follow) {
+				delete entry.follow;
 			} else {
-				entry.bookmark = true;
+				entry.follow = true;
 			}
 			entry.timestamp = Date.now();
 			this.setChapter(storyId, chapterId, entry);
 			return entry;
 		},
 
-		isBookmarked: function(storyId, chapterId) {
+		setFollow: function(storyId, chapterId, followed) {
+			const entry = this.getChapter(storyId, chapterId) || {};
+			if (followed) {
+				entry.follow = true;
+			} else {
+				delete entry.follow;
+			}
+			entry.timestamp = Date.now();
+			this.setChapter(storyId, chapterId, entry);
+			return entry;
+		},
+
+		isFollowed: function(storyId, chapterId) {
 			const entry = this.getChapter(storyId, chapterId);
-			return !!(entry && entry.bookmark);
+			return !!(entry && entry.follow);
 		},
 
 		mergeFromServer: function(merged) {
@@ -1044,17 +1124,30 @@
 			if (!this.context) {
 				return;
 			}
+			const self = this;
 			const storyId = this.context.storyId;
 			const chapterId = this.context.chapterId;
 			if (FanficLocalStore.hasViewed(storyId, chapterId)) {
 				return;
 			}
 			FanficLocalStore.recordView(storyId, chapterId);
+
+			// Optimistic view count update (+1)
+			this.adjustCount('.fanfic-view-count', 1, function(count) {
+				if (count === 1) { return '1 view'; }
+				return count + ' views';
+			});
+
 			$.post(this.config.ajaxUrl, {
 				action: 'fanfic_record_view',
 				nonce: this.config.nonce,
 				chapter_id: chapterId,
 				story_id: storyId
+			}).done(function(response) {
+				// Correct with server value if available
+				if (response && response.data && response.data.data && response.data.data.stats) {
+					self.applyStatsToCountElements(response.data.data.stats);
+				}
 			});
 		},
 
@@ -1090,8 +1183,17 @@
 				e.preventDefault();
 				const storyId = parseInt($(this).data('story-id'), 10);
 				const chapterId = parseInt($(this).data('chapter-id'), 10);
+				const wasLiked = FanficLocalStore.getChapter(storyId, chapterId);
+				const hadLike = !!(wasLiked && wasLiked.like);
 				const entry = FanficLocalStore.toggleLike(storyId, chapterId);
 				self.applyUiFromLocal();
+
+				// Optimistic like count update
+				self.adjustCount('.fanfic-like-count', hadLike ? -1 : 1, function(count) {
+					if (count === 1) { return '1 like'; }
+					return count + ' likes';
+				});
+
 				self.postInteraction(entry.like ? 'like' : 'remove_like', null, chapterId);
 			});
 
@@ -1120,13 +1222,23 @@
 				if (!storyId || !chapterId || !value) {
 					return;
 				}
+
+				// Get old rating before updating localStorage
+				var oldEntry = FanficLocalStore.getChapter(storyId, chapterId) || {};
+				var oldRating = oldEntry.rating ? parseFloat(oldEntry.rating) : 0;
+
 				FanficLocalStore.setRating(storyId, chapterId, value);
 				self.applyUiFromLocal();
+
+				// Optimistic average/count update
+				self.optimisticRatingUpdate(oldRating, value);
+
 				self.postInteraction('rating', value, chapterId);
 			});
 		},
 
 		postInteraction: function(type, value, chapterId) {
+			const self = this;
 			const finalChapterId = chapterId || (this.context ? this.context.chapterId : 0);
 			if (!finalChapterId) {
 				return;
@@ -1143,7 +1255,12 @@
 			if (value !== undefined && value !== null) {
 				payload.value = value;
 			}
-			$.post(this.config.ajaxUrl, payload);
+			$.post(this.config.ajaxUrl, payload).done(function(response) {
+				// Correct counts from server response
+				if (response && response.data && response.data.data && response.data.data.stats) {
+					self.applyStatsToCountElements(response.data.data.stats);
+				}
+			});
 		},
 
 		initSyncOnLogin: function() {
@@ -1180,6 +1297,128 @@
 			});
 		},
 
+		/**
+		 * Optimistically adjust a count element by a delta (+1 or -1)
+		 *
+		 * @param {string}   selector  CSS selector for the count element
+		 * @param {number}   delta     Amount to adjust (+1 or -1)
+		 * @param {function} formatter Function(count) returning display text
+		 */
+		adjustCount: function(selector, delta, formatter) {
+			$(selector).each(function() {
+				var $el = $(this);
+				var current = parseInt($el.data('count'), 10) || 0;
+				var updated = Math.max(0, current + delta);
+				$el.data('count', updated);
+				$el.text(formatter(updated));
+			});
+		},
+
+		/**
+		 * Optimistically update rating average and count on all rating widgets
+		 *
+		 * @param {number} oldRating Previous user rating (0 if new)
+		 * @param {number} newRating New user rating
+		 */
+		optimisticRatingUpdate: function(oldRating, newRating) {
+			$('.fanfic-rating-widget, .fanfic-story-rating-display, .fanfic-story-rating').each(function() {
+				var $container = $(this);
+				var currentAvg = parseFloat($container.data('avg')) || 0;
+				var currentCount = parseInt($container.data('count'), 10) || 0;
+				var newAvg, newCount;
+
+				if (oldRating > 0) {
+					// Changing existing rating: count stays same
+					newCount = currentCount;
+					if (newCount > 0) {
+						newAvg = (currentAvg * currentCount - oldRating + newRating) / newCount;
+					} else {
+						newAvg = newRating;
+						newCount = 1;
+					}
+				} else {
+					// New rating
+					newCount = currentCount + 1;
+					newAvg = (currentAvg * currentCount + newRating) / newCount;
+				}
+
+				newAvg = Math.max(0, Math.min(5, newAvg));
+
+				// Update data attributes
+				$container.data('avg', newAvg);
+				$container.data('count', newCount);
+
+				// Update display text
+				$container.find('.fanfic-rating-average').text(newAvg.toFixed(1));
+				var $countEl = $container.find('.fanfic-rating-count');
+				if (newCount === 0) {
+					$countEl.text('(No ratings yet)');
+				} else if (newCount === 1) {
+					$countEl.text('(1 rating)');
+				} else {
+					$countEl.text('(' + newCount + ' ratings)');
+				}
+			});
+		},
+
+		/**
+		 * Apply authoritative server stats to all count elements on the page
+		 *
+		 * @param {object} stats Server stats object {views, likes, dislikes, rating_avg, rating_count}
+		 */
+		applyStatsToCountElements: function(stats) {
+			if (!stats) {
+				return;
+			}
+
+			if (stats.views !== undefined) {
+				$('.fanfic-view-count').each(function() {
+					var $el = $(this);
+					var count = parseInt(stats.views, 10);
+					$el.data('count', count);
+					$el.text(count + (count === 1 ? ' view' : ' views'));
+				});
+			}
+
+			if (stats.likes !== undefined) {
+				$('.fanfic-like-count').each(function() {
+					var $el = $(this);
+					var count = parseInt(stats.likes, 10);
+					$el.data('count', count);
+					if (count === 0) {
+						$el.text('');
+					} else {
+						$el.text(count + (count === 1 ? ' like' : ' likes'));
+					}
+				});
+			}
+
+			if (stats.follow_count !== undefined) {
+				$('.fanfic-follow-count').each(function() {
+					var $el = $(this);
+					var count = parseInt(stats.follow_count, 10);
+					$el.data('count', count);
+					if (count === 0) { $el.text(''); }
+					else { $el.text(count + (count === 1 ? ' follow' : ' follows')); }
+				});
+			}
+
+			if (stats.rating_avg !== undefined && stats.rating_count !== undefined) {
+				var avg = parseFloat(stats.rating_avg) || 0;
+				var rCount = parseInt(stats.rating_count, 10) || 0;
+				$('.fanfic-rating-widget, .fanfic-story-rating-display, .fanfic-story-rating').each(function() {
+					var $c = $(this);
+					$c.data('avg', avg);
+					$c.data('count', rCount);
+					$c.find('.fanfic-rating-average').text(avg.toFixed(1));
+					var $countEl = $c.find('.fanfic-rating-count');
+					if (rCount === 0) { $countEl.text('(No ratings yet)'); }
+					else if (rCount === 1) { $countEl.text('(1 rating)'); }
+					else { $countEl.text('(' + rCount + ' ratings)'); }
+				});
+			}
+		},
+
 		applyUiFromLocal: function() {
 			if (!this.context) {
 				return;
@@ -1202,22 +1441,25 @@
 				});
 			});
 
-			// Apply bookmark state for chapter-level bookmark button
-			$('.fanfic-bookmark-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], .fanfic-button-bookmark[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').each(function() {
+			// Apply follow state for chapter-level follow button
+			$('.fanfic-follow-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], .fanfic-button-follow[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').each(function() {
 				const $btn = $(this);
-				const isBookmarked = !!entry.bookmark;
-				$btn.toggleClass('fanfic-button-bookmarked', isBookmarked);
-				$btn.find('.bookmark-text').text(isBookmarked ? ($btn.data('bookmarked-text') || 'Bookmarked') : ($btn.data('bookmark-text') || 'Bookmark'));
+				const isFollowed = !!entry.follow;
+				$btn.toggleClass('fanfic-button-followed', isFollowed);
+				$btn.find('.follow-text').text(isFollowed ? ($btn.data('followed-text') || 'Followed') : ($btn.data('follow-text') || 'Follow'));
 			});
 
-			// Apply bookmark state for story-level bookmark button (chapter_id=0)
+			// Apply follow state for story-level follow button (chapter_id=0)
 			const storyEntry = FanficLocalStore.getChapter(storyId, 0) || {};
-			$('.fanfic-bookmark-button[data-story-id="' + storyId + '"][data-chapter-id="0"], .fanfic-button-bookmark[data-story-id="' + storyId + '"][data-chapter-id="0"]').each(function() {
+			$('.fanfic-follow-button[data-story-id="' + storyId + '"][data-chapter-id="0"], .fanfic-button-follow[data-story-id="' + storyId + '"][data-chapter-id="0"]').each(function() {
 				const $btn = $(this);
-				const isBookmarked = !!storyEntry.bookmark;
-				$btn.toggleClass('fanfic-button-bookmarked', isBookmarked);
-				$btn.find('.bookmark-text').text(isBookmarked ? ($btn.data('bookmarked-text') || 'Bookmarked') : ($btn.data('bookmark-text') || 'Bookmark'));
+				const isFollowed = !!storyEntry.follow;
+				$btn.toggleClass('fanfic-button-followed', isFollowed);
+				$btn.find('.follow-text').text(isFollowed ? ($btn.data('followed-text') || 'Followed') : ($btn.data('follow-text') || 'Follow'));
 			});
+
+			// Update badges
+			FanficInteractions.updateBadges();
 		}
 	};
 

@@ -47,7 +47,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.7.0';
+	const DB_VERSION = '1.8.0';
 
 	/**
 	 * Option name for database version tracking
@@ -71,6 +71,9 @@ class Fanfic_Database_Setup {
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
+
+		// Run migrations for version upgrades.
+		self::maybe_run_migrations();
 
 		// Set database version
 		self::set_db_version( self::DB_VERSION );
@@ -126,7 +129,7 @@ class Fanfic_Database_Setup {
 			target_id bigint(20) UNSIGNED NOT NULL,
 			subscription_type enum('story','author') NOT NULL,
 			token varchar(64) NOT NULL,
-			verified tinyint(1) NOT NULL DEFAULT 0,
+			verified tinyint(1) NOT NULL DEFAULT 1,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			UNIQUE KEY unique_subscription (email, target_id, subscription_type),
@@ -377,7 +380,7 @@ class Fanfic_Database_Setup {
 			user_id bigint(20) UNSIGNED NULL DEFAULT NULL,
 			anon_hash binary(32) DEFAULT NULL,
 			chapter_id bigint(20) UNSIGNED NOT NULL,
-			interaction_type enum('like','dislike','rating','view','read','bookmark') NOT NULL,
+			interaction_type enum('like','dislike','rating','view','read','follow') NOT NULL,
 			`value` decimal(3,1) DEFAULT NULL,
 			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -478,7 +481,7 @@ class Fanfic_Database_Setup {
 			rating_month_stamp int(11) NOT NULL DEFAULT 0,
 			trending_week double NOT NULL DEFAULT 0,
 			trending_month double NOT NULL DEFAULT 0,
-			bookmark_count bigint(20) NOT NULL DEFAULT 0,
+			follow_count bigint(20) NOT NULL DEFAULT 0,
 			fandom_slugs text,
 			language_slug varchar(50) DEFAULT '',
 			translation_group_id bigint(20) UNSIGNED DEFAULT 0,
@@ -502,7 +505,7 @@ class Fanfic_Database_Setup {
 			KEY idx_rating_avg_month (rating_avg_month),
 			KEY idx_trending_week (trending_week),
 			KEY idx_trending_month (trending_month),
-			KEY idx_bookmark_count (bookmark_count),
+			KEY idx_follow_count (follow_count),
 			KEY idx_language (language_slug),
 			KEY idx_translation_group (translation_group_id),
 			KEY idx_age_rating (age_rating),
@@ -915,6 +918,25 @@ class Fanfic_Database_Setup {
 
 
 	/**
+	 * Run database migrations for version upgrades.
+	 *
+	 * @since 1.8.0
+	 * @return void
+	 */
+	private static function maybe_run_migrations() {
+		$current_version = self::get_db_version();
+
+		// v1.8.0: Email subscriptions no longer require verification.
+		if ( version_compare( $current_version, '1.8.0', '<' ) ) {
+			global $wpdb;
+			$table = $wpdb->prefix . 'fanfic_email_subscriptions';
+			if ( self::verify_table_exists( $table ) ) {
+				$wpdb->query( "UPDATE {$table} SET verified = 1 WHERE verified = 0" );
+			}
+		}
+	}
+
+	/**
 	 * Verify that a table exists in the database
 	 *
 	 * @since 1.0.0
@@ -1048,7 +1070,7 @@ class Fanfic_Database_Setup {
 		$stats = array(
 			'total_ratings'       => 0,
 			'total_likes'         => 0,
-			'total_bookmarks'     => 0,
+			'total_follows'     => 0,
 			'total_reads'         => 0,
 			'total_notifications' => 0,
 			'total_coauthors'     => 0,
@@ -1064,8 +1086,8 @@ class Fanfic_Database_Setup {
 			"SELECT COUNT(*) FROM {$prefix}fanfic_interactions WHERE interaction_type = 'like'"
 		);
 
-		$stats['total_bookmarks'] = (int) $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$prefix}fanfic_interactions WHERE interaction_type = 'bookmark'"
+		$stats['total_follows'] = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$prefix}fanfic_interactions WHERE interaction_type = 'follow'"
 		);
 
 		$stats['total_reads'] = (int) $wpdb->get_var(

@@ -1,8 +1,8 @@
 <?php
 /**
- * Bookmarks System Class
+ * Follows System Class
  *
- * Handles story and chapter bookmark functionality via the unified interactions table.
+ * Handles story and chapter follow functionality via the unified interactions table.
  *
  * @package FanfictionManager
  * @since 1.8.0
@@ -14,14 +14,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Class Fanfic_Bookmarks
+ * Class Fanfic_Follows
  *
- * Bookmark system backed by wp_fanfic_interactions WHERE interaction_type = 'bookmark'.
- * Supports both story and chapter bookmarks, anonymous + authenticated users.
+ * Follow system backed by wp_fanfic_interactions WHERE interaction_type = 'follow'.
+ * Supports both story and chapter follows, anonymous + authenticated users.
  *
  * @since 1.8.0
  */
-class Fanfic_Bookmarks {
+class Fanfic_Follows {
 
 	/**
 	 * In-request cache for read chapters by user/story.
@@ -38,15 +38,15 @@ class Fanfic_Bookmarks {
 	private static $latest_chapter_cache = array();
 
 	/**
-	 * Toggle bookmark for a post (story or chapter).
+	 * Toggle follow for a post (story or chapter).
 	 *
 	 * @since 1.8.0
 	 * @param int    $user_id        User ID (0 for anonymous).
 	 * @param int    $post_id        Post ID (story or chapter).
 	 * @param string $anonymous_uuid Anonymous UUID (empty for logged-in users).
-	 * @return array Result with is_bookmarked status.
+	 * @return array Result with is_followed status.
 	 */
-	public static function toggle_bookmark( $user_id, $post_id, $anonymous_uuid = '' ) {
+	public static function toggle_follow( $user_id, $post_id, $anonymous_uuid = '' ) {
 		$user_id = absint( $user_id );
 		$post_id = absint( $post_id );
 
@@ -59,21 +59,51 @@ class Fanfic_Bookmarks {
 			return array( 'success' => false, 'error' => 'Post not found' );
 		}
 
-		$result = Fanfic_Interactions::toggle_bookmark( $post_id, $user_id, $anonymous_uuid );
+		$result = Fanfic_Interactions::toggle_follow( $post_id, $user_id, $anonymous_uuid );
 		if ( is_wp_error( $result ) ) {
 			return array( 'success' => false, 'error' => $result->get_error_message() );
 		}
 
-		self::clear_bookmark_cache( $post_id, $user_id );
+		self::clear_follow_cache( $post_id, $user_id );
+
+		// Auto-follow parent story when following a chapter.
+		if ( ! empty( $result['is_followed'] ) && 'fanfiction_chapter' === $post->post_type ) {
+			self::auto_follow_parent_story( $user_id, $post_id, $anonymous_uuid );
+		}
 
 		return array(
 			'success'       => true,
-			'is_bookmarked' => ! empty( $result['is_bookmarked'] ),
+			'is_followed' => ! empty( $result['is_followed'] ),
 		);
 	}
 
 	/**
-	 * Check if post is bookmarked.
+	 * Auto-follow parent story when a chapter is followed.
+	 *
+	 * Ensures the parent story is followed (idempotent) and clears caches.
+	 *
+	 * @since 1.8.0
+	 * @param int    $user_id        User ID (0 for anonymous).
+	 * @param int    $chapter_id     Chapter post ID.
+	 * @param string $anonymous_uuid Anonymous UUID.
+	 * @return void
+	 */
+	public static function auto_follow_parent_story( $user_id, $chapter_id, $anonymous_uuid = '' ) {
+		$chapter = get_post( $chapter_id );
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || ! $chapter->post_parent ) {
+			return;
+		}
+
+		$story_id = absint( $chapter->post_parent );
+		$was_new  = Fanfic_Interactions::upsert_follow( $story_id, $user_id, $anonymous_uuid );
+
+		if ( $was_new ) {
+			self::clear_follow_cache( $story_id, $user_id );
+		}
+	}
+
+	/**
+	 * Check if post is followed.
 	 *
 	 * @since 1.8.0
 	 * @param int    $user_id        User ID.
@@ -81,24 +111,24 @@ class Fanfic_Bookmarks {
 	 * @param string $anonymous_uuid Anonymous UUID.
 	 * @return bool
 	 */
-	public static function is_bookmarked( $user_id, $post_id, $anonymous_uuid = '' ) {
-		return Fanfic_Interactions::has_bookmark( $post_id, $user_id, $anonymous_uuid );
+	public static function is_followed( $user_id, $post_id, $anonymous_uuid = '' ) {
+		return Fanfic_Interactions::has_follow( $post_id, $user_id, $anonymous_uuid );
 	}
 
 	/**
-	 * Get bookmark count for a post.
+	 * Get follow count for a post.
 	 *
 	 * @since 1.8.0
 	 * @param int $post_id Post ID.
 	 * @return int
 	 */
-	public static function get_bookmark_count( $post_id ) {
+	public static function get_follow_count( $post_id ) {
 		$post_id = absint( $post_id );
 		if ( ! $post_id ) {
 			return 0;
 		}
 
-		$cache_key = 'fanfic_bookmark_count_' . $post_id;
+		$cache_key = 'fanfic_follow_count_' . $post_id;
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
 			return absint( $cached );
@@ -110,7 +140,7 @@ class Fanfic_Bookmarks {
 		$count = (int) $wpdb->get_var(
 			$wpdb->prepare(
 				"SELECT COUNT(*) FROM {$table}
-				WHERE chapter_id = %d AND interaction_type = 'bookmark'",
+				WHERE chapter_id = %d AND interaction_type = 'follow'",
 				$post_id
 			)
 		);
@@ -121,25 +151,25 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Get user's bookmarked posts.
+	 * Get user's followed posts.
 	 *
 	 * @since 1.8.0
 	 * @param int    $user_id       User ID.
-	 * @param string $bookmark_type 'story' or 'chapter'.
+	 * @param string $follow_type 'story' or 'chapter'.
 	 * @param int    $limit         Limit.
 	 * @param int    $offset        Offset.
-	 * @return array Array of bookmark data.
+	 * @return array Array of follow data.
 	 */
-	public static function get_user_bookmarks( $user_id, $bookmark_type = 'story', $limit = 50, $offset = 0 ) {
+	public static function get_user_follows( $user_id, $follow_type = 'story', $limit = 50, $offset = 0 ) {
 		$user_id = absint( $user_id );
 		$limit   = absint( $limit );
 		$offset  = absint( $offset );
 
-		if ( ! $user_id || ! in_array( $bookmark_type, array( 'story', 'chapter' ), true ) ) {
+		if ( ! $user_id || ! in_array( $follow_type, array( 'story', 'chapter' ), true ) ) {
 			return array();
 		}
 
-		$post_type = ( 'story' === $bookmark_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
+		$post_type = ( 'story' === $follow_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
 
 		global $wpdb;
 		$table       = $wpdb->prefix . 'fanfic_interactions';
@@ -151,7 +181,7 @@ class Fanfic_Bookmarks {
 				FROM {$table} i
 				INNER JOIN {$posts_table} p ON p.ID = i.chapter_id
 				WHERE i.user_id = %d
-				  AND i.interaction_type = 'bookmark'
+				  AND i.interaction_type = 'follow'
 				  AND p.post_type = %s
 				  AND p.post_status = 'publish'
 				ORDER BY i.created_at DESC
@@ -164,30 +194,30 @@ class Fanfic_Bookmarks {
 			ARRAY_A
 		);
 
-		// Add bookmark_type to each result for rendering.
+		// Add follow_type to each result for rendering.
 		foreach ( $results as &$row ) {
-			$row['bookmark_type'] = $bookmark_type;
+			$row['follow_type'] = $follow_type;
 		}
 
 		return $results;
 	}
 
 	/**
-	 * Get user's bookmark count by type.
+	 * Get user's follow count by type.
 	 *
 	 * @since 1.8.0
 	 * @param int    $user_id       User ID.
-	 * @param string $bookmark_type 'story' or 'chapter'.
+	 * @param string $follow_type 'story' or 'chapter'.
 	 * @return int
 	 */
-	public static function get_bookmarks_count( $user_id, $bookmark_type = 'story' ) {
+	public static function get_follows_count( $user_id, $follow_type = 'story' ) {
 		$user_id = absint( $user_id );
 
-		if ( ! $user_id || ! in_array( $bookmark_type, array( 'story', 'chapter' ), true ) ) {
+		if ( ! $user_id || ! in_array( $follow_type, array( 'story', 'chapter' ), true ) ) {
 			return 0;
 		}
 
-		$post_type = ( 'story' === $bookmark_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
+		$post_type = ( 'story' === $follow_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
 
 		global $wpdb;
 		$table       = $wpdb->prefix . 'fanfic_interactions';
@@ -199,7 +229,7 @@ class Fanfic_Bookmarks {
 				FROM {$table} i
 				INNER JOIN {$posts_table} p ON p.ID = i.chapter_id
 				WHERE i.user_id = %d
-				  AND i.interaction_type = 'bookmark'
+				  AND i.interaction_type = 'follow'
 				  AND p.post_type = %s
 				  AND p.post_status = 'publish'",
 				$user_id,
@@ -211,14 +241,14 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Batch get bookmark status for multiple posts.
+	 * Batch get follow status for multiple posts.
 	 *
 	 * @since 1.8.0
 	 * @param int   $user_id  User ID.
 	 * @param array $post_ids Post IDs.
 	 * @return array post_id => bool
 	 */
-	public static function batch_get_bookmark_status( $user_id, $post_ids ) {
+	public static function batch_get_follow_status( $user_id, $post_ids ) {
 		$user_id  = absint( $user_id );
 		$post_ids = array_values( array_filter( array_map( 'absint', (array) $post_ids ) ) );
 
@@ -232,17 +262,17 @@ class Fanfic_Bookmarks {
 		$table        = $wpdb->prefix . 'fanfic_interactions';
 		$placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
 
-		$bookmarked = $wpdb->get_col(
+		$followed = $wpdb->get_col(
 			$wpdb->prepare(
 				"SELECT chapter_id FROM {$table}
 				WHERE user_id = %d
-				  AND interaction_type = 'bookmark'
+				  AND interaction_type = 'follow'
 				  AND chapter_id IN ({$placeholders})",
 				array_merge( array( $user_id ), $post_ids )
 			)
 		);
 
-		foreach ( $bookmarked as $post_id ) {
+		foreach ( $followed as $post_id ) {
 			$result[ absint( $post_id ) ] = true;
 		}
 
@@ -250,15 +280,15 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Get most bookmarked stories.
+	 * Get most followed stories.
 	 *
 	 * @since 1.8.0
 	 * @param int $limit         Limit.
-	 * @param int $min_bookmarks Minimum bookmarks.
+	 * @param int $min_follows Minimum follows.
 	 * @return array
 	 */
-	public static function get_most_bookmarked_stories( $limit = 10, $min_bookmarks = 1 ) {
-		$cache_key = 'fanfic_most_bookmarked_stories_' . $limit . '_' . $min_bookmarks;
+	public static function get_most_followed_stories( $limit = 10, $min_follows = 1 ) {
+		$cache_key = 'fanfic_most_followed_stories_' . $limit . '_' . $min_follows;
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
 			return $cached;
@@ -270,17 +300,17 @@ class Fanfic_Bookmarks {
 
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT i.chapter_id AS story_id, COUNT(*) AS bookmark_count
+				"SELECT i.chapter_id AS story_id, COUNT(*) AS follow_count
 				FROM {$table} i
 				INNER JOIN {$posts_table} p ON p.ID = i.chapter_id
-				WHERE i.interaction_type = 'bookmark'
+				WHERE i.interaction_type = 'follow'
 				  AND p.post_type = 'fanfiction_story'
 				  AND p.post_status = 'publish'
 				GROUP BY i.chapter_id
-				HAVING bookmark_count >= %d
-				ORDER BY bookmark_count DESC
+				HAVING follow_count >= %d
+				ORDER BY follow_count DESC
 				LIMIT %d",
-				absint( $min_bookmarks ),
+				absint( $min_follows ),
 				absint( $limit )
 			)
 		);
@@ -291,14 +321,14 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Get recently bookmarked stories.
+	 * Get recently followed stories.
 	 *
 	 * @since 1.8.0
 	 * @param int $limit Limit.
 	 * @return array Story IDs.
 	 */
-	public static function get_recently_bookmarked_stories( $limit = 10 ) {
-		$cache_key = 'fanfic_recently_bookmarked_stories_' . $limit;
+	public static function get_recently_followed_stories( $limit = 10 ) {
+		$cache_key = 'fanfic_recently_followed_stories_' . $limit;
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
 			return $cached;
@@ -313,7 +343,7 @@ class Fanfic_Bookmarks {
 				"SELECT DISTINCT i.chapter_id
 				FROM {$table} i
 				INNER JOIN {$posts_table} p ON p.ID = i.chapter_id
-				WHERE i.interaction_type = 'bookmark'
+				WHERE i.interaction_type = 'follow'
 				  AND p.post_type = 'fanfiction_story'
 				  AND p.post_status = 'publish'
 				ORDER BY i.created_at DESC
@@ -329,13 +359,13 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Get bookmark statistics.
+	 * Get follow statistics.
 	 *
 	 * @since 1.8.0
 	 * @return array
 	 */
-	public static function get_bookmark_stats() {
-		$cache_key = 'fanfic_bookmark_stats';
+	public static function get_follow_stats() {
+		$cache_key = 'fanfic_follow_stats';
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
 			return $cached;
@@ -345,14 +375,14 @@ class Fanfic_Bookmarks {
 		$table = $wpdb->prefix . 'fanfic_interactions';
 
 		$stats = array(
-			'total_bookmarks'         => 0,
+			'total_follows'         => 0,
 			'unique_stories'          => 0,
 			'unique_users'            => 0,
-			'avg_bookmarks_per_story' => 0,
+			'avg_follows_per_story' => 0,
 		);
 
-		$stats['total_bookmarks'] = absint( $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$table} WHERE interaction_type = 'bookmark'"
+		$stats['total_follows'] = absint( $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$table} WHERE interaction_type = 'follow'"
 		) );
 
 		$stats['unique_stories'] = absint( $wpdb->get_var(
@@ -360,7 +390,7 @@ class Fanfic_Bookmarks {
 				"SELECT COUNT(DISTINCT i.chapter_id)
 				FROM {$table} i
 				INNER JOIN {$wpdb->posts} p ON p.ID = i.chapter_id
-				WHERE i.interaction_type = 'bookmark'
+				WHERE i.interaction_type = 'follow'
 				  AND p.post_type = %s",
 				'fanfiction_story'
 			)
@@ -368,11 +398,11 @@ class Fanfic_Bookmarks {
 
 		$stats['unique_users'] = absint( $wpdb->get_var(
 			"SELECT COUNT(DISTINCT user_id) FROM {$table}
-			WHERE interaction_type = 'bookmark' AND user_id IS NOT NULL AND user_id > 0"
+			WHERE interaction_type = 'follow' AND user_id IS NOT NULL AND user_id > 0"
 		) );
 
 		if ( $stats['unique_stories'] > 0 ) {
-			$stats['avg_bookmarks_per_story'] = round( $stats['total_bookmarks'] / $stats['unique_stories'], 1 );
+			$stats['avg_follows_per_story'] = round( $stats['total_follows'] / $stats['unique_stories'], 1 );
 		}
 
 		set_transient( $cache_key, $stats, HOUR_IN_SECONDS );
@@ -381,7 +411,7 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Render user bookmarks dashboard for one type.
+	 * Render user follows dashboard for one type.
 	 *
 	 * @since 1.8.0
 	 * @param int    $user_id       User ID.
@@ -390,25 +420,25 @@ class Fanfic_Bookmarks {
 	 * @param int    $offset        Offset.
 	 * @return string HTML.
 	 */
-	public static function render_user_bookmarks_dashboard( $user_id, $type = 'story', $limit = 20, $offset = 0 ) {
+	public static function render_user_follows_dashboard( $user_id, $type = 'story', $limit = 20, $offset = 0 ) {
 		$user_id = absint( $user_id );
 		if ( ! $user_id ) {
 			return '';
 		}
 
-		$bookmarks = self::get_user_bookmarks( $user_id, $type, $limit, $offset );
+		$follows = self::get_user_follows( $user_id, $type, $limit, $offset );
 
-		if ( empty( $bookmarks ) ) {
-			return '<div class="fanfic-user-bookmarks-list"><p>' . esc_html__( 'No bookmarks found.', 'fanfiction-manager' ) . '</p></div>';
+		if ( empty( $follows ) ) {
+			return '<div class="fanfic-user-follows-list"><p>' . esc_html__( 'No follows found.', 'fanfiction-manager' ) . '</p></div>';
 		}
 
-		$output = '<div class="fanfic-user-bookmarks-list">';
+		$output = '<div class="fanfic-user-follows-list">';
 
-		foreach ( $bookmarks as $bookmark ) {
+		foreach ( $follows as $follow ) {
 			if ( 'chapter' === $type ) {
-				$output .= self::render_chapter_bookmark_item( $bookmark );
+				$output .= self::render_chapter_follow_item( $follow );
 			} else {
-				$output .= self::render_story_bookmark_item( $bookmark );
+				$output .= self::render_story_follow_item( $follow );
 			}
 		}
 
@@ -418,18 +448,18 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Render story bookmark item.
+	 * Render story follow item.
 	 *
 	 * @since 1.8.0
-	 * @param array $bookmark_data Bookmark data with 'post_id'.
+	 * @param array $follow_data Follow data with 'post_id'.
 	 * @return string HTML.
 	 */
-	public static function render_story_bookmark_item( $bookmark_data ) {
-		if ( empty( $bookmark_data['post_id'] ) ) {
+	public static function render_story_follow_item( $follow_data ) {
+		if ( empty( $follow_data['post_id'] ) ) {
 			return '';
 		}
 
-		$story = get_post( $bookmark_data['post_id'] );
+		$story = get_post( $follow_data['post_id'] );
 		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
 			return '';
 		}
@@ -458,15 +488,15 @@ class Fanfic_Bookmarks {
 			}
 		}
 
-		$output  = '<div class="fanfic-bookmark-item fanfic-bookmark-story">';
+		$output  = '<div class="fanfic-follow-item fanfic-follow-story">';
 		$output .= '<h4><a href="' . esc_url( get_permalink( $story->ID ) ) . '">' . esc_html( $story->post_title ) . '</a></h4>';
-		$output .= '<p class="fanfic-bookmark-meta">';
+		$output .= '<p class="fanfic-follow-meta">';
 		$output .= esc_html__( 'by', 'fanfiction-manager' ) . ' ' . esc_html( $author_name ) . ', ';
 		$output .= esc_html__( 'published on', 'fanfiction-manager' ) . ' ' . esc_html( $formatted_date );
 		$output .= '</p>';
 
 		if ( $latest_chapter ) {
-			$output .= '<p class="fanfic-bookmark-last-chapter">';
+			$output .= '<p class="fanfic-follow-last-chapter">';
 			$output .= esc_html__( 'Last chapter:', 'fanfiction-manager' ) . ' ';
 			$output .= '<a href="' . esc_url( get_permalink( $latest_chapter->ID ) ) . '">' . esc_html( $latest_chapter_label ) . '</a>, ';
 			$output .= esc_html( $latest_chapter_date );
@@ -483,18 +513,18 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Render chapter bookmark item.
+	 * Render chapter follow item.
 	 *
 	 * @since 1.8.0
-	 * @param array $bookmark_data Bookmark data with 'post_id'.
+	 * @param array $follow_data Follow data with 'post_id'.
 	 * @return string HTML.
 	 */
-	public static function render_chapter_bookmark_item( $bookmark_data ) {
-		if ( empty( $bookmark_data['post_id'] ) ) {
+	public static function render_chapter_follow_item( $follow_data ) {
+		if ( empty( $follow_data['post_id'] ) ) {
 			return '';
 		}
 
-		$chapter = get_post( $bookmark_data['post_id'] );
+		$chapter = get_post( $follow_data['post_id'] );
 		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
 			return '';
 		}
@@ -522,9 +552,9 @@ class Fanfic_Bookmarks {
 			$is_read       = in_array( absint( $chapter_number ), $read_chapters, true );
 		}
 
-		$output  = '<div class="fanfic-bookmark-item fanfic-bookmark-chapter">';
+		$output  = '<div class="fanfic-follow-item fanfic-follow-chapter">';
 		$output .= '<h4><a href="' . esc_url( get_permalink( $chapter->ID ) ) . '">' . esc_html( $chapter_label ) . '</a></h4>';
-		$output .= '<p class="fanfic-bookmark-meta">';
+		$output .= '<p class="fanfic-follow-meta">';
 		$output .= esc_html__( 'part of', 'fanfiction-manager' ) . ' ';
 		$output .= '<a href="' . esc_url( get_permalink( $story->ID ) ) . '">' . esc_html( $story->post_title ) . '</a>, ';
 		$output .= esc_html__( 'by', 'fanfiction-manager' ) . ' ' . esc_html( $author_name ) . ', ';
@@ -541,29 +571,29 @@ class Fanfic_Bookmarks {
 	}
 
 	/**
-	 * Clear bookmark cache.
+	 * Clear follow cache.
 	 *
 	 * @since 1.8.0
 	 * @param int $post_id Post ID.
 	 * @param int $user_id User ID.
 	 * @return void
 	 */
-	private static function clear_bookmark_cache( $post_id, $user_id ) {
+	private static function clear_follow_cache( $post_id, $user_id ) {
 		$post_id = absint( $post_id );
 		$user_id = absint( $user_id );
 
-		delete_transient( 'fanfic_bookmark_count_' . $post_id );
-		delete_transient( 'fanfic_bookmark_stats' );
-		delete_transient( 'fanfic_recently_bookmarked_stories_10' );
-		delete_transient( 'fanfic_recently_bookmarked_stories_20' );
+		delete_transient( 'fanfic_follow_count_' . $post_id );
+		delete_transient( 'fanfic_follow_stats' );
+		delete_transient( 'fanfic_recently_followed_stories_10' );
+		delete_transient( 'fanfic_recently_followed_stories_20' );
 
 		for ( $i = 5; $i <= 20; $i += 5 ) {
 			for ( $j = 1; $j <= 5; $j++ ) {
-				delete_transient( 'fanfic_most_bookmarked_stories_' . $i . '_' . $j );
+				delete_transient( 'fanfic_most_followed_stories_' . $i . '_' . $j );
 			}
 		}
 
-		// Reset in-request bookmark rendering caches.
+		// Reset in-request follow rendering caches.
 		self::$read_chapters_cache = array();
 		self::$latest_chapter_cache = array();
 	}

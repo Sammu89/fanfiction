@@ -1,8 +1,8 @@
 <?php
 /**
- * Most Bookmarked Stories Widget
+ * Most Followed Stories Widget
  *
- * Displays a list of most bookmarked stories.
+ * Displays a list of most followed stories.
  *
  * @package FanfictionManager
  * @since 1.0.0
@@ -14,13 +14,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Class Fanfic_Widget_Most_Bookmarked
+ * Class Fanfic_Widget_Most_Followed
  *
- * Widget for displaying most bookmarked stories.
+ * Widget for displaying most followed stories.
  *
  * @since 1.0.0
  */
-class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
+class Fanfic_Widget_Most_Followed extends WP_Widget {
 
 	/**
 	 * Constructor
@@ -31,11 +31,11 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 	 */
 	public function __construct() {
 		parent::__construct(
-			'fanfic_widget_most_bookmarked',
-			__( 'Most Bookmarked Stories', 'fanfiction-manager' ),
+			'fanfic_widget_most_followed',
+			__( 'Most Followed Stories', 'fanfiction-manager' ),
 			array(
-				'description' => __( 'Display most bookmarked fanfiction stories', 'fanfiction-manager' ),
-				'classname'   => 'fanfic-widget fanfic-widget--bookmarked',
+				'description' => __( 'Display most followed fanfiction stories', 'fanfiction-manager' ),
+				'classname'   => 'fanfic-widget fanfic-widget--followed',
 			)
 		);
 	}
@@ -50,18 +50,18 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 	 */
 	public function widget( $args, $instance ) {
 		// Get settings with defaults
-		$title = ! empty( $instance['title'] ) ? $instance['title'] : __( 'Most Bookmarked', 'fanfiction-manager' );
+		$title = ! empty( $instance['title'] ) ? $instance['title'] : __( 'Most Followed', 'fanfiction-manager' );
 		$count = ! empty( $instance['count'] ) ? absint( $instance['count'] ) : 5;
-		$min_bookmarks = ! empty( $instance['min_bookmarks'] ) ? absint( $instance['min_bookmarks'] ) : 1;
+		$min_follows = ! empty( $instance['min_follows'] ) ? absint( $instance['min_follows'] ) : 1;
 		$show_author = isset( $instance['show_author'] ) ? (bool) $instance['show_author'] : true;
 		$show_count = isset( $instance['show_count'] ) ? (bool) $instance['show_count'] : true;
 
 		// Sanitize inputs
 		$count = Fanfic_Widgets::sanitize_count( $count, 5, 20, 5 );
-		$min_bookmarks = max( 1, min( 10, $min_bookmarks ) );
+		$min_follows = max( 1, min( 10, $min_follows ) );
 
-		// Get most bookmarked stories (uses cache from Bookmarks class)
-		$stories = Fanfic_Bookmarks::get_most_bookmarked_stories( $count, $min_bookmarks );
+		// Get most followed stories (uses cache from Follows class)
+		$stories = Fanfic_Follows::get_most_followed_stories( $count, $min_follows );
 
 		// Output widget
 		echo $args['before_widget'];
@@ -79,7 +79,7 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 
 			echo '</ul>';
 		} else {
-			Fanfic_Widgets::render_empty_state( __( 'No bookmarked stories found.', 'fanfiction-manager' ) );
+			Fanfic_Widgets::render_empty_state( __( 'No followed stories found.', 'fanfiction-manager' ) );
 		}
 
 		echo $args['after_widget'];
@@ -89,9 +89,9 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 	 * Render individual story item
 	 *
 	 * @since 1.0.0
-	 * @param object $story_data  Story data with bookmark count.
+	 * @param object $story_data  Story data with follow count.
 	 * @param bool   $show_author Whether to show author.
-	 * @param bool   $show_count  Whether to show bookmark count.
+	 * @param bool   $show_count  Whether to show follow count.
 	 * @return void
 	 */
 	private function render_story_item( $story_data, $show_author, $show_count ) {
@@ -126,7 +126,7 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 			}
 
 			if ( $show_count ) {
-				echo Fanfic_Widgets::get_bookmark_count_badge( $story_data->bookmark_count );
+				echo Fanfic_Widgets::get_follow_count_badge( $story_data->follow_count );
 			}
 
 			echo '</div>';
@@ -144,9 +144,9 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 	 */
 	public function form( $instance ) {
 		// Default values
-		$title = ! empty( $instance['title'] ) ? $instance['title'] : __( 'Most Bookmarked', 'fanfiction-manager' );
+		$title = ! empty( $instance['title'] ) ? $instance['title'] : __( 'Most Followed', 'fanfiction-manager' );
 		$count = ! empty( $instance['count'] ) ? absint( $instance['count'] ) : 5;
-		$min_bookmarks = ! empty( $instance['min_bookmarks'] ) ? absint( $instance['min_bookmarks'] ) : 1;
+		$min_follows = ! empty( $instance['min_follows'] ) ? absint( $instance['min_follows'] ) : 1;
 		$show_author = isset( $instance['show_author'] ) ? (bool) $instance['show_author'] : true;
 		$show_count = isset( $instance['show_count'] ) ? (bool) $instance['show_count'] : true;
 		?>
@@ -181,15 +181,15 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 		</p>
 
 		<p>
-			<label for="<?php echo esc_attr( $this->get_field_id( 'min_bookmarks' ) ); ?>">
-				<?php esc_html_e( 'Minimum bookmarks:', 'fanfiction-manager' ); ?>
+			<label for="<?php echo esc_attr( $this->get_field_id( 'min_follows' ) ); ?>">
+				<?php esc_html_e( 'Minimum follows:', 'fanfiction-manager' ); ?>
 			</label>
 			<input
 				type="number"
 				class="tiny-text"
-				id="<?php echo esc_attr( $this->get_field_id( 'min_bookmarks' ) ); ?>"
-				name="<?php echo esc_attr( $this->get_field_name( 'min_bookmarks' ) ); ?>"
-				value="<?php echo esc_attr( $min_bookmarks ); ?>"
+				id="<?php echo esc_attr( $this->get_field_id( 'min_follows' ) ); ?>"
+				name="<?php echo esc_attr( $this->get_field_name( 'min_follows' ) ); ?>"
+				value="<?php echo esc_attr( $min_follows ); ?>"
 				min="1"
 				max="10"
 				step="1"
@@ -219,7 +219,7 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 				<?php checked( $show_count ); ?>
 			>
 			<label for="<?php echo esc_attr( $this->get_field_id( 'show_count' ) ); ?>">
-				<?php esc_html_e( 'Show bookmark count', 'fanfiction-manager' ); ?>
+				<?php esc_html_e( 'Show follow count', 'fanfiction-manager' ); ?>
 			</label>
 		</p>
 		<?php
@@ -239,15 +239,15 @@ class Fanfic_Widget_Most_Bookmarked extends WP_Widget {
 		// Sanitize inputs
 		$instance['title'] = ! empty( $new_instance['title'] ) ? sanitize_text_field( $new_instance['title'] ) : '';
 		$instance['count'] = ! empty( $new_instance['count'] ) ? absint( $new_instance['count'] ) : 5;
-		$instance['min_bookmarks'] = ! empty( $new_instance['min_bookmarks'] ) ? absint( $new_instance['min_bookmarks'] ) : 1;
+		$instance['min_follows'] = ! empty( $new_instance['min_follows'] ) ? absint( $new_instance['min_follows'] ) : 1;
 		$instance['show_author'] = isset( $new_instance['show_author'] ) ? 1 : 0;
 		$instance['show_count'] = isset( $new_instance['show_count'] ) ? 1 : 0;
 
 		// Sanitize ranges
 		$instance['count'] = Fanfic_Widgets::sanitize_count( $instance['count'], 5, 20, 5 );
-		$instance['min_bookmarks'] = max( 1, min( 10, $instance['min_bookmarks'] ) );
+		$instance['min_follows'] = max( 1, min( 10, $instance['min_follows'] ) );
 
-		// Note: Cache is managed by Bookmarks class, no need to clear here
+		// Note: Cache is managed by Follows class, no need to clear here
 
 		return $instance;
 	}

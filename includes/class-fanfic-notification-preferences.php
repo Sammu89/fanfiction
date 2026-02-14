@@ -35,6 +35,8 @@ class Fanfic_Notification_Preferences {
 	const TYPE_NEW_COMMENT = 'new_comment';
 	const TYPE_NEW_CHAPTER = 'new_chapter';
 	const TYPE_NEW_STORY = 'new_story';
+	const TYPE_CHAPTER_UPDATE = 'chapter_update';
+	const TYPE_STORY_STATUS = 'story_status';
 
 	/**
 	 * Initialize the preferences class
@@ -111,6 +113,8 @@ class Fanfic_Notification_Preferences {
 			self::TYPE_NEW_COMMENT,
 			self::TYPE_NEW_CHAPTER,
 			self::TYPE_NEW_STORY,
+			self::TYPE_CHAPTER_UPDATE,
+			self::TYPE_STORY_STATUS,
 		);
 
 		foreach ( $types as $type ) {
@@ -155,6 +159,8 @@ class Fanfic_Notification_Preferences {
 			self::TYPE_NEW_COMMENT,
 			self::TYPE_NEW_CHAPTER,
 			self::TYPE_NEW_STORY,
+			self::TYPE_CHAPTER_UPDATE,
+			self::TYPE_STORY_STATUS,
 		);
 
 		$defaults = array();
@@ -215,6 +221,8 @@ class Fanfic_Notification_Preferences {
 			self::TYPE_NEW_COMMENT,
 			self::TYPE_NEW_CHAPTER,
 			self::TYPE_NEW_STORY,
+			self::TYPE_CHAPTER_UPDATE,
+			self::TYPE_STORY_STATUS,
 		);
 
 		foreach ( $types as $type ) {
@@ -247,8 +255,10 @@ class Fanfic_Notification_Preferences {
 	public static function get_preference_labels() {
 		return array(
 			self::TYPE_NEW_COMMENT => __( 'New comments on my stories', 'fanfiction-manager' ),
-			self::TYPE_NEW_CHAPTER => __( 'New chapter updates', 'fanfiction-manager' ),
+			self::TYPE_NEW_CHAPTER => __( 'New chapters in followed stories', 'fanfiction-manager' ),
 			self::TYPE_NEW_STORY => __( 'New story updates', 'fanfiction-manager' ),
+			self::TYPE_CHAPTER_UPDATE => __( 'Chapter content updates in followed stories', 'fanfiction-manager' ),
+			self::TYPE_STORY_STATUS => __( 'Story status changes (e.g., completed)', 'fanfiction-manager' ),
 		);
 	}
 }

@@ -106,7 +106,7 @@ const WEEK = 604800;        // 7 days - rarely changing data
 
 9. **invalidate_story( $story_id )**
    - Clears: validity, chapter count, chapters list
-   - Also clears: ratings, bookmarks, views, metadata
+   - Also clears: ratings, follows, views, metadata
    - Invalidates author's story lists
    - Invalidates archive/list caches
    - Fires action hook: `fanfic_cache_invalidate_story`
@@ -117,7 +117,7 @@ const WEEK = 604800;        // 7 days - rarely changing data
     - Fires action hook: `fanfic_cache_invalidate_chapter`
 
 11. **invalidate_user( $user_id )**
-    - Clears: bookmarks
+    - Clears: follows
     - Also clears: stories, notifications, statistics, profile
     - Fires action hook: `fanfic_cache_invalidate_user`
 
@@ -181,7 +181,7 @@ const WEEK = 604800;        // 7 days - rarely changing data
 - ✅ Story validation caching
 - ✅ Chapter count caching
 - ✅ Ratings system (Phase 8)
-- ✅ Bookmarks system (Phase 8)
+- ✅ Follows system (Phase 8)
 - ✅ Views tracking (Phase 8)
 - ✅ Shortcodes (all phases)
 - ✅ Archive pages
@@ -356,7 +356,7 @@ No syntax errors detected in class-fanfic-cache.php
 ### Immediate Integration (Phase 11)
 1. Update `class-fanfic-validation.php` to use caching
 2. Update `class-fanfic-ratings.php` to use caching
-3. Update `class-fanfic-bookmarks.php` to use caching
+3. Update `class-fanfic-follows.php` to use caching
 4. Update shortcodes to use caching
 
 ### Admin Integration

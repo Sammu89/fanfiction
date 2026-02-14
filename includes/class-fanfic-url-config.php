@@ -1557,7 +1557,7 @@ foreach ( $definitions as $key => $def ) {
             set_transient( 'fanfic_url_config_success', $message, 30 );
 
             // Add warning about broken links
-            $warning = __( 'Note: Old bookmarked links may be broken. Search engines will need to re-index your site.', 'fanfiction-manager' );
+            $warning = __( 'Note: Old followed links may be broken. Search engines will need to re-index your site.', 'fanfiction-manager' );
             set_transient( 'fanfic_url_config_warning', $warning, 30 );
         } else {
             set_transient( 'fanfic_url_config_success', __( 'No changes made - mode is already set to the selected value.', 'fanfiction-manager' ), 30 );
@@ -1760,7 +1760,7 @@ foreach ( $definitions as $key => $def ) {
                         <?php esc_html_e( 'Switching URL modes will rebuild all system pages and change your site structure. This will result in:', 'fanfiction-manager' ); ?>
                     </p>
                     <ul style="list-style: disc; margin-left: 20px;">
-                        <li><?php esc_html_e( 'Broken bookmarked links for users', 'fanfiction-manager' ); ?></li>
+                        <li><?php esc_html_e( 'Broken followed links for users', 'fanfiction-manager' ); ?></li>
                         <li><?php esc_html_e( 'Search engines will need to re-index your entire site', 'fanfiction-manager' ); ?></li>
                         <li><?php esc_html_e( 'Temporary disruption to site navigation', 'fanfiction-manager' ); ?></li>
                     </ul>

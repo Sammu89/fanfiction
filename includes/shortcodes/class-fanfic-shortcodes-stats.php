@@ -2,7 +2,7 @@
 /**
  * Statistics Shortcodes Class
  *
- * Handles all statistics display shortcodes (ratings, bookmarks, views, trending).
+ * Handles all statistics display shortcodes (ratings, follows, views, trending).
  *
  * @package FanfictionManager
  * @subpackage Shortcodes
@@ -35,10 +35,10 @@ class Fanfic_Shortcodes_Stats {
 		add_shortcode( 'top-rated-stories', array( __CLASS__, 'top_rated_stories' ) );
 		add_shortcode( 'recently-rated-stories', array( __CLASS__, 'recently_rated_stories' ) );
 
-		// Bookmark shortcodes
-		add_shortcode( 'story-bookmark-button', array( __CLASS__, 'story_bookmark_button' ) );
-		add_shortcode( 'story-bookmark-count', array( __CLASS__, 'story_bookmark_count' ) );
-		add_shortcode( 'most-bookmarked-stories', array( __CLASS__, 'most_bookmarked_stories' ) );
+		// Follow shortcodes
+		add_shortcode( 'story-follow-button', array( __CLASS__, 'story_follow_button' ) );
+		add_shortcode( 'story-follow-count', array( __CLASS__, 'story_follow_count' ) );
+		add_shortcode( 'most-followed-stories', array( __CLASS__, 'most_followed_stories' ) );
 
 		// View shortcodes
 		add_shortcode( 'story-view-count', array( __CLASS__, 'story_view_count' ) );
@@ -96,7 +96,7 @@ class Fanfic_Shortcodes_Stats {
 		$rating = $rating_data->average_rating;
 		$count = $rating_data->total_votes;
 
-		$output = '<div class="fanfic-story-rating-display">';
+		$output = '<div class="fanfic-story-rating-display" data-avg="' . esc_attr( $rating ) . '" data-count="' . esc_attr( $count ) . '">';
 		$output .= Fanfic_Interactions::get_stars_html( $rating, false, $atts['size'] );
 		$output .= '<div class="fanfic-rating-info">';
 		$output .= '<span class="fanfic-rating-average">' . esc_html( number_format_i18n( $rating, 1 ) ) . '</span>';
@@ -214,21 +214,21 @@ class Fanfic_Shortcodes_Stats {
 	}
 
 	/**
-	 * Story bookmark button shortcode
+	 * Story follow button shortcode
 	 *
-	 * [story-bookmark-button story_id="123"]
+	 * [story-follow-button story_id="123"]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
-	 * @return string Bookmark button HTML.
+	 * @return string Follow button HTML.
 	 */
-	public static function story_bookmark_button( $atts ) {
+	public static function story_follow_button( $atts ) {
 		$atts = Fanfic_Shortcodes::sanitize_atts(
 			$atts,
 			array(
 				'story_id' => 0,
 			),
-			'story-bookmark-button'
+			'story-follow-button'
 		);
 
 		$story_id = absint( $atts['story_id'] );
@@ -243,49 +243,49 @@ class Fanfic_Shortcodes_Stats {
 
 		$is_logged_in = is_user_logged_in();
 		$user_id = get_current_user_id();
-		$is_bookmarked = false;
+		$is_followed = false;
 
 		if ( $is_logged_in ) {
-			$is_bookmarked = Fanfic_Bookmarks::is_bookmarked( $user_id, $story_id );
+			$is_followed = Fanfic_Follows::is_followed( $user_id, $story_id );
 		}
 
-		$bookmark_class = $is_bookmarked ? 'fanfic-button-bookmarked' : 'not-bookmarked';
-		$bookmark_text = $is_bookmarked
-			? esc_html__( 'Bookmarked', 'fanfiction-manager' )
-			: esc_html__( 'Bookmark', 'fanfiction-manager' );
+		$follow_class = $is_followed ? 'fanfic-button-followed' : 'not-followed';
+		$follow_text = $is_followed
+			? esc_html__( 'Followed', 'fanfiction-manager' )
+			: esc_html__( 'Follow', 'fanfiction-manager' );
 
 		return sprintf(
-			'<button type="button" class="fanfic-button fanfic-button-bookmark fanfic-bookmark-button %s" data-post-id="%d" data-story-id="%d" data-chapter-id="0" data-bookmark-text="%s" data-bookmarked-text="%s" data-action="%s">
+			'<button type="button" class="fanfic-button fanfic-button-follow fanfic-follow-button %s" data-post-id="%d" data-story-id="%d" data-chapter-id="0" data-follow-text="%s" data-followed-text="%s" data-action="%s">
 				<span class="fanfic-icon">%s</span>
-				<span class="fanfic-text bookmark-text">%s</span>
+				<span class="fanfic-text follow-text">%s</span>
 			</button>',
-			esc_attr( $bookmark_class ),
+			esc_attr( $follow_class ),
 			absint( $story_id ),
 			absint( $story_id ),
-			esc_attr__( 'Bookmark', 'fanfiction-manager' ),
-			esc_attr__( 'Bookmarked', 'fanfiction-manager' ),
-			$is_bookmarked ? 'unbookmark' : 'bookmark',
-			$is_bookmarked ? '&#9733;' : '&#9734;',
-			$bookmark_text
+			esc_attr__( 'Follow', 'fanfiction-manager' ),
+			esc_attr__( 'Followed', 'fanfiction-manager' ),
+			$is_followed ? 'unfollow' : 'follow',
+			$is_followed ? '&#9733;' : '&#9734;',
+			$follow_text
 		);
 	}
 
 	/**
-	 * Story bookmark count shortcode
+	 * Story follow count shortcode
 	 *
-	 * [story-bookmark-count story_id="123"]
+	 * [story-follow-count story_id="123"]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
-	 * @return string Bookmark count HTML.
+	 * @return string Follow count HTML.
 	 */
-	public static function story_bookmark_count( $atts ) {
+	public static function story_follow_count( $atts ) {
 		$atts = Fanfic_Shortcodes::sanitize_atts(
 			$atts,
 			array(
 				'story_id' => 0,
 			),
-			'story-bookmark-count'
+			'story-follow-count'
 		);
 
 		$story_id = absint( $atts['story_id'] );
@@ -298,37 +298,39 @@ class Fanfic_Shortcodes_Stats {
 			return '';
 		}
 
-		$count = Fanfic_Bookmarks::get_bookmark_count( $story_id );
+		$count = Fanfic_Follows::get_follow_count( $story_id );
 
 		return sprintf(
-			'<span class="fanfic-bookmark-count">%s %s</span>',
+			'<span class="fanfic-follow-count" data-story-id="%d" data-count="%d">%s %s</span>',
+			$story_id,
+			$count,
 			esc_html( number_format_i18n( $count ) ),
-			esc_html( _n( 'bookmark', 'bookmarks', $count, 'fanfiction-manager' ) )
+			esc_html( _n( 'follow', 'follows', $count, 'fanfiction-manager' ) )
 		);
 	}
 
 	/**
-	 * Most bookmarked stories shortcode
+	 * Most followed stories shortcode
 	 *
-	 * [most-bookmarked-stories limit="10" timeframe="all-time"]
+	 * [most-followed-stories limit="10" timeframe="all-time"]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
-	 * @return string Most bookmarked stories list HTML.
+	 * @return string Most followed stories list HTML.
 	 */
-	public static function most_bookmarked_stories( $atts ) {
+	public static function most_followed_stories( $atts ) {
 		$atts = Fanfic_Shortcodes::sanitize_atts(
 			$atts,
 			array(
 				'limit'         => 10,
-				'min_bookmarks' => 1,
+				'min_follows' => 1,
 				'timeframe'     => 'all-time',
 			),
-			'most-bookmarked-stories'
+			'most-followed-stories'
 		);
 
 		// Build transient cache key including timeframe
-		$cache_key = 'fanfic_most_bookmarked_' . absint( $atts['limit'] ) . '_' . sanitize_key( $atts['timeframe'] );
+		$cache_key = 'fanfic_most_followed_' . absint( $atts['limit'] ) . '_' . sanitize_key( $atts['timeframe'] );
 		$stories = get_transient( $cache_key );
 
 		if ( false === $stories ) {
@@ -346,20 +348,20 @@ class Fanfic_Shortcodes_Stats {
 				}
 			}
 
-			// Query for most bookmarked stories with optional timeframe filter
+			// Query for most followed stories with optional timeframe filter
 			$query = $wpdb->prepare(
-				"SELECT b.chapter_id AS story_id, COUNT(b.id) as bookmark_count
+				"SELECT b.chapter_id AS story_id, COUNT(b.id) as follow_count
 				FROM {$table_name} b
 				INNER JOIN {$wpdb->posts} p ON b.chapter_id = p.ID
-				WHERE b.interaction_type = 'bookmark'
+				WHERE b.interaction_type = 'follow'
 				AND p.post_type = 'fanfiction_story'
 				AND p.post_status = 'publish'
 				{$date_filter}
 				GROUP BY b.chapter_id
-				HAVING bookmark_count >= %d
-				ORDER BY bookmark_count DESC
+				HAVING follow_count >= %d
+				ORDER BY follow_count DESC
 				LIMIT %d",
-				absint( $atts['min_bookmarks'] ),
+				absint( $atts['min_follows'] ),
 				absint( $atts['limit'] )
 			);
 
@@ -370,24 +372,24 @@ class Fanfic_Shortcodes_Stats {
 		}
 
 		if ( empty( $stories ) ) {
-			return '<div class="fanfic-most-bookmarked fanfic-empty-state"><p>' . esc_html__( 'No bookmarked stories found.', 'fanfiction-manager' ) . '</p></div>';
+			return '<div class="fanfic-most-followed fanfic-empty-state"><p>' . esc_html__( 'No followed stories found.', 'fanfiction-manager' ) . '</p></div>';
 		}
 
 		// Build timeframe heading
 		$timeframe_label = self::get_timeframe_label( $atts['timeframe'] );
 		$heading = sprintf(
 			/* translators: %s: timeframe label */
-			esc_html__( 'Most Bookmarked Stories %s', 'fanfiction-manager' ),
+			esc_html__( 'Most Followed Stories %s', 'fanfiction-manager' ),
 			$timeframe_label
 		);
 
-		$output = '<div class="fanfic-most-bookmarked" role="region" aria-label="' . esc_attr( $heading ) . '">';
+		$output = '<div class="fanfic-most-followed" role="region" aria-label="' . esc_attr( $heading ) . '">';
 		$output .= '<h3>' . esc_html( $heading ) . '</h3>';
 		$output .= '<div class="fanfic-story-cards">';
 
 		foreach ( $stories as $story_data ) {
 			$story_id = $story_data->story_id;
-			$bookmark_count = $story_data->bookmark_count;
+			$follow_count = $story_data->follow_count;
 
 			$story = get_post( $story_id );
 			if ( ! $story ) {
@@ -400,7 +402,7 @@ class Fanfic_Shortcodes_Stats {
 				$thumbnail = get_the_post_thumbnail( $story_id, 'thumbnail', array( 'loading' => 'lazy' ) );
 			}
 
-			$output .= self::render_story_card_with_thumbnail( $story, null, null, $bookmark_count, null, $thumbnail );
+			$output .= self::render_story_card_with_thumbnail( $story, null, null, $follow_count, null, $thumbnail );
 		}
 
 		$output .= '</div>';
@@ -440,7 +442,9 @@ class Fanfic_Shortcodes_Stats {
 		$count = Fanfic_Interactions::get_story_views( $story_id );
 
 		return sprintf(
-			'<span class="fanfic-view-count">%s %s</span>',
+			'<span class="fanfic-view-count" data-story-id="%d" data-count="%d">%s %s</span>',
+			$story_id,
+			$count,
 			esc_html( number_format_i18n( $count ) ),
 			esc_html( _n( 'view', 'views', $count, 'fanfiction-manager' ) )
 		);
@@ -477,7 +481,9 @@ class Fanfic_Shortcodes_Stats {
 		$count = Fanfic_Interactions::get_chapter_views( $chapter_id );
 
 		return sprintf(
-			'<span class="fanfic-view-count">%s %s</span>',
+			'<span class="fanfic-view-count" data-chapter-id="%d" data-count="%d">%s %s</span>',
+			$chapter_id,
+			$count,
 			esc_html( number_format_i18n( $count ) ),
 			esc_html( _n( 'view', 'views', $count, 'fanfiction-manager' ) )
 		);
@@ -698,11 +704,11 @@ class Fanfic_Shortcodes_Stats {
 	 * @param WP_Post $story          Story post object.
 	 * @param float   $rating         Story rating (optional).
 	 * @param int     $rating_count   Rating count (optional).
-	 * @param int     $bookmark_count Bookmark count (optional).
+	 * @param int     $follow_count Follow count (optional).
 	 * @param int     $views          View count (optional).
 	 * @return string Story card HTML.
 	 */
-	private static function render_story_card( $story, $rating = null, $rating_count = null, $bookmark_count = null, $views = null ) {
+	private static function render_story_card( $story, $rating = null, $rating_count = null, $follow_count = null, $views = null ) {
 		$story_url = get_permalink( $story->ID );
 		$author_id = $story->post_author;
 		$author_name = get_the_author_meta( 'display_name', $author_id );
@@ -724,8 +730,8 @@ class Fanfic_Shortcodes_Stats {
 			$output .= '</span>';
 		}
 
-		if ( null !== $bookmark_count ) {
-			$output .= '<span class="fanfic-meta-item">&#9733; ' . esc_html( number_format_i18n( $bookmark_count ) ) . ' ' . esc_html( _n( 'bookmark', 'bookmarks', $bookmark_count, 'fanfiction-manager' ) ) . '</span>';
+		if ( null !== $follow_count ) {
+			$output .= '<span class="fanfic-meta-item">&#9733; ' . esc_html( number_format_i18n( $follow_count ) ) . ' ' . esc_html( _n( 'follow', 'follows', $follow_count, 'fanfiction-manager' ) ) . '</span>';
 		}
 
 		if ( null !== $views ) {
@@ -745,12 +751,12 @@ class Fanfic_Shortcodes_Stats {
 	 * @param WP_Post $story          Story post object.
 	 * @param float   $rating         Story rating (optional).
 	 * @param int     $rating_count   Rating count (optional).
-	 * @param int     $bookmark_count Bookmark count (optional).
+	 * @param int     $follow_count Follow count (optional).
 	 * @param int     $views          View count (optional).
 	 * @param string  $thumbnail      Thumbnail HTML (optional).
 	 * @return string Story card HTML.
 	 */
-	private static function render_story_card_with_thumbnail( $story, $rating = null, $rating_count = null, $bookmark_count = null, $views = null, $thumbnail = '' ) {
+	private static function render_story_card_with_thumbnail( $story, $rating = null, $rating_count = null, $follow_count = null, $views = null, $thumbnail = '' ) {
 		$story_url = get_permalink( $story->ID );
 		$author_id = $story->post_author;
 		$author_name = get_the_author_meta( 'display_name', $author_id );
@@ -779,8 +785,8 @@ class Fanfic_Shortcodes_Stats {
 			$output .= '</span>';
 		}
 
-		if ( null !== $bookmark_count ) {
-			$output .= '<span class="fanfic-meta-item">&#9733; ' . esc_html( number_format_i18n( $bookmark_count ) ) . ' ' . esc_html( _n( 'bookmark', 'bookmarks', $bookmark_count, 'fanfiction-manager' ) ) . '</span>';
+		if ( null !== $follow_count ) {
+			$output .= '<span class="fanfic-meta-item">&#9733; ' . esc_html( number_format_i18n( $follow_count ) ) . ' ' . esc_html( _n( 'follow', 'follows', $follow_count, 'fanfiction-manager' ) ) . '</span>';
 		}
 
 		if ( null !== $views ) {
@@ -795,7 +801,7 @@ class Fanfic_Shortcodes_Stats {
 	}
 
 	/**
-	 * Render most bookmarked stories (direct call helper)
+	 * Render most followed stories (direct call helper)
 	 *
 	 * Helper method for direct template calls without shortcode processing overhead.
 	 *
@@ -803,16 +809,16 @@ class Fanfic_Shortcodes_Stats {
 	 * @param array $args Arguments array.
 	 * @return string HTML output.
 	 */
-	public static function render_most_bookmarked( $args = array() ) {
+	public static function render_most_followed( $args = array() ) {
 		$defaults = array(
 			'limit'         => 5,
 			'timeframe'     => 'week',
-			'min_bookmarks' => 1,
+			'min_follows' => 1,
 		);
 		$args = wp_parse_args( $args, $defaults );
 
 		// Call the existing shortcode method directly
-		return self::most_bookmarked_stories( $args );
+		return self::most_followed_stories( $args );
 	}
 
 	/**
@@ -900,7 +906,9 @@ class Fanfic_Shortcodes_Stats {
 
 		// Use _n() for proper translation (singular/plural)
 		return sprintf(
-			'<span class="fanfic-like-count">%s</span>',
+			'<span class="fanfic-like-count" data-story-id="%d" data-count="%d">%s</span>',
+			$story_id,
+			$count,
 			sprintf(
 				esc_html( _n( '%d like', '%d likes', $count, 'fanfiction-manager' ) ),
 				number_format_i18n( $count )

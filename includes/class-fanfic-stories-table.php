@@ -1549,7 +1549,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 
 		// Delete all chapters (and their interactions)
 		foreach ( $chapters as $chapter_id ) {
-			// Delete all interactions for this chapter (likes, dislikes, ratings, views, reads, bookmarks)
+			// Delete all interactions for this chapter (likes, dislikes, ratings, views, reads, follows)
 			$wpdb->delete(
 				$wpdb->prefix . 'fanfic_interactions',
 				array( 'chapter_id' => $chapter_id ),
@@ -1560,10 +1560,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			wp_delete_post( $chapter_id, true );
 		}
 
-		// Delete bookmark interactions for this story
+		// Delete follow interactions for this story
 		$wpdb->delete(
 			$wpdb->prefix . 'fanfic_interactions',
-			array( 'chapter_id' => $story_id, 'interaction_type' => 'bookmark' ),
+			array( 'chapter_id' => $story_id, 'interaction_type' => 'follow' ),
 			array( '%d', '%s' )
 		);
 

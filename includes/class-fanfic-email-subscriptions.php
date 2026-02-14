@@ -49,11 +49,13 @@ class Fanfic_Email_Subscriptions {
 	/**
 	 * Subscribe user to story or author
 	 *
+	 * No email verification required — subscriptions are immediately active.
+	 *
 	 * @since 1.0.0
 	 * @param string $email             Email address.
 	 * @param int    $target_id         Story ID or Author ID.
 	 * @param string $subscription_type Subscription type: 'story' or 'author'.
-	 * @param string $source            Source of subscription: 'form', 'api', etc.
+	 * @param string $source            Source of subscription: 'form', 'api', 'follow', etc.
 	 * @return array|WP_Error Result array on success, WP_Error on failure.
 	 */
 	public static function subscribe( $email, $target_id, $subscription_type, $source = 'form' ) {
@@ -80,25 +82,27 @@ class Fanfic_Email_Subscriptions {
 		// Check if already subscribed
 		$existing = self::get_subscription( $email, $target_id, $subscription_type );
 		if ( $existing ) {
-			if ( $existing->verified ) {
-				return new WP_Error( 'already_subscribed', __( 'You are already subscribed.', 'fanfiction-manager' ) );
-			} else {
-				// Resend verification email
-				$result = self::send_verification_email( $email, $existing->token, $target_id, $subscription_type );
-				if ( is_wp_error( $result ) ) {
-					return $result;
-				}
-				return array(
-					'status'  => 'pending',
-					'message' => __( 'A verification email has been resent. Please check your inbox.', 'fanfiction-manager' ),
+			// Ensure legacy unverified subscriptions are activated.
+			if ( ! $existing->verified ) {
+				$table_name = $wpdb->prefix . 'fanfic_email_subscriptions';
+				$wpdb->update(
+					$table_name,
+					array( 'verified' => 1 ),
+					array( 'id' => $existing->id ),
+					array( '%d' ),
+					array( '%d' )
 				);
 			}
+			return array(
+				'status'  => 'success',
+				'message' => __( 'You are already subscribed to email updates.', 'fanfiction-manager' ),
+			);
 		}
 
-		// Generate token
+		// Generate token (used for unsubscribe links)
 		$token = Fanfic_Input_Validation::generate_unsubscribe_token();
 
-		// Insert subscription
+		// Insert subscription — immediately active (verified = 1).
 		$table_name = $wpdb->prefix . 'fanfic_email_subscriptions';
 		$result = $wpdb->insert(
 			$table_name,
@@ -107,7 +111,7 @@ class Fanfic_Email_Subscriptions {
 				'target_id'         => $target_id,
 				'subscription_type' => $subscription_type,
 				'token'             => $token,
-				'verified'          => 0,
+				'verified'          => 1,
 				'created_at'        => current_time( 'mysql' ),
 			),
 			array( '%s', '%d', '%s', '%s', '%d', '%s' )
@@ -117,81 +121,28 @@ class Fanfic_Email_Subscriptions {
 			return new WP_Error( 'subscription_failed', __( 'Failed to create subscription. Please try again.', 'fanfiction-manager' ) );
 		}
 
-		// Send verification email
-		$verification_result = self::send_verification_email( $email, $token, $target_id, $subscription_type );
-		if ( is_wp_error( $verification_result ) ) {
-			// Delete subscription if verification email fails
-			$wpdb->delete(
-				$table_name,
-				array(
-					'email'             => $email,
-					'target_id'         => $target_id,
-					'subscription_type' => $subscription_type,
-				),
-				array( '%s', '%d', '%s' )
-			);
-			return $verification_result;
-		}
-
 		// Fire action hook
 		do_action( 'fanfic_email_subscribed', $email, $target_id, $subscription_type, $source );
 
 		return array(
 			'status'  => 'success',
-			'message' => __( 'Subscription created! Please check your email to verify your subscription.', 'fanfiction-manager' ),
+			'message' => __( 'You will now receive email updates.', 'fanfiction-manager' ),
 		);
 	}
 
 	/**
-	 * Verify email subscription
+	 * Subscribe from follow modal (streamlined for follow flow).
 	 *
-	 * @since 1.0.0
-	 * @param string $token Verification token.
-	 * @return true|WP_Error True on success, WP_Error on failure.
+	 * Creates an email subscription for a story from the follow modal.
+	 * Immediately active — no verification required.
+	 *
+	 * @since 1.8.0
+	 * @param string $email    Email address.
+	 * @param int    $story_id Story ID.
+	 * @return array|WP_Error Result array on success, WP_Error on failure.
 	 */
-	public static function verify_subscription( $token ) {
-		global $wpdb;
-
-		// Validate token
-		$token = sanitize_text_field( $token );
-		if ( empty( $token ) ) {
-			return new WP_Error( 'invalid_token', __( 'Invalid verification token.', 'fanfiction-manager' ) );
-		}
-
-		$table_name = $wpdb->prefix . 'fanfic_email_subscriptions';
-
-		// Find subscription by token
-		$subscription = $wpdb->get_row( $wpdb->prepare(
-			"SELECT * FROM {$table_name} WHERE token = %s LIMIT 1",
-			$token
-		) );
-
-		if ( ! $subscription ) {
-			return new WP_Error( 'subscription_not_found', __( 'Subscription not found or already verified.', 'fanfiction-manager' ) );
-		}
-
-		// Check if already verified
-		if ( $subscription->verified ) {
-			return new WP_Error( 'already_verified', __( 'This subscription has already been verified.', 'fanfiction-manager' ) );
-		}
-
-		// Set verified = 1
-		$result = $wpdb->update(
-			$table_name,
-			array( 'verified' => 1 ),
-			array( 'id' => $subscription->id ),
-			array( '%d' ),
-			array( '%d' )
-		);
-
-		if ( false === $result ) {
-			return new WP_Error( 'verification_failed', __( 'Failed to verify subscription. Please try again.', 'fanfiction-manager' ) );
-		}
-
-		// Fire action hook
-		do_action( 'fanfic_email_verified', $subscription->email, $subscription->target_id, $subscription->subscription_type );
-
-		return true;
+	public static function subscribe_from_follow( $email, $story_id ) {
+		return self::subscribe( $email, $story_id, 'story', 'follow' );
 	}
 
 	/**
@@ -234,6 +185,47 @@ class Fanfic_Email_Subscriptions {
 		do_action( 'fanfic_email_unsubscribed', $email, $target_id, $subscription_type );
 
 		return true;
+	}
+
+	/**
+	 * Unsubscribe email from story during unfollow (no token required)
+	 *
+	 * Used when a user actively unfollows a story via the UI.
+	 * Since this is an intentional user action (not an email link), no token is needed.
+	 *
+	 * @since 1.8.0
+	 * @param string $email    Email address.
+	 * @param int    $story_id Story ID.
+	 * @return bool True if a subscription was removed, false if none existed.
+	 */
+	public static function unsubscribe_on_unfollow( $email, $story_id ) {
+		global $wpdb;
+
+		$email    = sanitize_email( $email );
+		$story_id = absint( $story_id );
+
+		if ( ! is_email( $email ) || ! $story_id ) {
+			return false;
+		}
+
+		$table_name = $wpdb->prefix . 'fanfic_email_subscriptions';
+
+		$result = $wpdb->delete(
+			$table_name,
+			array(
+				'email'             => $email,
+				'target_id'         => $story_id,
+				'subscription_type' => 'story',
+			),
+			array( '%s', '%d', '%s' )
+		);
+
+		if ( $result > 0 ) {
+			do_action( 'fanfic_email_unsubscribed', $email, $story_id, 'story' );
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -387,77 +379,6 @@ class Fanfic_Email_Subscriptions {
 	}
 
 	/**
-	 * Send verification email
-	 *
-	 * Sends immediately (not via WP-Cron) because user needs to verify.
-	 *
-	 * @since 1.0.0
-	 * @param string $email             Email address.
-	 * @param string $token             Verification token.
-	 * @param int    $target_id         Target ID (story or author).
-	 * @param string $subscription_type Subscription type.
-	 * @return true|WP_Error True on success, WP_Error on failure.
-	 */
-	public static function send_verification_email( $email, $token, $target_id, $subscription_type ) {
-		// Get target information
-		$target_name = '';
-		if ( 'story' === $subscription_type ) {
-			$story = get_post( $target_id );
-			if ( $story ) {
-				$target_name = $story->post_title;
-			}
-		} else {
-			$author = get_userdata( $target_id );
-			if ( $author ) {
-				$target_name = $author->display_name;
-			}
-		}
-
-		// Build verification URL
-		$verify_url = add_query_arg(
-			array(
-				'action' => 'verify_subscription',
-				'token'  => $token,
-			),
-			home_url( '/' )
-		);
-
-		// Email subject
-		$subject = sprintf(
-			/* translators: %s: site name */
-			__( 'Verify your email subscription - %s', 'fanfiction-manager' ),
-			get_bloginfo( 'name' )
-		);
-
-		// Email body
-		$message = sprintf(
-			/* translators: 1: target name, 2: subscription type, 3: verification URL */
-			__(
-				"You requested to subscribe to updates for %1\$s.\n\n" .
-				"Please click the link below to verify your email address:\n\n" .
-				"%3\$s\n\n" .
-				"If you did not request this subscription, you can safely ignore this email.\n\n" .
-				"Thank you,\n" .
-				"%4\$s",
-				'fanfiction-manager'
-			),
-			$target_name,
-			$subscription_type,
-			$verify_url,
-			get_bloginfo( 'name' )
-		);
-
-		// Send email (synchronously - user needs immediate verification)
-		$result = wp_mail( $email, $subject, $message );
-
-		if ( ! $result ) {
-			return new WP_Error( 'email_send_failed', __( 'Failed to send verification email. Please try again.', 'fanfiction-manager' ) );
-		}
-
-		return true;
-	}
-
-	/**
 	 * Handle chapter publish event
 	 *
 	 * Triggered when chapter transitions to publish status.
@@ -560,10 +481,10 @@ class Fanfic_Email_Subscriptions {
 				wp_die( __( 'Invalid unsubscribe link.', 'fanfiction-manager' ) );
 			}
 
-			$email = sanitize_email( $_GET['email'] );
-			$token = sanitize_text_field( $_GET['token'] );
+			$email     = sanitize_email( $_GET['email'] );
+			$token     = sanitize_text_field( $_GET['token'] );
 			$target_id = absint( $_GET['target_id'] );
-			$type = sanitize_text_field( $_GET['type'] );
+			$type      = sanitize_text_field( $_GET['type'] );
 
 			$result = self::unsubscribe( $email, $target_id, $type, $token );
 
@@ -571,70 +492,27 @@ class Fanfic_Email_Subscriptions {
 				wp_die( $result->get_error_message() );
 			}
 
-			wp_die( __( 'Successfully unsubscribed from email notifications.', 'fanfiction-manager' ) );
-		}
-
-		// Handle verification
-		if ( 'verify_subscription' === $action ) {
-			if ( ! isset( $_GET['token'] ) ) {
-				wp_die( __( 'Invalid verification link.', 'fanfiction-manager' ) );
+			// Build a descriptive confirmation message.
+			$story_name = '';
+			if ( 'story' === $type ) {
+				$story = get_post( $target_id );
+				if ( $story ) {
+					$story_name = $story->post_title;
+				}
 			}
 
-			$token = sanitize_text_field( $_GET['token'] );
-			$result = self::verify_subscription( $token );
-
-			if ( is_wp_error( $result ) ) {
-				wp_die( $result->get_error_message() );
+			if ( $story_name ) {
+				$message = sprintf(
+					/* translators: %s: story title */
+					__( 'You will no longer receive email updates for "%s".', 'fanfiction-manager' ),
+					$story_name
+				);
+			} else {
+				$message = __( 'You have been successfully unsubscribed from email updates.', 'fanfiction-manager' );
 			}
 
-			wp_die( __( 'Your email subscription has been verified! You will now receive email notifications.', 'fanfiction-manager' ) );
+			wp_die( $message );
 		}
 	}
 
-	/**
-	 * AJAX handler for email subscription
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public static function ajax_subscribe() {
-		// Verify nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_ajax_nonce' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
-		}
-
-		// Get parameters
-		$email = isset( $_POST['email'] ) ? sanitize_email( $_POST['email'] ) : '';
-		$target_id = isset( $_POST['target_id'] ) ? absint( $_POST['target_id'] ) : 0;
-		$subscription_type = isset( $_POST['subscription_type'] ) ? sanitize_text_field( $_POST['subscription_type'] ) : '';
-
-		// Subscribe
-		$result = self::subscribe( $email, $target_id, $subscription_type, 'ajax' );
-
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-		}
-
-		wp_send_json_success( $result );
-	}
-
-	/**
-	 * AJAX handler for verification
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public static function ajax_verify_subscription() {
-		// Get token
-		$token = isset( $_POST['token'] ) ? sanitize_text_field( $_POST['token'] ) : '';
-
-		// Verify
-		$result = self::verify_subscription( $token );
-
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-		}
-
-		wp_send_json_success( array( 'message' => __( 'Subscription verified!', 'fanfiction-manager' ) ) );
-	}
 }

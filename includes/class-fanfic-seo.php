@@ -585,7 +585,7 @@ class Fanfic_SEO {
         }
 
         // Published and public posts
-		return 'index, max-snippet:-1, max-image-preview:large';
+		return 'index, follow, max-snippet:-1, max-image-preview:large';
 	}
 
     /**

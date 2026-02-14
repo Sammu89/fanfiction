@@ -421,7 +421,7 @@ class Fanfic_Shortcodes_Forms {
 
 		ob_start();
 		?>
-		<div class="fanfic-story-rating" aria-label="<?php esc_attr_e( 'Story rating', 'fanfiction-manager' ); ?>">
+		<div class="fanfic-story-rating" aria-label="<?php esc_attr_e( 'Story rating', 'fanfiction-manager' ); ?>" data-avg="<?php echo esc_attr( $avg_rating ); ?>" data-count="<?php echo esc_attr( $total_ratings ); ?>">
 			<?php echo Fanfic_Interactions::get_stars_html( $avg_rating, false, 'medium' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			<div class="fanfic-rating-info">
 				<span class="fanfic-rating-average"><?php echo esc_html( number_format_i18n( $avg_rating, 1 ) ); ?></span>
@@ -466,7 +466,7 @@ class Fanfic_Shortcodes_Forms {
 
 		ob_start();
 		?>
-		<div class="fanfic-rating-widget" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-chapter-id="<?php echo esc_attr( $chapter_id ); ?>">
+		<div class="fanfic-rating-widget" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-chapter-id="<?php echo esc_attr( $chapter_id ); ?>" data-avg="<?php echo esc_attr( $avg_rating ); ?>" data-count="<?php echo esc_attr( $total_ratings ); ?>">
 			<?php echo Fanfic_Interactions::get_stars_html( $avg_rating, true, 'medium' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			<div class="fanfic-rating-info">
 				<span class="fanfic-rating-average"><?php echo esc_html( number_format_i18n( $avg_rating, 1 ) ); ?></span>

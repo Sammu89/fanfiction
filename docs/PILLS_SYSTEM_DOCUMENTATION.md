@@ -139,7 +139,7 @@ Pills appear in this fixed order:
 - Generic CSS classes
 - Can be used for:
   - Search filters
-  - Bookmarks/saved filters
+  - Follows/saved filters
   - User preferences
   - Any grouped value display
   - Any site area
@@ -190,8 +190,8 @@ Use CSS specificity to style differently per page/section:
 /* Default styles */
 .fanfic-pill { background-color: #e3f2fd; }
 
-/* Different styling on bookmarks page */
-.bookmarks-page .fanfic-pill { background-color: #fff3e0; }
+/* Different styling on follows page */
+.follows-page .fanfic-pill { background-color: #fff3e0; }
 ```
 
 ---
@@ -240,7 +240,7 @@ PillsManager.removeValueFromTaxonomy('genres', 'Action');
 
 ### Future Uses
 - Saved filter pills
-- Bookmarks sidebar
+- Follows sidebar
 - Profile preferences
 - User activity feed
 - Admin filter management
@@ -299,7 +299,7 @@ PillsManager.removeValueFromTaxonomy('genres', 'Action');
 
 ### Alternative: Green (Success)
 ```css
-.bookmarks-page .fanfic-pill {
+.follows-page .fanfic-pill {
     background-color: #c8e6c9;
     border-color: #81c784;
     color: #2e7d32;

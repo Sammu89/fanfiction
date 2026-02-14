@@ -33,8 +33,8 @@ Each shortcode is implemented as a class method in organized shortcode handler c
 **Interactive Shortcodes** provide user interaction capabilities:
 - `[story-rating-form]` - 1-5 star rating interface for the story (displays mean of chapter ratings).
 - `[chapter-rating-form]` - 1-5 star rating for individual chapters.
-- `[story-actions]` - Action buttons: Bookmark Story, Share Story, Report Story (with reCAPTCHA protection).
-- `[chapter-actions]` - Action buttons: Bookmark Chapter, Share Chapter, Report Chapter.
+- `[story-actions]` - Action buttons: Follow Story, Share Story, Report Story (with reCAPTCHA protection).
+- `[chapter-actions]` - Action buttons: Follow Chapter, Share Chapter, Report Chapter.
 - `[author-actions]` - Follow/Unfollow button for an author.
 
 **Navigation Shortcodes** provide reading navigation:
@@ -64,7 +64,7 @@ Each shortcode is implemented as a class method in organized shortcode handler c
 - `[author-follow-list]` - Authors being followed by the user.
 
 **List & Filter Shortcodes** enable content discovery:
-- `[story-list]` - Paginated, filterable, sortable list of stories. Parameters: `genre="comedy,drama"` `status="ongoing"` `custom-taxo-fandom="harry-potter"`. Multiple filters combined with AND logic (must match ALL criteria). Sorting options: Date Published, Last Updated, Rating, Bookmarks, Views. Results: 10 per page with AJAX infinite scroll.
+- `[story-list]` - Paginated, filterable, sortable list of stories. Parameters: `genre="comedy,drama"` `status="ongoing"` `custom-taxo-fandom="harry-potter"`. Multiple filters combined with AND logic (must match ALL criteria). Sorting options: Date Published, Last Updated, Rating, Follows, Views. Results: 10 per page with AJAX infinite scroll.
 - `[story-grid]` - Grid display version of story-list (same filtering/sorting capabilities).
 
 **Comment & Rating Shortcodes:**
@@ -74,11 +74,11 @@ Each shortcode is implemented as a class method in organized shortcode handler c
 - `[chapter-comments-count]` - Comment count badge for chapter.
 
 **User Dashboard Shortcodes:**
-- `[user-favorites]` - List of user's bookmarked stories with timestamps and quick-remove buttons.
+- `[user-favorites]` - List of user's followed stories with timestamps and quick-remove buttons.
 - `[user-followed-authors]` - List of followed authors with their latest story.
 - `[user-reading-history]` - Recently read chapters with last-read timestamps.
 - `[user-notification-settings]` - Form for managing notification preferences (which notifications to receive, email vs. in-app, frequency).
-- `[most-bookmarked-stories]` - Platform-wide list of most-bookmarked stories.
+- `[most-followed-stories]` - Platform-wide list of most-followed stories.
 - `[most-followed-authors]` - Platform-wide list of most-followed authors.
 - `[user-ban]` - Demotes user to Fanfic_Banned_Users (only used by moderators and above).
 - `[user-moderator]` - Promotes user to Fanfic_Mod (only by admins).

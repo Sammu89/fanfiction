@@ -27,7 +27,7 @@ class Fanfic_Widgets {
 	 */
 	const CACHE_RECENT_STORIES = 600;     // 10 minutes
 	const CACHE_FEATURED_STORIES = 1800;  // 30 minutes
-	const CACHE_BOOKMARKED = 300;         // 5 minutes
+	const CACHE_followED = 300;         // 5 minutes
 
 	/**
 	 * Register all widgets
@@ -46,12 +46,12 @@ class Fanfic_Widgets {
 		// Load widget classes
 		require_once FANFIC_INCLUDES_DIR . 'widgets/class-fanfic-widget-recent-stories.php';
 		require_once FANFIC_INCLUDES_DIR . 'widgets/class-fanfic-widget-featured-stories.php';
-		require_once FANFIC_INCLUDES_DIR . 'widgets/class-fanfic-widget-most-bookmarked.php';
+		require_once FANFIC_INCLUDES_DIR . 'widgets/class-fanfic-widget-most-followed.php';
 
 		// Register widgets with WordPress
 		register_widget( 'Fanfic_Widget_Recent_Stories' );
 		register_widget( 'Fanfic_Widget_Featured_Stories' );
-		register_widget( 'Fanfic_Widget_Most_Bookmarked' );
+		register_widget( 'Fanfic_Widget_Most_Followed' );
 	}
 
 	/**
@@ -73,7 +73,7 @@ class Fanfic_Widgets {
 			delete_transient( "fanfic_widget_featured_stories_{$i}" );
 		}
 
-		// Note: Most bookmarked and top authors use their class caches
+		// Note: Most followed and top authors use their class caches
 	}
 
 	/**
@@ -257,20 +257,20 @@ class Fanfic_Widgets {
 	}
 
 	/**
-	 * Render bookmark count badge
+	 * Render follow count badge
 	 *
-	 * Outputs bookmark count badge HTML.
+	 * Outputs follow count badge HTML.
 	 *
 	 * @since 1.0.0
-	 * @param int $count Bookmark count.
+	 * @param int $count Follow count.
 	 * @return string Badge HTML.
 	 */
-	public static function get_bookmark_count_badge( $count ) {
+	public static function get_follow_count_badge( $count ) {
 		return sprintf(
 			'<span class="fanfic-widget-count">%s</span>',
 			sprintf(
-				/* translators: %d: number of bookmarks */
-				_n( '%d bookmark', '%d bookmarks', $count, 'fanfiction-manager' ),
+				/* translators: %d: number of follows */
+				_n( '%d follow', '%d follows', $count, 'fanfiction-manager' ),
 				absint( $count )
 			)
 		);

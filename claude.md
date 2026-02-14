@@ -26,7 +26,7 @@ The Fanfiction Manager is a WordPress plugin that transforms WordPress into a de
 3. **Data Model (class-fanfic-post-types.php, class-fanfic-taxonomies.php)**
    - Custom post types: `fanfiction_story` (stories container), `fanfiction_chapter` (individual chapters)
    - Core taxonomies: `fanfiction_genre` (hierarchical), `fanfiction_status` (flat)
-   - Custom tables: `wp_fanfic_ratings`, `wp_fanfic_bookmarks`, `wp_fanfic_follows`, `wp_fanfic_notifications`, `wp_fanfic_reports`
+   - Custom tables: `wp_fanfic_ratings`, `wp_fanfic_follows`, `wp_fanfic_follows`, `wp_fanfic_notifications`, `wp_fanfic_reports`
    - Database setup in `class-fanfic-database-setup.php` runs on activation via `activate()` hook
 
 4. **User System (class-fanfic-roles-caps.php)**
@@ -128,7 +128,7 @@ The Fanfiction Manager is a WordPress plugin that transforms WordPress into a de
 - **`docs/frontend-templates.md`**: Shortcodes, templates, page structure, URL design
 - **`docs/shortcodes.md`**: Shortcode reference (categories, parameters, output)
 - **`docs/admin-interface.md`**: Admin pages, moderation tools, settings
-- **`docs/features.md`**: Ratings, bookmarks, follows, notifications, search, profiles
+- **`docs/features.md`**: Ratings, follows, follows, notifications, search, profiles
 - **`docs/performance-optimization.md`**: Query optimization, caching, lazy loading
 - **`docs/pages_and_url_workflow.md`**: Complete URL/page system documentation
 - **`docs/setup-wizard-audit-and-optimization.md`**: Wizard deep dive with Gate verification details

@@ -41,7 +41,7 @@ These pages exist as real WordPress pages in `wp_posts` table:
   - Shortcodes: `[story-list]`, `[story-grid]`, `[search-form]`
 
 - **Dashboard** (`/plugin_base_name/dashboard_custom_name/`)
-  - Personalized hub for logged-in users showing bookmarks, reading history, followed authors, story listing
+  - Personalized hub for logged-in users showing follows, reading history, followed authors, story listing
   - Shortcode: `[user-dashboard]`
 
 - **Create Story** (`/plugin_base_name/create-story/`)

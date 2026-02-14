@@ -69,7 +69,7 @@ URLs generated like `/plugin_base_name/my-story/chapter-1/`.
 - When changed/deleted/created, apply bulk cache invalidation (see performance-optimization.md).
 
 ## Custom Tables
-Use a shared prefix like `wp_fanfic_` for all (e.g., `wp_fanfic_ratings`, `wp_fanfic_bookmarks`, `wp_fanfic_follows`, `wp_fanfic_notifications`, `wp_fanfic_reports`).
+Use a shared prefix like `wp_fanfic_` for all (e.g., `wp_fanfic_ratings`, `wp_fanfic_follows`, `wp_fanfic_follows`, `wp_fanfic_notifications`, `wp_fanfic_reports`).
 - Make it uniform across all custom tables.
 
 ## Multisite Compatibility

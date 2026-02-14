@@ -38,6 +38,8 @@ class Fanfic_Notifications {
 	const TYPE_COAUTHOR_REMOVED = 'coauthor_removed';
 	const TYPE_COAUTHOR_DISABLED = 'coauthor_disabled';
 	const TYPE_COAUTHOR_ENABLED = 'coauthor_enabled';
+	const TYPE_CHAPTER_UPDATE = 'chapter_update';
+	const TYPE_STORY_STATUS_CHANGE = 'story_status_change';
 
 	/**
 	 * Cron continuation hook for old-notification cleanup.
@@ -137,6 +139,8 @@ class Fanfic_Notifications {
 			self::TYPE_COAUTHOR_REMOVED,
 			self::TYPE_COAUTHOR_DISABLED,
 			self::TYPE_COAUTHOR_ENABLED,
+			self::TYPE_CHAPTER_UPDATE,
+			self::TYPE_STORY_STATUS_CHANGE,
 		);
 
 		if ( ! in_array( $type, $valid_types, true ) ) {
@@ -643,6 +647,8 @@ class Fanfic_Notifications {
 			self::TYPE_COAUTHOR_REMOVED => __( 'Co-Author Removed', 'fanfiction-manager' ),
 			self::TYPE_COAUTHOR_DISABLED => __( 'Co-Authors Disabled', 'fanfiction-manager' ),
 			self::TYPE_COAUTHOR_ENABLED => __( 'Co-Authors Enabled', 'fanfiction-manager' ),
+			self::TYPE_CHAPTER_UPDATE => __( 'Chapter Update', 'fanfiction-manager' ),
+			self::TYPE_STORY_STATUS_CHANGE => __( 'Story Status Change', 'fanfiction-manager' ),
 		);
 	}
 
@@ -844,6 +850,121 @@ class Fanfic_Notifications {
 	}
 
 	/**
+	 * Create chapter update notification for story followers
+	 *
+	 * Notifies users who follow the parent story when a chapter is updated.
+	 *
+	 * @since 1.8.0
+	 * @param int $chapter_id Chapter ID.
+	 * @param int $story_id   Story ID.
+	 * @return int Count of notifications created.
+	 */
+	public static function create_chapter_update_notification( $chapter_id, $story_id ) {
+		$chapter = get_post( $chapter_id );
+		$story   = get_post( $story_id );
+
+		if ( ! $chapter || ! $story ) {
+			return 0;
+		}
+
+		$chapter_number = get_post_meta( $chapter_id, '_chapter_number', true );
+		$chapter_label  = $chapter_number ? sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number ) : $chapter->post_title;
+
+		$message = sprintf(
+			/* translators: 1: chapter label, 2: story title */
+			__( '%1$s of "%2$s" has been updated', 'fanfiction-manager' ),
+			$chapter_label,
+			$story->post_title
+		);
+
+		$data = array(
+			'chapter_id' => $chapter_id,
+			'story_id'   => $story_id,
+			'post_url'   => get_permalink( $chapter_id ),
+		);
+
+		// Get story followers (logged-in users only)
+		$follower_ids = self::get_story_follower_user_ids( $story_id, $story->post_author );
+
+		if ( empty( $follower_ids ) ) {
+			return 0;
+		}
+
+		return self::batch_create_notifications( $follower_ids, self::TYPE_CHAPTER_UPDATE, $message, $data );
+	}
+
+	/**
+	 * Create story status change notification
+	 *
+	 * Notifies story followers when story status changes (e.g., ongoing → completed).
+	 *
+	 * @since 1.8.0
+	 * @param int    $story_id   Story ID.
+	 * @param string $new_status New status term name.
+	 * @param string $old_status Old status term name.
+	 * @return int Count of notifications created.
+	 */
+	public static function create_story_status_notification( $story_id, $new_status, $old_status ) {
+		$story = get_post( $story_id );
+		if ( ! $story ) {
+			return 0;
+		}
+
+		$message = sprintf(
+			/* translators: 1: story title, 2: new status */
+			__( '"%1$s" is now %2$s', 'fanfiction-manager' ),
+			$story->post_title,
+			$new_status
+		);
+
+		$data = array(
+			'story_id'   => $story_id,
+			'old_status' => $old_status,
+			'new_status' => $new_status,
+			'post_url'   => get_permalink( $story_id ),
+		);
+
+		// Get story followers (logged-in users only)
+		$follower_ids = self::get_story_follower_user_ids( $story_id, $story->post_author );
+
+		if ( empty( $follower_ids ) ) {
+			return 0;
+		}
+
+		return self::batch_create_notifications( $follower_ids, self::TYPE_STORY_STATUS_CHANGE, $message, $data );
+	}
+
+	/**
+	 * Get logged-in user IDs who follow a story
+	 *
+	 * Queries the interactions table for users who have followed the story.
+	 * Excludes the story author to avoid self-notifications.
+	 *
+	 * @since 1.8.0
+	 * @param int $story_id  Story ID.
+	 * @param int $author_id Story author ID to exclude.
+	 * @return array Array of user IDs.
+	 */
+	private static function get_story_follower_user_ids( $story_id, $author_id = 0 ) {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'fanfic_interactions';
+		$sql   = $wpdb->prepare(
+			"SELECT DISTINCT user_id FROM {$table}
+			WHERE post_id = %d AND interaction_type = 'follow' AND user_id > 0",
+			absint( $story_id )
+		);
+
+		if ( $author_id ) {
+			$sql .= $wpdb->prepare( ' AND user_id != %d', absint( $author_id ) );
+		}
+
+		$ids = $wpdb->get_col( $sql );
+
+		return $ids ? array_map( 'absint', $ids ) : array();
+	}
+
+	/**
 	 * Handle new comment
 	 *
 	 * WordPress hook handler for wp_insert_comment.
@@ -887,13 +1008,17 @@ class Fanfic_Notifications {
 	public static function handle_post_transition( $new_status, $old_status, $post ) {
 		// Handle chapter publish
 		if ( 'fanfiction_chapter' === $post->post_type ) {
-			// Only trigger on new publish
-			if ( 'publish' !== $new_status || 'publish' === $old_status ) {
+			if ( 'publish' !== $new_status ) {
 				return;
 			}
 
-			// Create chapter notification
-			self::create_chapter_notification( $post->ID, $post->post_parent );
+			if ( 'publish' !== $old_status ) {
+				// New publish — create chapter notification
+				self::create_chapter_notification( $post->ID, $post->post_parent );
+			} else {
+				// Re-publish (update) — notify chapter bookmarkers and story followers
+				self::create_chapter_update_notification( $post->ID, $post->post_parent );
+			}
 			return;
 		}
 
@@ -955,6 +1080,37 @@ class Fanfic_Notifications {
 
 		// Only notify for relevant taxonomies
 		if ( ! in_array( $taxonomy, $relevant_taxonomies, true ) ) {
+			return;
+		}
+
+		// For fanfiction_status changes, notify story followers immediately
+		if ( 'fanfiction_status' === $taxonomy ) {
+			$old_terms = array();
+			if ( ! empty( $old_tt_ids ) ) {
+				foreach ( $old_tt_ids as $tt_id ) {
+					$term = get_term_by( 'term_taxonomy_id', $tt_id );
+					if ( $term && ! is_wp_error( $term ) ) {
+						$old_terms[] = $term->name;
+					}
+				}
+			}
+
+			$new_terms = array();
+			if ( ! empty( $tt_ids ) ) {
+				foreach ( $tt_ids as $tt_id ) {
+					$term = get_term_by( 'term_taxonomy_id', $tt_id );
+					if ( $term && ! is_wp_error( $term ) ) {
+						$new_terms[] = $term->name;
+					}
+				}
+			}
+
+			$old_status_name = ! empty( $old_terms ) ? implode( ', ', $old_terms ) : __( 'none', 'fanfiction-manager' );
+			$new_status_name = ! empty( $new_terms ) ? implode( ', ', $new_terms ) : __( 'none', 'fanfiction-manager' );
+
+			if ( $old_status_name !== $new_status_name ) {
+				self::create_story_status_notification( $object_id, $new_status_name, $old_status_name );
+			}
 			return;
 		}
 

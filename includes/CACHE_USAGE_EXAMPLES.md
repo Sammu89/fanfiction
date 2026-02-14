@@ -66,11 +66,11 @@ $chapters = Fanfic_Cache::get(
 
 ```php
 // Set cache manually
-$key = Fanfic_Cache::get_key( 'user', 'bookmarks', $user_id );
-Fanfic_Cache::set( $key, $bookmarks_data, Fanfic_Cache::SHORT );
+$key = Fanfic_Cache::get_key( 'user', 'follows', $user_id );
+Fanfic_Cache::set( $key, $follows_data, Fanfic_Cache::SHORT );
 
 // Get cached data (returns false if not found)
-$bookmarks = get_transient( $key );
+$follows = get_transient( $key );
 ```
 
 ---
@@ -84,7 +84,7 @@ When a story is created, updated, or deleted:
 ```php
 // Invalidates:
 // - Story validity, chapter count, chapters list
-// - Story ratings, bookmark count, view count
+// - Story ratings, follow count, view count
 // - Author's story lists
 // - Archive/list caches
 Fanfic_Cache::invalidate_story( $story_id );
@@ -119,11 +119,11 @@ add_action( 'save_post_fanfiction_chapter', function( $post_id ) {
 
 ### User Invalidation
 
-When user data changes (bookmarks, profile):
+When user data changes (follows, profile):
 
 ```php
 // Invalidates:
-// - User bookmarks
+// - User follows
 // - User stories, notifications, statistics
 Fanfic_Cache::invalidate_user( $user_id );
 ```
@@ -131,8 +131,8 @@ Fanfic_Cache::invalidate_user( $user_id );
 **Example Usage:**
 
 ```php
-// After adding a bookmark
-Fanfic_Bookmarks::add_bookmark( $story_id, $user_id );
+// After adding a follow
+Fanfic_Follows::add_follow( $story_id, $user_id );
 Fanfic_Cache::invalidate_user( $user_id );
 ```
 
@@ -288,7 +288,7 @@ if ( Fanfic_Cache::exists( $key ) ) {
 ### Get Remaining TTL
 
 ```php
-$key = Fanfic_Cache::get_key( 'user', 'bookmarks', $user_id );
+$key = Fanfic_Cache::get_key( 'user', 'follows', $user_id );
 $ttl = Fanfic_Cache::get_ttl( $key );
 
 if ( $ttl !== false ) {
@@ -378,19 +378,19 @@ class Fanfic_Ratings {
 }
 ```
 
-### 2. User Bookmarks Cache
+### 2. User Follows Cache
 
 ```php
-class Fanfic_Bookmarks {
+class Fanfic_Follows {
 
-    public static function get_user_bookmarks( $user_id, $page = 1, $per_page = 20 ) {
-        $cache_key = Fanfic_Cache::get_key( 'user', 'bookmarks_p' . $page, $user_id );
+    public static function get_user_follows( $user_id, $page = 1, $per_page = 20 ) {
+        $cache_key = Fanfic_Cache::get_key( 'user', 'follows_p' . $page, $user_id );
 
         return Fanfic_Cache::get(
             $cache_key,
             function() use ( $user_id, $page, $per_page ) {
                 global $wpdb;
-                $table = $wpdb->prefix . 'fanfic_bookmarks';
+                $table = $wpdb->prefix . 'fanfic_follows';
 
                 $offset = ( $page - 1 ) * $per_page;
 
@@ -408,14 +408,14 @@ class Fanfic_Bookmarks {
         );
     }
 
-    public static function add_bookmark( $story_id, $user_id ) {
-        // ... insert bookmark ...
+    public static function add_follow( $story_id, $user_id ) {
+        // ... insert follow ...
 
         // Invalidate user cache (all pages)
         Fanfic_Cache::invalidate_user( $user_id );
 
-        // Also invalidate story bookmark count
-        $key = Fanfic_Cache::get_key( 'story', 'bookmark_count', $story_id );
+        // Also invalidate story follow count
+        $key = Fanfic_Cache::get_key( 'story', 'follow_count', $story_id );
         Fanfic_Cache::delete( $key );
     }
 }
@@ -459,7 +459,7 @@ class Fanfic_Shortcodes {
 
 - **REALTIME (1 min):** Live data (notifications count, online users)
 - **SHORT (5 min):** Frequently changing (ratings, views)
-- **MEDIUM (15 min):** Moderately changing (bookmarks, comments)
+- **MEDIUM (15 min):** Moderately changing (follows, comments)
 - **LONG (30 min):** Stable data (chapter lists, metadata)
 - **DAY (24 hrs):** Very stable (author stats, story counts)
 - **WEEK (7 days):** Rarely changing (validation results)

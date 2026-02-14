@@ -3,7 +3,7 @@
  * User and Interaction Cache Functions
  *
  * Provides caching functions for user-specific operations including profiles,
- * bookmarks, and notifications. Uses WordPress transients API with
+ * follows, and notifications. Uses WordPress transients API with
  * appropriate TTL values optimized for different data types.
  *
  * @package FanfictionManager
@@ -326,7 +326,7 @@ function ffm_mark_notifications_read( $user_id, $notification_ids ) {
  * Clear all user-related caches
  *
  * Clears all cached data for a specific user including profile,
- * bookmarks and notifications.
+ * follows and notifications.
  *
  * @since 1.0.0
  * @param int $user_id User ID.
@@ -343,25 +343,25 @@ function ffm_clear_user_cache( $user_id ) {
 	delete_transient( 'fanfic_user_profile_' . $user_id );
 	delete_transient( 'fanfic_user_story_count_' . $user_id );
 
-	// Clear bookmark caches
-	ffm_clear_bookmark_cache( $user_id );
+	// Clear follow caches
+	ffm_clear_follow_cache( $user_id );
 
 	// Clear notification caches
 	ffm_clear_notification_cache( $user_id );
 }
 
 /**
- * Clear bookmark-related caches for a user
+ * Clear follow-related caches for a user
  *
- * Clears all paginated bookmark caches for a user.
- * Also clears site-wide most bookmarked stories cache.
+ * Clears all paginated follow caches for a user.
+ * Also clears site-wide most followed stories cache.
  *
  * @since 1.0.0
  * @param int $user_id  User ID.
- * @param int $story_id Optional. Specific story ID to clear bookmark status for.
+ * @param int $story_id Optional. Specific story ID to clear follow status for.
  * @return void
  */
-function ffm_clear_bookmark_cache( $user_id, $story_id = 0 ) {
+function ffm_clear_follow_cache( $user_id, $story_id = 0 ) {
 	$user_id  = absint( $user_id );
 	$story_id = absint( $story_id );
 
@@ -369,28 +369,28 @@ function ffm_clear_bookmark_cache( $user_id, $story_id = 0 ) {
 		return;
 	}
 
-	// Clear bookmark count
-	delete_transient( 'fanfic_user_bookmark_count_' . $user_id );
+	// Clear follow count
+	delete_transient( 'fanfic_user_follow_count_' . $user_id );
 
-	// Clear paginated bookmark lists for common pagination sizes
+	// Clear paginated follow lists for common pagination sizes
 	$pagination_sizes = array( 10, 15, 20 );
 	foreach ( $pagination_sizes as $per_page ) {
 		for ( $page = 1; $page <= 10; $page++ ) {
-			delete_transient( 'fanfic_user_bookmarks_' . $user_id . '_' . $page . '_' . $per_page );
+			delete_transient( 'fanfic_user_follows_' . $user_id . '_' . $page . '_' . $per_page );
 		}
 	}
 
-	// Clear specific story bookmark status if provided
+	// Clear specific story follow status if provided
 	if ( $story_id ) {
-		delete_transient( 'fanfic_is_bookmarked_' . $user_id . '_' . $story_id );
+		delete_transient( 'fanfic_is_followed_' . $user_id . '_' . $story_id );
 	}
 
-	// Clear site-wide most bookmarked stories cache
+	// Clear site-wide most followed stories cache
 	global $wpdb;
 	$wpdb->query(
 		"DELETE FROM {$wpdb->options}
-		WHERE option_name LIKE '_transient_fanfic_most_bookmarked_stories_%'
-		OR option_name LIKE '_transient_timeout_fanfic_most_bookmarked_stories_%'"
+		WHERE option_name LIKE '_transient_fanfic_most_followed_stories_%'
+		OR option_name LIKE '_transient_timeout_fanfic_most_followed_stories_%'"
 	);
 }
 
@@ -429,7 +429,7 @@ function ffm_clear_notification_cache( $user_id ) {
  * Useful for bulk cache invalidation of list-based caches.
  *
  * @since 1.0.0
- * @param string $prefix Cache key prefix (e.g., 'fanfic_user_bookmarks_123_').
+ * @param string $prefix Cache key prefix (e.g., 'fanfic_user_follows_123_').
  * @return int Number of transients deleted.
  */
 function ffm_clear_paginated_cache( $prefix ) {

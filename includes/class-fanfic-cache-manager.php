@@ -192,7 +192,7 @@ class Fanfic_Cache_Manager {
 
 		$cache_keys = array(
 			'fanfic_user_' . $user_id . '_notifications',
-			'fanfic_user_' . $user_id . '_bookmarks',
+			'fanfic_user_' . $user_id . '_follows',
 			'fanfic_user_' . $user_id . '_reading_progress',
 		);
 

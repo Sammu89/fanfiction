@@ -31,11 +31,11 @@
 - Anonymous commenters’ IPs should be hashed and stored.
 - Authors can edit/delete their own comments within 30 min; mods/admins can override anytime.
 
-## Bookmarking System
-- For users with large bookmark collections (e.g., 1,000+), bookmarks are paginated (10-20 per page) in the [user-favorites] shortcode.
-- Bookmark data is cached in a transient (fanfic_bookmarks_{user_id}) to reduce database queries.
-- Queries use indexes on wp_fanfic_bookmarks (user_id, story_id) for efficiency.
-- Transients are cleared when a bookmark is added/removed and rebuilt on-demand.
+## Following System
+- For users with large follow collections (e.g., 1,000+), follows are paginated (10-20 per page) in the [user-favorites] shortcode.
+- Follow data is cached in a transient (fanfic_follows_{user_id}) to reduce database queries.
+- Queries use indexes on wp_fanfic_follows (user_id, story_id) for efficiency.
+- Transients are cleared when a follow is added/removed and rebuilt on-demand.
 
 ## Search & Filtering
 - Search scans story titles, introductions, and chapter content using basic substring matching (works on low-resource servers without breaking).

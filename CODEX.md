@@ -58,7 +58,7 @@ This file is a concise, high-signal map of how the plugin works so future fixes 
 
 ## Data Model
 - CPTs: `fanfiction_story`, `fanfiction_chapter`.
-- Tables (created in `includes/class-fanfic-database-setup.php`): ratings, bookmarks, follows, notifications, reports, likes, reading_progress, read_lists, subscriptions.
+- Tables (created in `includes/class-fanfic-database-setup.php`): ratings, follows, follows, notifications, reports, likes, reading_progress, read_lists, subscriptions.
 - Caches: `includes/class-fanfic-cache.php`, `includes/cache/*`.
 
 ## Frontend Assets

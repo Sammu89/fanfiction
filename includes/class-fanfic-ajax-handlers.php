@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - Chapter ratings (anonymous + authenticated)
  * - Chapter likes (anonymous + authenticated)
  * - Reading progress (authenticated only)
- * - Story/chapter bookmarks (anonymous + authenticated)
+ * - Story/chapter follows (anonymous + authenticated)
  * - Email subscriptions (anonymous + authenticated)
  * - Batch stats loading
  *
@@ -49,10 +49,10 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
-		// Bookmark endpoints (public + authenticated)
+		// Follow endpoints (public + authenticated)
 		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_toggle_bookmark',
-			array( __CLASS__, 'ajax_toggle_bookmark' ),
+			'fanfic_toggle_follow',
+			array( __CLASS__, 'ajax_toggle_follow' ),
 			false, // Allow anonymous
 			array(
 				'rate_limit'  => true,
@@ -60,16 +60,8 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
-		// Email subscription (public + authenticated)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_subscribe_email',
-			array( __CLASS__, 'ajax_subscribe_email' ),
-			false, // Allow anonymous
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
+		// Legacy: email subscription handler removed in 1.8.0.
+		// Email subscription is now handled via the follow toggle with optional email param.
 
 		// Batch stats loading (public + authenticated)
 		Fanfic_AJAX_Security::register_ajax_handler(
@@ -147,10 +139,10 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
-		// Bookmark pagination (authenticated only)
+		// Follow pagination (authenticated only)
 		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_load_user_bookmarks',
-			array( __CLASS__, 'ajax_load_user_bookmarks' ),
+			'fanfic_load_user_follows',
+			array( __CLASS__, 'ajax_load_user_follows' ),
 			true, // Require login
 			array(
 				'rate_limit'  => true,
@@ -174,17 +166,6 @@ class Fanfic_AJAX_Handlers {
 			'fanfic_unmark_as_read',
 			array( __CLASS__, 'ajax_unmark_as_read' ),
 			true, // Require login
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
-		// Verify email subscription (public + authenticated)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_verify_subscription',
-			array( __CLASS__, 'ajax_verify_subscription' ),
-			false, // Allow anonymous
 			array(
 				'rate_limit'  => true,
 				'capability'  => 'read',
@@ -797,18 +778,18 @@ class Fanfic_AJAX_Handlers {
 	}
 
 	/**
-	 * AJAX: Toggle bookmark
+	 * AJAX: Toggle follow
 	 *
 	 * Authenticated users only.
 	 *
 	 * @since 1.0.15
 	 * @return void Sends JSON response.
 	 */
-	public static function ajax_toggle_bookmark() {
+	public static function ajax_toggle_follow() {
 		// Get and validate parameters
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
 			array( 'post_id' ),
-			array( 'bookmark_type', 'anonymous_uuid' )
+			array( 'follow_type', 'anonymous_uuid', 'email' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -823,81 +804,78 @@ class Fanfic_AJAX_Handlers {
 		$user_id        = get_current_user_id();
 		$anonymous_uuid = isset( $params['anonymous_uuid'] ) ? sanitize_text_field( $params['anonymous_uuid'] ) : '';
 
-		// Toggle bookmark
-		$result = Fanfic_Bookmarks::toggle_bookmark( $user_id, $post_id, $anonymous_uuid );
+		// Toggle follow
+		$result = Fanfic_Follows::toggle_follow( $user_id, $post_id, $anonymous_uuid );
 
 		if ( ! isset( $result['success'] ) || ! $result['success'] ) {
 			Fanfic_AJAX_Security::send_error_response(
-				'bookmark_failed',
-				isset( $result['error'] ) ? $result['error'] : __( 'Failed to toggle bookmark.', 'fanfiction-manager' ),
+				'follow_failed',
+				isset( $result['error'] ) ? $result['error'] : __( 'Failed to toggle follow.', 'fanfiction-manager' ),
 				400
 			);
 		}
+
+		// Determine the story ID (for email subscription operations).
+		$post = get_post( $post_id );
+		$story_id = $post_id;
+		if ( $post && 'fanfiction_chapter' === $post->post_type && $post->post_parent ) {
+			$story_id = absint( $post->post_parent );
+		}
+
+		// Handle email subscription based on follow state.
+		$email_subscribed   = false;
+		$email_unsubscribed = false;
+		$unsubscribed_email = '';
+
+		if ( ! empty( $params['email'] ) && class_exists( 'Fanfic_Email_Subscriptions' ) ) {
+			$email = sanitize_email( $params['email'] );
+
+			if ( is_email( $email ) ) {
+				if ( $result['is_followed'] ) {
+					// Follow: subscribe email to story updates.
+					$sub_result = Fanfic_Email_Subscriptions::subscribe_from_follow( $email, $story_id );
+					$email_subscribed = ! is_wp_error( $sub_result );
+				} else {
+					// Unfollow: remove email subscription if it exists.
+					$email_unsubscribed = Fanfic_Email_Subscriptions::unsubscribe_on_unfollow( $email, $story_id );
+					if ( $email_unsubscribed ) {
+						$unsubscribed_email = $email;
+					}
+				}
+			}
+		}
+
+		// Build response message.
+		if ( $result['is_followed'] ) {
+			$message = __( 'Follow added!', 'fanfiction-manager' );
+		} elseif ( $email_unsubscribed ) {
+			$message = sprintf(
+				/* translators: %s: email address */
+				__( 'Unfollow successful. "%s" will no longer receive email alerts.', 'fanfiction-manager' ),
+				$unsubscribed_email
+			);
+		} else {
+			$message = __( 'Follow removed.', 'fanfiction-manager' );
+		}
+
+		// Get updated follow count for the story.
+		$follow_count = Fanfic_Follows::get_follow_count( $story_id );
 
 		// Return success
 		Fanfic_AJAX_Security::send_success_response(
-			array( 'is_bookmarked' => $result['is_bookmarked'] ),
-			$result['is_bookmarked']
-				? __( 'Bookmark added!', 'fanfiction-manager' )
-				: __( 'Bookmark removed.', 'fanfiction-manager' )
+			array(
+				'is_followed'        => $result['is_followed'],
+				'email_subscribed'   => $email_subscribed,
+				'email_unsubscribed' => $email_unsubscribed,
+				'follow_count'       => $follow_count,
+				'story_id'           => $story_id,
+			),
+			$message
 		);
 	}
 
-	/**
-	 * AJAX: Subscribe to story/author via email
-	 *
-	 * Public endpoint - allows anonymous email subscriptions.
-	 *
-	 * @since 1.0.15
-	 * @return void Sends JSON response.
-	 */
-	public static function ajax_subscribe_email() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'email', 'target_id', 'subscription_type' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$email = sanitize_email( $params['email'] );
-		$target_id = absint( $params['target_id'] );
-		$subscription_type = sanitize_text_field( $params['subscription_type'] );
-
-		// Validate email
-		if ( ! is_email( $email ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'invalid_email',
-				__( 'Please enter a valid email address.', 'fanfiction-manager' ),
-				400
-			);
-		}
-
-		// Subscribe
-		$result = Fanfic_Email_Subscriptions::subscribe( $email, $target_id, $subscription_type, 'form' );
-
-		if ( is_wp_error( $result ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$result->get_error_code(),
-				$result->get_error_message(),
-				400
-			);
-		}
-
-		// Return success
-		Fanfic_AJAX_Security::send_success_response(
-			$result,
-			isset( $result['message'] )
-				? $result['message']
-				: __( 'Subscription successful!', 'fanfiction-manager' )
-		);
-	}
+	// ajax_subscribe_email() removed in 1.8.0 — email subscription
+	// is now handled via the follow toggle with optional email param.
 
 	/**
 	 * AJAX: Get chapter statistics in batch
@@ -1232,18 +1210,18 @@ class Fanfic_AJAX_Handlers {
 	}
 
 	/**
-	 * AJAX: Load user bookmarks with pagination
+	 * AJAX: Load user follows with pagination
 	 *
-	 * Retrieves paginated bookmarks for the current user.
+	 * Retrieves paginated follows for the current user.
 	 * Authenticated users only.
 	 *
 	 * @since 1.0.15
 	 * @return void Sends JSON response.
 	 */
-	public static function ajax_load_user_bookmarks() {
+	public static function ajax_load_user_follows() {
 		// Get and validate parameters
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'offset', 'bookmark_type' ),
+			array( 'offset', 'follow_type' ),
 			array()
 		);
 
@@ -1256,33 +1234,33 @@ class Fanfic_AJAX_Handlers {
 		}
 
 		$offset        = absint( $params['offset'] );
-		$bookmark_type = sanitize_text_field( $params['bookmark_type'] );
+		$follow_type = sanitize_text_field( $params['follow_type'] );
 		$user_id       = get_current_user_id();
 
-		// Validate bookmark_type — must be 'story' or 'chapter'
+		// Validate follow_type — must be 'story' or 'chapter'
 		$allowed_types = array( 'story', 'chapter' );
-		if ( ! in_array( $bookmark_type, $allowed_types, true ) ) {
+		if ( ! in_array( $follow_type, $allowed_types, true ) ) {
 			Fanfic_AJAX_Security::send_error_response(
-				'invalid_bookmark_type',
-				__( 'Invalid bookmark type. Must be "story" or "chapter".', 'fanfiction-manager' ),
+				'invalid_follow_type',
+				__( 'Invalid follow type. Must be "story" or "chapter".', 'fanfiction-manager' ),
 				400
 			);
 		}
 
-		// Get bookmarks (20 per page)
+		// Get follows (20 per page)
 		$per_page  = 20;
-		$bookmarks = Fanfic_Bookmarks::get_user_bookmarks( $user_id, $bookmark_type, $per_page, $offset );
+		$follows = Fanfic_Follows::get_user_follows( $user_id, $follow_type, $per_page, $offset );
 
 		// Get total count for has_more calculation
-		$total_count = Fanfic_Bookmarks::get_bookmarks_count( $user_id, $bookmark_type );
+		$total_count = Fanfic_Follows::get_follows_count( $user_id, $follow_type );
 
-		// Build HTML for each bookmark
+		// Build HTML for each follow
 		$html_output = '';
-		foreach ( $bookmarks as $bookmark ) {
-			if ( 'chapter' === $bookmark_type ) {
-				$html_output .= Fanfic_Bookmarks::render_chapter_bookmark_item( $bookmark );
+		foreach ( $follows as $follow ) {
+			if ( 'chapter' === $follow_type ) {
+				$html_output .= Fanfic_Follows::render_chapter_follow_item( $follow );
 			} else {
-				$html_output .= Fanfic_Bookmarks::render_story_bookmark_item( $bookmark );
+				$html_output .= Fanfic_Follows::render_story_follow_item( $follow );
 			}
 		}
 
@@ -1293,11 +1271,11 @@ class Fanfic_AJAX_Handlers {
 		Fanfic_AJAX_Security::send_success_response(
 			array(
 				'html'        => $html_output,
-				'count'       => count( $bookmarks ),
+				'count'       => count( $follows ),
 				'total_count' => $total_count,
 				'has_more'    => $has_more,
 			),
-			__( 'Bookmarks loaded successfully.', 'fanfiction-manager' )
+			__( 'Follows loaded successfully.', 'fanfiction-manager' )
 		);
 	}
 
@@ -1402,40 +1380,6 @@ class Fanfic_AJAX_Handlers {
 	 * @since 1.0.16
 	 * @return void Sends JSON response.
 	 */
-	public static function ajax_verify_subscription() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'token' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$token = sanitize_text_field( $params['token'] );
-
-		// Verify subscription
-		$result = Fanfic_Email_Subscriptions::verify_subscription( $token );
-
-		if ( is_wp_error( $result ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$result->get_error_code(),
-				$result->get_error_message(),
-				400
-			);
-		}
-
-		Fanfic_AJAX_Security::send_success_response(
-			$result,
-			__( 'Subscription verified successfully.', 'fanfiction-manager' )
-		);
-	}
-
 	/**
 	 * AJAX: Mark notification as read
 	 *

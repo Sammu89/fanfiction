@@ -82,7 +82,7 @@ function fanfic_get_default_chapter_view_template() {
 	[chapter-rating-form]
 </section>
 
-<!-- Action buttons (like, bookmark, mark-read, subscribe, share, report, edit) -->
+<!-- Action buttons (like, follow, mark-read, share, report, edit) -->
 <div class="fanfic-chapter-actions">
 [fanfiction-action-buttons]
 </div>
@@ -197,6 +197,25 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 			<span class="fanfic-message-content"><?php echo $text; ?></span>
 		</div>
 		<?php
+	}
+}
+
+// Badge placeholders for JS-driven follow/bookmark indicators (hidden by default, shown via localStorage).
+if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
+	$badge_story_id   = $chapter_post->post_parent ? absint( $chapter_post->post_parent ) : 0;
+	$badge_chapter_id = absint( $chapter_post->ID );
+
+	if ( $badge_story_id ) {
+		printf(
+			'<div class="fanfic-chapter-badges">' .
+			'<span class="fanfic-badge fanfic-badge-following" data-badge-story-id="%1$d" style="display:none;">%2$s</span>' .
+			'<span class="fanfic-badge fanfic-badge-bookmarked" data-badge-story-id="%1$d" data-badge-chapter-id="%3$d" style="display:none;">%4$s</span>' .
+			'</div>',
+			$badge_story_id,
+			esc_html__( 'Following', 'fanfiction-manager' ),
+			$badge_chapter_id,
+			esc_html__( 'Bookmarked', 'fanfiction-manager' )
+		);
 	}
 }
 

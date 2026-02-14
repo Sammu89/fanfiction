@@ -426,9 +426,9 @@ Your account on %2$s has been updated to Reader status because you don\'t curren
 This is an automatic process to keep our user roles accurate. If you publish a new story, you will automatically be promoted back to Author status.
 
 You can still:
-- Read and bookmark stories
+- Read and follow stories
 - Comment on stories
-- Discover stories from your favorite authors
+- Follow your favorite authors
 - Manage your reading preferences
 
 To regain Author status, simply publish a new story!

@@ -35,7 +35,7 @@ class Fanfic_Rate_Limit {
 	private static $default_limits = array(
 		'rate'       => array( 'limit' => 10, 'window' => 60 ),      // 10 ratings per minute
 		'like'       => array( 'limit' => 10, 'window' => 60 ),      // 10 likes per minute
-		'bookmark'   => array( 'limit' => 5, 'window' => 60 ),       // 5 bookmarks per minute
+		'follow'   => array( 'limit' => 5, 'window' => 60 ),       // 5 follows per minute
 		'subscribe'  => array( 'limit' => 2, 'window' => 60 ),       // 2 subscriptions per minute
 		'comment'    => array( 'limit' => 5, 'window' => 300 ),      // 5 comments per 5 minutes
 		'view'       => array( 'limit' => 100, 'window' => 60 ),     // 100 views per minute
@@ -69,7 +69,7 @@ class Fanfic_Rate_Limit {
 	 *
 	 * @since 1.0.15
 	 * @param string $identifier User ID or IP address.
-	 * @param string $action     Action name (rate, like, bookmark, etc.).
+	 * @param string $action     Action name (rate, like, follow, etc.).
 	 * @param int    $limit      Optional. Override default limit.
 	 * @param int    $window     Optional. Override default window (seconds).
 	 * @return bool True if rate limited, false if allowed.

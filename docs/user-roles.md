@@ -10,9 +10,9 @@ The plugin defines distinct user roles, each with specific capabilities. Roles b
 
 **Fanfic_Reader**
 - Default role for registered users who haven't published stories.
-- Can bookmark stories, follow authors, rate chapters, comment on content.
+- Can follow stories, follow authors, rate chapters, comment on content.
 - Can manage their personal profile (bio and avatar URL, no file uploads).
-- Can view their dashboard (bookmarks, reading history, followed authors).
+- Can view their dashboard (follows, reading history, followed authors).
 - Can control notification preferences.
 
 **Fanfic_Author**
@@ -21,7 +21,7 @@ The plugin defines distinct user roles, each with specific capabilities. Roles b
 - Can manage their complete profile.
 - A daily WP-Cron job checks if Fanfic_Author users have zero published stories. If so, they are demoted to Fanfic_Reader, regardless of draft stories. Draft stories remain accessible in the author’s dashboard but do not prevent demotion.
 - If a user with Fanfic_Reader role publishes a valid story, they are automatically assigned the Fanfic_Author role. This applies to both first-time publishers and users previously demoted to Fanfic_Reader by the daily WP-Cron job (e.g., after deleting all published stories).
-- Inherits all Fanfic_Reader permissions (can still bookmark, follow, comment on other stories).
+- Inherits all Fanfic_Reader permissions (can still follow, follow, comment on other stories).
 
 **Fanfic_Mod**
 - Can view and edit any story or chapter on the platform (with edit stamps showing who modified what).

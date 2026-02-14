@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document provides the complete user interaction system implementation for the Fanfiction Manager plugin, covering ratings, likes, bookmarks, follows (with optional email subscriptions), reading progress, notifications, and email delivery. It includes **all original audit information** plus **pragmatic optimization recommendations** tailored to medium communities (100-500 DAU) on shared hosting with minimal memory constraints.
+This document provides the complete user interaction system implementation for the Fanfiction Manager plugin, covering ratings, likes, follows, follows (with optional email subscriptions), reading progress, notifications, and email delivery. It includes **all original audit information** plus **pragmatic optimization recommendations** tailored to medium communities (100-500 DAU) on shared hosting with minimal memory constraints.
 
 **Key Principle**: Build for **simplicity and clarity** first, optimize with **batch operations and proper indexing**, avoid **over-caching and unnecessary complexity**.
 
@@ -16,7 +16,7 @@ This document provides the complete user interaction system implementation for t
 **Terminology Clarification**:
 - **Follow**: Logged-in users track stories/authors. Generates in-app dashboard notifications + optional email notifications. Users can toggle email notifications per follow. Notifies content creators.
 - **Subscribe**: Email-only subscription for ANY user (logged-in or anonymous via email). Users can unsubscribe via email link or unsubscribe page with email parameter.
-- ** Bookmark** - generates a static link to the story or chapter, on the user dashboard
+- ** Follow** - generates a static link to the story or chapter, on the user dashboard
 - **Single Follow Table**: Tracks both story and author follows (unified under one "follow" action type).
 
 ---
@@ -70,8 +70,8 @@ Unsubscribe all via URL                        → ✅ Complete email unsubscrib
 | **Likes** (chapter) | ✅ | ✅ (Cookie) | ✅ | Author only | No | Count |
 | **Comments** (story/chapter) | ✅ | ❌ | ✅ | Author + repliers | No | Thread |
 | **Reading Progress** (mark as read) | ✅ Only | - | ✅ | No | No | "Read" badge |
-| **Bookmarks** (story) | ✅ Only | - | ✅ | No | No | User library |
-| **Chapter Bookmarks** | ✅ Only | - | ✅ | No | No | User library |
+| **Follows** (story) | ✅ Only | - | ✅ | No | No | User library |
+| **Chapter Follows** | ✅ Only | - | ✅ | No | No | User library |
 | **Follow Story** (logged-in) | ✅ Only | - | ✅ | ✅ | ✅ Toggle | Follower count |
 | **Follow Author** (logged-in) | ✅ Only | - | ✅ | ✅ | ✅ Toggle | Follower count |
 | **Subscribe Story** (email) | Both | ✅ | ✅ | No | ✅ Unsubscribe link | - |
@@ -116,9 +116,9 @@ Anonymous users can rate and like chapters using cookies instead of IP tracking:
 
 7. **Notifications**: Always tied to **content actions** (comments, ratings, follows, chapter updates)—NEVER to reading/marking actions
 
-8. **Counters**: Rating count, like count, bookmark count, follower count all displayed on story/chapter pages
+8. **Counters**: Rating count, like count, follow count, follower count all displayed on story/chapter pages
 
-9. **Unified Path**: All actions (rate, like, bookmark, read, follow) go through same recording system for consistency
+9. **Unified Path**: All actions (rate, like, follow, read, follow) go through same recording system for consistency
 
 ---
 
@@ -159,20 +159,20 @@ foreach ($chapters as $chapter) {
 }
 ```
 
-### 2. Bookmarks (Story)
+### 2. Follows (Story)
 
-**Current Implementation**: `wp_fanfic_bookmarks` table + `class-fanfic-bookmarks.php`
+**Current Implementation**: `wp_fanfic_follows` table + `class-fanfic-follows.php`
 
 **Current Strengths**:
 - ✅ Simple schema with proper indexes on (user_id, created_at)
-- ✅ UNIQUE constraint prevents duplicate bookmarks
+- ✅ UNIQUE constraint prevents duplicate follows
 
 **Current Gaps**:
-- ❌ **Story-only**: No chapter bookmarks (user requested feature)
+- ❌ **Story-only**: No chapter follows (user requested feature)
 - ❌ **Caching not optimized**: Uses transient cache but invalidates on every change
 
 **Implementation Strategy**:
-- Add `bookmark_type` column to support chapter bookmarks
+- Add `follow_type` column to support chapter follows
 - Remove aggressive caching; rely on optimized queries + WordPress page cache
 - Keep data simple, let database indexes do the work
 
@@ -252,17 +252,17 @@ CREATE TABLE IF NOT EXISTS `wp_fanfic_reading_progress` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-### 3.4 Bookmarks Table (Updated)
+### 3.4 Follows Table (Updated)
 ```sql
-CREATE TABLE IF NOT EXISTS `wp_fanfic_bookmarks` (
+CREATE TABLE IF NOT EXISTS `wp_fanfic_follows` (
     `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
     `user_id` bigint(20) UNSIGNED NOT NULL,
     `post_id` bigint(20) UNSIGNED NOT NULL,
-    `bookmark_type` enum('story','chapter') NOT NULL DEFAULT 'story',
+    `follow_type` enum('story','chapter') NOT NULL DEFAULT 'story',
     `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `unique_bookmark` (`user_id`, `post_id`, `bookmark_type`),
-    KEY `idx_user_type` (`user_id`, `bookmark_type`),
+    UNIQUE KEY `unique_follow` (`user_id`, `post_id`, `follow_type`),
+    KEY `idx_user_type` (`user_id`, `follow_type`),
     KEY `idx_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
@@ -587,7 +587,7 @@ class Fanfic_Ajax {
         
         // Logged-in only actions
         add_action('wp_ajax_fanfic_mark_as_read', [__CLASS__, 'ajax_mark_as_read']);
-        add_action('wp_ajax_fanfic_toggle_bookmark', [__CLASS__, 'ajax_toggle_bookmark']);
+        add_action('wp_ajax_fanfic_toggle_follow', [__CLASS__, 'ajax_toggle_follow']);
         add_action('wp_ajax_fanfic_toggle_follow', [__CLASS__, 'ajax_toggle_follow']);
     }
     
@@ -636,7 +636,7 @@ class Fanfic_Ajax {
     $(document).ready(function() {
         initRatings();
         initLikes();
-        initBookmarks();
+        initFollows();
         initFollows();
         initReadingProgress();
     });
@@ -814,9 +814,9 @@ class Fanfic_Maintenance {
             WHERE u.ID IS NULL
         ");
         
-        // 3. Remove orphaned bookmarks
+        // 3. Remove orphaned follows
         $wpdb->query("
-            DELETE b FROM {$wpdb->prefix}fanfic_bookmarks b
+            DELETE b FROM {$wpdb->prefix}fanfic_follows b
             LEFT JOIN {$wpdb->users} u ON b.user_id = u.ID
             WHERE u.ID IS NULL
         ");
@@ -833,7 +833,7 @@ class Fanfic_Maintenance {
             $tables = [
                 'fanfic_ratings',
                 'fanfic_likes',
-                'fanfic_bookmarks',
+                'fanfic_follows',
                 'fanfic_follows',
                 'fanfic_reading_progress',
                 'fanfic_notifications'
@@ -1023,6 +1023,6 @@ $new_average = (($old_total * $old_average) + $new_rating) / ($old_total + 1);
 - ✅ View counts (increment only)
 
 **Use Invalidation For**:
-- ❌ Bookmarks (list changes)
+- ❌ Follows (list changes)
 - ❌ Follows (complex queries)
 - ❌ Comments (threaded structure)

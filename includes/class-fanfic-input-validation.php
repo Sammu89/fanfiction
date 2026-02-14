@@ -150,19 +150,19 @@ class Fanfic_Input_Validation {
 	}
 
 	/**
-	 * Validate bookmark type
+	 * Validate follow type
 	 *
-	 * Checks that bookmark type is valid enum value.
+	 * Checks that follow type is valid enum value.
 	 *
 	 * @since 1.0.0
-	 * @param string $type Bookmark type to validate.
-	 * @return string|WP_Error Bookmark type on success, WP_Error on failure.
+	 * @param string $type Follow type to validate.
+	 * @return string|WP_Error Follow type on success, WP_Error on failure.
 	 */
-	public static function validate_bookmark_type( $type ) {
+	public static function validate_follow_type( $type ) {
 		$type = sanitize_text_field( $type );
 
 		if ( ! in_array( $type, array( 'story', 'chapter' ), true ) ) {
-			return new WP_Error( 'invalid_bookmark_type', __( 'Invalid bookmark type. Must be "story" or "chapter".', 'fanfiction-manager' ) );
+			return new WP_Error( 'invalid_follow_type', __( 'Invalid follow type. Must be "story" or "chapter".', 'fanfiction-manager' ) );
 		}
 
 		return $type;
@@ -289,7 +289,7 @@ class Fanfic_Input_Validation {
 	 *
 	 * @since 1.0.0
 	 * @param int    $user_id User ID to check.
-	 * @param string $action  Action type: 'read', 'rate', 'like', 'bookmark', 'comment'.
+	 * @param string $action  Action type: 'read', 'rate', 'like', 'follow', 'comment'.
 	 * @return true|WP_Error True on success, WP_Error on failure.
 	 */
 	public static function can_interact( $user_id, $action = 'read' ) {
@@ -322,7 +322,7 @@ class Fanfic_Input_Validation {
 		switch ( $action ) {
 			case 'rate':
 			case 'like':
-			case 'bookmark':
+			case 'follow':
 				// All logged-in users can perform these actions
 				$required_cap = 'read';
 				break;

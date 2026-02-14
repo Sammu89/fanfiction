@@ -186,7 +186,6 @@ class Fanfic_Settings {
 			'recaptcha_require_logged_in'    => false,
 			'enable_likes'                   => true,
 			'enable_dislikes'                => false,
-			'enable_subscribe'               => true,
 			'enable_share'                   => true,
 			'enable_report'                  => true,
 			'enable_warnings'                => true,
@@ -304,7 +303,6 @@ class Fanfic_Settings {
 		// Feature toggles (booleans)
 		$sanitized['enable_likes']     = isset( $settings['enable_likes'] ) && $settings['enable_likes'];
 		$sanitized['enable_dislikes']  = isset( $settings['enable_dislikes'] ) && $settings['enable_dislikes'];
-		$sanitized['enable_subscribe'] = isset( $settings['enable_subscribe'] ) && $settings['enable_subscribe'];
 		$sanitized['enable_share']     = isset( $settings['enable_share'] ) && $settings['enable_share'];
 		$sanitized['enable_report']    = isset( $settings['enable_report'] ) && $settings['enable_report'];
 		$sanitized['enable_warnings']  = isset( $settings['enable_warnings'] ) && $settings['enable_warnings'];
@@ -1523,19 +1521,6 @@ class Fanfic_Settings {
 								<label>
 									<input type="checkbox" id="enable_likes" name="fanfic_settings[enable_likes]" value="1" <?php checked( isset( $settings['enable_likes'] ) ? $settings['enable_likes'] : true, true ); ?>>
 									<?php esc_html_e( 'Allow users to like stories and chapters (shows like count)', 'fanfiction-manager' ); ?>
-								</label>
-							</td>
-						</tr>
-
-						<!-- Enable Subscribe -->
-						<tr>
-							<th scope="row">
-								<label for="enable_subscribe"><?php esc_html_e( 'Enable Email Subscriptions', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<label>
-									<input type="checkbox" id="enable_subscribe" name="fanfic_settings[enable_subscribe]" value="1" <?php checked( isset( $settings['enable_subscribe'] ) ? $settings['enable_subscribe'] : true, true ); ?>>
-									<?php esc_html_e( 'Allow users to subscribe to story updates via email (available to all visitors)', 'fanfiction-manager' ); ?>
 								</label>
 							</td>
 						</tr>
@@ -3628,7 +3613,7 @@ class Fanfic_Settings {
 			// Legacy tables — safe to drop if they somehow exist.
 			'fanfic_likes',
 			'fanfic_ratings',
-			'fanfic_bookmarks',
+			'fanfic_follows',
 			'fanfic_reports',
 			'fanfic_read_lists',
 			'fanfic_subscriptions',

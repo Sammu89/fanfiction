@@ -20,7 +20,7 @@ Create on plugin activation for optimal query performance:
 - `wp_fanfic_story_search_index`: `(view_count)`, `(views_week)`, `(views_month)`.
 
 **On custom tables:**
-- `wp_fanfic_bookmarks`: `(user_id)`, `(story_id)`.
+- `wp_fanfic_follows`: `(user_id)`, `(story_id)`.
 - `wp_fanfic_follows`: `(user_id)`, `(author_id)`.
 - `wp_fanfic_ratings`: `(chapter_id)`, `(user_id, user_ip)`.
 
@@ -58,4 +58,4 @@ Plugin sets appropriate cache headers:
 - Hybrid invalidation: Individual (on single change) vs. bulk (on taxonomy changes, etc.).
 - Manual cleanup utility in Settings > General.
 
-For large-scale data (e.g., bookmarks), see features.md.
+For large-scale data (e.g., follows), see features.md.

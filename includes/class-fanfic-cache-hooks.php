@@ -53,8 +53,8 @@ class Fanfic_Cache_Hooks {
 		add_action( 'deleted_comment', array( __CLASS__, 'on_comment_deleted' ), 10, 2 );
 
 		// Plugin-specific interaction hooks
-		add_action( 'fanfic_bookmark_added', array( __CLASS__, 'on_bookmark_add' ), 10, 2 );
-		add_action( 'fanfic_bookmark_removed', array( __CLASS__, 'on_bookmark_remove' ), 10, 2 );
+		add_action( 'fanfic_follow_added', array( __CLASS__, 'on_follow_add' ), 10, 2 );
+		add_action( 'fanfic_follow_removed', array( __CLASS__, 'on_follow_remove' ), 10, 2 );
 		add_action( 'fanfic_translations_updated', array( __CLASS__, 'invalidate_translation_caches' ), 10, 2 );
 	}
 
@@ -166,8 +166,8 @@ class Fanfic_Cache_Hooks {
 				self::clear_author_caches( $post->post_author );
 			}
 
-			// Clear bookmark caches for this story
-			delete_transient( 'fanfic_bookmark_count_' . $post_id );
+			// Clear follow caches for this story
+			delete_transient( 'fanfic_follow_count_' . $post_id );
 		} elseif ( 'fanfiction_chapter' === $post->post_type ) {
 			// Clear chapter caches
 			self::clear_chapter_caches( $post_id );
@@ -353,11 +353,11 @@ class Fanfic_Cache_Hooks {
 	}
 
 	/**
-	 * Handle bookmark add event
+	 * Handle follow add event
 	 *
-	 * Invalidates caches when a user bookmarks a story.
-	 * Note: The actual bookmark cache clearing is handled by
-	 * Fanfic_Bookmarks::clear_bookmark_cache(), but we clear
+	 * Invalidates caches when a user follows a story.
+	 * Note: The actual follow cache clearing is handled by
+	 * Fanfic_Follows::clear_follow_cache(), but we clear
 	 * additional related caches here.
 	 *
 	 * @since 1.0.0
@@ -365,20 +365,20 @@ class Fanfic_Cache_Hooks {
 	 * @param int $user_id  User ID.
 	 * @return void
 	 */
-	public static function on_bookmark_add( $story_id, $user_id ) {
+	public static function on_follow_add( $story_id, $user_id ) {
 		// Clear popular stories lists that might be affected
-		delete_transient( 'fanfic_most_bookmarked_stories_10_1' );
-		delete_transient( 'fanfic_most_bookmarked_stories_20_1' );
-		delete_transient( 'fanfic_recently_bookmarked_stories_10' );
-		delete_transient( 'fanfic_recently_bookmarked_stories_20' );
+		delete_transient( 'fanfic_most_followed_stories_10_1' );
+		delete_transient( 'fanfic_most_followed_stories_20_1' );
+		delete_transient( 'fanfic_recently_followed_stories_10' );
+		delete_transient( 'fanfic_recently_followed_stories_20' );
 	}
 
 	/**
-	 * Handle bookmark remove event
+	 * Handle follow remove event
 	 *
-	 * Invalidates caches when a user unbookmarks a story.
-	 * Note: The actual bookmark cache clearing is handled by
-	 * Fanfic_Bookmarks::clear_bookmark_cache(), but we clear
+	 * Invalidates caches when a user unfollows a story.
+	 * Note: The actual follow cache clearing is handled by
+	 * Fanfic_Follows::clear_follow_cache(), but we clear
 	 * additional related caches here.
 	 *
 	 * @since 1.0.0
@@ -386,10 +386,10 @@ class Fanfic_Cache_Hooks {
 	 * @param int $user_id  User ID.
 	 * @return void
 	 */
-	public static function on_bookmark_remove( $story_id, $user_id ) {
+	public static function on_follow_remove( $story_id, $user_id ) {
 		// Clear popular stories lists that might be affected
-		delete_transient( 'fanfic_most_bookmarked_stories_10_1' );
-		delete_transient( 'fanfic_most_bookmarked_stories_20_1' );
+		delete_transient( 'fanfic_most_followed_stories_10_1' );
+		delete_transient( 'fanfic_most_followed_stories_20_1' );
 	}
 
 	/**
@@ -414,8 +414,8 @@ class Fanfic_Cache_Hooks {
 		// Clear view counts
 		wp_cache_delete( 'fanfic_story_views_' . $story_id, 'fanfiction' );
 
-		// Clear bookmark count
-		delete_transient( 'fanfic_bookmark_count_' . $story_id );
+		// Clear follow count
+		delete_transient( 'fanfic_follow_count_' . $story_id );
 
 		// Clear average rating
 		delete_transient( 'fanfic_story_avg_rating_' . $story_id );
@@ -655,7 +655,7 @@ class Fanfic_Cache_Hooks {
 				return true;
 
 			case 'stats':
-				delete_transient( 'fanfic_bookmark_stats' );
+				delete_transient( 'fanfic_follow_stats' );
 				delete_transient( 'fanfic_rating_stats' );
 				return true;
 

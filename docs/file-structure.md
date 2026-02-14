@@ -20,7 +20,7 @@ fanfiction-manager/
 │   ├── class-fanfic-caching.php (Transients, cache invalidation)
 │   ├── class-fanfic-ratings.php (Ratings database logic)
 │   ├── class-fanfic-comments.php (Comment threading, grace period)
-│   ├── class-fanfic-bookmarks.php (Bookmark/follow database logic)
+│   ├── class-fanfic-follows.php (Follow/follow database logic)
 │   ├── class-fanfic-rewrite.php (URL rewriting, slug management)
 │   ├── class-fanfic-validation.php (Story validation, draft transitions)
 │   ├── class-fanfic-security.php (Sanitization, escaping, nonce verification)

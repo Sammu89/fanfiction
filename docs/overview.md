@@ -21,7 +21,7 @@ Enable independent fanfiction communities to operate on WordPress without relyin
 ### For Readers
 - Creates a searchable, filterable story archive with advanced filtering by genre, status, author, and custom taxonomies.
 - Provides a comfortable reading experience with optimized typography, keyboard navigation, and reading progress tracking.
-- Enables community features: bookmarking stories, following authors, rating chapters, and commenting.
+- Enables community features: following stories, following authors, rating chapters, and commenting.
 - Maintains personal libraries (favorites, reading history, followed authors).
 - They never access the backend of WordPress.
 

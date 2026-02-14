@@ -6,7 +6,7 @@
  * automatic invalidation, and support for object caching (Redis, Memcached).
  *
  * This class manages all caching operations for the Fanfiction Manager plugin,
- * including story data, chapter counts, user bookmarks, ratings, and lists.
+ * including story data, chapter counts, user follows, ratings, and lists.
  *
  * @package FanfictionManager
  * @since 1.0.0
@@ -67,7 +67,7 @@ class Fanfic_Cache {
 	/**
 	 * Cache duration: Medium (15 minutes)
 	 *
-	 * Use for data that changes occasionally (e.g., bookmark counts).
+	 * Use for data that changes occasionally (e.g., follow counts).
 	 *
 	 * @since 1.0.0
 	 * @var int
@@ -113,7 +113,7 @@ class Fanfic_Cache {
 	 * @since 1.0.0
 	 *
 	 * @param string $type     Type of cached data (e.g., 'story', 'chapter', 'user').
-	 * @param string $subtype  Subtype or action (e.g., 'validity', 'count', 'bookmarks').
+	 * @param string $subtype  Subtype or action (e.g., 'validity', 'count', 'follows').
 	 * @param int    $id       Optional. ID of the item being cached.
 	 * @param string $version  Optional. Custom version string. Defaults to CACHE_VERSION.
 	 * @return string The generated cache key.
@@ -278,7 +278,7 @@ class Fanfic_Cache {
 	/**
 	 * Invalidate all caches related to a specific story
 	 *
-	 * Clears story validity, chapter counts, ratings, bookmarks,
+	 * Clears story validity, chapter counts, ratings, follows,
 	 * and related list caches when a story is updated.
 	 *
 	 * @since 1.0.0
@@ -299,7 +299,7 @@ class Fanfic_Cache {
 			'chapter_count',
 			'chapters',
 			'rating',
-			'bookmark_count',
+			'follow_count',
 			'view_count',
 			'metadata',
 		);
@@ -377,7 +377,7 @@ class Fanfic_Cache {
 	/**
 	 * Invalidate all caches related to a specific user
 	 *
-	 * Clears user-specific data like bookmarks, notifications,
+	 * Clears user-specific data like follows, notifications,
 	 * and authored stories.
 	 *
 	 * @since 1.0.0
@@ -394,7 +394,7 @@ class Fanfic_Cache {
 
 		// User-specific caches
 		$types = array(
-			'bookmarks',
+			'follows',
 			'stories',
 			'notifications',
 			'statistics',

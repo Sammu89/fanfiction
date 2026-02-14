@@ -58,7 +58,7 @@ class Fanfic_Shortcodes_User {
 	}
 
 	/**
-	 * User favorites (bookmarked stories) shortcode
+	 * User favorites (followed stories) shortcode
 	 *
 	 * [user-favorites]
 	 *
@@ -69,7 +69,7 @@ class Fanfic_Shortcodes_User {
 	public static function user_favorites( $atts ) {
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
-			return self::login_prompt( __( 'Please log in to view your bookmarked stories.', 'fanfiction-manager' ) );
+			return self::login_prompt( __( 'Please log in to view your followed stories.', 'fanfiction-manager' ) );
 		}
 
 		$atts = shortcode_atts( array(
@@ -80,7 +80,7 @@ class Fanfic_Shortcodes_User {
 		$paged = get_query_var( 'paged' ) ? get_query_var( 'paged' ) : 1;
 
 		// Try to get from transient cache first
-		$cache_key = 'fanfic_bookmarks_' . $user_id . '_page_' . $paged;
+		$cache_key = 'fanfic_follows_' . $user_id . '_page_' . $paged;
 		$cached_data = get_transient( $cache_key );
 
 		if ( false !== $cached_data ) {
@@ -91,24 +91,24 @@ class Fanfic_Shortcodes_User {
 		$interactions_table = $wpdb->prefix . 'fanfic_interactions';
 		$offset = ( $paged - 1 ) * absint( $atts['per_page'] );
 
-		// Get total count for pagination (story bookmarks only)
-		$total_bookmarks = $wpdb->get_var( $wpdb->prepare(
+		// Get total count for pagination (story follows only)
+		$total_follows = $wpdb->get_var( $wpdb->prepare(
 			"SELECT COUNT(*) FROM {$interactions_table} i
 			INNER JOIN {$wpdb->posts} p ON i.chapter_id = p.ID
-			WHERE i.user_id = %d AND i.interaction_type = 'bookmark'
+			WHERE i.user_id = %d AND i.interaction_type = 'follow'
 			AND p.post_type = 'fanfiction_story' AND p.post_status = 'publish'",
 			$user_id
 		) );
 
-		if ( ! $total_bookmarks ) {
-			return '<div class="fanfic-user-favorites fanfic-empty-state"><p>' . esc_html__( 'No bookmarks yet. Start exploring stories!', 'fanfiction-manager' ) . '</p></div>';
+		if ( ! $total_follows ) {
+			return '<div class="fanfic-user-favorites fanfic-empty-state"><p>' . esc_html__( 'No follows yet. Start exploring stories!', 'fanfiction-manager' ) . '</p></div>';
 		}
 
-		// Get bookmarked stories
-		$bookmarks = $wpdb->get_results( $wpdb->prepare(
+		// Get followed stories
+		$follows = $wpdb->get_results( $wpdb->prepare(
 			"SELECT i.chapter_id AS story_id, i.created_at FROM {$interactions_table} i
 			INNER JOIN {$wpdb->posts} p ON i.chapter_id = p.ID
-			WHERE i.user_id = %d AND i.interaction_type = 'bookmark'
+			WHERE i.user_id = %d AND i.interaction_type = 'follow'
 			AND p.post_type = 'fanfiction_story' AND p.post_status = 'publish'
 			ORDER BY i.created_at DESC
 			LIMIT %d OFFSET %d",
@@ -117,17 +117,17 @@ class Fanfic_Shortcodes_User {
 			$offset
 		) );
 
-		if ( ! $bookmarks ) {
-			return '<div class="fanfic-user-favorites fanfic-empty-state"><p>' . esc_html__( 'No bookmarks yet. Start exploring stories!', 'fanfiction-manager' ) . '</p></div>';
+		if ( ! $follows ) {
+			return '<div class="fanfic-user-favorites fanfic-empty-state"><p>' . esc_html__( 'No follows yet. Start exploring stories!', 'fanfiction-manager' ) . '</p></div>';
 		}
 
 		// Build output
-		$output = '<div class="fanfic-user-favorites" role="region" aria-label="' . esc_attr__( 'My bookmarked stories', 'fanfiction-manager' ) . '">';
-		$output .= '<h2>' . esc_html__( 'My Bookmarked Stories', 'fanfiction-manager' ) . '</h2>';
+		$output = '<div class="fanfic-user-favorites" role="region" aria-label="' . esc_attr__( 'My followed stories', 'fanfiction-manager' ) . '">';
+		$output .= '<h2>' . esc_html__( 'My Followed Stories', 'fanfiction-manager' ) . '</h2>';
 		$output .= '<ul class="fanfic-favorites-list">';
 
-		foreach ( $bookmarks as $bookmark ) {
-			$story = get_post( $bookmark->story_id );
+		foreach ( $follows as $follow ) {
+			$story = get_post( $follow->story_id );
 
 			if ( ! $story || 'fanfiction_story' !== $story->post_type || 'publish' !== $story->post_status ) {
 				continue;
@@ -137,21 +137,21 @@ class Fanfic_Shortcodes_User {
 			$author_name = get_the_author_meta( 'display_name', $author_id );
 			$author_url = fanfic_get_user_profile_url( $author_id );
 			$story_url = get_permalink( $story->ID );
-			$bookmarked_date = mysql2date( get_option( 'date_format' ), $bookmark->created_at );
+			$followed_date = mysql2date( get_option( 'date_format' ), $follow->created_at );
 
 			$output .= '<li class="fanfic-favorite-item" data-story-id="' . esc_attr( $story->ID ) . '">';
 			$output .= '<div class="fanfic-favorite-info">';
 			$output .= '<h3><a href="' . esc_url( $story_url ) . '">' . esc_html( $story->post_title ) . '</a></h3>';
 			$output .= '<p class="fanfic-favorite-meta">';
 			$output .= sprintf(
-				/* translators: 1: author name with link, 2: bookmarked date */
-				esc_html__( 'by %1$s &middot; Bookmarked on %2$s', 'fanfiction-manager' ),
+				/* translators: 1: author name with link, 2: followed date */
+				esc_html__( 'by %1$s &middot; Followed on %2$s', 'fanfiction-manager' ),
 				'<a href="' . esc_url( $author_url ) . '">' . esc_html( $author_name ) . '</a>',
-				esc_html( $bookmarked_date )
+				esc_html( $followed_date )
 			);
 			$output .= '</p>';
 			$output .= '</div>';
-			$output .= '<button class="fanfic-remove-bookmark" data-story-id="' . esc_attr( $story->ID ) . '" data-nonce="' . esc_attr( wp_create_nonce( 'fanfic_remove_bookmark_' . $story->ID ) ) . '" aria-label="' . esc_attr__( 'Remove from bookmarks', 'fanfiction-manager' ) . '">';
+			$output .= '<button class="fanfic-remove-follow" data-story-id="' . esc_attr( $story->ID ) . '" data-nonce="' . esc_attr( wp_create_nonce( 'fanfic_remove_follow_' . $story->ID ) ) . '" aria-label="' . esc_attr__( 'Remove from follows', 'fanfiction-manager' ) . '">';
 			$output .= esc_html__( 'Remove', 'fanfiction-manager' );
 			$output .= '</button>';
 			$output .= '</li>';
@@ -160,8 +160,8 @@ class Fanfic_Shortcodes_User {
 		$output .= '</ul>';
 
 		// Pagination
-		if ( $total_bookmarks > $atts['per_page'] ) {
-			$total_pages = ceil( $total_bookmarks / $atts['per_page'] );
+		if ( $total_follows > $atts['per_page'] ) {
+			$total_pages = ceil( $total_follows / $atts['per_page'] );
 			$output .= self::pagination( $paged, $total_pages );
 		}
 
@@ -176,12 +176,12 @@ class Fanfic_Shortcodes_User {
 	/**
 	 * User favorites count shortcode
 	 *
-	 * Displays the count of bookmarked stories for the current user.
+	 * Displays the count of followed stories for the current user.
 	 * [user-favorites-count]
 	 *
 	 * @since 1.0.0
 	 * @param array $atts Shortcode attributes.
-	 * @return string Bookmarked stories count.
+	 * @return string Followed stories count.
 	 */
 	public static function user_favorites_count( $atts ) {
 		// Check if user is logged in
@@ -191,8 +191,8 @@ class Fanfic_Shortcodes_User {
 
 		$user_id = get_current_user_id();
 
-		// Use cached bookmarks count (5 minute cache)
-		$cache_key = 'fanfic_bookmarks_count_' . $user_id;
+		// Use cached follows count (5 minute cache)
+		$cache_key = 'fanfic_follows_count_' . $user_id;
 		$cached = get_transient( $cache_key );
 
 		if ( false !== $cached ) {
@@ -204,7 +204,7 @@ class Fanfic_Shortcodes_User {
 
 		// Get total count
 		$count = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$interactions_table} WHERE user_id = %d AND interaction_type = 'bookmark'",
+			"SELECT COUNT(*) FROM {$interactions_table} WHERE user_id = %d AND interaction_type = 'follow'",
 			$user_id
 		) );
 
@@ -814,8 +814,8 @@ class Fanfic_Shortcodes_User {
 			return 0;
 		}
 
-		// Use cached bookmarks count (5 minute cache)
-		$cache_key = 'fanfic_bookmarks_count_' . $user_id;
+		// Use cached follows count (5 minute cache)
+		$cache_key = 'fanfic_follows_count_' . $user_id;
 		$cached = get_transient( $cache_key );
 
 		if ( false !== $cached ) {
@@ -827,7 +827,7 @@ class Fanfic_Shortcodes_User {
 
 		// Get total count
 		$count = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$interactions_table} WHERE user_id = %d AND interaction_type = 'bookmark'",
+			"SELECT COUNT(*) FROM {$interactions_table} WHERE user_id = %d AND interaction_type = 'follow'",
 			$user_id
 		) );
 

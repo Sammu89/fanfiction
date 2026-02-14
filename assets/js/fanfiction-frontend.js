@@ -1495,7 +1495,7 @@
 			});
 
 			// Update aria-pressed on toggle buttons
-			$(document).on('click', '[data-toggle-button], .fanfic-bookmark-button', function() {
+			$(document).on('click', '[data-toggle-button], .fanfic-follow-button', function() {
 				const $button = $(this);
 				const isPressed = $button.attr('aria-pressed') === 'true';
 				$button.attr('aria-pressed', !isPressed);
@@ -2042,80 +2042,80 @@
 
 	/**
 	 * ============================================
-	 * BOOKMARKS SYSTEM
-	 * User bookmarks display with AJAX pagination
+	 * followS SYSTEM
+	 * User follows display with AJAX pagination
 	 * ============================================
 	 */
 
-	// Initialize bookmarks pagination on document ready
+	// Initialize follows pagination on document ready
 	$(document).ready(function() {
-		initializeBookmarksPagination();
+		initializeFollowsPagination();
 	});
 
-	function initializeBookmarksPagination() {
-		// Find bookmarks container
-		var $bookmarksContainer = $('.fanfic-user-bookmarks');
-		if (!$bookmarksContainer.length) {
+	function initializeFollowsPagination() {
+		// Find follows container
+		var $followsContainer = $('.fanfic-user-follows');
+		if (!$followsContainer.length) {
 			return;
 		}
 
-		// Show "Show More" button only if there are bookmarks
-		if ($('.fanfic-bookmark-item', $bookmarksContainer).length > 0) {
-			var $loadMoreBtn = $('.fanfic-load-more-bookmarks', $bookmarksContainer);
+		// Show "Show More" button only if there are follows
+		if ($('.fanfic-follow-item', $followsContainer).length > 0) {
+			var $loadMoreBtn = $('.fanfic-load-more-follows', $followsContainer);
 			$loadMoreBtn.show();
 		}
 	}
 
 	// Handle "Show More" button click
-	$(document).on('click', '.fanfic-load-more-bookmarks', function(e) {
+	$(document).on('click', '.fanfic-load-more-follows', function(e) {
 		e.preventDefault();
 
 		var $button = $(this);
-		var $container = $button.closest('.fanfic-user-bookmarks');
-		var $loadingDiv = $('.fanfic-bookmarks-loading', $container);
-		var $bookmarksList = $('.fanfic-bookmarks-list', $container);
+		var $container = $button.closest('.fanfic-user-follows');
+		var $loadingDiv = $('.fanfic-follows-loading', $container);
+		var $followsList = $('.fanfic-follows-list', $container);
 
 		// Get current offset from button
 		var offset = parseInt($button.data('offset'), 10) || 0;
 		var userId = parseInt($container.data('user-id'), 10);
-		var bookmarkType = $container.data('bookmark-type') || 'all';
+		var followType = $container.data('follow-type') || 'all';
 
 		// Disable button and show loading
 		$button.prop('disabled', true);
 		$loadingDiv.show();
 
-		// AJAX request to load more bookmarks
+		// AJAX request to load more follows
 		$.ajax({
 			url: fanficData.ajaxUrl,
 			type: 'POST',
 			dataType: 'json',
 			data: {
-				action: 'fanfic_load_user_bookmarks',
+				action: 'fanfic_load_user_follows',
 				offset: offset,
-				bookmark_type: bookmarkType,
+				follow_type: followType,
 				nonce: fanficData.nonce
 			},
 			success: function(response) {
 				if (response.success && response.data.html) {
-					// APPEND new bookmarks to list (not replace)
-					$bookmarksList.append(response.data.html);
+					// APPEND new follows to list (not replace)
+					$followsList.append(response.data.html);
 
 					// Update offset for next load
 					var nextOffset = offset + 20;
 					$button.data('offset', nextOffset);
 
-					// Hide button if no more bookmarks
+					// Hide button if no more follows
 					if (!response.data.has_more) {
 						$button.hide();
 					}
 				} else {
-					console.error('Failed to load bookmarks:', response.message);
-					showBookmarksError('Failed to load bookmarks. Please try again.');
+					console.error('Failed to load follows:', response.message);
+					showFollowsError('Failed to load follows. Please try again.');
 				}
 			},
 			error: function(xhr, status, error) {
 				console.error('AJAX error:', error);
-				showBookmarksError('An error occurred while loading bookmarks. Please try again.');
+				showFollowsError('An error occurred while loading follows. Please try again.');
 			},
 			complete: function() {
 				// Hide loading and re-enable button
@@ -2125,7 +2125,7 @@
 		});
 	});
 
-	function showBookmarksError(message) {
+	function showFollowsError(message) {
 		// Create error message div
 		var $error = $('<div class="fanfic-error-message">')
 			.text(message)
@@ -2138,7 +2138,7 @@
 				'border-radius': '4px'
 			});
 
-		var $container = $('.fanfic-user-bookmarks');
+		var $container = $('.fanfic-user-follows');
 		$container.append($error);
 
 		// Auto-remove error after 5 seconds

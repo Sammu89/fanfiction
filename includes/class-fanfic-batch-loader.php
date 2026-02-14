@@ -134,8 +134,8 @@ class Fanfic_Batch_Loader {
 		$result = array();
 		foreach ( $story_ids as $story_id ) {
 			$result[ $story_id ] = array(
-				'bookmark_count' => 0,
-				'is_bookmarked'  => false,
+				'follow_count' => 0,
+				'is_followed'  => false,
 			);
 		}
 
@@ -145,9 +145,9 @@ class Fanfic_Batch_Loader {
 		// Build placeholders for IN clause
 		$placeholders = implode( ',', array_fill( 0, count( $story_ids ), '%d' ) );
 
-		// Query 1a: Bookmark counts from pre-computed story search index (PK lookup — fast).
+		// Query 1a: Follow counts from pre-computed story search index (PK lookup — fast).
 		$index_rows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT story_id, bookmark_count
+			"SELECT story_id, follow_count
 			FROM {$table_story_index}
 			WHERE story_id IN ($placeholders)",
 			$story_ids
@@ -155,21 +155,21 @@ class Fanfic_Batch_Loader {
 
 		foreach ( $index_rows as $row ) {
 			$story_id = absint( $row['story_id'] );
-			$result[ $story_id ]['bookmark_count'] = absint( $row['bookmark_count'] );
+			$result[ $story_id ]['follow_count'] = absint( $row['follow_count'] );
 		}
 
 		// If user_id provided, load user-specific data
 		if ( $user_id ) {
-			// Query 2: User bookmarks (targeted IN query — uses idx_type_chapter index).
-			$user_bookmarks = $wpdb->get_col( $wpdb->prepare(
+			// Query 2: User follows (targeted IN query — uses idx_type_chapter index).
+			$user_follows = $wpdb->get_col( $wpdb->prepare(
 				"SELECT chapter_id FROM {$table_interactions}
-				WHERE user_id = %d AND chapter_id IN ($placeholders) AND interaction_type = 'bookmark'",
+				WHERE user_id = %d AND chapter_id IN ($placeholders) AND interaction_type = 'follow'",
 				array_merge( array( $user_id ), $story_ids )
 			) );
 
-			foreach ( $user_bookmarks as $story_id ) {
+			foreach ( $user_follows as $story_id ) {
 				$story_id = absint( $story_id );
-				$result[ $story_id ]['is_bookmarked'] = true;
+				$result[ $story_id ]['is_followed'] = true;
 			}
 
 			// Deprecated relationship flags are intentionally disabled.
@@ -229,20 +229,20 @@ class Fanfic_Batch_Loader {
 	}
 
 	/**
-	 * Batch load bookmark status for multiple posts
+	 * Batch load follow status for multiple posts
 	 *
-	 * Efficient method to check if user has bookmarked multiple posts.
+	 * Efficient method to check if user has followed multiple posts.
 	 *
 	 * @since 1.0.0
 	 * @param int    $user_id       User ID.
 	 * @param array  $post_ids      Array of post IDs.
-	 * @param string $bookmark_type Type: 'story' or 'chapter'.
+	 * @param string $follow_type Type: 'story' or 'chapter'.
 	 * @return array Array[ post_id => boolean ].
 	 */
-	public static function batch_load_bookmark_status( $user_id, $post_ids, $bookmark_type = 'story' ) {
-		// Delegate to Fanfic_Bookmarks class
-		if ( class_exists( 'Fanfic_Bookmarks' ) ) {
-			return Fanfic_Bookmarks::batch_get_bookmark_status( $user_id, $post_ids, $bookmark_type );
+	public static function batch_load_follow_status( $user_id, $post_ids, $follow_type = 'story' ) {
+		// Delegate to Fanfic_Follows class
+		if ( class_exists( 'Fanfic_Follows' ) ) {
+			return Fanfic_Follows::batch_get_follow_status( $user_id, $post_ids, $follow_type );
 		}
 
 		return array();

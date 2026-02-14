@@ -2998,6 +2998,7 @@ function fanfic_get_story_card_html( $story_id ) {
 						</span>
 					<?php endif; ?>
 					<?php echo wp_kses_post( $age_badge ); ?>
+					<span class="fanfic-badge fanfic-badge-following" data-badge-story-id="<?php echo esc_attr( $story_id ); ?>" style="display:none;"><?php esc_html_e( 'Following', 'fanfiction-manager' ); ?></span>
 				</div>
 			</header>
 

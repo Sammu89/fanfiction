@@ -14,7 +14,7 @@ $data = Fanfic_Cache::get_or_set( 'type', 'subtype', $id, $callback, Fanfic_Cach
 ```php
 Fanfic_Cache::REALTIME  // 60s    - Live data
 Fanfic_Cache::SHORT     // 5min   - Ratings, views
-Fanfic_Cache::MEDIUM    // 15min  - Bookmarks, comments
+Fanfic_Cache::MEDIUM    // 15min  - Follows, comments
 Fanfic_Cache::LONG      // 30min  - Chapter lists
 Fanfic_Cache::DAY       // 24hrs  - Author stats
 Fanfic_Cache::WEEK      // 7days  - Validation
@@ -37,9 +37,9 @@ $chapters = Fanfic_Cache::get_or_set(
 
 ### Cache User Data
 ```php
-$bookmarks = Fanfic_Cache::get_or_set(
+$follows = Fanfic_Cache::get_or_set(
     'user',
-    'bookmarks',
+    'follows',
     $user_id,
     fn() => $wpdb->get_results( "SELECT * FROM {$table} WHERE user_id = {$user_id}" ),
     Fanfic_Cache::MEDIUM
@@ -153,12 +153,12 @@ public static function get_archive_stories( $page, $genre ) {
 }
 ```
 
-### User Bookmarks
+### User Follows
 ```php
-public static function get_bookmarks( $user_id ) {
+public static function get_follows( $user_id ) {
     return Fanfic_Cache::get_or_set(
-        'user', 'bookmarks', $user_id,
-        fn() => fetch_bookmarks_from_db( $user_id ),
+        'user', 'follows', $user_id,
+        fn() => fetch_follows_from_db( $user_id ),
         Fanfic_Cache::MEDIUM
     );
 }

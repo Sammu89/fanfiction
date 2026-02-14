@@ -5,7 +5,7 @@
  *
  * This template displays:
  * - Welcome message with avatar
- * - Statistics cards (stories, chapters, views, bookmarks)
+ * - Statistics cards (stories, chapters, views, follows)
  * - Quick action buttons
  * - Recent stories management
  * - Notifications
@@ -145,13 +145,13 @@ if ( isset( $_GET['error'] ) ) {
 			</div>
 		</div>
 
-		<!-- Bookmarked Stories -->
+		<!-- Followed Stories -->
 		<div class="fanfic-stat-card">
 			<div class="fanfic-stat-icon" aria-hidden="true">
 				<span class="dashicons dashicons-heart"></span>
 			</div>
 			<div class="fanfic-stat-content">
-				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Bookmarked Stories', 'fanfiction-manager' ); ?></h3>
+				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Followed Stories', 'fanfiction-manager' ); ?></h3>
 				<p class="fanfic-stat-value"><?php echo Fanfic_Shortcodes_User::get_favorites_count(); ?></p>
 			</div>
 		</div>
@@ -505,13 +505,13 @@ if ( isset( $_GET['error'] ) ) {
 			</div>
 		</section>
 
-		<!-- Bookmarked Stories -->
-		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarks-stories-heading">
-			<h3 id="bookmarks-stories-heading"><?php esc_html_e( 'Bookmarked Stories', 'fanfiction-manager' ); ?></h3>
-			<div class="fanfic-user-bookmarks" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-bookmark-type="story" data-current-offset="0">
-				<div class="fanfic-bookmarks-list">
+		<!-- Followed Stories -->
+		<section class="fanfic-dashboard-widget" aria-labelledby="follows-stories-heading">
+			<h3 id="follows-stories-heading"><?php esc_html_e( 'Followed Stories', 'fanfiction-manager' ); ?></h3>
+			<div class="fanfic-user-follows" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-follow-type="story" data-current-offset="0">
+				<div class="fanfic-follows-list">
 					<?php
-					echo Fanfic_Bookmarks::render_user_bookmarks_dashboard(
+					echo Fanfic_Follows::render_user_follows_dashboard(
 						get_current_user_id(),
 						'story',
 						20,
@@ -520,26 +520,26 @@ if ( isset( $_GET['error'] ) ) {
 					?>
 				</div>
 				<?php
-				$total_story_bookmarks = Fanfic_Bookmarks::get_bookmarks_count( get_current_user_id(), 'story' );
-				if ( $total_story_bookmarks > 20 ) :
+				$total_story_follows = Fanfic_Follows::get_follows_count( get_current_user_id(), 'story' );
+				if ( $total_story_follows > 20 ) :
 				?>
-					<button class="fanfic-load-more-bookmarks" data-offset="20" data-bookmark-type="story">
+					<button class="fanfic-load-more-follows" data-offset="20" data-follow-type="story">
 						<?php esc_html_e( 'Show More', 'fanfiction-manager' ); ?>
 					</button>
 				<?php endif; ?>
-				<div class="fanfic-bookmarks-loading" style="display: none;">
+				<div class="fanfic-follows-loading" style="display: none;">
 					<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
 				</div>
 			</div>
 		</section>
 
 		<!-- Bookmarked Chapters -->
-		<section class="fanfic-dashboard-widget" aria-labelledby="bookmarks-chapters-heading">
-			<h3 id="bookmarks-chapters-heading"><?php esc_html_e( 'Bookmarked Chapters', 'fanfiction-manager' ); ?></h3>
-			<div class="fanfic-user-bookmarks" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-bookmark-type="chapter" data-current-offset="0">
-				<div class="fanfic-bookmarks-list">
+		<section class="fanfic-dashboard-widget" aria-labelledby="follows-chapters-heading">
+			<h3 id="follows-chapters-heading"><?php esc_html_e( 'Bookmarked Chapters', 'fanfiction-manager' ); ?></h3>
+			<div class="fanfic-user-follows" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-follow-type="chapter" data-current-offset="0">
+				<div class="fanfic-follows-list">
 					<?php
-					echo Fanfic_Bookmarks::render_user_bookmarks_dashboard(
+					echo Fanfic_Follows::render_user_follows_dashboard(
 						get_current_user_id(),
 						'chapter',
 						20,
@@ -548,14 +548,14 @@ if ( isset( $_GET['error'] ) ) {
 					?>
 				</div>
 				<?php
-				$total_chapter_bookmarks = Fanfic_Bookmarks::get_bookmarks_count( get_current_user_id(), 'chapter' );
-				if ( $total_chapter_bookmarks > 20 ) :
+				$total_chapter_follows = Fanfic_Follows::get_follows_count( get_current_user_id(), 'chapter' );
+				if ( $total_chapter_follows > 20 ) :
 				?>
-					<button class="fanfic-load-more-bookmarks" data-offset="20" data-bookmark-type="chapter">
+					<button class="fanfic-load-more-follows" data-offset="20" data-follow-type="chapter">
 						<?php esc_html_e( 'Show More', 'fanfiction-manager' ); ?>
 					</button>
 				<?php endif; ?>
-				<div class="fanfic-bookmarks-loading" style="display: none;">
+				<div class="fanfic-follows-loading" style="display: none;">
 					<?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?>
 				</div>
 			</div>

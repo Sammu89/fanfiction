@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Fanfic_Shortcodes_Buttons
  *
- * Context-aware action buttons (bookmark, like, subscribe, etc.).
+ * Context-aware action buttons (follow, like, subscribe, etc.).
  *
  * @since 2.0.0
  */
@@ -77,6 +77,11 @@ class Fanfic_Shortcodes_Buttons {
 
 		$output .= '</div>';
 
+		// Render follow email modal once per page (for logged-out users).
+		if ( ! is_user_logged_in() ) {
+			$output .= self::render_follow_email_modal();
+		}
+
 		return $output;
 	}
 
@@ -119,7 +124,6 @@ class Fanfic_Shortcodes_Buttons {
 	private static function get_context_actions( $context ) {
 		$enable_likes = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_likes', true ) : true;
 		$enable_dislikes = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_dislikes', false ) : false;
-		$enable_subscribe = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_subscribe', true ) : true;
 		$enable_share = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_share', true ) : true;
 		$enable_report = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_report', true ) : true;
 
@@ -127,11 +131,11 @@ class Fanfic_Shortcodes_Buttons {
 
 		switch ( $context ) {
 			case 'story':
-				$actions = array( 'bookmark', 'subscribe', 'share', 'report', 'edit' );
+				$actions = array( 'follow', 'share', 'report', 'edit' );
 				break;
 
 			case 'chapter':
-				$actions = array( 'like', 'dislike', 'bookmark', 'mark-read', 'subscribe', 'share', 'report', 'edit' );
+				$actions = array( 'like', 'dislike', 'follow', 'mark-read', 'share', 'report', 'edit' );
 				break;
 
 			case 'author':
@@ -145,9 +149,6 @@ class Fanfic_Shortcodes_Buttons {
 		}
 		if ( ! $enable_dislikes ) {
 			$actions = array_diff( $actions, array( 'dislike' ) );
-		}
-		if ( ! $enable_subscribe ) {
-			$actions = array_diff( $actions, array( 'subscribe' ) );
 		}
 		if ( ! $enable_share ) {
 			$actions = array_diff( $actions, array( 'share' ) );
@@ -229,11 +230,6 @@ class Fanfic_Shortcodes_Buttons {
 			return self::render_report_button( $context, $context_ids, $nonce );
 		}
 
-		// Handle Subscribe button separately (opens modal/form)
-		if ( 'subscribe' === $action ) {
-			return self::render_subscribe_button( $context, $context_ids, $nonce );
-		}
-
 		// Check if action requires login and user is not logged in
 		$requires_login = self::action_requires_login( $action );
 		$is_disabled = $requires_login && ! $user_id;
@@ -268,8 +264,8 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		// Add action-specific data attributes
-		if ( 'bookmark' === $action ) {
-			// Add post-id and story-id for bookmark buttons (localStorage key = story_N_chapter_M)
+		if ( 'follow' === $action ) {
+			// Add post-id and story-id for follow buttons (localStorage key = story_N_chapter_M)
 			if ( isset( $context_ids['chapter_id'] ) ) {
 				$data_attrs['data-post-id']    = $context_ids['chapter_id'];
 				$data_attrs['data-story-id']   = isset( $context_ids['story_id'] ) ? $context_ids['story_id'] : 0;
@@ -279,6 +275,8 @@ class Fanfic_Shortcodes_Buttons {
 				$data_attrs['data-story-id']   = $context_ids['story_id'];
 				$data_attrs['data-chapter-id'] = 0;
 			}
+			// Tell JS whether user is logged in (for follow email modal).
+			$data_attrs['data-user-logged-in'] = $user_id ? '1' : '0';
 		}
 
 		// Get button label and icon
@@ -344,8 +342,8 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		switch ( $action ) {
-			case 'bookmark':
-				// Bookmarks use localStorage as initial UI source-of-truth (same as likes).
+			case 'follow':
+				// Follows use localStorage as initial UI source-of-truth (same as likes).
 				return false;
 
 			case 'like':
@@ -358,24 +356,6 @@ class Fanfic_Shortcodes_Buttons {
 				if ( isset( $context_ids['story_id'] ) && isset( $context_ids['chapter_number'] ) ) {
 					// Use the Reading Progress class method for accurate chapter-specific check
 					return Fanfic_Reading_Progress::is_chapter_read( $user_id, $context_ids['story_id'], $context_ids['chapter_number'] );
-				}
-				return false;
-
-			case 'subscribe':
-				// Check if user has email subscription for this story
-				if ( isset( $context_ids['story_id'] ) ) {
-					global $wpdb;
-					$table_name = $wpdb->prefix . 'fanfic_email_subscriptions';
-					$user = wp_get_current_user();
-					if ( ! $user->exists() ) {
-						return false;
-					}
-					$subscribed = $wpdb->get_var( $wpdb->prepare(
-						"SELECT COUNT(*) FROM {$table_name} WHERE target_id = %d AND email = %s AND subscription_type = 'story' AND verified = 1",
-						$context_ids['story_id'],
-						$user->user_email
-					) );
-					return $subscribed > 0;
 				}
 				return false;
 
@@ -410,13 +390,9 @@ class Fanfic_Shortcodes_Buttons {
 	 */
 	private static function get_button_label( $action, $current_state ) {
 		$labels = array(
-			'bookmark' => array(
-				'inactive' => __( 'Bookmark', 'fanfiction-manager' ),
-				'active'   => __( 'Bookmarked', 'fanfiction-manager' ),
-			),
-			'subscribe' => array(
-				'inactive' => __( 'Subscribe', 'fanfiction-manager' ),
-				'active'   => __( 'Subscribed', 'fanfiction-manager' ),
+			'follow' => array(
+				'inactive' => __( 'Follow', 'fanfiction-manager' ),
+				'active'   => __( 'Followed', 'fanfiction-manager' ),
 			),
 			'like' => array(
 				'inactive' => __( 'Like', 'fanfiction-manager' ),
@@ -458,13 +434,9 @@ class Fanfic_Shortcodes_Buttons {
 	 */
 	private static function get_button_icon( $action, $current_state ) {
 		$icons = array(
-			'bookmark' => array(
-				'inactive' => '&#128278;', // Bookmark outline
-				'active'   => '&#128278;', // Bookmark filled
-			),
-			'subscribe' => array(
-				'inactive' => '&#128276;', // Bell
-				'active'   => '&#128276;', // Bell
+			'follow' => array(
+				'inactive' => '&#128278;', // Follow outline
+				'active'   => '&#128278;', // Follow filled
 			),
 			'like' => array(
 				'inactive' => '&#9829;', // Heart outline
@@ -515,13 +487,9 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		$labels = array(
-			'bookmark' => array(
-				'inactive' => sprintf( __( 'Bookmark this %s', 'fanfiction-manager' ), $object_type ),
-				'active'   => sprintf( __( 'Remove bookmark from this %s', 'fanfiction-manager' ), $object_type ),
-			),
-			'subscribe' => array(
-				'inactive' => sprintf( __( 'Subscribe to updates for this %s', 'fanfiction-manager' ), $object_type ),
-				'active'   => sprintf( __( 'Unsubscribe from this %s', 'fanfiction-manager' ), $object_type ),
+			'follow' => array(
+				'inactive' => sprintf( __( 'Follow this %s', 'fanfiction-manager' ), $object_type ),
+				'active'   => sprintf( __( 'Remove follow from this %s', 'fanfiction-manager' ), $object_type ),
 			),
 			'like' => array(
 				'inactive' => sprintf( __( 'Like this %s', 'fanfiction-manager' ), $object_type ),
@@ -566,7 +534,7 @@ class Fanfic_Shortcodes_Buttons {
 		$text_classes = array(
 			'like'      => 'like-text',
 			'dislike'   => 'dislike-text',
-			'bookmark'  => 'bookmark-text',
+			'follow'  => 'follow-text',
 			'mark-read' => 'read-text',
 			// 'subscribe' is NOT a toggle button - it opens a subscription form
 		);
@@ -593,9 +561,9 @@ class Fanfic_Shortcodes_Buttons {
 				'inactive' => 'dislike-text',
 				'active'   => 'disliked-text',
 			),
-			'bookmark' => array(
-				'inactive' => 'bookmark-text',
-				'active'   => 'bookmarked-text',
+			'follow' => array(
+				'inactive' => 'follow-text',
+				'active'   => 'followed-text',
 			),
 			'mark-read' => array(
 				'inactive' => 'unread-text',
@@ -718,110 +686,57 @@ class Fanfic_Shortcodes_Buttons {
 	}
 
 	/**
-	 * Render subscribe button (opens subscription modal)
+	 * Whether the follow email modal has already been rendered on this page.
 	 *
-	 * @since 2.0.0
-	 * @param string $context     Context (story, chapter, author).
-	 * @param array  $context_ids Context IDs.
-	 * @param string $nonce       AJAX nonce.
-	 * @return string Subscribe button HTML.
+	 * @var bool
 	 */
-	private static function render_subscribe_button( $context, $context_ids, $nonce ) {
-		// Get the target ID for subscription
-		$target_id = 0;
-		$subscription_type = '';
-
-		if ( 'story' === $context && isset( $context_ids['story_id'] ) ) {
-			$target_id = $context_ids['story_id'];
-			$subscription_type = 'story';
-		} elseif ( 'chapter' === $context && isset( $context_ids['story_id'] ) ) {
-			// For chapters, subscribe to the parent story
-			$target_id = $context_ids['story_id'];
-			$subscription_type = 'story';
-		} elseif ( 'author' === $context && isset( $context_ids['author_id'] ) ) {
-			$target_id = $context_ids['author_id'];
-			$subscription_type = 'author';
-		}
-
-		if ( ! $target_id ) {
-			return '';
-		}
-
-		$label = __( 'Subscribe', 'fanfiction-manager' );
-		$icon = '&#128276;'; // Bell icon
-
-		$output = '<button type="button" class="fanfic-button fanfic-subscribe-button" ';
-		$output .= 'data-target-id="' . absint( $target_id ) . '" ';
-		$output .= 'data-subscription-type="' . esc_attr( $subscription_type ) . '" ';
-		$output .= 'data-nonce="' . esc_attr( $nonce ) . '" ';
-		$output .= 'aria-label="' . esc_attr( sprintf( __( 'Subscribe to updates for this %s', 'fanfiction-manager' ), $context ) ) . '">';
-		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
-		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
-		$output .= '</button>';
-
-		// Add the subscription modal HTML (will be shown when button is clicked)
-		$output .= self::render_subscription_modal( $target_id, $subscription_type, $context );
-
-		return $output;
-	}
+	private static $follow_modal_rendered = false;
 
 	/**
-	 * Render subscription modal HTML
+	 * Render the follow email modal (once per page).
 	 *
-	 * @since 2.0.0
-	 * @param int    $target_id         Story or Author ID.
-	 * @param string $subscription_type 'story' or 'author'.
-	 * @param string $context           Context for display.
-	 * @return string Modal HTML.
+	 * Shown to logged-out users when they click Follow. Lets them optionally
+	 * provide an email address to receive story update emails.
+	 *
+	 * @since 1.8.0
+	 * @return string Modal HTML, or empty string if already rendered.
 	 */
-	private static function render_subscription_modal( $target_id, $subscription_type, $context ) {
-		$modal_id = 'fanfic-subscribe-modal-' . $subscription_type . '-' . $target_id;
-
-		$title = 'story' === $subscription_type
-			? __( 'Subscribe to Story Updates', 'fanfiction-manager' )
-			: __( 'Subscribe to Author Updates', 'fanfiction-manager' );
-
-		$description = 'story' === $subscription_type
-			? __( 'Get notified by email when new chapters are published for this story.', 'fanfiction-manager' )
-			: __( 'Get notified by email when this author publishes new stories or chapters.', 'fanfiction-manager' );
+	public static function render_follow_email_modal() {
+		if ( self::$follow_modal_rendered ) {
+			return '';
+		}
+		self::$follow_modal_rendered = true;
 
 		ob_start();
 		?>
-		<div id="<?php echo esc_attr( $modal_id ); ?>" class="fanfic-modal" role="dialog" aria-hidden="true" aria-labelledby="<?php echo esc_attr( $modal_id ); ?>-title" style="display:none;">
+		<div id="fanfic-follow-email-modal" class="fanfic-modal fanfic-follow-email-modal" role="dialog" aria-hidden="true" aria-labelledby="fanfic-follow-email-modal-title" style="display:none;">
 			<div class="fanfic-modal-overlay"></div>
 			<div class="fanfic-modal-content">
 				<button type="button" class="fanfic-modal-close" aria-label="<?php esc_attr_e( 'Close', 'fanfiction-manager' ); ?>">&times;</button>
-				<h2 id="<?php echo esc_attr( $modal_id ); ?>-title"><?php echo esc_html( $title ); ?></h2>
-				<p><?php echo esc_html( $description ); ?></p>
+				<h2 id="fanfic-follow-email-modal-title"><?php esc_html_e( 'Would you like to receive email updates?', 'fanfiction-manager' ); ?></h2>
+				<p><?php esc_html_e( 'Get notified when new chapters are published for this story.', 'fanfiction-manager' ); ?></p>
 
-				<form class="fanfic-email-subscription-form" data-target-id="<?php echo absint( $target_id ); ?>" data-subscription-type="<?php echo esc_attr( $subscription_type ); ?>">
-					<div class="form-group">
-						<label for="<?php echo esc_attr( $modal_id ); ?>-email">
-							<?php esc_html_e( 'Email Address', 'fanfiction-manager' ); ?>
-						</label>
-						<input
-							type="email"
-							id="<?php echo esc_attr( $modal_id ); ?>-email"
-							name="email"
-							required
-							placeholder="<?php esc_attr_e( 'your@email.com', 'fanfiction-manager' ); ?>"
-							autocomplete="email"
-						/>
-					</div>
+				<div class="form-group">
+					<label for="fanfic-follow-email-input">
+						<?php esc_html_e( 'Email Address', 'fanfiction-manager' ); ?>
+					</label>
+					<input
+						type="email"
+						id="fanfic-follow-email-input"
+						name="email"
+						placeholder="<?php esc_attr_e( 'your@email.com', 'fanfiction-manager' ); ?>"
+						autocomplete="email"
+					/>
+				</div>
 
-					<div class="form-actions">
-					<button type="submit" class="fanfic-button">
-							<?php esc_html_e( 'Subscribe', 'fanfiction-manager' ); ?>
-						</button>
-					<button type="button" class="fanfic-button secondary fanfic-modal-close">
-							<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
-						</button>
-					</div>
-
-					<p class="description">
-						<?php esc_html_e( 'You will receive a confirmation email to verify your subscription.', 'fanfiction-manager' ); ?>
-					</p>
-				</form>
+				<div class="form-actions">
+					<button type="button" id="fanfic-follow-subscribe-btn" class="fanfic-button">
+						<?php esc_html_e( 'Follow & Subscribe', 'fanfiction-manager' ); ?>
+					</button>
+					<button type="button" id="fanfic-follow-only-btn" class="fanfic-button secondary">
+						<?php esc_html_e( 'Follow Only', 'fanfiction-manager' ); ?>
+					</button>
+				</div>
 			</div>
 		</div>
 		<?php

@@ -399,7 +399,7 @@ class Fanfic_Interactions {
 	}
 
 	/**
-	 * Record bookmark.
+	 * Record follow.
 	 *
 	 * @since 1.8.0
 	 * @param int         $post_id        Post ID (story or chapter).
@@ -407,30 +407,30 @@ class Fanfic_Interactions {
 	 * @param string|null $anonymous_uuid Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function record_bookmark( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+	public static function record_follow( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
 		$post_id = absint( $post_id );
 		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
 		if ( ! $post_id || empty( $actor ) ) {
-			return new WP_Error( 'invalid_bookmark_payload', __( 'Invalid post or identity for bookmark.', 'fanfiction-manager' ) );
+			return new WP_Error( 'invalid_follow_payload', __( 'Invalid post or identity for follow.', 'fanfiction-manager' ) );
 		}
 
-		if ( self::has_interaction( $actor['user_id'], $post_id, 'bookmark', $actor['anonymous_hash'] ) ) {
+		if ( self::has_interaction( $actor['user_id'], $post_id, 'follow', $actor['anonymous_hash'] ) ) {
 			return array( 'success' => true, 'changed' => false );
 		}
 
-		$ok = self::upsert_interaction( $actor['user_id'], $post_id, 'bookmark', null, $actor['anonymous_hash'] );
+		$ok = self::upsert_interaction( $actor['user_id'], $post_id, 'follow', null, $actor['anonymous_hash'] );
 		if ( ! $ok ) {
-			return new WP_Error( 'bookmark_write_failed', __( 'Could not save bookmark.', 'fanfiction-manager' ) );
+			return new WP_Error( 'follow_write_failed', __( 'Could not save follow.', 'fanfiction-manager' ) );
 		}
 
-		self::apply_bookmark_increment( $post_id, 1 );
-		do_action( 'fanfic_bookmark_added', $post_id, $actor['user_id'] );
+		self::apply_follow_increment( $post_id, 1 );
+		do_action( 'fanfic_follow_added', $post_id, $actor['user_id'] );
 
 		return array( 'success' => true, 'changed' => true );
 	}
 
 	/**
-	 * Remove bookmark.
+	 * Remove follow.
 	 *
 	 * @since 1.8.0
 	 * @param int         $post_id        Post ID (story or chapter).
@@ -438,31 +438,31 @@ class Fanfic_Interactions {
 	 * @param string|null $anonymous_uuid Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function remove_bookmark( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+	public static function remove_follow( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
 		$post_id = absint( $post_id );
 		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
 		if ( ! $post_id || empty( $actor ) ) {
-			return new WP_Error( 'invalid_bookmark_remove_payload', __( 'Invalid post or identity for bookmark removal.', 'fanfiction-manager' ) );
+			return new WP_Error( 'invalid_follow_remove_payload', __( 'Invalid post or identity for follow removal.', 'fanfiction-manager' ) );
 		}
 
-		if ( ! self::has_interaction( $actor['user_id'], $post_id, 'bookmark', $actor['anonymous_hash'] ) ) {
+		if ( ! self::has_interaction( $actor['user_id'], $post_id, 'follow', $actor['anonymous_hash'] ) ) {
 			return array( 'success' => true, 'changed' => false );
 		}
 
-		self::delete_interaction( $actor['user_id'], $post_id, 'bookmark', $actor['anonymous_hash'] );
+		self::delete_interaction( $actor['user_id'], $post_id, 'follow', $actor['anonymous_hash'] );
 
-		self::apply_bookmark_increment( $post_id, -1 );
-		do_action( 'fanfic_bookmark_removed', $post_id, $actor['user_id'] );
+		self::apply_follow_increment( $post_id, -1 );
+		do_action( 'fanfic_follow_removed', $post_id, $actor['user_id'] );
 
 		return array( 'success' => true, 'changed' => true );
 	}
 
 	/**
-	 * Toggle bookmark with minimal queries.
+	 * Toggle follow with minimal queries.
 	 *
 	 * Uses a delete-first strategy:
-	 * - If a bookmark row existed, delete succeeds and bookmark is removed.
-	 * - If no row existed, create bookmark via upsert.
+	 * - If a follow row existed, delete succeeds and follow is removed.
+	 * - If no row existed, create follow via upsert.
 	 *
 	 * This avoids pre-check + re-check query duplication in toggle flows.
 	 *
@@ -472,18 +472,18 @@ class Fanfic_Interactions {
 	 * @param string|null $anonymous_uuid Anonymous UUID.
 	 * @return array|WP_Error
 	 */
-	public static function toggle_bookmark( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+	public static function toggle_follow( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
 		global $wpdb;
 
 		$post_id = absint( $post_id );
 		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
 		if ( ! $post_id || empty( $actor ) ) {
-			return new WP_Error( 'invalid_bookmark_toggle_payload', __( 'Invalid post or identity for bookmark toggle.', 'fanfiction-manager' ) );
+			return new WP_Error( 'invalid_follow_toggle_payload', __( 'Invalid post or identity for follow toggle.', 'fanfiction-manager' ) );
 		}
 
 		$table = $wpdb->prefix . 'fanfic_interactions';
 		if ( ! self::table_exists( $table ) ) {
-			return new WP_Error( 'bookmark_table_missing', __( 'Bookmark storage is unavailable.', 'fanfiction-manager' ) );
+			return new WP_Error( 'follow_table_missing', __( 'Follow storage is unavailable.', 'fanfiction-manager' ) );
 		}
 
 		if ( $actor['user_id'] > 0 ) {
@@ -492,7 +492,7 @@ class Fanfic_Interactions {
 				array(
 					'user_id'          => $actor['user_id'],
 					'chapter_id'       => $post_id,
-					'interaction_type' => 'bookmark',
+					'interaction_type' => 'follow',
 				),
 				array( '%d', '%d', '%s' )
 			);
@@ -502,45 +502,45 @@ class Fanfic_Interactions {
 				array(
 					'anon_hash'        => $actor['anonymous_hash'],
 					'chapter_id'       => $post_id,
-					'interaction_type' => 'bookmark',
+					'interaction_type' => 'follow',
 				),
 				array( '%s', '%d', '%s' )
 			);
 		}
 
 		if ( false === $deleted ) {
-			return new WP_Error( 'bookmark_toggle_delete_failed', __( 'Could not update bookmark state.', 'fanfiction-manager' ) );
+			return new WP_Error( 'follow_toggle_delete_failed', __( 'Could not update follow state.', 'fanfiction-manager' ) );
 		}
 
-		// Existing bookmark removed.
+		// Existing follow removed.
 		if ( $deleted > 0 ) {
-			self::apply_bookmark_increment( $post_id, -1 );
-			do_action( 'fanfic_bookmark_removed', $post_id, $actor['user_id'] );
+			self::apply_follow_increment( $post_id, -1 );
+			do_action( 'fanfic_follow_removed', $post_id, $actor['user_id'] );
 			return array(
 				'success'       => true,
 				'changed'       => true,
-				'is_bookmarked' => false,
+				'is_followed' => false,
 			);
 		}
 
-		// No existing bookmark: create it.
-		$ok = self::upsert_interaction( $actor['user_id'], $post_id, 'bookmark', null, $actor['anonymous_hash'] );
+		// No existing follow: create it.
+		$ok = self::upsert_interaction( $actor['user_id'], $post_id, 'follow', null, $actor['anonymous_hash'] );
 		if ( ! $ok ) {
-			return new WP_Error( 'bookmark_toggle_insert_failed', __( 'Could not save bookmark.', 'fanfiction-manager' ) );
+			return new WP_Error( 'follow_toggle_insert_failed', __( 'Could not save follow.', 'fanfiction-manager' ) );
 		}
 
-		self::apply_bookmark_increment( $post_id, 1 );
-		do_action( 'fanfic_bookmark_added', $post_id, $actor['user_id'] );
+		self::apply_follow_increment( $post_id, 1 );
+		do_action( 'fanfic_follow_added', $post_id, $actor['user_id'] );
 
 		return array(
 			'success'       => true,
 			'changed'       => true,
-			'is_bookmarked' => true,
+			'is_followed' => true,
 		);
 	}
 
 	/**
-	 * Check if bookmark exists.
+	 * Check if follow exists.
 	 *
 	 * @since 1.8.0
 	 * @param int         $post_id        Post ID (story or chapter).
@@ -548,14 +548,49 @@ class Fanfic_Interactions {
 	 * @param string|null $anonymous_uuid Anonymous UUID.
 	 * @return bool
 	 */
-	public static function has_bookmark( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+	public static function has_follow( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
 		$post_id = absint( $post_id );
 		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
 		if ( ! $post_id || empty( $actor ) ) {
 			return false;
 		}
 
-		return self::has_interaction( $actor['user_id'], $post_id, 'bookmark', $actor['anonymous_hash'] );
+		return self::has_interaction( $actor['user_id'], $post_id, 'follow', $actor['anonymous_hash'] );
+	}
+
+	/**
+	 * Idempotent follow insert (does not remove if already exists).
+	 *
+	 * Used by auto_follow_parent_story to ensure the parent story
+	 * is followed without toggling off an existing follow.
+	 *
+	 * @since 1.8.0
+	 * @param int    $post_id        Post ID (story or chapter).
+	 * @param int    $user_id        User ID.
+	 * @param string $anonymous_uuid Anonymous UUID.
+	 * @return bool True if follow exists after call (new or already existed).
+	 */
+	public static function upsert_follow( $post_id, $user_id = 0, $anonymous_uuid = '' ) {
+		$post_id = absint( $post_id );
+		$actor   = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $post_id || empty( $actor ) ) {
+			return false;
+		}
+
+		// Already followed — nothing to do.
+		if ( self::has_interaction( $actor['user_id'], $post_id, 'follow', $actor['anonymous_hash'] ) ) {
+			return true;
+		}
+
+		$ok = self::upsert_interaction( $actor['user_id'], $post_id, 'follow', null, $actor['anonymous_hash'] );
+		if ( ! $ok ) {
+			return false;
+		}
+
+		self::apply_follow_increment( $post_id, 1 );
+		do_action( 'fanfic_follow_added', $post_id, $actor['user_id'] );
+
+		return true;
 	}
 
 	/**
@@ -613,7 +648,7 @@ class Fanfic_Interactions {
 	 *
 	 * @since 1.6.0
 	 * @param int $story_id Story ID.
-	 * @return array{views:int,likes:int,dislikes:int,rating_avg:float,rating_count:int,bookmark_count:int}
+	 * @return array{views:int,likes:int,dislikes:int,rating_avg:float,rating_count:int,follow_count:int}
 	 */
 	public static function get_story_stats( $story_id ) {
 		$story_id = absint( $story_id );
@@ -623,7 +658,7 @@ class Fanfic_Interactions {
 			'dislikes'       => 0,
 			'rating_avg'     => 0.0,
 			'rating_count'   => 0,
-			'bookmark_count' => 0,
+			'follow_count' => 0,
 		);
 
 		if ( ! $story_id ) {
@@ -638,7 +673,7 @@ class Fanfic_Interactions {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT view_count, likes_total, dislikes_total, rating_avg_total, rating_count_total, bookmark_count
+				"SELECT view_count, likes_total, dislikes_total, rating_avg_total, rating_count_total, follow_count
 				FROM {$table}
 				WHERE story_id = %d",
 				$story_id
@@ -656,7 +691,7 @@ class Fanfic_Interactions {
 			'dislikes'       => absint( $row['dislikes_total'] ?? 0 ),
 			'rating_avg'     => round( floatval( $row['rating_avg_total'] ?? 0 ), 2 ),
 			'rating_count'   => absint( $row['rating_count_total'] ?? 0 ),
-			'bookmark_count' => absint( $row['bookmark_count'] ?? 0 ),
+			'follow_count' => absint( $row['follow_count'] ?? 0 ),
 		);
 	}
 
@@ -766,8 +801,8 @@ class Fanfic_Interactions {
 				continue;
 			}
 
-			// Bookmarks: chapter_id is actually a post ID (story or chapter).
-			if ( 'bookmark' === $type ) {
+			// Follows: chapter_id is actually a post ID (story or chapter).
+			if ( 'follow' === $type ) {
 				$post      = get_post( $chapter_id );
 				$post_type = $post ? $post->post_type : '';
 				if ( 'fanfiction_story' === $post_type ) {
@@ -784,7 +819,7 @@ class Fanfic_Interactions {
 				if ( $timestamp > absint( $data[ $key ]['timestamp'] ?? 0 ) ) {
 					$data[ $key ]['timestamp'] = $timestamp;
 				}
-				$data[ $key ]['bookmark'] = true;
+				$data[ $key ]['follow'] = true;
 				continue;
 			}
 
@@ -1416,17 +1451,17 @@ class Fanfic_Interactions {
 	}
 
 	/**
-	 * Apply bookmark increment/decrement to story search index.
+	 * Apply follow increment/decrement to story search index.
 	 *
-	 * Bookmarks are tracked at the story level only (chapter bookmarks still
-	 * credit the parent story's bookmark_count for sort/filter purposes).
+	 * Follows are tracked at the story level only (chapter follows still
+	 * credit the parent story's follow_count for sort/filter purposes).
 	 *
 	 * @since 1.9.0
 	 * @param int $post_id Post ID (story or chapter).
 	 * @param int $delta   +1 to add, -1 to remove.
 	 * @return void
 	 */
-	private static function apply_bookmark_increment( $post_id, $delta ) {
+	private static function apply_follow_increment( $post_id, $delta ) {
 		global $wpdb;
 
 		$post_id = absint( $post_id );
@@ -1435,7 +1470,7 @@ class Fanfic_Interactions {
 			return;
 		}
 
-		// Determine the story_id: bookmarks can be on a story or a chapter.
+		// Determine the story_id: follows can be on a story or a chapter.
 		$post_type = get_post_type( $post_id );
 		if ( 'fanfiction_story' === $post_type ) {
 			$story_id = $post_id;
@@ -1457,10 +1492,10 @@ class Fanfic_Interactions {
 		if ( $delta > 0 ) {
 			$wpdb->query(
 				$wpdb->prepare(
-					"INSERT INTO {$story_table} (story_id, indexed_text, bookmark_count)
+					"INSERT INTO {$story_table} (story_id, indexed_text, follow_count)
 					VALUES (%d, '', 1)
 					ON DUPLICATE KEY UPDATE
-						bookmark_count = bookmark_count + 1",
+						follow_count = follow_count + 1",
 					$story_id
 				)
 			);
@@ -1468,7 +1503,7 @@ class Fanfic_Interactions {
 			$wpdb->query(
 				$wpdb->prepare(
 					"UPDATE {$story_table}
-					SET bookmark_count = GREATEST(0, bookmark_count - 1)
+					SET follow_count = GREATEST(0, follow_count - 1)
 					WHERE story_id = %d",
 					$story_id
 				)
@@ -1999,15 +2034,15 @@ class Fanfic_Interactions {
 			self::delete_interaction( $user_id, $chapter_id, 'read' );
 		}
 
-		// Bookmark sync: chapter_id=0 means story bookmark, else chapter bookmark.
-		if ( ! empty( $entry['bookmark'] ) ) {
-			$bookmark_post_id = ( $chapter_id > 0 ) ? $chapter_id : $story_id;
-			self::record_bookmark( $bookmark_post_id, $user_id );
+		// Follow sync: chapter_id=0 means story follow, else chapter follow.
+		if ( ! empty( $entry['follow'] ) ) {
+			$follow_post_id = ( $chapter_id > 0 ) ? $chapter_id : $story_id;
+			self::record_follow( $follow_post_id, $user_id );
 		} else {
-			// Check if DB has a bookmark for this key and remove it.
-			$bookmark_post_id = ( $chapter_id > 0 ) ? $chapter_id : $story_id;
-			if ( self::has_interaction( $user_id, $bookmark_post_id, 'bookmark' ) ) {
-				self::remove_bookmark( $bookmark_post_id, $user_id );
+			// Check if DB has a follow for this key and remove it.
+			$follow_post_id = ( $chapter_id > 0 ) ? $chapter_id : $story_id;
+			if ( self::has_interaction( $user_id, $follow_post_id, 'follow' ) ) {
+				self::remove_follow( $follow_post_id, $user_id );
 			}
 		}
 
@@ -2144,7 +2179,7 @@ class Fanfic_Interactions {
 		}
 
 		$type = sanitize_key( $type );
-		if ( ! in_array( $type, array( 'like', 'dislike', 'rating', 'view', 'read', 'bookmark' ), true ) ) {
+		if ( ! in_array( $type, array( 'like', 'dislike', 'rating', 'view', 'read', 'follow' ), true ) ) {
 			return false;
 		}
 
@@ -2493,8 +2528,8 @@ class Fanfic_Interactions {
 			$data['view'] = true;
 		}
 
-		if ( ! empty( $entry['bookmark'] ) ) {
-			$data['bookmark'] = true;
+		if ( ! empty( $entry['follow'] ) ) {
+			$data['follow'] = true;
 		}
 
 		if ( array_key_exists( 'rating', $entry ) ) {
