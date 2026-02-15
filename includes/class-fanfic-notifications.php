@@ -951,7 +951,7 @@ class Fanfic_Notifications {
 		$table = $wpdb->prefix . 'fanfic_interactions';
 		$sql   = $wpdb->prepare(
 			"SELECT DISTINCT user_id FROM {$table}
-			WHERE post_id = %d AND interaction_type = 'follow' AND user_id > 0",
+			WHERE chapter_id = %d AND interaction_type = 'follow' AND user_id > 0",
 			absint( $story_id )
 		);
 

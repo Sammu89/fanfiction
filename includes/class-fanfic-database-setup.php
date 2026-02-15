@@ -47,7 +47,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '1.8.0';
+	const DB_VERSION = '2.0.0';
 
 	/**
 	 * Option name for database version tracking
@@ -453,6 +453,8 @@ class Fanfic_Database_Setup {
 			author_id bigint(20) UNSIGNED DEFAULT 0,
 			coauthor_ids varchar(500) DEFAULT '',
 			coauthor_names varchar(1000) DEFAULT '',
+			coauthor_logins varchar(1000) DEFAULT '',
+			featured_image_id bigint(20) UNSIGNED DEFAULT 0,
 			published_date datetime DEFAULT NULL,
 			updated_date datetime DEFAULT NULL,
 			chapter_count int(11) DEFAULT 0,
@@ -492,6 +494,12 @@ class Fanfic_Database_Setup {
 			invisible_tags text,
 			genre_names varchar(500) DEFAULT '',
 			status_name varchar(100) DEFAULT '',
+			author_display_name varchar(255) DEFAULT '',
+			author_login varchar(60) DEFAULT '',
+			language_name varchar(120) DEFAULT '',
+			language_native_name varchar(120) DEFAULT '',
+			warning_names text,
+			fandom_names text,
 			PRIMARY KEY  (story_id),
 			KEY idx_updated (updated_at),
 			KEY idx_author (author_id),
@@ -506,6 +514,9 @@ class Fanfic_Database_Setup {
 			KEY idx_trending_week (trending_week),
 			KEY idx_trending_month (trending_month),
 			KEY idx_follow_count (follow_count),
+			KEY idx_updated_date (updated_date),
+			KEY idx_published_date (published_date),
+			KEY idx_story_title (story_title(191)),
 			KEY idx_language (language_slug),
 			KEY idx_translation_group (translation_group_id),
 			KEY idx_age_rating (age_rating),
@@ -934,6 +945,12 @@ class Fanfic_Database_Setup {
 				$wpdb->query( "UPDATE {$table} SET verified = 1 WHERE verified = 0" );
 			}
 		}
+
+		// v1.9.0: New search index columns require full rebuild.
+		if ( version_compare( $current_version, '1.9.0', '<' ) ) {
+			set_transient( 'fanfic_index_rebuild_needed', '1', 0 );
+		}
+
 	}
 
 	/**

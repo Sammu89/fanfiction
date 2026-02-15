@@ -459,6 +459,8 @@ class Fanfic_Fandoms_Admin {
 			array( '%d' )
 		);
 
+		do_action( 'fanfic_fandom_updated', $fandom_id );
+
 		self::redirect_with_message( 'success', 'fandom_updated' );
 	}
 

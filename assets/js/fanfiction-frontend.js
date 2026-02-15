@@ -735,6 +735,185 @@
 	};
 
 	/**
+	 * Theme breadcrumb cleanup for plugin pages.
+	 * Hides theme breadcrumbs to avoid duplicate trails and collapses
+	 * empty header wrappers left behind after hiding those breadcrumbs.
+	 */
+	const ThemeBreadcrumbCleanup = {
+		isPluginPage: function() {
+			return $('body').is('.fanfic-page, .fanfic-story-view, .fanfic-chapter-view') || $('nav.fanfic-breadcrumb').length > 0;
+		},
+
+		getThemeBreadcrumbNodes: function(root) {
+			const scope = root || document;
+			const selectors = [
+				'nav[aria-label="Breadcrumbs"]',
+				'nav[aria-label="Breadcrumb"]',
+				'nav.site-breadcrumbs'
+			];
+			return scope.querySelectorAll(selectors.join(','));
+		},
+
+		isIgnoredNode: function(node) {
+			if (!node || node.nodeType !== 1) {
+				return false;
+			}
+
+			return /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|BR)$/i.test(node.tagName);
+		},
+
+		hasMeaningfulContent: function(node) {
+			if (!node) {
+				return false;
+			}
+
+			if (node.nodeType === 3) {
+				return node.textContent.trim().length > 0;
+			}
+
+			if (node.nodeType !== 1) {
+				return false;
+			}
+
+			const $el = $(node);
+
+			if (this.isIgnoredNode(node)) {
+				return false;
+			}
+
+			if ($el.is('[data-fanfic-hidden-theme-breadcrumb="1"]')) {
+				return false;
+			}
+
+			if ($el.hasClass('fanfic-breadcrumb') || $el.find('.fanfic-breadcrumb').length) {
+				return true;
+			}
+
+			for (let i = 0; i < node.childNodes.length; i++) {
+				if (this.hasMeaningfulContent(node.childNodes[i])) {
+					return true;
+				}
+			}
+
+			return false;
+		},
+
+		hideAndRemoveThemeBreadcrumbs: function(root) {
+			const nodes = this.getThemeBreadcrumbNodes(root);
+			const collapseCandidates = new Set();
+			const candidateSelectors = [
+				'.page-header-inner',
+				'.page-header',
+				'.background-image-page-header',
+				'.centered-page-header',
+				'.page-header-wrapper'
+			];
+
+			nodes.forEach((node) => {
+				if (!node || !node.parentNode) {
+					return;
+				}
+
+				if (node.classList.contains('fanfic-breadcrumb') || node.closest('.fanfic-breadcrumb')) {
+					return;
+				}
+
+				node.setAttribute('data-fanfic-hidden-theme-breadcrumb', '1');
+				node.style.setProperty('display', 'none', 'important');
+				node.style.setProperty('visibility', 'hidden', 'important');
+
+				candidateSelectors.forEach((selector) => {
+					const parent = node.closest(selector);
+					if (parent) {
+						collapseCandidates.add(parent);
+					}
+				});
+
+				// Remove from DOM to avoid theme CSS forcing it back.
+				node.remove();
+			});
+
+			return collapseCandidates;
+		},
+
+		collapseEmptyHeaderWrappers: function(extraCandidates) {
+			const selectors = '.page-header-inner, .page-header, .background-image-page-header, .centered-page-header, .page-header-wrapper';
+			const candidates = new Set();
+
+			document.querySelectorAll(selectors).forEach((el) => candidates.add(el));
+			if (extraCandidates && extraCandidates.forEach) {
+				extraCandidates.forEach((el) => candidates.add(el));
+			}
+
+			candidates.forEach((el) => {
+				if (!el) {
+					return;
+				}
+
+				if (this.hasMeaningfulContent(el)) {
+					return;
+				}
+
+				el.setAttribute('data-fanfic-collapsed-empty-header', '1');
+				el.style.setProperty('display', 'none', 'important');
+			});
+		},
+
+		startObserver: function() {
+			if (this.observer || !document.body) {
+				return;
+			}
+
+			let scheduled = false;
+			const rerun = () => {
+				if (scheduled) {
+					return;
+				}
+				scheduled = true;
+				window.requestAnimationFrame(() => {
+					scheduled = false;
+					this.run();
+				});
+			};
+
+			this.observer = new MutationObserver((mutations) => {
+				for (let i = 0; i < mutations.length; i++) {
+					const mutation = mutations[i];
+					if (mutation.type === 'childList' && (mutation.addedNodes.length || mutation.removedNodes.length)) {
+						rerun();
+						return;
+					}
+				}
+			});
+
+			this.observer.observe(document.body, {
+				childList: true,
+				subtree: true
+			});
+		},
+
+		run: function() {
+			if (!this.isPluginPage()) {
+				return;
+			}
+
+			const candidates = this.hideAndRemoveThemeBreadcrumbs(document);
+			this.collapseEmptyHeaderWrappers(candidates);
+		},
+
+		init: function() {
+			if (!this.isPluginPage()) {
+				return;
+			}
+
+			this.run();
+			this.startObserver();
+			$(window).on('load', () => this.run());
+			setTimeout(() => this.run(), 120);
+		}
+	};
+
+	/**
 	 * Initialize on document ready
 	 */
 	$(document).ready(function() {
@@ -742,6 +921,7 @@
 		FormValidator;
 		Modal;
 		Notice;
+		ThemeBreadcrumbCleanup.init();
 		Notice.registerExisting();
 		CharCounter.init();
 		FormSubmitter.init();

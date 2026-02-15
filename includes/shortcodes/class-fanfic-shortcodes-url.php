@@ -211,14 +211,29 @@ class Fanfic_Shortcodes_URL {
 		$url = fanfic_get_create_story_url();
 
 		if ( empty( $url ) ) {
-			// Fallback: main page with ?action=create-story
+			// Fallback: use the same host-page selection strategy as URL manager.
 			$page_ids = get_option( 'fanfic_system_page_ids', array() );
-			$base_slug = get_option( 'fanfic_base_slug', 'fanfiction' );
-			if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
-				$url = add_query_arg( 'action', 'create-story', get_permalink( $page_ids['main'] ) );
-			} else {
-				// Ultimate fallback
-				$url = home_url( '/' . $base_slug . '/?action=create-story' );
+			$use_base_slug = (bool) get_option( 'fanfic_use_base_slug', true );
+			$main_page_mode = (string) get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+			$target_page_id = 0;
+
+			if ( ! $use_base_slug && 'stories_homepage' === $main_page_mode && ! empty( $page_ids['stories'] ) ) {
+				$target_page_id = absint( $page_ids['stories'] );
+			} elseif ( ! empty( $page_ids['main'] ) ) {
+				$target_page_id = absint( $page_ids['main'] );
+			} elseif ( ! empty( $page_ids['stories'] ) ) {
+				$target_page_id = absint( $page_ids['stories'] );
+			}
+
+			if ( $target_page_id > 0 ) {
+				$page_url = get_permalink( $target_page_id );
+				if ( $page_url ) {
+					$url = add_query_arg( 'action', 'create-story', $page_url );
+				}
+			}
+
+			if ( empty( $url ) ) {
+				$url = home_url( '/?action=create-story' );
 			}
 		}
 

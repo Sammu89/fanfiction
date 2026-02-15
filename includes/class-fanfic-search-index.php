@@ -35,6 +35,8 @@ class Fanfic_Search_Index {
 		// Chapter hooks
 		add_action( 'save_post_fanfiction_chapter', array( __CLASS__, 'on_chapter_save' ), 10, 3 );
 		add_action( 'before_delete_post', array( __CLASS__, 'on_chapter_delete' ) );
+		add_action( 'transition_post_status', array( __CLASS__, 'on_chapter_status_transition' ), 10, 3 );
+		add_action( 'post_updated', array( __CLASS__, 'on_chapter_parent_change' ), 10, 3 );
 
 		// Author profile update hook
 		add_action( 'profile_update', array( __CLASS__, 'on_author_profile_update' ), 10, 2 );
@@ -42,6 +44,20 @@ class Fanfic_Search_Index {
 		// Tag update hook (custom action that should be fired when tags are saved)
 		add_action( 'fanfic_tags_updated', array( __CLASS__, 'on_tags_updated' ), 10, 1 );
 		add_action( 'fanfic_translations_updated', array( __CLASS__, 'on_translations_updated' ), 10, 2 );
+
+		// Featured image changes → reindex the story.
+		add_action( 'updated_post_meta', array( __CLASS__, 'on_post_meta_change' ), 10, 4 );
+		add_action( 'added_post_meta', array( __CLASS__, 'on_post_meta_change' ), 10, 4 );
+		add_action( 'deleted_post_meta', array( __CLASS__, 'on_post_meta_delete' ), 10, 4 );
+
+		// Taxonomy term renames → reindex affected stories.
+		add_action( 'edited_fanfiction_genre', array( __CLASS__, 'on_term_updated' ), 10, 2 );
+		add_action( 'edited_fanfiction_status', array( __CLASS__, 'on_term_updated' ), 10, 2 );
+
+		// Fandom/warning renames (admin actions fire these custom hooks).
+		add_action( 'fanfic_fandom_updated', array( __CLASS__, 'on_fandom_updated' ), 10, 1 );
+		add_action( 'fanfic_warning_updated', array( __CLASS__, 'on_warning_updated' ), 10, 1 );
+
 	}
 
 	/**
@@ -480,7 +496,30 @@ class Fanfic_Search_Index {
 	 * @return int Chapter count
 	 */
 	private static function get_chapter_count( $story_id ) {
-		return absint( get_post_meta( $story_id, '_fanfic_chapter_count', true ) );
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return 0;
+		}
+
+		global $wpdb;
+		$count = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*)
+				FROM {$wpdb->posts}
+				WHERE post_parent = %d
+				AND post_type = 'fanfiction_chapter'
+				AND post_status = 'publish'",
+				$story_id
+			)
+		);
+
+		$count = absint( $count );
+
+		// Keep auxiliary chapter-count meta/transient aligned with canonical post data.
+		update_post_meta( $story_id, '_fanfic_chapter_count', $count );
+		delete_transient( 'fanfic_chapter_count_' . $story_id );
+
+		return $count;
 	}
 
 	/**
@@ -668,6 +707,148 @@ class Fanfic_Search_Index {
 	}
 
 	/**
+	 * Get featured image attachment ID for index.
+	 *
+	 * @param int $story_id Story post ID.
+	 * @return int
+	 */
+	private static function get_featured_image_id( $story_id ) {
+		$thumb_id = get_post_thumbnail_id( $story_id );
+		return $thumb_id ? absint( $thumb_id ) : 0;
+	}
+
+	/**
+	 * Get author display name for index.
+	 *
+	 * @param int $story_id Story post ID.
+	 * @return string
+	 */
+	private static function get_author_display_name( $story_id ) {
+		$author_id = self::get_author_id( $story_id );
+		if ( ! $author_id ) {
+			return '';
+		}
+		return (string) get_the_author_meta( 'display_name', $author_id );
+	}
+
+	/**
+	 * Get author login for index.
+	 *
+	 * @param int $story_id Story post ID.
+	 * @return string
+	 */
+	private static function get_author_login( $story_id ) {
+		$author_id = self::get_author_id( $story_id );
+		if ( ! $author_id ) {
+			return '';
+		}
+		$user = get_userdata( $author_id );
+		return $user && isset( $user->user_login ) ? (string) $user->user_login : '';
+	}
+
+	/**
+	 * Get comma-separated coauthor logins for index.
+	 *
+	 * @param int $story_id Story post ID.
+	 * @return string
+	 */
+	private static function get_coauthor_logins( $story_id ) {
+		if ( ! class_exists( 'Fanfic_Coauthors' ) || ! Fanfic_Coauthors::is_enabled() ) {
+			return '';
+		}
+		$coauthors = Fanfic_Coauthors::get_story_coauthors( $story_id, Fanfic_Coauthors::STATUS_ACCEPTED );
+		if ( empty( $coauthors ) ) {
+			return '';
+		}
+		$logins = array();
+		foreach ( $coauthors as $coauthor ) {
+			$login = isset( $coauthor->user_login ) ? trim( (string) $coauthor->user_login ) : '';
+			if ( '' !== $login ) {
+				$logins[] = $login;
+			}
+		}
+		return implode( ',', $logins );
+	}
+
+	/**
+	 * Get language human name for index.
+	 *
+	 * @param int $story_id Story post ID.
+	 * @return string
+	 */
+	private static function get_language_name( $story_id ) {
+		$slug = self::get_language_slug( $story_id );
+		if ( '' === $slug || ! class_exists( 'Fanfic_Languages' ) ) {
+			return '';
+		}
+		$lang = Fanfic_Languages::get_by_slug( $slug );
+		return ( $lang && isset( $lang['name'] ) ) ? (string) $lang['name'] : '';
+	}
+
+	/**
+	 * Get language native name for index.
+	 *
+	 * @param int $story_id Story post ID.
+	 * @return string
+	 */
+	private static function get_language_native_name( $story_id ) {
+		$slug = self::get_language_slug( $story_id );
+		if ( '' === $slug || ! class_exists( 'Fanfic_Languages' ) ) {
+			return '';
+		}
+		$lang = Fanfic_Languages::get_by_slug( $slug );
+		return ( $lang && isset( $lang['native_name'] ) ) ? (string) $lang['native_name'] : '';
+	}
+
+	/**
+	 * Get comma-separated fandom display names for index.
+	 *
+	 * @param int $story_id Story post ID.
+	 * @return string
+	 */
+	private static function get_fandom_names( $story_id ) {
+		if ( ! class_exists( 'Fanfic_Fandoms' ) ) {
+			return '';
+		}
+		$fandoms = Fanfic_Fandoms::get_story_fandom_labels( $story_id );
+		if ( empty( $fandoms ) ) {
+			return '';
+		}
+		$names = array();
+		foreach ( $fandoms as $fandom ) {
+			$label = isset( $fandom['label'] ) ? $fandom['label'] : ( isset( $fandom['name'] ) ? $fandom['name'] : '' );
+			if ( '' !== $label ) {
+				$names[] = $label;
+			}
+		}
+		return implode( ',', $names );
+	}
+
+	/**
+	 * Get comma-separated warning display names for index.
+	 *
+	 * @param int $story_id Story post ID.
+	 * @return string
+	 */
+	private static function get_warning_names( $story_id ) {
+		if ( ! class_exists( 'Fanfic_Warnings' ) ) {
+			return '';
+		}
+		$warnings = Fanfic_Warnings::get_story_warnings( $story_id );
+		if ( empty( $warnings ) ) {
+			return '';
+		}
+		$names = array();
+		foreach ( $warnings as $warning ) {
+			$name = isset( $warning['name'] ) ? $warning['name'] : ( isset( $warning['label'] ) ? $warning['label'] : '' );
+			if ( '' !== $name ) {
+				$names[] = $name;
+			}
+		}
+		return implode( ',', $names );
+	}
+
+	/**
 	 * Update search index for a story
 	 *
 	 * @since 1.2.0
@@ -798,6 +979,14 @@ class Fanfic_Search_Index {
 			'invisible_tags'       => self::get_invisible_tags_string( $story_id ),
 			'genre_names'          => self::get_genre_names( $story_id ),
 			'status_name'          => self::get_status_name( $story_id ),
+			'featured_image_id'     => self::get_featured_image_id( $story_id ),
+			'author_display_name'   => self::get_author_display_name( $story_id ),
+			'author_login'          => self::get_author_login( $story_id ),
+			'coauthor_logins'       => self::get_coauthor_logins( $story_id ),
+			'language_name'         => self::get_language_name( $story_id ),
+			'language_native_name'  => self::get_language_native_name( $story_id ),
+			'fandom_names'          => self::get_fandom_names( $story_id ),
+			'warning_names'         => self::get_warning_names( $story_id ),
 		);
 
 		if ( ! empty( $existing_columns ) ) {
@@ -954,27 +1143,123 @@ class Fanfic_Search_Index {
 	}
 
 	/**
+	 * Hook: On chapter status transition.
+	 *
+	 * Re-index parent story when chapter publish state changes.
+	 *
+	 * @since 2.1.0
+	 * @param string  $new_status New post status.
+	 * @param string  $old_status Old post status.
+	 * @param WP_Post $post       Post object.
+	 * @return void
+	 */
+	public static function on_chapter_status_transition( $new_status, $old_status, $post ) {
+		if ( ! ( $post instanceof WP_Post ) || 'fanfiction_chapter' !== $post->post_type ) {
+			return;
+		}
+
+		if ( $new_status === $old_status ) {
+			return;
+		}
+
+		$story_id = absint( $post->post_parent );
+		if ( $story_id ) {
+			self::update_index( $story_id );
+		}
+	}
+
+	/**
+	 * Hook: On post update.
+	 *
+	 * Re-index both old and new parent stories when a chapter is moved.
+	 *
+	 * @since 2.1.0
+	 * @param int     $post_id    Post ID.
+	 * @param WP_Post $post_after Post object after update.
+	 * @param WP_Post $post_before Post object before update.
+	 * @return void
+	 */
+	public static function on_chapter_parent_change( $post_id, $post_after, $post_before ) {
+		if ( ! ( $post_after instanceof WP_Post ) || 'fanfiction_chapter' !== $post_after->post_type ) {
+			return;
+		}
+
+		$new_story_id = absint( $post_after->post_parent );
+		$old_story_id = ( $post_before instanceof WP_Post ) ? absint( $post_before->post_parent ) : 0;
+
+		if ( $new_story_id && $new_story_id !== $old_story_id ) {
+			self::update_index( $new_story_id );
+		}
+
+		if ( $old_story_id && $old_story_id !== $new_story_id ) {
+			self::update_index( $old_story_id );
+		}
+	}
+
+	/**
 	 * Hook: On author profile update
 	 *
 	 * Updates indexes for all stories by this author.
 	 *
 	 * @since 1.2.0
-	 * @param int   $user_id User ID.
-	 * @param array $old_user_data Old user data.
+	 * @param int            $user_id User ID.
+	 * @param WP_User|array $old_user_data Old user data.
 	 * @return void
 	 */
 	public static function on_author_profile_update( $user_id, $old_user_data ) {
-		// Check if display_name changed
 		$new_user = get_userdata( $user_id );
-		if ( ! $new_user || ! isset( $old_user_data['display_name'] ) ) {
+		if ( ! $new_user ) {
 			return;
 		}
 
-		if ( $new_user->display_name === $old_user_data['display_name'] ) {
+		$old_display_name = '';
+		$old_login        = '';
+
+		if ( $old_user_data instanceof WP_User ) {
+			$old_display_name = (string) $old_user_data->display_name;
+			$old_login        = (string) $old_user_data->user_login;
+		} elseif ( is_array( $old_user_data ) ) {
+			$old_display_name = isset( $old_user_data['display_name'] ) ? (string) $old_user_data['display_name'] : '';
+			$old_login        = isset( $old_user_data['user_login'] ) ? (string) $old_user_data['user_login'] : '';
+		}
+
+		$display_name_changed = '' !== $old_display_name && $new_user->display_name !== $old_display_name;
+
+		// If user_login changed, reindex all author stories so author_login remains current in the index.
+		if ( '' !== $old_login && $old_login !== $new_user->user_login ) {
+			self::reindex_user_stories( $user_id );
+			return;
+		}
+
+		if ( ! $display_name_changed ) {
 			return; // No change
 		}
 
 		// Update all stories by this author
+		$stories = get_posts(
+			array(
+				'post_type'      => 'fanfiction_story',
+				'author'         => $user_id,
+				'posts_per_page' => -1,
+				'post_status'    => 'any',
+				'fields'         => 'ids',
+			)
+		);
+
+		if ( ! empty( $stories ) ) {
+			foreach ( $stories as $story_id ) {
+				self::update_index( $story_id );
+			}
+		}
+	}
+
+	/**
+	 * Reindex all stories authored by a given user.
+	 *
+	 * @param int $user_id User ID.
+	 * @return void
+	 */
+	private static function reindex_user_stories( $user_id ) {
 		$stories = get_posts(
 			array(
 				'post_type'      => 'fanfiction_story',
@@ -1032,6 +1317,110 @@ class Fanfic_Search_Index {
 					self::update_index( $group_story_id );
 				}
 			}
+		}
+	}
+
+	/**
+	 * Handle post meta changes to reindex story when featured image changes.
+	 *
+	 * @param int    $meta_id    Meta ID.
+	 * @param int    $object_id  Object (post) ID.
+	 * @param string $meta_key   Meta key.
+	 * @param mixed  $meta_value Meta value.
+	 */
+	public static function on_post_meta_change( $meta_id, $object_id, $meta_key, $meta_value ) {
+		if ( '_thumbnail_id' !== $meta_key ) {
+			return;
+		}
+		$post = get_post( $object_id );
+		if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
+			return;
+		}
+		self::update_index( $object_id );
+	}
+
+	/**
+	 * Handle post meta deletion to reindex story when featured image is removed.
+	 *
+	 * @param string[] $meta_ids   Array of meta IDs.
+	 * @param int      $object_id  Object (post) ID.
+	 * @param string   $meta_key   Meta key.
+	 * @param mixed    $meta_value Meta value.
+	 */
+	public static function on_post_meta_delete( $meta_ids, $object_id, $meta_key, $meta_value ) {
+		if ( '_thumbnail_id' !== $meta_key ) {
+			return;
+		}
+		$post = get_post( $object_id );
+		if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
+			return;
+		}
+		self::update_index( $object_id );
+	}
+
+	/**
+	 * Handle taxonomy term rename → reindex all stories with that term.
+	 *
+	 * @param int $term_id Term ID.
+	 * @param int $tt_id   Term taxonomy ID.
+	 */
+	public static function on_term_updated( $term_id, $tt_id ) {
+		global $wpdb;
+		$story_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT tr.object_id
+				FROM {$wpdb->term_relationships} AS tr
+				INNER JOIN {$wpdb->term_taxonomy} AS tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+				WHERE tt.term_id = %d",
+				$term_id
+			)
+		);
+		foreach ( (array) $story_ids as $story_id ) {
+			self::update_index( absint( $story_id ) );
+		}
+	}
+
+	/**
+	 * Handle fandom rename → reindex all stories with that fandom.
+	 *
+	 * @param int $fandom_id Fandom ID.
+	 */
+	public static function on_fandom_updated( $fandom_id ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_story_fandoms';
+		$table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( $table_exists ) {
+			$story_ids = $wpdb->get_col(
+				$wpdb->prepare( "SELECT story_id FROM {$table} WHERE fandom_id = %d", $fandom_id )
+			);
+		} else {
+			$index_table = $wpdb->prefix . 'fanfic_story_search_index';
+			$story_ids = $wpdb->get_col( "SELECT story_id FROM {$index_table} WHERE fandom_slugs != '' AND fandom_slugs IS NOT NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		}
+		foreach ( (array) $story_ids as $story_id ) {
+			self::update_index( absint( $story_id ) );
+		}
+	}
+
+	/**
+	 * Handle warning rename → reindex all stories with that warning.
+	 *
+	 * @param int $warning_id Warning ID.
+	 */
+	public static function on_warning_updated( $warning_id ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_story_warnings';
+		$table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( $table_exists ) {
+			$story_ids = $wpdb->get_col(
+				$wpdb->prepare( "SELECT story_id FROM {$table} WHERE warning_id = %d", $warning_id )
+			);
+		} else {
+			$index_table = $wpdb->prefix . 'fanfic_story_search_index';
+			$story_ids = $wpdb->get_col( "SELECT story_id FROM {$index_table} WHERE warning_slugs != '' AND warning_slugs IS NOT NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		}
+		foreach ( (array) $story_ids as $story_id ) {
+			self::update_index( absint( $story_id ) );
 		}
 	}
 

@@ -234,12 +234,17 @@
             var raw = navigator.language || navigator.userLanguage || 'en';
             var full = this.normalizeLanguageCode(raw);
             var base = this.getBaseLanguage(full);
-            var variants = this.getLanguageVariants(base);
+            var preferred = [];
 
-            var preferred = [full, base].concat(variants)
-                .filter(function(value) { return value && value.trim() !== ''; })
-                .map(function(value) { return String(value).toLowerCase(); })
-                .filter(function(value, index, arr) { return arr.indexOf(value) === index; });
+            if (typeof FanficLanguageFilter !== 'undefined' && typeof FanficLanguageFilter.buildPreferredLanguageOrder === 'function') {
+                preferred = FanficLanguageFilter.buildPreferredLanguageOrder(full);
+            } else {
+                var variants = this.getLanguageVariants(base);
+                preferred = [full, base].concat(variants).concat(['en'])
+                    .filter(function(value) { return value && value.trim() !== ''; })
+                    .map(function(value) { return String(value).toLowerCase(); })
+                    .filter(function(value, index, arr) { return arr.indexOf(value) === index; });
+            }
 
             return {
                 full: full,
@@ -309,7 +314,7 @@
         /**
          * Select the preferred card from a group based on browser language
          * Priority:
-         * 1) exact browser variant (e.g., pt-pt)
+         * 1) exact browser variant (e.g., pt-br)
          * 2) any same-base variant (e.g., any pt)
          * 3) English variant
          * 4) most views
@@ -433,7 +438,7 @@
             // Fandoms (custom field)
             var fandomLabels = [];
             $('.fanfic-selected-fandoms input[name="fanfic_story_fandoms[]"]').each(function() {
-                var label = $(this).closest('.fanfic-selected-fandom').clone().find('button').remove().end().text().trim();
+                var label = $(this).closest('.fanfic-pill-value').clone().find('button').remove().end().text().trim();
                 if (label) {
                     fandomLabels.push(label);
                 }
@@ -666,7 +671,7 @@
                     $('.fanfic-selected-fandoms span').each(function() {
                         var label = $(this).clone().find('button').remove().end().text().trim();
                         if (label === valueText) {
-                            $(this).find('.fanfic-remove-fandom').trigger('click');
+                            $(this).find('.fanfic-pill-value-remove').trigger('click');
                         }
                     });
                     break;
@@ -779,12 +784,21 @@
     // ===== LANGUAGE FILTER MANAGER =====
     var FanficLanguageFilter = {
         /**
+         * Normalizes a language code to lowercase hyphen form.
+         * @param {string} lang The language code.
+         * @returns {string} Normalized language code.
+         */
+        normalizeFullLanguageCode: function(lang) {
+            return String(lang || '').toLowerCase().replace('_', '-');
+        },
+
+        /**
          * Normalizes a language code to its base (e.g., "pt-BR" -> "pt").
          * @param {string} lang The language code.
          * @returns {string} The base language code.
          */
         normalizeLanguageCode: function(lang) {
-            return lang.toLowerCase().split('-')[0];
+            return this.normalizeFullLanguageCode(lang).split('-')[0];
         },
 
         /**
@@ -796,9 +810,9 @@
         getLanguageVariants: function(baseLang) {
             switch (baseLang) {
                 case 'pt':
-                    return ['pt', 'pt-pt', 'pt-br']; // Portuguese variants from languages.json
+                    return ['pt', 'pt-br']; // Canonical Portuguese variants
                 case 'es':
-                    return ['es', 'es-es', 'es-419']; // Spanish variants from languages.json
+                    return ['es-es', 'es-419']; // Canonical Spanish variants
                 case 'zh':
                     return ['zh', 'zh-hans', 'zh-hant']; // Chinese variants from languages.json
                 default:
@@ -807,19 +821,44 @@
         },
 
         /**
+         * Builds a preferred language order for sorting language options.
+         * Includes explicit pt/es behavior and English fallback.
+         *
+         * @param {string} fullLanguage Full browser language (e.g., pt-br, es-mx).
+         * @returns {string[]} Preferred language order.
+         */
+        buildPreferredLanguageOrder: function(fullLanguage) {
+            var full = this.normalizeFullLanguageCode(fullLanguage);
+            var base = this.normalizeLanguageCode(full);
+            var preferred = [];
+
+            if (base === 'pt') {
+                preferred = full === 'pt-br'
+                    ? ['pt-br', 'pt', 'en']
+                    : ['pt', 'pt-br', 'en'];
+            } else if (base === 'es') {
+                preferred = (full === 'es-es' || full === 'es')
+                    ? ['es-es', 'es-419', 'en']
+                    : ['es-419', 'es-es', 'en'];
+            } else {
+                preferred = [full, base].concat(this.getLanguageVariants(base)).concat(['en']);
+            }
+
+            return preferred
+                .filter(function(value) { return value && value.trim() !== ''; })
+                .map(function(value) { return String(value).toLowerCase(); })
+                .filter(function(value, index, arr) { return arr.indexOf(value) === index; });
+        },
+
+        /**
          * Prioritizes the user's browser language in the language filter dropdown.
          */
         prioritizeBrowserLanguage: function() {
             var browserLang = navigator.language || navigator.userLanguage;
-            var normalizedFullBrowserLang = String(browserLang || '').toLowerCase().replace('_', '-');
-            var normalizedBrowserLang = this.normalizeLanguageCode(browserLang);
-            var prioritizedLangs = this.getLanguageVariants(normalizedBrowserLang);
-            var preferredLangOrder = [normalizedFullBrowserLang, normalizedBrowserLang].concat(prioritizedLangs)
-                .filter(function(value) { return value && value.trim() !== ''; })
-                .map(function(value) { return value.toLowerCase(); })
-                .filter(function(value, index, arr) { return arr.indexOf(value) === index; });
+            var normalizedFullBrowserLang = this.normalizeFullLanguageCode(browserLang || 'en');
+            var preferredLangOrder = this.buildPreferredLanguageOrder(normalizedFullBrowserLang);
 
-            console.log('Browser Language:', browserLang, 'Normalized:', normalizedBrowserLang, 'Prioritized Variants:', prioritizedLangs);
+            console.log('Browser Language:', browserLang, 'Preferred Language Order:', preferredLangOrder);
 
             var $languageCheckboxes = $('.multi-select input[name="language[]"]');
             if (!$languageCheckboxes.length) {
@@ -1016,7 +1055,7 @@
             // 1. Search text input - include only if non-empty
             var searchVal = $searchInput.val();
             if (searchVal && searchVal.trim() !== '') {
-                params.search = searchVal.trim();
+                params.q = searchVal.trim();
             }
 
             // 2. Sort select - include only if non-empty

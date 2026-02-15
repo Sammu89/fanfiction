@@ -28,6 +28,11 @@ Fanfiction Manager is a WordPress plugin that turns WordPress into a fanfiction 
 - JS: No build system documented; JS lives in `assets/js` and should follow existing patterns for AJAX calls to `/wp-admin/admin-ajax.php` and frontend interactions.
 - Git: No repo-specific Git conventions documented.
 
+## Implementation Policy
+- Do not add legacy or backward-compatibility code paths.
+- Always implement clean, fresh, canonical behavior only.
+- Do not add alias mappings, compatibility shims, or deprecated fallbacks.
+
 ## Workflows
 1. Plan changes
 2. Code + test (manual testing via WP admin and browser; flush permalinks when URL rules change; check `wp-content/debug.log` if `WP_DEBUG` is enabled)

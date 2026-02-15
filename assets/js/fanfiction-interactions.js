@@ -48,7 +48,9 @@
 			markedRead: 'Marked as read',
 			error: 'An error occurred. Please try again.',
 			rateLimited: 'Too many requests. Please wait a moment.',
-			loginRequired: 'You must be logged in to do that.'
+			loginRequired: 'You must be logged in to do that.',
+			copiedLink: 'Copied link.',
+			copyThisLinkPrompt: 'Copy this link:'
 		},
 
 		/**
@@ -62,6 +64,7 @@
 
 			// Follow buttons
 			this.initFollowButtons();
+			this.hydrateFollowButtonsFromLocal();
 
 			// Follow email modal handlers
 			this.initFollowEmailModal();
@@ -317,6 +320,45 @@
 		},
 
 		/**
+		 * Hydrate follow buttons from localStorage on initial page load.
+		 *
+		 * If a button is already server-rendered as followed and localStorage has no
+		 * explicit follow flag for that key yet, seed localStorage from server state.
+		 */
+		hydrateFollowButtonsFromLocal: function() {
+			var self = this;
+
+			$('.fanfic-follow-button, .fanfic-button-follow').each(function() {
+				var $button = $(this);
+				var storyId = parseInt($button.data('story-id'), 10) || 0;
+				var chapterIdRaw = parseInt($button.data('chapter-id'), 10);
+				var chapterId = Number.isFinite(chapterIdRaw) ? chapterIdRaw : 0;
+
+				if (!storyId) {
+					return;
+				}
+
+				var entry = FanficLocalStore.getChapter(storyId, chapterId);
+				var hasLocalFollowFlag = !!(entry && Object.prototype.hasOwnProperty.call(entry, 'follow'));
+				var isServerFollowed = $button.hasClass('fanfic-button-followed');
+
+				// Seed local state from server-rendered follow state when needed.
+				if (!hasLocalFollowFlag && isServerFollowed) {
+					FanficLocalStore.setFollow(storyId, chapterId, true);
+				}
+
+				var isFollowed = FanficLocalStore.isFollowed(storyId, chapterId);
+				if (!hasLocalFollowFlag && !isServerFollowed) {
+					isFollowed = false;
+				}
+
+				self.updateFollowDisplay($button, isFollowed);
+			});
+
+			self.updateBadges();
+		},
+
+		/**
 		 * Update badge visibility from localStorage
 		 */
 		updateBadges: function() {
@@ -396,47 +438,170 @@
 		initShareButtons: function() {
 			const self = this;
 
-			$(document).on('click', '.fanfic-share-button', function(e) {
+			$(document).on('click', '.fanfic-button-share', function(e) {
 				e.preventDefault();
 
 				const $button = $(this);
-				const url = window.location.href;
-				const title = document.title;
+				const url = self.getShareUrl($button);
+				const title = self.getShareTitle($button);
+				const text = self.getShareText($button);
+				const shareData = { url: url };
+				if (title) {
+					shareData.title = title;
+				}
+				if (text) {
+					shareData.text = text;
+				}
 
 				// Prevent double-click
 				if ($button.hasClass('loading')) {
 					return;
 				}
 
-				self.log('Share button clicked:', { url, title });
+				self.log('Share button clicked:', { url, title, hasText: !!text });
 
-				// Check if we should use Web Share API (mobile devices primarily)
-				const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+				if (typeof navigator.share === 'function') {
+					const compatibleShareData = self.getCompatibleShareData(shareData);
+					if (!compatibleShareData) {
+						self.log('No compatible share payload, falling back to copy');
+						self.copyToClipboard(url, $button);
+						return;
+					}
 
-				// Try Web Share API on mobile devices (where it works reliably)
-				if (navigator.share && isMobile) {
-					navigator.share({
-						title: title,
-						url: url
-					}).then(function() {
-						self.log('Share successful via Web Share API');
-						// Don't show success message for native share - the OS handles it
-					}).catch(function(err) {
-						// User cancelled or error
-						if (err.name !== 'AbortError') {
-							self.log('Share failed:', err);
-							// Fallback to clipboard on error
-							self.copyToClipboard(url, $button);
-						}
-					});
-				} else if (navigator.clipboard && navigator.clipboard.writeText) {
-					// Use clipboard API for desktop (more reliable than Web Share on desktop)
-					self.copyToClipboard(url, $button);
-				} else {
-					// Last resort - show prompt for manual copy
-					self.showPromptCopy(url, $button);
+					self.attemptNativeShare(compatibleShareData, url, $button);
+					return;
 				}
+
+				self.copyToClipboard(url, $button);
 			});
+		},
+
+		/**
+		 * Pick a share payload the current browser reports as shareable.
+		 */
+		getCompatibleShareData: function(shareData) {
+			if (typeof navigator.canShare !== 'function') {
+				return shareData;
+			}
+
+			if (navigator.canShare(shareData)) {
+				return shareData;
+			}
+
+			const titleAndUrlData = { url: shareData.url };
+			if (shareData.title) {
+				titleAndUrlData.title = shareData.title;
+			}
+			if (navigator.canShare(titleAndUrlData)) {
+				return titleAndUrlData;
+			}
+
+			const urlOnlyData = { url: shareData.url };
+			if (navigator.canShare(urlOnlyData)) {
+				return urlOnlyData;
+			}
+
+			return null;
+		},
+
+		/**
+		 * Attempt native share and detect no-op resolves in some desktop environments.
+		 */
+		attemptNativeShare: function(shareData, fallbackUrl, $button) {
+			const self = this;
+			const startedAt = Date.now();
+			let dialogSignal = false;
+
+			const onBlur = function() {
+				dialogSignal = true;
+			};
+			const onVisibilityChange = function() {
+				if (document.visibilityState !== 'visible') {
+					dialogSignal = true;
+				}
+			};
+
+			window.addEventListener('blur', onBlur, true);
+			document.addEventListener('visibilitychange', onVisibilityChange, true);
+
+			const cleanup = function() {
+				window.removeEventListener('blur', onBlur, true);
+				document.removeEventListener('visibilitychange', onVisibilityChange, true);
+			};
+
+			navigator.share(shareData).then(function() {
+				cleanup();
+
+				const elapsedMs = Date.now() - startedAt;
+				const looksLikeNoOp = !dialogSignal && elapsedMs < 120;
+
+				if (looksLikeNoOp) {
+					self.log('Share resolved without UI signal, falling back to copy');
+					self.copyToClipboard(fallbackUrl, $button);
+					return;
+				}
+
+				self.log('Share successful via Web Share API');
+				// Don't show success message for native share - the OS handles it
+			}).catch(function(err) {
+				cleanup();
+
+				if (self.isShareCanceled(err)) {
+					self.log('Share canceled by user');
+					return;
+				}
+				self.log('Share failed, falling back to copy:', err);
+				self.copyToClipboard(fallbackUrl, $button);
+			});
+		},
+
+		/**
+		 * Get canonical share URL from button context when available.
+		 */
+		getShareUrl: function($button) {
+			const contextUrl = String($button.attr('data-share-url') || '').trim();
+			if (contextUrl) {
+				return contextUrl;
+			}
+
+			const canonicalLink = document.querySelector('link[rel="canonical"]');
+			if (canonicalLink && canonicalLink.href) {
+				return canonicalLink.href;
+			}
+
+			return window.location.href;
+		},
+
+		/**
+		 * Get share title from button context.
+		 */
+		getShareTitle: function($button) {
+			const contextTitle = String($button.attr('data-share-title') || '').trim();
+			if (contextTitle) {
+				return contextTitle;
+			}
+
+			return document.title || '';
+		},
+
+		/**
+		 * Get optional share text from button context.
+		 */
+		getShareText: function($button) {
+			return String($button.attr('data-share-text') || '').trim();
+		},
+
+		/**
+		 * Detect user-cancelled native share attempts.
+		 */
+		isShareCanceled: function(err) {
+			if (!err) {
+				return false;
+			}
+
+			const name = String(err.name || '').toLowerCase();
+			const message = String(err.message || '').toLowerCase();
+			return name === 'aborterror' || message.indexOf('cancel') !== -1 || message.indexOf('aborted') !== -1;
 		},
 
 		/**
@@ -445,31 +610,54 @@
 		copyToClipboard: function(url, $button) {
 			const self = this;
 
-			navigator.clipboard.writeText(url).then(function() {
-				self.log('Link copied to clipboard');
-				self.showSuccess($button, 'Link copied to clipboard!');
-			}).catch(function(err) {
-				self.log('Clipboard copy failed:', err);
-				// Fallback to prompt
-				self.showPromptCopy(url, $button);
-			});
+			if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+				navigator.clipboard.writeText(url).then(function() {
+					self.log('Link copied to clipboard API');
+					self.showSuccess($button, self.strings.copiedLink || 'Copied link.');
+				}).catch(function(err) {
+					self.log('Clipboard API copy failed, trying legacy copy:', err);
+					self.showPromptCopy(url, $button);
+				});
+				return;
+			}
+
+			self.showPromptCopy(url, $button);
 		},
 
 		/**
-		 * Show prompt for manual copy (last resort)
+		 * Legacy copy fallback via execCommand, then manual prompt as last resort.
 		 */
 		showPromptCopy: function(url, $button) {
-			// Create a temporary input to select and copy
-			const $temp = $('<input>').val(url).appendTo('body').select();
+			const $temp = $('<textarea readonly></textarea>')
+				.val(url)
+				.css({
+					position: 'fixed',
+					top: '0',
+					left: '-9999px',
+					opacity: '0'
+				})
+				.appendTo('body');
+
+			$temp.trigger('focus');
+			$temp.trigger('select');
+
+			let copied = false;
 
 			try {
-				document.execCommand('copy');
-				this.showSuccess($button, 'Link copied to clipboard!');
-				this.log('Link copied via execCommand');
+				copied = document.execCommand('copy');
+				if (copied) {
+					this.showSuccess($button, this.strings.copiedLink || 'Copied link.');
+					this.log('Link copied via execCommand');
+				} else {
+					this.log('execCommand copy returned false');
+				}
 			} catch (err) {
 				this.log('execCommand copy failed:', err);
-				// Ultimate fallback - show alert with URL
-				alert('Copy this link:\n\n' + url);
+			}
+
+			if (!copied) {
+				const promptText = this.strings.copyThisLinkPrompt || 'Copy this link:';
+				alert(promptText + '\n\n' + url);
 			}
 
 			$temp.remove();
@@ -675,31 +863,49 @@
 		},
 
 		/**
-		 * Toggle chapter read status on server
+		 * Persist chapter read status to unified interactions endpoint.
+		 * Local state remains the source of truth; sync is best-effort.
 		 */
 		markAsRead: function(storyId, chapterNumber, chapterId, $button, wasRead) {
 			const self = this;
-			const endpointAction = wasRead ? 'fanfic_unmark_as_read' : 'fanfic_mark_as_read';
 			const desiredReadState = !wasRead;
+			const interactionType = desiredReadState ? 'read' : 'remove_read';
+
+			if (!chapterId) {
+				return;
+			}
+
+			// Anonymous readers are local-only for read/unread state.
+			if (!this.config.isLoggedIn) {
+				self.log('Mark as read kept local for anonymous user');
+				return;
+			}
+
+			// Keep offline behavior local-first with no rollback.
+			if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+				self.log('Mark as read skipped server sync while offline');
+				return;
+			}
 
 			$button.addClass('loading');
+
+			const payload = {
+				action: 'fanfic_record_interaction',
+				nonce: this.config.nonce,
+				chapter_id: chapterId,
+				type: interactionType
+			};
 
 			$.ajax({
 				url: this.config.ajaxUrl,
 				type: 'POST',
-				data: {
-					action: endpointAction,
-					nonce: this.config.nonce,
-					story_id: storyId,
-					chapter_number: chapterNumber
-				},
+				data: payload,
 				success: function(response) {
 					self.log('Mark as read response:', response);
 
 					if (response.success) {
-						const payload = response && response.data ? (response.data.data || response.data) : {};
-						const isRead = payload && payload.is_read !== undefined ? !!payload.is_read : desiredReadState;
-						// Update from server response
+						// Keep local desired state; server response for this endpoint does not carry read boolean.
+						const isRead = desiredReadState;
 						self.updateReadDisplay($button, isRead);
 						if (storyId && chapterId) {
 							FanficLocalStore.setRead(storyId, chapterId, isRead);
@@ -708,43 +914,14 @@
 								window.FanficUnifiedInteractions.applyUiFromLocal();
 							}
 						}
-
-						// Keep unified interactions DB consistent with manual read/unread choice.
-						if (self.config.isLoggedIn && chapterId) {
-							$.post(self.config.ajaxUrl, {
-								action: 'fanfic_record_interaction',
-								nonce: self.config.nonce,
-								chapter_id: chapterId,
-								type: isRead ? 'read' : 'remove_read'
-							});
-						}
-
-						self.showSuccess($button, (response.data && response.data.message) || self.strings.markedRead);
 					} else {
-						// Revert optimistic update on error
-						self.updateReadDisplay($button, wasRead);
-						if (storyId && chapterId) {
-							FanficLocalStore.setRead(storyId, chapterId, wasRead);
-							FanficLocalStore.setReadAutoSuppressed(storyId, chapterId, !wasRead);
-							if (window.FanficUnifiedInteractions && typeof window.FanficUnifiedInteractions.applyUiFromLocal === 'function') {
-								window.FanficUnifiedInteractions.applyUiFromLocal();
-							}
-						}
-						self.showError($button, response.data.message || self.strings.error);
+						// Do not revert local state; treat server sync as best-effort.
+						self.log('Mark as read sync failed, local state kept:', response);
 					}
 				},
 				error: function(xhr) {
 					self.log('Mark as read error:', xhr);
-					// Revert optimistic update on error
-					self.updateReadDisplay($button, wasRead);
-					if (storyId && chapterId) {
-						FanficLocalStore.setRead(storyId, chapterId, wasRead);
-						FanficLocalStore.setReadAutoSuppressed(storyId, chapterId, !wasRead);
-						if (window.FanficUnifiedInteractions && typeof window.FanficUnifiedInteractions.applyUiFromLocal === 'function') {
-							window.FanficUnifiedInteractions.applyUiFromLocal();
-						}
-					}
-					self.handleAjaxError(xhr, $button);
+					// Do not revert local state on network/server failure.
 				},
 				complete: function() {
 					$button.removeClass('loading');
@@ -864,6 +1041,23 @@
 					$countEl.text('(' + count + ' ratings)');
 				}
 			}
+		},
+
+		/**
+		 * Optimistically adjust a count element by a delta (+1 or -1)
+		 *
+		 * @param {string}   selector  CSS selector for the count element
+		 * @param {number}   delta     Amount to adjust (+1 or -1)
+		 * @param {function} formatter Function(count) returning display text
+		 */
+		adjustCount: function(selector, delta, formatter) {
+			$(selector).each(function() {
+				var $el = $(this);
+				var current = parseInt($el.data('count'), 10) || 0;
+				var updated = Math.max(0, current + delta);
+				$el.data('count', updated);
+				$el.text(formatter(updated));
+			});
 		},
 
 		/**
@@ -1037,7 +1231,8 @@
 		},
 
 		hasViewed: function(storyId, chapterId) {
-			return !!this.getChapter(storyId, chapterId);
+			const entry = this.getChapter(storyId, chapterId);
+			return !!(entry && entry.view);
 		},
 
 		recordView: function(storyId, chapterId) {

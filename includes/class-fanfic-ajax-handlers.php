@@ -38,17 +38,6 @@ class Fanfic_AJAX_Handlers {
 	 * @return void
 	 */
 	public static function init() {
-		// Reading progress (authenticated only)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_mark_as_read',
-			array( __CLASS__, 'ajax_mark_as_read' ),
-			true, // Require login
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
 		// Follow endpoints (public + authenticated)
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_toggle_follow',
@@ -143,28 +132,6 @@ class Fanfic_AJAX_Handlers {
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_load_user_follows',
 			array( __CLASS__, 'ajax_load_user_follows' ),
-			true, // Require login
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
-		// Get read status (authenticated only)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_get_read_status',
-			array( __CLASS__, 'ajax_get_read_status' ),
-			true, // Require login
-			array(
-				'rate_limit'  => true,
-				'capability'  => 'read',
-			)
-		);
-
-		// Unmark as read (authenticated only)
-		Fanfic_AJAX_Security::register_ajax_handler(
-			'fanfic_unmark_as_read',
-			array( __CLASS__, 'ajax_unmark_as_read' ),
 			true, // Require login
 			array(
 				'rate_limit'  => true,
@@ -542,7 +509,7 @@ class Fanfic_AJAX_Handlers {
 	 * AJAX: Record unified interaction.
 	 *
 	 * Supports: like, remove_like, dislike, remove_dislike, rating, remove_rating, read, remove_read.
-	 * Authenticated users only.
+	 * Public endpoint (anonymous + authenticated).
 	 *
 	 * @since 1.6.0
 	 * @return void Sends JSON response.
@@ -606,10 +573,26 @@ class Fanfic_AJAX_Handlers {
 				$result = Fanfic_Interactions::remove_rating( $chapter_id, $user_id, $anonymous_uuid );
 				break;
 			case 'read':
+				if ( ! $user_id ) {
+					$result = array(
+						'success' => true,
+						'changed' => false,
+						'stats'   => Fanfic_Interactions::get_chapter_stats( $chapter_id ),
+					);
+					break;
+				}
 				$result = Fanfic_Interactions::record_read( $chapter_id, $user_id );
 				break;
 			case 'remove_read':
-				$result = Fanfic_Interactions::remove_read( $chapter_id, $user_id, $anonymous_uuid );
+				if ( ! $user_id ) {
+					$result = array(
+						'success' => true,
+						'changed' => false,
+						'stats'   => Fanfic_Interactions::get_chapter_stats( $chapter_id ),
+					);
+					break;
+				}
+				$result = Fanfic_Interactions::remove_read( $chapter_id, $user_id );
 				break;
 			default:
 				Fanfic_AJAX_Security::send_error_response(
@@ -732,51 +715,6 @@ class Fanfic_AJAX_Handlers {
 		Fanfic_AJAX_Security::send_success_response(
 			$result,
 			__( 'Interactions synchronized successfully.', 'fanfiction-manager' )
-		);
-	}
-
-	/**
-	 * AJAX: Mark chapter as read
-	 *
-	 * Authenticated users only.
-	 *
-	 * @since 1.0.15
-	 * @return void Sends JSON response.
-	 */
-	public static function ajax_mark_as_read() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'story_id', 'chapter_number' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$story_id = absint( $params['story_id'] );
-		$chapter_number = absint( $params['chapter_number'] );
-		$user_id = get_current_user_id();
-
-		// Mark as read
-		$result = Fanfic_Reading_Progress::mark_as_read( $user_id, $story_id, $chapter_number );
-
-		if ( is_wp_error( $result ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$result->get_error_code(),
-				$result->get_error_message(),
-				400
-			);
-		}
-
-		// Return success
-		Fanfic_AJAX_Security::send_success_response(
-			array( 'is_read' => true ),
-			__( 'Chapter marked as read.', 'fanfiction-manager' )
 		);
 	}
 
@@ -1279,98 +1217,6 @@ class Fanfic_AJAX_Handlers {
 				'has_more'    => $has_more,
 			),
 			__( 'Follows loaded successfully.', 'fanfiction-manager' )
-		);
-	}
-
-	/**
-	 * AJAX: Get read status for chapters
-	 *
-	 * Retrieves all read chapter numbers for a story.
-	 * Authenticated users only.
-	 *
-	 * @since 1.0.16
-	 * @return void Sends JSON response.
-	 */
-	public static function ajax_get_read_status() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'story_id' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$story_id = absint( $params['story_id'] );
-		$user_id = get_current_user_id();
-
-		// Verify story exists
-		$story = get_post( $story_id );
-		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'invalid_story',
-				__( 'Story not found.', 'fanfiction-manager' ),
-				404
-			);
-		}
-
-		$read_chapters = Fanfic_Reading_Progress::batch_load_read_chapters( $user_id, $story_id );
-
-		Fanfic_AJAX_Security::send_success_response(
-			array(
-				'read_chapters' => $read_chapters,
-			),
-			__( 'Read status retrieved.', 'fanfiction-manager' )
-		);
-	}
-
-	/**
-	 * AJAX: Unmark chapter as read
-	 *
-	 * Removes a chapter from user's reading progress.
-	 * Authenticated users only.
-	 *
-	 * @since 1.0.16
-	 * @return void Sends JSON response.
-	 */
-	public static function ajax_unmark_as_read() {
-		// Get and validate parameters
-		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'story_id', 'chapter_number' ),
-			array()
-		);
-
-		if ( is_wp_error( $params ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$params->get_error_code(),
-				$params->get_error_message(),
-				400
-			);
-		}
-
-		$story_id = absint( $params['story_id'] );
-		$chapter_number = absint( $params['chapter_number'] );
-		$user_id = get_current_user_id();
-
-		// Unmark as read
-		$result = Fanfic_Reading_Progress::unmark_as_read( $user_id, $story_id, $chapter_number );
-
-		if ( is_wp_error( $result ) ) {
-			Fanfic_AJAX_Security::send_error_response(
-				$result->get_error_code(),
-				$result->get_error_message(),
-				400
-			);
-		}
-
-		Fanfic_AJAX_Security::send_success_response(
-			array( 'is_read' => false ),
-			__( 'Chapter unmarked as read.', 'fanfiction-manager' )
 		);
 	}
 

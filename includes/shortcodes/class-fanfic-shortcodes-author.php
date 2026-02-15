@@ -585,11 +585,15 @@ class Fanfic_Shortcodes_Author {
 		}
 
 		$output = '<h2>' . esc_html__( 'Co-Authored Stories', 'fanfiction-manager' ) . '</h2>';
-		$output .= '<div class="author-stories-list author-coauthored-stories-list">';
+		$preload_ids = wp_list_pluck( $stories->posts, 'ID' );
+		fanfic_preload_story_card_index_data( $preload_ids );
+		$output .= '<div class="fanfic-archive fanfic-stories-page author-coauthored-stories" role="region" aria-label="' . esc_attr__( 'Co-authored stories', 'fanfiction-manager' ) . '">';
+		$output .= '<div class="fanfic-story-grid author-stories-list author-coauthored-stories-list">';
 		while ( $stories->have_posts() ) {
 			$stories->the_post();
 			$output .= self::render_story_item( get_the_ID() );
 		}
+		$output .= '</div>';
 		$output .= '</div>';
 
 		if ( 'true' === $atts['paginate'] ) {
@@ -757,7 +761,10 @@ class Fanfic_Shortcodes_Author {
 		}
 
 		// Build output
-		$output = '<div class="author-featured-stories" role="region" aria-label="' . esc_attr__( 'Featured stories', 'fanfiction-manager' ) . '">';
+		$preload_ids = wp_list_pluck( $stories->posts, 'ID' );
+		fanfic_preload_story_card_index_data( $preload_ids );
+		$output = '<div class="fanfic-archive fanfic-stories-page author-featured-stories" role="region" aria-label="' . esc_attr__( 'Featured stories', 'fanfiction-manager' ) . '">';
+		$output .= '<div class="fanfic-story-grid author-featured-stories-list">';
 
 		while ( $stories->have_posts() ) {
 			$stories->the_post();
@@ -766,6 +773,7 @@ class Fanfic_Shortcodes_Author {
 			$output .= self::render_story_item( $story_id );
 		}
 
+		$output .= '</div>';
 		$output .= '</div>';
 
 		// Add pagination
@@ -827,7 +835,10 @@ class Fanfic_Shortcodes_Author {
 
 		// Build output
 		$container_class = 'grid' === $display ? 'author-stories-grid' : 'author-story-list';
-		$output = '<div class="' . esc_attr( $container_class ) . '" role="region" aria-label="' . esc_attr__( 'Author stories', 'fanfiction-manager' ) . '">';
+		$preload_ids = wp_list_pluck( $stories->posts, 'ID' );
+		fanfic_preload_story_card_index_data( $preload_ids );
+		$output = '<div class="fanfic-archive fanfic-stories-page ' . esc_attr( $container_class ) . '-wrapper" role="region" aria-label="' . esc_attr__( 'Author stories', 'fanfiction-manager' ) . '">';
+		$output .= '<div class="fanfic-story-grid ' . esc_attr( $container_class ) . '">';
 
 		while ( $stories->have_posts() ) {
 			$stories->the_post();
@@ -836,6 +847,7 @@ class Fanfic_Shortcodes_Author {
 			$output .= self::render_story_item( $story_id );
 		}
 
+		$output .= '</div>';
 		$output .= '</div>';
 
 		// Add pagination if enabled
@@ -856,40 +868,7 @@ class Fanfic_Shortcodes_Author {
 	 * @return string Story item HTML.
 	 */
 	private static function render_story_item( $story_id ) {
-		$output = '<article class="author-story-item" id="story-' . esc_attr( $story_id ) . '">';
-
-		// Story title
-		$output .= '<h3 class="story-title"><a href="' . esc_url( get_permalink( $story_id ) ) . '">' . esc_html( get_the_title( $story_id ) ) . '</a></h3>';
-
-		// Story excerpt
-		$excerpt = get_post_field( 'post_excerpt', $story_id );
-		if ( ! empty( $excerpt ) ) {
-			$output .= '<div class="story-excerpt">' . wp_kses_post( wpautop( $excerpt ) ) . '</div>';
-		}
-
-		// Story metadata
-		$output .= '<div class="story-meta">';
-
-		// Genres
-		$genres = get_the_terms( $story_id, 'fanfiction_genre' );
-		if ( $genres && ! is_wp_error( $genres ) ) {
-			$genre_names = wp_list_pluck( $genres, 'name' );
-			$output .= '<span class="story-genres"><strong>' . esc_html__( 'Genres:', 'fanfiction-manager' ) . '</strong> ' . esc_html( implode( ', ', $genre_names ) ) . '</span>';
-		}
-
-		// Status
-		$statuses = get_the_terms( $story_id, 'fanfiction_status' );
-		if ( $statuses && ! is_wp_error( $statuses ) ) {
-			$status = reset( $statuses );
-			$status_slug = sanitize_html_class( $status->slug );
-			$output .= '<span class="story-status story-status-' . esc_attr( $status_slug ) . '"><strong>' . esc_html__( 'Status:', 'fanfiction-manager' ) . '</strong> ' . esc_html( $status->name ) . '</span>';
-		}
-
-		$output .= '</div>';
-
-		$output .= '</article>';
-
-		return $output;
+		return fanfic_get_story_card_html( $story_id );
 	}
 
 	/**

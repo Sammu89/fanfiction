@@ -22,6 +22,7 @@
 		var searchInput = container.querySelector('input[type="text"]:not([type="hidden"])');
 		var resultsBox = container.querySelector('.fanfic-translation-results');
 		var selectedBox = container.querySelector('.fanfic-selected-translations');
+		var inputWrapper = container.querySelector('.fanfic-pill-input-wrapper');
 		var storyId = container.getAttribute('data-story-id') || '0';
 		var languageField = storyForm ? storyForm.querySelector('#fanfic_story_language') : null;
 
@@ -104,13 +105,17 @@
 				}
 
 				var wrapper = document.createElement('span');
-				wrapper.className = 'fanfic-selected-fandom';
+				wrapper.className = 'fanfic-pill-value';
 				wrapper.setAttribute('data-id', id);
-				wrapper.textContent = label + ' ';
+
+				var text = document.createElement('span');
+				text.className = 'fanfic-pill-value-text';
+				text.textContent = label;
+				wrapper.appendChild(text);
 
 				var remove = document.createElement('button');
 				remove.type = 'button';
-				remove.className = 'fanfic-remove-fandom';
+				remove.className = 'fanfic-pill-value-remove';
 				remove.setAttribute('aria-label', (fanficTranslations.strings && fanficTranslations.strings.removeFandom) ? fanficTranslations.strings.removeFandom : 'Remove fandom');
 				remove.textContent = '\u00d7';
 
@@ -232,13 +237,17 @@
 			}
 
 			var wrapper = document.createElement('span');
-			wrapper.className = 'fanfic-selected-translation';
+			wrapper.className = 'fanfic-pill-value';
 			wrapper.setAttribute('data-id', id);
-			wrapper.textContent = label + ' ';
+
+			var text = document.createElement('span');
+			text.className = 'fanfic-pill-value-text';
+			text.textContent = label;
+			wrapper.appendChild(text);
 
 			var remove = document.createElement('button');
 			remove.type = 'button';
-			remove.className = 'fanfic-remove-translation';
+			remove.className = 'fanfic-pill-value-remove';
 			remove.setAttribute('aria-label', fanficTranslations.strings.remove);
 			remove.textContent = '\u00d7';
 
@@ -310,6 +319,15 @@
 			searchStories(e.target.value.trim());
 		}, 250);
 
+		if (inputWrapper) {
+			inputWrapper.addEventListener('click', function(e) {
+				if (e.target.classList.contains('fanfic-pill-value-remove')) {
+					return;
+				}
+				searchInput.focus();
+			});
+		}
+
 		searchInput.addEventListener('input', debouncedSearch);
 
 		if (languageField) {
@@ -344,10 +362,10 @@
 
 		selectedBox.addEventListener('click', function(e) {
 			var target = e.target;
-			if (!target.classList.contains('fanfic-remove-translation')) {
+			if (!target.classList.contains('fanfic-pill-value-remove')) {
 				return;
 			}
-			var wrapper = target.closest('.fanfic-selected-translation');
+			var wrapper = target.closest('.fanfic-pill-value');
 			if (wrapper) {
 				wrapper.remove();
 				dispatchChange();

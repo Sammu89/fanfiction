@@ -21,7 +21,7 @@
 		var storyForm = container.closest('form');
 		var searchInput = container.querySelector('#fanfic_coauthor_search');
 		var resultsBox = container.querySelector('.fanfic-coauthor-results');
-		var selectedBox = container.querySelector('.fanfic-selected-coauthors');
+		var selectedBox = container.querySelector('.fanfic-pill-values');
 		var maxCoauthors = parseInt(container.getAttribute('data-max-coauthors'), 10) || parseInt(fanficCoauthors.maxCoauthors, 10) || 5;
 
 		if (!searchInput || !resultsBox || !selectedBox) {
@@ -60,7 +60,7 @@
 
 		function createSelectedNode(userId, displayName, avatarUrl, status) {
 			var wrapper = document.createElement('span');
-			wrapper.className = 'fanfic-selected-coauthor';
+			wrapper.className = 'fanfic-pill-value';
 			wrapper.setAttribute('data-id', String(userId));
 			wrapper.setAttribute('data-status', status || '');
 
@@ -73,7 +73,7 @@
 			}
 
 			var name = document.createElement('span');
-			name.className = 'fanfic-coauthor-name';
+			name.className = 'fanfic-pill-value-text';
 			name.textContent = displayName;
 			wrapper.appendChild(name);
 
@@ -86,7 +86,7 @@
 
 			var remove = document.createElement('button');
 			remove.type = 'button';
-			remove.className = 'fanfic-remove-coauthor';
+			remove.className = 'fanfic-pill-value-remove';
 			remove.setAttribute('aria-label', (fanficCoauthors.strings && fanficCoauthors.strings.remove) ? fanficCoauthors.strings.remove : 'Remove co-author');
 			remove.textContent = '\u00d7';
 			wrapper.appendChild(remove);
@@ -223,10 +223,10 @@
 
 		selectedBox.addEventListener('click', function(event) {
 			var target = event.target;
-			if (!target.classList.contains('fanfic-remove-coauthor')) {
+			if (!target.classList.contains('fanfic-pill-value-remove')) {
 				return;
 			}
-			var wrapper = target.closest('.fanfic-selected-coauthor');
+			var wrapper = target.closest('.fanfic-pill-value');
 			if (wrapper) {
 				wrapper.remove();
 				dispatchChange();

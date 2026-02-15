@@ -2,6 +2,11 @@
 
 This file is a concise, high-signal map of how the plugin works so future fixes can be made quickly.
 
+## Implementation Policy
+- Do not add legacy or backward-compatibility code paths.
+- Always implement clean, fresh, canonical behavior only.
+- Do not add alias mappings, compatibility shims, or deprecated fallbacks.
+
 ## Entry Points / Boot
 - Plugin header + constants: `fanfiction-manager.php`.
 - Bootstrap: `Fanfic_Core::get_instance()` on `init` (priority 0).

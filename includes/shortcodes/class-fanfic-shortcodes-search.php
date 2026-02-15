@@ -149,7 +149,7 @@ class Fanfic_Shortcodes_Search {
 					<input
 						type="text"
 						id="fanfic-search-input"
-						name="search"
+						name="q"
 						value="<?php echo esc_attr( $context['params']['search'] ?? '' ); ?>"
 						placeholder="<?php esc_attr_e( 'Search titles, tags, authors...', 'fanfiction-manager' ); ?>"
 					/>
@@ -359,11 +359,11 @@ class Fanfic_Shortcodes_Search {
 							placeholder="<?php esc_attr_e( 'Search fandoms...', 'fanfiction-manager' ); ?>"
 						/>
 						<div class="fanfic-fandom-results" role="listbox" aria-label="<?php esc_attr_e( 'Fandom search results', 'fanfiction-manager' ); ?>"></div>
-						<div class="fanfic-selected-fandoms" aria-live="polite">
+						<div class="fanfic-selected-fandoms fanfic-pill-values" aria-live="polite">
 							<?php foreach ( $current_fandom_labels as $fandom ) : ?>
-								<span class="fanfic-selected-fandom" data-id="<?php echo esc_attr( $fandom['id'] ); ?>">
-									<?php echo esc_html( $fandom['label'] ); ?>
-									<button type="button" class="fanfic-remove-fandom" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
+								<span class="fanfic-pill-value" data-id="<?php echo esc_attr( $fandom['id'] ); ?>">
+									<span class="fanfic-pill-value-text"><?php echo esc_html( $fandom['label'] ); ?></span>
+									<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
 									<input type="hidden" name="fanfic_story_fandoms[]" value="<?php echo esc_attr( $fandom['id'] ); ?>">
 								</span>
 							<?php endforeach; ?>
@@ -582,9 +582,12 @@ class Fanfic_Shortcodes_Search {
 			$per_page = (int) get_option( 'posts_per_page', 10 );
 
 			$stories_query = null;
+			$found_posts   = -1;
 			if ( function_exists( 'fanfic_build_stories_query_args' ) ) {
-				$args = fanfic_build_stories_query_args( $context['params'], $paged, $per_page );
-				$stories_query = new WP_Query( $args );
+				$query_result  = fanfic_build_stories_query_args( $context['params'], $paged, $per_page );
+				$query_args    = is_array( $query_result ) && isset( $query_result['args'] ) ? $query_result['args'] : $query_result;
+				$found_posts   = is_array( $query_result ) && isset( $query_result['found_posts'] ) ? (int) $query_result['found_posts'] : -1;
+				$stories_query = new WP_Query( $query_args );
 
 				// Preload story-card search-index metadata to avoid per-card queries.
 				if ( $stories_query instanceof WP_Query && $stories_query->have_posts() && function_exists( 'fanfic_preload_story_card_index_data' ) ) {
@@ -615,7 +618,9 @@ class Fanfic_Shortcodes_Search {
 								'base'      => add_query_arg( 'paged', '%#%', $pagination_base ),
 								'format'    => '',
 								'current'   => max( 1, $paged ),
-								'total'     => max( 1, (int) $stories_query->max_num_pages ),
+								'total'     => $found_posts >= 0
+								? max( 1, (int) ceil( $found_posts / $per_page ) )
+								: max( 1, (int) $stories_query->max_num_pages ),
 								'prev_text' => esc_html__( '&laquo; Previous', 'fanfiction-manager' ),
 								'next_text' => esc_html__( 'Next &raquo;', 'fanfiction-manager' ),
 							) );

@@ -61,6 +61,12 @@ The Fanfiction Manager is a WordPress plugin that transforms WordPress into a de
 - **Capabilities**: All admin/moderator actions gated by `current_user_can()`
 - **WP_Query**: Stories/chapters queried via `WP_Query` or custom SQL with prepared statements
 
+## Implementation Policy
+
+- Do not add legacy or backward-compatibility code paths.
+- Always implement clean, fresh, canonical behavior only.
+- Do not add alias mappings, compatibility shims, or deprecated fallbacks.
+
 ## Commonly Used Commands
 
 ### Development Setup

@@ -421,12 +421,12 @@ if ( $is_edit_mode ) {
 				</div>
 
 				<form method="post" class="fanfic-story-form" id="fanfic-story-form" <?php echo $data_attrs; ?><?php echo $image_upload_enabled ? ' enctype="multipart/form-data"' : ''; ?>>
-					<div class="fanfic-form-content">
+					<div class="fanfic-form-content fanfic-auto-columns">
 						<?php wp_nonce_field( 'fanfic_story_form_action' . ( $is_edit_mode ? '_' . $story_id : '' ), 'fanfic_story_nonce' ); ?>
 
 						<!-- Story Title -->
 						<div class="fanfic-form-field">
-							<label for="fanfic_story_title"><?php esc_html_e( 'Story Title', 'fanfiction-manager' ); ?></label>
+							<label for="fanfic_story_title"><?php esc_html_e( 'Story Title', 'fanfiction-manager' ); ?><?php fanfic_required_field_indicator(); ?></label>
 							<input
 								type="text"
 								id="fanfic_story_title"
@@ -440,7 +440,7 @@ if ( $is_edit_mode ) {
 
 						<!-- Story Introduction -->
 						<div class="fanfic-form-field">
-							<label for="fanfic_story_intro"><?php esc_html_e( 'Story Introduction', 'fanfiction-manager' ); ?></label>
+							<label for="fanfic_story_intro"><?php esc_html_e( 'Story Introduction', 'fanfiction-manager' ); ?><?php fanfic_required_field_indicator(); ?></label>
 							<textarea
 								id="fanfic_story_intro"
 								name="fanfic_story_introduction"
@@ -468,7 +468,7 @@ if ( $is_edit_mode ) {
 
 						<!-- Genres -->
 						<div class="fanfic-form-field">
-							<label><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
+							<label><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?><?php fanfic_required_field_indicator(); ?></label>
 							<div class="fanfic-checkboxes fanfic-checkboxes-grid">
 								<?php
 								$genres = get_terms( array(
@@ -499,7 +499,7 @@ if ( $is_edit_mode ) {
 
 						<!-- Status -->
 						<div class="fanfic-form-field">
-							<label for="fanfic_story_status"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
+							<label for="fanfic_story_status"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?><?php fanfic_required_field_indicator(); ?></label>
 							<select id="fanfic_story_status" name="fanfic_story_status" class="fanfic-select" required>
 								<option value=""><?php esc_html_e( 'Select a status...', 'fanfiction-manager' ); ?></option>
 								<?php
@@ -543,23 +543,25 @@ if ( $is_edit_mode ) {
 							<!-- Fandoms -->
 							<div class="fanfic-form-field fanfic-fandoms-field" data-max-fandoms="<?php echo esc_attr( Fanfic_Fandoms::MAX_FANDOMS ); ?>">
 								<label for="fanfic_fandom_search"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
-								<input
-									type="text"
-									id="fanfic_fandom_search"
-									class="fanfic-input"
-									autocomplete="off"
-									placeholder="<?php esc_attr_e( 'Search fandoms...', 'fanfiction-manager' ); ?>"
-								/>
-								<div class="fanfic-fandom-results" role="listbox" aria-label="<?php esc_attr_e( 'Fandom search results', 'fanfiction-manager' ); ?>"></div>
-								<div class="fanfic-selected-fandoms" aria-live="polite">
-									<?php foreach ( $current_fandom_labels as $fandom ) : ?>
-										<span class="fanfic-selected-fandom" data-id="<?php echo esc_attr( $fandom['id'] ); ?>">
-											<?php echo esc_html( $fandom['label'] ); ?>
-											<button type="button" class="fanfic-remove-fandom" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
-											<input type="hidden" name="fanfic_story_fandoms[]" value="<?php echo esc_attr( $fandom['id'] ); ?>">
-										</span>
-									<?php endforeach; ?>
+								<div class="fanfic-pill-input-wrapper">
+									<div class="fanfic-selected-fandoms fanfic-pill-values" aria-live="polite">
+										<?php foreach ( $current_fandom_labels as $fandom ) : ?>
+											<span class="fanfic-pill-value" data-id="<?php echo esc_attr( $fandom['id'] ); ?>">
+												<span class="fanfic-pill-value-text"><?php echo esc_html( $fandom['label'] ); ?></span>
+												<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
+												<input type="hidden" name="fanfic_story_fandoms[]" value="<?php echo esc_attr( $fandom['id'] ); ?>">
+											</span>
+										<?php endforeach; ?>
+									</div>
+									<input
+										type="text"
+										id="fanfic_fandom_search"
+										class="fanfic-input fanfic-pill-input"
+										autocomplete="off"
+										placeholder="<?php esc_attr_e( 'Search fandoms...', 'fanfiction-manager' ); ?>"
+									/>
 								</div>
+								<div class="fanfic-fandom-results" role="listbox" aria-label="<?php esc_attr_e( 'Fandom search results', 'fanfiction-manager' ); ?>"></div>
 								<p class="description"><?php esc_html_e( 'Select up to 5 fandoms. Search requires at least 2 characters.', 'fanfiction-manager' ); ?></p>
 							</div>
 						<?php endif; ?>
@@ -571,12 +573,30 @@ if ( $is_edit_mode ) {
 							if ( $is_edit_mode ) {
 								$current_language_id = Fanfic_Languages::get_story_language_id( $story_id );
 							} else {
-								// Default to WordPress site language for new stories
-								$wp_locale    = get_locale();
-								$wp_lang_code = strtolower( substr( $wp_locale, 0, 2 ) );
-								$wp_lang      = Fanfic_Languages::get_by_slug( $wp_lang_code );
-								if ( $wp_lang && ! empty( $wp_lang['is_active'] ) ) {
-									$current_language_id = (int) $wp_lang['id'];
+								// Default to WordPress locale with explicit pt/es fallback priority.
+								$wp_locale = strtolower( str_replace( '_', '-', (string) get_locale() ) );
+								$wp_base   = strtok( $wp_locale, '-' );
+								$candidates = array();
+
+								if ( 'pt' === $wp_base ) {
+									$candidates = ( 'pt-br' === $wp_locale )
+										? array( 'pt-br', 'pt', 'en' )
+										: array( 'pt', 'pt-br', 'en' );
+								} elseif ( 'es' === $wp_base ) {
+									$candidates = ( 'es-es' === $wp_locale || 'es' === $wp_locale )
+										? array( 'es-es', 'es-419', 'en' )
+										: array( 'es-419', 'es-es', 'en' );
+								} else {
+									$candidates = array( $wp_locale, $wp_base, 'en' );
+								}
+
+								$candidates = array_values( array_unique( array_filter( array_map( 'sanitize_title', $candidates ) ) ) );
+								foreach ( $candidates as $candidate_slug ) {
+									$wp_lang = Fanfic_Languages::get_by_slug( $candidate_slug );
+									if ( $wp_lang && ! empty( $wp_lang['is_active'] ) ) {
+										$current_language_id = (int) $wp_lang['id'];
+										break;
+									}
 								}
 							}
 							// Check for POST data
@@ -613,23 +633,25 @@ if ( $is_edit_mode ) {
 							<!-- Translation Links -->
 							<div class="fanfic-form-field fanfic-translations-field" data-story-id="<?php echo esc_attr( $story_id ); ?>" data-story-language="<?php echo esc_attr( $current_language_id ); ?>">
 								<label for="fanfic_translation_search"><?php esc_html_e( 'Linked Translations', 'fanfiction-manager' ); ?></label>
-								<input
-									type="text"
-									id="fanfic_translation_search"
-									class="fanfic-input"
-									autocomplete="off"
-									placeholder="<?php esc_attr_e( 'Search your stories to link as translation...', 'fanfiction-manager' ); ?>"
-								/>
-								<div class="fanfic-translation-results" role="listbox" aria-label="<?php esc_attr_e( 'Translation search results', 'fanfiction-manager' ); ?>"></div>
-								<div class="fanfic-selected-translations" aria-live="polite">
-									<?php foreach ( $current_translation_siblings as $sibling ) : ?>
-										<span class="fanfic-selected-translation" data-id="<?php echo esc_attr( $sibling['story_id'] ); ?>">
-											<?php echo esc_html( $sibling['title'] . ' - ' . $sibling['language_label'] ); ?>
-											<button type="button" class="fanfic-remove-translation" aria-label="<?php esc_attr_e( 'Remove translation link', 'fanfiction-manager' ); ?>">&times;</button>
-											<input type="hidden" name="fanfic_story_translations[]" value="<?php echo esc_attr( $sibling['story_id'] ); ?>">
-										</span>
-									<?php endforeach; ?>
+								<div class="fanfic-pill-input-wrapper">
+									<div class="fanfic-selected-translations fanfic-pill-values" aria-live="polite">
+										<?php foreach ( $current_translation_siblings as $sibling ) : ?>
+											<span class="fanfic-pill-value" data-id="<?php echo esc_attr( $sibling['story_id'] ); ?>">
+												<span class="fanfic-pill-value-text"><?php echo esc_html( $sibling['title'] . ' - ' . $sibling['language_label'] ); ?></span>
+												<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove translation link', 'fanfiction-manager' ); ?>">&times;</button>
+												<input type="hidden" name="fanfic_story_translations[]" value="<?php echo esc_attr( $sibling['story_id'] ); ?>">
+											</span>
+										<?php endforeach; ?>
+									</div>
+									<input
+										type="text"
+										id="fanfic_translation_search"
+										class="fanfic-input fanfic-pill-input"
+										autocomplete="off"
+										placeholder="<?php esc_attr_e( 'Search your stories to link as translation...', 'fanfiction-manager' ); ?>"
+									/>
 								</div>
+								<div class="fanfic-translation-results" role="listbox" aria-label="<?php esc_attr_e( 'Translation search results', 'fanfiction-manager' ); ?>"></div>
 								<p class="description"><?php esc_html_e( 'Link other stories you wrote in different languages as translations of this story.', 'fanfiction-manager' ); ?></p>
 							</div>
 						<?php endif; ?>
@@ -645,7 +667,7 @@ if ( $is_edit_mode ) {
 									placeholder="<?php esc_attr_e( 'Search users to invite as co-authors...', 'fanfiction-manager' ); ?>"
 								/>
 								<div class="fanfic-coauthor-results" role="listbox" aria-label="<?php esc_attr_e( 'Co-author search results', 'fanfiction-manager' ); ?>"></div>
-								<div class="fanfic-selected-coauthors" aria-live="polite">
+								<div class="fanfic-selected-coauthors fanfic-pill-values" aria-live="polite">
 									<?php foreach ( $current_coauthors as $coauthor ) : ?>
 										<?php
 										$coauthor_id = isset( $coauthor['id'] ) ? absint( $coauthor['id'] ) : 0;
@@ -655,13 +677,13 @@ if ( $is_edit_mode ) {
 											continue;
 										}
 										?>
-										<span class="fanfic-selected-coauthor" data-id="<?php echo esc_attr( $coauthor_id ); ?>" data-status="<?php echo esc_attr( $coauthor_status ); ?>">
+										<span class="fanfic-pill-value" data-id="<?php echo esc_attr( $coauthor_id ); ?>" data-status="<?php echo esc_attr( $coauthor_status ); ?>">
 											<?php echo wp_kses_post( get_avatar( $coauthor_id, 20, '', $coauthor_name, array( 'class' => 'fanfic-coauthor-avatar', 'loading' => 'lazy' ) ) ); ?>
-											<span class="fanfic-coauthor-name"><?php echo esc_html( $coauthor_name ); ?></span>
+											<span class="fanfic-pill-value-text"><?php echo esc_html( $coauthor_name ); ?></span>
 											<?php if ( 'pending' === $coauthor_status ) : ?>
 												<span class="fanfic-coauthor-status-badge"><?php esc_html_e( 'Pending', 'fanfiction-manager' ); ?></span>
 											<?php endif; ?>
-											<button type="button" class="fanfic-remove-coauthor" aria-label="<?php esc_attr_e( 'Remove co-author', 'fanfiction-manager' ); ?>">&times;</button>
+											<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove co-author', 'fanfiction-manager' ); ?>">&times;</button>
 											<input type="hidden" name="fanfic_story_coauthors[]" value="<?php echo esc_attr( $coauthor_id ); ?>">
 										</span>
 									<?php endforeach; ?>
@@ -753,30 +775,35 @@ if ( $is_edit_mode ) {
 						<?php if ( $enable_warnings && ! empty( $available_warnings ) ) : ?>
 						<div class="fanfic-form-field">
 							<label><?php esc_html_e( 'Content Warnings', 'fanfiction-manager' ); ?></label>
-							<div class="fanfic-checkboxes fanfic-checkboxes-warnings">
-								<?php foreach ( $available_warnings as $warning ) : ?>
-									<?php
-									$is_checked = isset( $_POST['fanfic_story_warnings'] ) ?
-										in_array( $warning['id'], (array) $_POST['fanfic_story_warnings'] ) :
-										( $is_edit_mode && in_array( $warning['id'], $current_warnings ) );
-									$age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $warning['min_age'], 'fanfic-warning-age-' ) : 'fanfic-warning-age-18-plus';
-									$age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $warning['min_age'], false ) : (string) $warning['min_age'];
-									if ( '' === $age_label ) {
-										$age_label = (string) $warning['min_age'];
-									}
-									?>
-									<label class="fanfic-checkbox-label fanfic-warning-item <?php echo esc_attr( $age_class ); ?>" title="<?php echo esc_attr( $warning['description'] ); ?>">
-										<input
-											type="checkbox"
-											name="fanfic_story_warnings[]"
-											value="<?php echo esc_attr( $warning['id'] ); ?>"
-											class="fanfic-checkbox"
-											<?php checked( $is_checked ); ?>
-										/>
-										<span class="fanfic-warning-name"><?php echo esc_html( $warning['name'] ); ?></span>
-										<span class="fanfic-warning-age-badge <?php echo esc_attr( $age_class ); ?>"><?php echo esc_html( $age_label ); ?></span>
-									</label>
-								<?php endforeach; ?>
+							<div class="multi-select fanfic-warnings-multiselect" data-placeholder="<?php esc_attr_e( 'Select warnings...', 'fanfiction-manager' ); ?>">
+								<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
+									<?php esc_html_e( 'Select warnings...', 'fanfiction-manager' ); ?>
+								</button>
+								<div class="multi-select__dropdown">
+									<?php foreach ( $available_warnings as $warning ) : ?>
+										<?php
+										$is_checked = isset( $_POST['fanfic_story_warnings'] ) ?
+											in_array( $warning['id'], (array) $_POST['fanfic_story_warnings'] ) :
+											( $is_edit_mode && in_array( $warning['id'], $current_warnings ) );
+										$age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $warning['min_age'], 'fanfic-warning-age-' ) : 'fanfic-warning-age-18-plus';
+										$age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $warning['min_age'], false ) : (string) $warning['min_age'];
+										if ( '' === $age_label ) {
+											$age_label = (string) $warning['min_age'];
+										}
+										?>
+										<label class="fanfic-warning-item <?php echo esc_attr( $age_class ); ?>" title="<?php echo esc_attr( $warning['description'] ); ?>">
+											<input
+												type="checkbox"
+												name="fanfic_story_warnings[]"
+												value="<?php echo esc_attr( $warning['id'] ); ?>"
+												class="fanfic-checkbox"
+												<?php checked( $is_checked ); ?>
+											/>
+											<span class="fanfic-warning-name"><?php echo esc_html( $warning['name'] ); ?></span>
+											<span class="fanfic-warning-age-badge <?php echo esc_attr( $age_class ); ?>"><?php echo esc_html( $age_label ); ?></span>
+										</label>
+									<?php endforeach; ?>
+								</div>
 							</div>
 							<p class="description"><?php esc_html_e( 'Select content warnings that apply to your story. Warnings affect the minimum age rating.', 'fanfiction-manager' ); ?></p>
 						</div>
@@ -792,21 +819,29 @@ if ( $is_edit_mode ) {
 						?>
 						<?php if ( $enable_tags ) : ?>
 							<div class="fanfic-form-field">
-								<label for="fanfic_visible_tags"><?php esc_html_e( 'Visible Tags', 'fanfiction-manager' ); ?></label>
+								<label for="fanfic_visible_tags_input"><?php esc_html_e( 'Visible Tags', 'fanfiction-manager' ); ?></label>
+								<div class="fanfic-tags-input-wrapper">
+									<div class="fanfic-pill-values fanfic-tags-pills" data-target="fanfic_visible_tags" aria-live="polite"></div>
+									<input
+										type="text"
+										id="fanfic_visible_tags_input"
+										class="fanfic-tags-typing"
+										placeholder="<?php esc_attr_e( 'Type a tag and press Enter or comma...', 'fanfiction-manager' ); ?>"
+										data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5 ); ?>"
+										data-target="fanfic_visible_tags"
+									/>
+								</div>
 								<input
-									type="text"
+									type="hidden"
 									id="fanfic_visible_tags"
 									name="fanfic_visible_tags"
-									class="fanfic-input fanfic-tags-input"
 									value="<?php echo esc_attr( $visible_tags_value ); ?>"
-									placeholder="<?php esc_attr_e( 'tag1, tag2, tag3', 'fanfiction-manager' ); ?>"
-									data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5 ); ?>"
 								/>
 								<p class="description">
 									<?php
 									printf(
 										/* translators: %d: Maximum number of visible tags */
-										esc_html__( 'Add up to %d visible tags separated by commas. These tags will be displayed on your story page and used for search.', 'fanfiction-manager' ),
+										esc_html__( 'Add up to %d visible tags. Press Enter or comma to add each tag.', 'fanfiction-manager' ),
 										defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5
 									);
 									?>
@@ -824,21 +859,29 @@ if ( $is_edit_mode ) {
 						?>
 						<?php if ( $enable_tags ) : ?>
 							<div class="fanfic-form-field">
-								<label for="fanfic_invisible_tags"><?php esc_html_e( 'Search Tags (Hidden)', 'fanfiction-manager' ); ?></label>
+								<label for="fanfic_invisible_tags_input"><?php esc_html_e( 'Search Tags (Hidden)', 'fanfiction-manager' ); ?></label>
+								<div class="fanfic-tags-input-wrapper">
+									<div class="fanfic-pill-values fanfic-tags-pills" data-target="fanfic_invisible_tags" aria-live="polite"></div>
+									<input
+										type="text"
+										id="fanfic_invisible_tags_input"
+										class="fanfic-tags-typing"
+										placeholder="<?php esc_attr_e( 'Type a tag and press Enter or comma...', 'fanfiction-manager' ); ?>"
+										data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10 ); ?>"
+										data-target="fanfic_invisible_tags"
+									/>
+								</div>
 								<input
-									type="text"
+									type="hidden"
 									id="fanfic_invisible_tags"
 									name="fanfic_invisible_tags"
-									class="fanfic-input fanfic-tags-input"
 									value="<?php echo esc_attr( $invisible_tags_value ); ?>"
-									placeholder="<?php esc_attr_e( 'search term 1, search term 2', 'fanfiction-manager' ); ?>"
-									data-max-tags="<?php echo esc_attr( defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10 ); ?>"
 								/>
 								<p class="description">
 									<?php
 									printf(
 										/* translators: %d: Maximum number of invisible tags */
-										esc_html__( 'Add up to %d hidden tags for search indexing only. These tags help readers find your story but are not displayed publicly.', 'fanfiction-manager' ),
+										esc_html__( 'Add up to %d hidden tags. Press Enter or comma to add each tag.', 'fanfiction-manager' ),
 										defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10
 									);
 									?>
@@ -986,149 +1029,7 @@ if ( $is_edit_mode ) {
 				</form>
 			</div>
 		</section>
-
-		<!-- Chapters Management Section (Edit mode only) -->
-		<?php if ( $is_edit_mode ) : ?>
-		<section class="fanfic-content-section" class="fanfic-chapters-section" aria-labelledby="chapters-heading">
-			<div class="fanfic-section-header">
-				<h2 id="chapters-heading"><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></h2>
-				<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button">
-					<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
-					<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
-				</a>
-			</div>
-
-			<!-- Chapters List -->
-			<div class="fanfic-chapters-list">
-				<?php
-				// Get all chapters for this story
-				$chapters_args = array(
-					'post_type'      => 'fanfiction_chapter',
-					'post_parent'    => $story_id,
-					'posts_per_page' => -1,
-					'orderby'        => 'date',
-					'order'          => 'ASC',
-					'post_status'    => array( 'publish', 'draft', 'pending' ),
-				);
-
-				$chapters_query = new WP_Query( $chapters_args );
-				$chapters = $chapters_query->posts;
-
-				// Sort chapters by chapter number
-				if ( ! empty( $chapters ) ) {
-					usort( $chapters, function( $a, $b ) {
-						$number_a = get_post_meta( $a->ID, '_fanfic_chapter_number', true );
-						$number_b = get_post_meta( $b->ID, '_fanfic_chapter_number', true );
-
-						// Convert to integers for proper comparison
-						$number_a = absint( $number_a );
-						$number_b = absint( $number_b );
-
-						// Prologue (0) comes first, then regular chapters (1-999), then epilogue (1000+)
-						return $number_a - $number_b;
-					} );
-				}
-
-				if ( ! empty( $chapters ) ) :
-					?>
-					<table class="fanfic-table" role="table">
-						<thead>
-							<tr>
-								<th scope="col"><?php esc_html_e( 'Chapter #', 'fanfiction-manager' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Title', 'fanfiction-manager' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Word Count', 'fanfiction-manager' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Actions', 'fanfiction-manager' ); ?></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php
-							foreach ( $chapters as $chapter ) :
-								$chapter_id = $chapter->ID;
-								$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
-								$stored_chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
-
-								// Display chapter label based on type
-								if ( 'prologue' === $chapter_type ) {
-									$display_number = __( 'Prologue', 'fanfiction-manager' );
-								} elseif ( 'epilogue' === $chapter_type ) {
-									$display_number = __( 'Epilogue', 'fanfiction-manager' );
-								} else {
-									$display_number = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $stored_chapter_number );
-								}
-
-								// Get word count
-								$content = $chapter->post_content;
-								$word_count = str_word_count( wp_strip_all_tags( $content ) );
-
-								// Get status
-								$status = $chapter->post_status;
-								$status_labels = array(
-									'publish' => __( 'Published', 'fanfiction-manager' ),
-									'draft'   => __( 'Draft', 'fanfiction-manager' ),
-									'pending' => __( 'Pending', 'fanfiction-manager' ),
-								);
-								$status_label = isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : $status;
-								?>
-								<tr>
-									<td data-label="<?php esc_attr_e( 'Chapter #', 'fanfiction-manager' ); ?>">
-										<strong><?php echo esc_html( $display_number ); ?></strong>
-									</td>
-									<td data-label="<?php esc_attr_e( 'Title', 'fanfiction-manager' ); ?>">
-										<?php echo esc_html( $chapter->post_title ); ?>
-									</td>
-									<td data-label="<?php esc_attr_e( 'Status', 'fanfiction-manager' ); ?>">
-										<span class="fanfic-status-badge fanfic-status-<?php echo esc_attr( $status ); ?>">
-											<?php echo esc_html( $status_label ); ?>
-										</span>
-									</td>
-									<td data-label="<?php esc_attr_e( 'Word Count', 'fanfiction-manager' ); ?>">
-										<?php echo esc_html( number_format_i18n( $word_count ) ); ?>
-									</td>
-									<td data-label="<?php esc_attr_e( 'Actions', 'fanfiction-manager' ); ?>">
-										<div class="fanfic-actions-buttons">
-											<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( $chapter_id ) ); ?>" class="fanfic-button small" aria-label="<?php esc_attr_e( 'Edit chapter', 'fanfiction-manager' ); ?>">
-												<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
-											</a>
-										<?php if ( 'publish' === $status ) : ?>
-											<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button small" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
-												<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
-											</a>
-											<button type="button" class="fanfic-button small fanfic-button-warning fanfic-unpublish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" data-story-id="<?php echo absint( $story_id ); ?>" aria-label="<?php esc_attr_e( 'Unpublish chapter', 'fanfiction-manager' ); ?>">
-												<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>
-											</button>
-										<?php elseif ( 'draft' === $status ) : ?>
-											<button type="button" class="fanfic-button small fanfic-button-primary fanfic-publish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Publish chapter', 'fanfiction-manager' ); ?>">
-												<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
-											</button>
-										<?php endif; ?>
-											<button type="button" class="fanfic-button small danger fanfic-delete-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
-												<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
-											</button>
-										</div>
-									</td>
-								</tr>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
-					<?php
-					wp_reset_postdata();
-				else :
-					?>
-					<div class="fanfic-empty-state" role="status">
-						<span class="dashicons dashicons-media-document" aria-hidden="true"></span>
-						<p><?php esc_html_e( 'No chapters yet. Add your first chapter to get started!', 'fanfiction-manager' ); ?></p>
-						<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button-primary">
-							<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
-							<?php esc_html_e( 'Add First Chapter', 'fanfiction-manager' ); ?>
-						</a>
-					</div>
-				<?php endif; ?>
-			</div>
-		</section>
-
-		<?php endif; ?>
-	</div>
+	</div><!-- /.fanfic-content-primary -->
 
 	<!-- Help Sidebar (Create mode only) -->
 	<?php if ( ! $is_edit_mode ) : ?>
@@ -1253,7 +1154,148 @@ if ( $is_edit_mode ) {
 		</div>
 	</aside>
 	<?php endif; ?>
-</div>
+</div><!-- /.fanfic-content-layout -->
+
+<!-- Chapters Management Section (Edit mode only) — outside the column layout -->
+<?php if ( $is_edit_mode ) : ?>
+<section class="fanfic-content-section fanfic-chapters-section" aria-labelledby="chapters-heading">
+	<div class="fanfic-section-header">
+		<h2 id="chapters-heading"><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></h2>
+		<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button">
+			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
+			<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+		</a>
+	</div>
+
+	<!-- Chapters List -->
+	<div class="fanfic-chapters-list">
+		<?php
+		// Get all chapters for this story
+		$chapters_args = array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'posts_per_page' => -1,
+			'orderby'        => 'date',
+			'order'          => 'ASC',
+			'post_status'    => array( 'publish', 'draft', 'pending' ),
+		);
+
+		$chapters_query = new WP_Query( $chapters_args );
+		$chapters = $chapters_query->posts;
+
+		// Sort chapters by chapter number
+		if ( ! empty( $chapters ) ) {
+			usort( $chapters, function( $a, $b ) {
+				$number_a = get_post_meta( $a->ID, '_fanfic_chapter_number', true );
+				$number_b = get_post_meta( $b->ID, '_fanfic_chapter_number', true );
+
+				// Convert to integers for proper comparison
+				$number_a = absint( $number_a );
+				$number_b = absint( $number_b );
+
+				// Prologue (0) comes first, then regular chapters (1-999), then epilogue (1000+)
+				return $number_a - $number_b;
+			} );
+		}
+
+		if ( ! empty( $chapters ) ) :
+			?>
+			<table class="fanfic-table" role="table">
+				<thead>
+					<tr>
+						<th scope="col"><?php esc_html_e( 'Chapter #', 'fanfiction-manager' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Title', 'fanfiction-manager' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Word Count', 'fanfiction-manager' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Actions', 'fanfiction-manager' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php
+					foreach ( $chapters as $chapter ) :
+						$chapter_id = $chapter->ID;
+						$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
+						$stored_chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+
+						// Display chapter label based on type
+						if ( 'prologue' === $chapter_type ) {
+							$display_number = __( 'Prologue', 'fanfiction-manager' );
+						} elseif ( 'epilogue' === $chapter_type ) {
+							$display_number = __( 'Epilogue', 'fanfiction-manager' );
+						} else {
+							$display_number = sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $stored_chapter_number );
+						}
+
+						// Get word count
+						$content = $chapter->post_content;
+						$word_count = str_word_count( wp_strip_all_tags( $content ) );
+
+						// Get status
+						$status = $chapter->post_status;
+						$status_labels = array(
+							'publish' => __( 'Published', 'fanfiction-manager' ),
+							'draft'   => __( 'Draft', 'fanfiction-manager' ),
+							'pending' => __( 'Pending', 'fanfiction-manager' ),
+						);
+						$status_label = isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : $status;
+						?>
+						<tr>
+							<td data-label="<?php esc_attr_e( 'Chapter #', 'fanfiction-manager' ); ?>">
+								<strong><?php echo esc_html( $display_number ); ?></strong>
+							</td>
+							<td data-label="<?php esc_attr_e( 'Title', 'fanfiction-manager' ); ?>">
+								<?php echo esc_html( $chapter->post_title ); ?>
+							</td>
+							<td data-label="<?php esc_attr_e( 'Status', 'fanfiction-manager' ); ?>">
+								<span class="fanfic-status-badge fanfic-status-<?php echo esc_attr( $status ); ?>">
+									<?php echo esc_html( $status_label ); ?>
+								</span>
+							</td>
+							<td data-label="<?php esc_attr_e( 'Word Count', 'fanfiction-manager' ); ?>">
+								<?php echo esc_html( number_format_i18n( $word_count ) ); ?>
+							</td>
+							<td data-label="<?php esc_attr_e( 'Actions', 'fanfiction-manager' ); ?>">
+								<div class="fanfic-actions-buttons">
+									<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( $chapter_id ) ); ?>" class="fanfic-button small" aria-label="<?php esc_attr_e( 'Edit chapter', 'fanfiction-manager' ); ?>">
+										<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
+									</a>
+								<?php if ( 'publish' === $status ) : ?>
+									<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button small" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
+										<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
+									</a>
+									<button type="button" class="fanfic-button small fanfic-button-warning fanfic-unpublish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" data-story-id="<?php echo absint( $story_id ); ?>" aria-label="<?php esc_attr_e( 'Unpublish chapter', 'fanfiction-manager' ); ?>">
+										<?php esc_html_e( 'Unpublish', 'fanfiction-manager' ); ?>
+									</button>
+								<?php elseif ( 'draft' === $status ) : ?>
+									<button type="button" class="fanfic-button small fanfic-button-primary fanfic-publish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Publish chapter', 'fanfiction-manager' ); ?>">
+										<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
+									</button>
+								<?php endif; ?>
+									<button type="button" class="fanfic-button small danger fanfic-delete-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
+										<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+									</button>
+								</div>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			<?php
+			wp_reset_postdata();
+		else :
+			?>
+			<div class="fanfic-empty-state" role="status">
+				<span class="dashicons dashicons-media-document" aria-hidden="true"></span>
+				<p><?php esc_html_e( 'No chapters yet. Add your first chapter to get started!', 'fanfiction-manager' ); ?></p>
+				<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button-primary">
+					<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
+					<?php esc_html_e( 'Add First Chapter', 'fanfiction-manager' ); ?>
+				</a>
+			</div>
+		<?php endif; ?>
+	</div>
+</section>
+<?php endif; ?>
 
 <!-- Delete Confirmation Modal (Edit mode only) -->
 <?php if ( $is_edit_mode ) : ?>
@@ -1289,8 +1331,49 @@ fanfic_render_breadcrumb( 'edit-story', array(
 <!-- Inline Script for Message Dismissal and Delete Confirmation -->
 <script>
 (function() {
-	// Close button functionality for messages
 	document.addEventListener('DOMContentLoaded', function() {
+		// Initialize multi-select dropdowns (warnings)
+		document.querySelectorAll('.fanfic-warnings-multiselect').forEach(function(select) {
+			var trigger = select.querySelector('.multi-select__trigger');
+			var checkboxes = select.querySelectorAll('input[type="checkbox"]');
+			var placeholder = select.dataset.placeholder || 'Select';
+
+			function updateLabel() {
+				var checked = Array.from(checkboxes).filter(function(cb) { return cb.checked; });
+				if (checked.length === 0) {
+					trigger.textContent = placeholder;
+				} else if (checked.length <= 2) {
+					trigger.textContent = checked.map(function(cb) {
+						var nameEl = cb.parentNode.querySelector('.fanfic-warning-name');
+						return nameEl ? nameEl.textContent.trim() : '';
+					}).join(', ');
+				} else {
+					trigger.textContent = checked.length + ' <?php echo esc_js( __( 'warnings selected', 'fanfiction-manager' ) ); ?>';
+				}
+			}
+
+			updateLabel();
+
+			trigger.addEventListener('click', function(e) {
+				e.stopPropagation();
+				select.classList.toggle('open');
+			});
+
+			checkboxes.forEach(function(cb) {
+				cb.addEventListener('change', updateLabel);
+			});
+		});
+
+		// Close multi-select dropdowns when clicking outside
+		document.addEventListener('click', function(e) {
+			document.querySelectorAll('.multi-select.open').forEach(function(select) {
+				if (!select.contains(e.target)) {
+					select.classList.remove('open');
+				}
+			});
+		});
+
+		// Close button functionality for messages
 		var closeButtons = document.querySelectorAll('.fanfic-message-close');
 		closeButtons.forEach(function(button) {
 			button.addEventListener('click', function() {
@@ -1304,6 +1387,104 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				}
 			});
 		});
+
+		function reorderStoryFormFields() {
+			var form = document.getElementById('fanfic-story-form');
+			if (!form) {
+				return;
+			}
+
+			var formContent = form.querySelector('.fanfic-form-content');
+			if (!formContent) {
+				return;
+			}
+
+			function getField(selector) {
+				var element = formContent.querySelector(selector);
+				return element ? element.closest('.fanfic-form-field') : null;
+			}
+
+			function addUnique(fields, field) {
+				if (field && fields.indexOf(field) === -1) {
+					fields.push(field);
+				}
+			}
+
+			var titleField = getField('#fanfic_story_title');
+			var introField = getField('#fanfic_story_intro');
+			var statusField = getField('#fanfic_story_status');
+			var languageField = getField('#fanfic_story_language');
+			var translationsField = formContent.querySelector('.fanfic-translations-field');
+			translationsField = translationsField ? translationsField.closest('.fanfic-form-field') : null;
+			var coauthorsField = formContent.querySelector('.fanfic-coauthors-field');
+			coauthorsField = coauthorsField ? coauthorsField.closest('.fanfic-form-field') : null;
+			var featuredImageField = getField('#fanfic_story_image');
+			var genresField = null;
+			var genresCheckbox = formContent.querySelector('input[name="fanfic_story_genres[]"]');
+			if (genresCheckbox) {
+				genresField = genresCheckbox.closest('.fanfic-form-field');
+			}
+			var originalWorkField = getField('input[name="fanfic_is_original_work"]');
+			var fandomsField = formContent.querySelector('.fanfic-fandoms-field');
+			fandomsField = fandomsField ? fandomsField.closest('.fanfic-form-field') : null;
+			var warningsField = null;
+			var warningsCheckbox = formContent.querySelector('input[name="fanfic_story_warnings[]"]');
+			if (warningsCheckbox) {
+				warningsField = warningsCheckbox.closest('.fanfic-form-field');
+			}
+			var visibleTagsField = getField('#fanfic_visible_tags');
+			var hiddenTagsField = getField('#fanfic_invisible_tags');
+			var publicationDateField = getField('#fanfic_story_publish_date');
+
+			var customTaxonomyFields = [];
+			var customTaxonomyInputs = formContent.querySelectorAll('[id^="fanfic_custom_"], [name^="fanfic_custom_"]');
+			customTaxonomyInputs.forEach(function(input) {
+				var field = input.closest('.fanfic-form-field');
+				if (field && customTaxonomyFields.indexOf(field) === -1) {
+					customTaxonomyFields.push(field);
+				}
+			});
+
+			var orderedFields = [];
+			addUnique(orderedFields, titleField);
+			addUnique(orderedFields, introField);
+			addUnique(orderedFields, statusField);
+			addUnique(orderedFields, languageField);
+			addUnique(orderedFields, translationsField);
+			addUnique(orderedFields, coauthorsField);
+			addUnique(orderedFields, featuredImageField);
+			addUnique(orderedFields, genresField);
+			addUnique(orderedFields, originalWorkField);
+			addUnique(orderedFields, fandomsField);
+			addUnique(orderedFields, warningsField);
+			addUnique(orderedFields, visibleTagsField);
+			addUnique(orderedFields, hiddenTagsField);
+			customTaxonomyFields.forEach(function(field) {
+				addUnique(orderedFields, field);
+			});
+			addUnique(orderedFields, publicationDateField);
+
+			Array.prototype.forEach.call(formContent.children, function(child) {
+				if (child.classList && child.classList.contains('fanfic-form-field')) {
+					addUnique(orderedFields, child);
+				}
+			});
+
+			orderedFields.forEach(function(field) {
+				formContent.appendChild(field);
+			});
+
+			if (originalWorkField && fandomsField) {
+				originalWorkField.classList.add('fanfic-group-original-fandoms');
+				fandomsField.classList.add('fanfic-group-original-fandoms');
+			}
+			if (visibleTagsField && hiddenTagsField) {
+				visibleTagsField.classList.add('fanfic-group-tags');
+				hiddenTagsField.classList.add('fanfic-group-tags');
+			}
+		}
+
+		reorderStoryFormFields();
 
 		<?php if ( $is_edit_mode ) : ?>
 		// Change detection for Update buttons
@@ -2260,6 +2441,135 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				});
 			});
 		}
+	});
+})();
+
+/* Tag Pills System */
+(function() {
+	'use strict';
+
+	function createTagPill(tag, pillsContainer, hiddenInput, maxTags) {
+		var pill = document.createElement('span');
+		pill.className = 'fanfic-pill-value';
+
+		var text = document.createElement('span');
+		text.className = 'fanfic-pill-value-text';
+		text.textContent = tag;
+		pill.appendChild(text);
+
+		var remove = document.createElement('button');
+		remove.type = 'button';
+		remove.className = 'fanfic-pill-value-remove';
+		remove.setAttribute('aria-label', 'Remove tag');
+		remove.textContent = '\u00d7';
+		remove.addEventListener('click', function() {
+			pill.remove();
+			syncHiddenInput(pillsContainer, hiddenInput);
+		});
+		pill.appendChild(remove);
+
+		pillsContainer.appendChild(pill);
+	}
+
+	function syncHiddenInput(pillsContainer, hiddenInput) {
+		var tags = Array.from(pillsContainer.querySelectorAll('.fanfic-pill-value-text')).map(function(el) {
+			return el.textContent.trim();
+		});
+		hiddenInput.value = tags.join(', ');
+		hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+	}
+
+	function getCurrentTags(pillsContainer) {
+		return Array.from(pillsContainer.querySelectorAll('.fanfic-pill-value-text')).map(function(el) {
+			return el.textContent.trim().toLowerCase();
+		});
+	}
+
+	function initTagField(typingInput) {
+		var targetId = typingInput.getAttribute('data-target');
+		if (!targetId) {
+			return;
+		}
+
+		var hiddenInput = document.getElementById(targetId);
+		var pillsContainer = typingInput.parentNode.querySelector('.fanfic-tags-pills[data-target="' + targetId + '"]');
+		if (!hiddenInput || !pillsContainer) {
+			return;
+		}
+
+		var maxTags = parseInt(typingInput.getAttribute('data-max-tags'), 10) || 10;
+		var wrapper = typingInput.closest('.fanfic-tags-input-wrapper');
+
+		// Click on wrapper focuses the typing input
+		if (wrapper) {
+			wrapper.addEventListener('click', function(e) {
+				if (e.target === wrapper || e.target === pillsContainer) {
+					typingInput.focus();
+				}
+			});
+		}
+
+		// Initialize pills from existing hidden input value
+		var existingValue = (hiddenInput.value || '').trim();
+		if (existingValue) {
+			existingValue.split(',').forEach(function(tag) {
+				var trimmed = tag.trim();
+				if (trimmed) {
+					createTagPill(trimmed, pillsContainer, hiddenInput, maxTags);
+				}
+			});
+		}
+
+		function addTag(value) {
+			var tag = value.trim();
+			if (!tag) {
+				return;
+			}
+
+			var currentTags = getCurrentTags(pillsContainer);
+			if (currentTags.length >= maxTags) {
+				return;
+			}
+
+			if (currentTags.indexOf(tag.toLowerCase()) !== -1) {
+				return;
+			}
+
+			createTagPill(tag, pillsContainer, hiddenInput, maxTags);
+			syncHiddenInput(pillsContainer, hiddenInput);
+		}
+
+		typingInput.addEventListener('keydown', function(e) {
+			if (e.key === 'Enter' || e.key === ',') {
+				e.preventDefault();
+				addTag(typingInput.value.replace(/,/g, ''));
+				typingInput.value = '';
+			}
+
+			if (e.key === 'Backspace' && typingInput.value === '') {
+				var pills = pillsContainer.querySelectorAll('.fanfic-pill-value');
+				if (pills.length > 0) {
+					pills[pills.length - 1].remove();
+					syncHiddenInput(pillsContainer, hiddenInput);
+				}
+			}
+		});
+
+		// Handle paste with commas
+		typingInput.addEventListener('input', function() {
+			var val = typingInput.value;
+			if (val.indexOf(',') !== -1) {
+				var parts = val.split(',');
+				for (var i = 0; i < parts.length - 1; i++) {
+					addTag(parts[i]);
+				}
+				typingInput.value = parts[parts.length - 1];
+			}
+		});
+	}
+
+	document.addEventListener('DOMContentLoaded', function() {
+		document.querySelectorAll('.fanfic-tags-typing').forEach(initTagField);
 	});
 })();
 </script>

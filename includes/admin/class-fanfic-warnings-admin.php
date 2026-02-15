@@ -835,6 +835,8 @@ class Fanfic_Warnings_Admin {
 			}
 		}
 
+		do_action( 'fanfic_warning_updated', $warning_id );
+
 		self::redirect_with_message( 'success', 'warning_updated' );
 	}
 

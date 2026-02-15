@@ -1512,6 +1512,19 @@ class Fanfic_Wizard {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) ) );
 		}
 
+		// Idempotency guard: if completion already succeeded, return success.
+		// This prevents retries/double-clicks from re-running completion with an empty draft.
+		$wizard_completed = (bool) get_option( 'fanfic_wizard_completed', false );
+		if ( $wizard_completed && $this->all_pages_exist() ) {
+			error_log( '[Fanfic Wizard Complete] Already completed; returning success without rerun.' );
+			wp_send_json_success(
+				array(
+					'message'      => __( 'Setup already completed. Redirecting...', 'fanfiction-manager' ),
+					'redirect_url' => admin_url( 'admin.php?page=fanfiction-settings&tab=general' ),
+				)
+			);
+		}
+
 		// Wrap everything in try-catch for debugging
 		try {
 			error_log( '[Fanfic Wizard Complete] ========== STARTING WIZARD COMPLETION ==========' );
@@ -1634,17 +1647,21 @@ class Fanfic_Wizard {
 
 			// Check if user chose "no base slug" mode in step 2 (use_base_slug is set in URL settings step)
 			$step_2 = isset( $draft['step_2'] ) && is_array( $draft['step_2'] ) ? $draft['step_2'] : array();
-			$use_base_slug = isset( $step_2['use_base_slug'] ) ? (int) $step_2['use_base_slug'] : 1;
+			$use_base_slug = isset( $step_2['use_base_slug'] )
+				? (int) $step_2['use_base_slug']
+				: (int) get_option( 'fanfic_use_base_slug', 1 );
 
 			if ( 0 === $use_base_slug ) {
 				// No base slug mode - expect empty string
 				$expected_base_slug = '';
 			} else {
-				// Base slug mode - use the value from step 2 or default to 'fanfiction'
-				$expected_base_slug = isset( $step_2['base_slug'] ) ? $step_2['base_slug'] : 'fanfiction';
+				// Base slug mode - prefer step 2 value, fallback to persisted option.
+				$expected_base_slug = isset( $step_2['base_slug'] )
+					? sanitize_title( (string) $step_2['base_slug'] )
+					: sanitize_title( (string) get_option( 'fanfic_base_slug', 'fanfiction' ) );
 			}
 
-			$actual_base_slug = get_option( 'fanfic_base_slug', '' );
+			$actual_base_slug = sanitize_title( (string) get_option( 'fanfic_base_slug', '' ) );
 			error_log( sprintf(
 				'[Fanfic Wizard Complete] Gate 1: Expected=%s, Actual=%s',
 				$expected_base_slug,

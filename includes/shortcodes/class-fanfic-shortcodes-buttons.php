@@ -281,6 +281,20 @@ class Fanfic_Shortcodes_Buttons {
 			}
 			// Tell JS whether user is logged in (for follow email modal).
 			$data_attrs['data-user-logged-in'] = $user_id ? '1' : '0';
+		} elseif ( 'share' === $action ) {
+			$share_data = self::get_share_context_data( $context, $context_ids );
+
+			if ( ! empty( $share_data['url'] ) ) {
+				$data_attrs['data-share-url'] = $share_data['url'];
+			}
+
+			if ( ! empty( $share_data['title'] ) ) {
+				$data_attrs['data-share-title'] = $share_data['title'];
+			}
+
+			if ( ! empty( $share_data['text'] ) ) {
+				$data_attrs['data-share-text'] = $share_data['text'];
+			}
 		}
 
 		// Get button label and icon
@@ -336,6 +350,102 @@ class Fanfic_Shortcodes_Buttons {
 	}
 
 	/**
+	 * Build canonical share data for story/chapter/author contexts.
+	 *
+	 * @since 2.0.0
+	 * @param string $context Context (story, chapter, author).
+	 * @param array  $context_ids Context IDs.
+	 * @return array{url:string,title:string,text:string} Share data.
+	 */
+	private static function get_share_context_data( $context, $context_ids ) {
+		$share_data = array(
+			'url'   => '',
+			'title' => '',
+			'text'  => '',
+		);
+
+		switch ( $context ) {
+			case 'story':
+				$story_id = isset( $context_ids['story_id'] ) ? absint( $context_ids['story_id'] ) : 0;
+				if ( ! $story_id ) {
+					break;
+				}
+
+				$story = get_post( $story_id );
+				if ( ! $story ) {
+					break;
+				}
+
+				$share_data['url'] = function_exists( 'fanfic_get_story_url' ) ? fanfic_get_story_url( $story_id ) : get_permalink( $story_id );
+				$share_data['title'] = get_the_title( $story_id );
+				$share_data['text']  = self::normalize_share_text( $story->post_excerpt );
+				break;
+
+			case 'chapter':
+				$chapter_id = isset( $context_ids['chapter_id'] ) ? absint( $context_ids['chapter_id'] ) : 0;
+				if ( ! $chapter_id ) {
+					break;
+				}
+
+				$chapter = get_post( $chapter_id );
+				if ( ! $chapter ) {
+					break;
+				}
+
+				$share_data['url']   = function_exists( 'fanfic_get_chapter_url' ) ? fanfic_get_chapter_url( $chapter_id ) : get_permalink( $chapter_id );
+				$share_data['title'] = get_the_title( $chapter_id );
+				$share_data['text']  = self::normalize_share_text( $chapter->post_excerpt );
+
+				if ( '' === $share_data['text'] ) {
+					$story_id = isset( $context_ids['story_id'] ) ? absint( $context_ids['story_id'] ) : absint( $chapter->post_parent );
+					if ( $story_id ) {
+						$story = get_post( $story_id );
+						if ( $story ) {
+							$share_data['text'] = self::normalize_share_text( $story->post_excerpt );
+						}
+					}
+				}
+				break;
+
+			case 'author':
+				$author_id = isset( $context_ids['author_id'] ) ? absint( $context_ids['author_id'] ) : 0;
+				if ( ! $author_id ) {
+					break;
+				}
+
+				$profile_url = function_exists( 'fanfic_get_user_profile_url' ) ? fanfic_get_user_profile_url( $author_id ) : '';
+				$share_data['url'] = ! empty( $profile_url ) ? $profile_url : get_author_posts_url( $author_id );
+				$share_data['title'] = (string) get_the_author_meta( 'display_name', $author_id );
+				$share_data['text']  = self::normalize_share_text( get_the_author_meta( 'description', $author_id ) );
+				break;
+		}
+
+		$share_data['url']   = '' !== $share_data['url'] ? esc_url_raw( $share_data['url'] ) : '';
+		$share_data['title'] = '' !== $share_data['title'] ? wp_strip_all_tags( (string) $share_data['title'] ) : '';
+
+		return $share_data;
+	}
+
+	/**
+	 * Normalize optional share text and cap length for the Web Share API payload.
+	 *
+	 * @since 2.0.0
+	 * @param string $text Raw text.
+	 * @return string Normalized text.
+	 */
+	private static function normalize_share_text( $text ) {
+		$text = wp_strip_all_tags( (string) $text );
+		$text = preg_replace( '/\s+/', ' ', $text );
+		$text = is_string( $text ) ? trim( $text ) : '';
+
+		if ( '' === $text ) {
+			return '';
+		}
+
+		return wp_html_excerpt( $text, 280, '...' );
+	}
+
+	/**
 	 * Get button current state
 	 *
 	 * @since 2.0.0
@@ -352,8 +462,19 @@ class Fanfic_Shortcodes_Buttons {
 
 		switch ( $action ) {
 			case 'follow':
-				// Follows use localStorage as initial UI source-of-truth (same as likes).
-				return false;
+				$follow_post_id = 0;
+
+				if ( isset( $context_ids['chapter_id'] ) && absint( $context_ids['chapter_id'] ) > 0 ) {
+					$follow_post_id = absint( $context_ids['chapter_id'] );
+				} elseif ( isset( $context_ids['story_id'] ) ) {
+					$follow_post_id = absint( $context_ids['story_id'] );
+				}
+
+				if ( ! $follow_post_id || ! class_exists( 'Fanfic_Follows' ) ) {
+					return false;
+				}
+
+				return Fanfic_Follows::is_followed( $user_id, $follow_post_id );
 
 			case 'like':
 			case 'dislike':
@@ -382,9 +503,7 @@ class Fanfic_Shortcodes_Buttons {
 	 */
 	private static function action_requires_login( $action ) {
 		// Actions that require login
-		$login_required = array(
-			'mark-read',
-		);
+		$login_required = array();
 
 		return in_array( $action, $login_required, true );
 	}

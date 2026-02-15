@@ -134,7 +134,7 @@ class Fanfic_Email_Queue {
 		// Step 3: Get logged-in story followers with email preference enabled.
 		$follower_ids = $wpdb->get_col( $wpdb->prepare(
 			"SELECT DISTINCT user_id FROM {$wpdb->prefix}fanfic_interactions
-			WHERE post_id = %d AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
+			WHERE chapter_id = %d AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
 			$story_id,
 			$author_id
 		) );
@@ -229,7 +229,7 @@ class Fanfic_Email_Queue {
 		// Get logged-in story followers + chapter bookmarkers with email pref enabled
 		$follower_ids = $wpdb->get_col( $wpdb->prepare(
 			"SELECT DISTINCT user_id FROM {$wpdb->prefix}fanfic_interactions
-			WHERE (post_id = %d OR post_id = %d) AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
+			WHERE (chapter_id = %d OR chapter_id = %d) AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
 			$story_id,
 			$chapter_id,
 			$author_id
@@ -303,7 +303,7 @@ class Fanfic_Email_Queue {
 		// Get logged-in story followers with email pref enabled
 		$follower_ids = $wpdb->get_col( $wpdb->prepare(
 			"SELECT DISTINCT user_id FROM {$wpdb->prefix}fanfic_interactions
-			WHERE post_id = %d AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
+			WHERE chapter_id = %d AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
 			$story_id,
 			$author_id
 		) );

@@ -24,8 +24,20 @@ class Fanfic_Post_Types {
 	 * @since 1.0.0
 	 */
 	public static function register() {
+		self::register_image_sizes();
 		self::register_story_post_type();
 		self::register_chapter_post_type();
+	}
+
+	/**
+	 * Register plugin image sizes.
+	 *
+	 * @since 2.1.0
+	 * @return void
+	 */
+	private static function register_image_sizes() {
+		// Story-card cover image constrained to 220px width.
+		add_image_size( 'fanfic_story_card_220', 220, 0, false );
 	}
 
 	/**

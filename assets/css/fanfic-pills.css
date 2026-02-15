@@ -195,6 +195,83 @@
     }
 }
 
+/* Avatar inside pill (co-authors) */
+.fanfic-pill-value img {
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+/* Tags and inline pill input wrappers — pills + typing input inside a single input-like box */
+.fanfic-tags-input-wrapper,
+.fanfic-pill-input-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 3px;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+    background: #fff;
+    cursor: text;
+    min-height: 42px;
+}
+
+.fanfic-tags-input-wrapper:focus-within,
+.fanfic-pill-input-wrapper:focus-within {
+    outline: 2px solid var(--accent-color, #2271b1);
+    outline-offset: 2px;
+}
+
+.fanfic-tags-input-wrapper .fanfic-tags-pills {
+    display: contents;
+}
+
+.fanfic-tags-input-wrapper .fanfic-tags-pills:empty {
+    display: none;
+}
+
+.fanfic-pill-input-wrapper .fanfic-pill-values {
+    display: contents;
+}
+
+.fanfic-tags-typing {
+    flex: 1 1 120px;
+    min-width: 120px;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font: inherit;
+    line-height: inherit;
+}
+
+.fanfic-pill-input {
+    flex: 1 1 120px;
+    min-width: 120px;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font: inherit;
+    line-height: inherit;
+}
+
+/* Standalone pill-values containers (fandoms, coauthors, translations) */
+.fanfic-form-field > .fanfic-pill-values {
+    margin-top: 8px;
+}
+
 /* Accessibility */
 .fanfic-pill-value-remove:focus {
     outline: 2px solid #fff;

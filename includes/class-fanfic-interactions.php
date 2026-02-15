@@ -387,14 +387,25 @@ class Fanfic_Interactions {
 			return new WP_Error( 'invalid_read_payload', __( 'Invalid chapter or user for read interaction.', 'fanfiction-manager' ) );
 		}
 
+		if ( self::has_interaction( $user_id, $chapter_id, 'read' ) ) {
+			return array(
+				'success' => true,
+				'changed' => false,
+				'stats'   => self::get_chapter_stats( $chapter_id ),
+			);
+		}
+
 		$ok = self::upsert_interaction( $user_id, $chapter_id, 'read', null );
 		if ( ! $ok ) {
 			return new WP_Error( 'read_write_failed', __( 'Could not save read interaction.', 'fanfiction-manager' ) );
 		}
 
+		self::delete_stats_cache( $chapter_id, $story_id );
+
 		return array(
 			'success' => true,
 			'changed' => true,
+			'stats'   => self::get_chapter_stats( $chapter_id ),
 		);
 	}
 
@@ -2608,6 +2619,8 @@ class Fanfic_Interactions {
 			delete_transient( 'fanfic_chapter_' . $chapter_id . '_rating' );
 			delete_transient( 'fanfic_chapter_views_' . $chapter_id );
 			delete_transient( 'fanfic_chapter_stats_' . $chapter_id );
+
+			Fanfic_Cache::delete( Fanfic_Cache::get_key( 'chapter', 'view_count', $chapter_id ) );
 		}
 
 		if ( $story_id > 0 ) {
@@ -2615,6 +2628,8 @@ class Fanfic_Interactions {
 			delete_transient( 'fanfic_story_' . $story_id . '_rating' );
 			delete_transient( 'fanfic_story_views_' . $story_id );
 			delete_transient( 'fanfic_story_stats_' . $story_id );
+
+			Fanfic_Cache::delete( Fanfic_Cache::get_key( 'story', 'view_count', $story_id ) );
 		}
 	}
 }

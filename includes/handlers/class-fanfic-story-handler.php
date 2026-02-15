@@ -787,8 +787,7 @@ class Fanfic_Story_Handler {
 				$redirect_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
 			} else {
 				Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated successfully!', 'fanfiction-manager' ) );
-				$fallback_url = self::get_story_edit_url( $story_id );
-				$redirect_url = self::get_safe_referer_url( $fallback_url );
+				$redirect_url = self::get_story_edit_url( $story_id );
 				$redirect_url = remove_query_arg( array( 'success', 'error' ), $redirect_url );
 				$redirect_url = add_query_arg( 'action', 'edit', $redirect_url );
 			}
@@ -842,8 +841,23 @@ class Fanfic_Story_Handler {
 			}
 			// Fallback if URL manager fails
 			$page_ids = get_option( 'fanfic_system_page_ids', array() );
-			if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
-				return add_query_arg( 'action', 'create-story', get_permalink( $page_ids['main'] ) );
+			$use_base_slug = (bool) get_option( 'fanfic_use_base_slug', true );
+			$main_page_mode = (string) get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+			$target_page_id = 0;
+
+			if ( ! $use_base_slug && 'stories_homepage' === $main_page_mode && ! empty( $page_ids['stories'] ) ) {
+				$target_page_id = absint( $page_ids['stories'] );
+			} elseif ( ! empty( $page_ids['main'] ) ) {
+				$target_page_id = absint( $page_ids['main'] );
+			} elseif ( ! empty( $page_ids['stories'] ) ) {
+				$target_page_id = absint( $page_ids['stories'] );
+			}
+
+			if ( $target_page_id > 0 ) {
+				$page_url = get_permalink( $target_page_id );
+				if ( $page_url ) {
+					return add_query_arg( 'action', 'create-story', $page_url );
+				}
 			}
 		}
 
@@ -1118,8 +1132,7 @@ class Fanfic_Story_Handler {
 		} else {
 			// Normal save - redirect back with success message
 			Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated successfully!', 'fanfiction-manager' ) );
-			$fallback_url = self::get_story_edit_url( $story_id );
-			$redirect_url = self::get_safe_referer_url( $fallback_url );
+			$redirect_url = self::get_story_edit_url( $story_id );
 			$redirect_url = add_query_arg( 'action', 'edit', remove_query_arg( array( 'success', 'error' ), $redirect_url ) );
 		}
 

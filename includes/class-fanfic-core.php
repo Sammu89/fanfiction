@@ -433,9 +433,6 @@ class Fanfic_Core {
 		// Initialize AJAX handlers (Phase 5: Unified AJAX endpoints)
 		Fanfic_AJAX_Handlers::init();
 
-		// Initialize reading progress tracking
-		Fanfic_Reading_Progress::init();
-
 		// Initialize SEO
 		Fanfic_SEO::init();
 		Fanfic_Fandoms::init();
@@ -1146,11 +1143,13 @@ class Fanfic_Core {
 		}
 
 		// Enqueue frontend CSS
+		$css_file    = FANFIC_PLUGIN_DIR . 'assets/css/fanfiction-frontend.css';
+		$css_version = file_exists( $css_file ) ? (string) filemtime( $css_file ) : FANFIC_VERSION;
 		wp_enqueue_style(
 			'fanfiction-frontend',
 			FANFIC_PLUGIN_URL . 'assets/css/fanfiction-frontend.css',
 			array(),
-			FANFIC_VERSION,
+			$css_version,
 			'all'
 		);
 
@@ -1191,11 +1190,12 @@ class Fanfic_Core {
 		// Enqueue frontend JS (if exists)
 		$js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-frontend.js';
 		if ( file_exists( $js_file ) ) {
+			$js_version = (string) filemtime( $js_file );
 			wp_enqueue_script(
 				'fanfiction-frontend',
 				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-frontend.js',
 				array( 'jquery' ),
-				FANFIC_VERSION,
+				$js_version,
 				true
 			);
 
@@ -1213,11 +1213,12 @@ class Fanfic_Core {
 		// Enqueue unified interactions JS (Phase 5)
 		$interactions_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-interactions.js';
 		if ( file_exists( $interactions_js_file ) ) {
+			$interactions_js_version = (string) filemtime( $interactions_js_file );
 			wp_enqueue_script(
 				'fanfiction-interactions',
 				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-interactions.js',
 				array( 'jquery', 'fanfiction-frontend' ),
-				FANFIC_VERSION,
+				$interactions_js_version,
 				true
 			);
 
@@ -1244,6 +1245,8 @@ class Fanfic_Core {
 						'error'             => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
 						'rateLimited'       => __( 'Too many requests. Please wait a moment.', 'fanfiction-manager' ),
 						'loginRequired'     => __( 'You must be logged in to do that.', 'fanfiction-manager' ),
+						'copiedLink'        => __( 'Copied link.', 'fanfiction-manager' ),
+						'copyThisLinkPrompt' => __( 'Copy this link:', 'fanfiction-manager' ),
 					),
 				)
 			);
@@ -1307,6 +1310,16 @@ class Fanfic_Core {
 					'restUrl'   => esc_url_raw( rest_url() ),
 					'restNonce' => wp_create_nonce( 'wp_rest' ),
 				)
+			);
+		}
+
+		// Pills CSS for story form (shared pill component)
+		if ( 'template-story-form.php' === $current_template ) {
+			wp_enqueue_style(
+				'fanfic-pills',
+				FANFIC_PLUGIN_URL . 'assets/css/fanfic-pills.css',
+				array(),
+				FANFIC_VERSION
 			);
 		}
 

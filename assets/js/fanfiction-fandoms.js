@@ -21,8 +21,11 @@
 		var searchInput = container.querySelector('input[type="text"]:not([type="hidden"])');
 		var resultsBox = container.querySelector('.fanfic-fandom-results');
 		var selectedBox = container.querySelector('.fanfic-selected-fandoms');
+		var inputWrapper = container.querySelector('.fanfic-pill-input-wrapper');
 		var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
 		var maxFandoms = parseInt(container.getAttribute('data-max-fandoms'), 10) || 5;
+		var parentForm = container.closest('form');
+		var disableEmptyFandoms = !!(parentForm && parentForm.classList.contains('fanfic-stories-form'));
 
 		if (!searchInput || !resultsBox || !selectedBox) {
 			return;
@@ -62,13 +65,17 @@
 			}
 
 			var wrapper = document.createElement('span');
-			wrapper.className = 'fanfic-selected-fandom';
+			wrapper.className = 'fanfic-pill-value';
 			wrapper.setAttribute('data-id', id);
-			wrapper.textContent = label + ' ';
+
+			var text = document.createElement('span');
+			text.className = 'fanfic-pill-value-text';
+			text.textContent = label;
+			wrapper.appendChild(text);
 
 			var remove = document.createElement('button');
 			remove.type = 'button';
-			remove.className = 'fanfic-remove-fandom';
+			remove.className = 'fanfic-pill-value-remove';
 			remove.setAttribute('aria-label', fanficFandoms.strings.remove);
 			remove.textContent = '×';
 
@@ -96,8 +103,8 @@
 				btn.className = 'fanfic-fandom-result';
 				btn.setAttribute('data-id', item.id);
 				btn.setAttribute('data-label', item.label);
-				btn.textContent = item.label + ' (' + count + ')';
-				if (item.disabled || count === 0) {
+				btn.textContent = disableEmptyFandoms ? (item.label + ' (' + count + ')') : item.label;
+				if (disableEmptyFandoms && (item.disabled || count === 0)) {
 					btn.disabled = true;
 					btn.classList.add('is-disabled');
 				}
@@ -133,6 +140,18 @@
 			searchFandoms(e.target.value.trim());
 		}, 250);
 
+		if (inputWrapper) {
+			inputWrapper.addEventListener('click', function(e) {
+				if (searchInput.disabled) {
+					return;
+				}
+				if (e.target.classList.contains('fanfic-pill-value-remove')) {
+					return;
+				}
+				searchInput.focus();
+			});
+		}
+
 		searchInput.addEventListener('input', debouncedSearch);
 		resultsBox.addEventListener('click', function(e) {
 			var target = e.target;
@@ -155,10 +174,10 @@
 
 		selectedBox.addEventListener('click', function(e) {
 			var target = e.target;
-			if (!target.classList.contains('fanfic-remove-fandom')) {
+			if (!target.classList.contains('fanfic-pill-value-remove')) {
 				return;
 			}
-			var wrapper = target.closest('.fanfic-selected-fandom');
+			var wrapper = target.closest('.fanfic-pill-value');
 			if (wrapper) {
 				wrapper.remove();
 				dispatchChange();

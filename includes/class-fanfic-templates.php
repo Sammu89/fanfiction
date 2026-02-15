@@ -82,10 +82,13 @@ class Fanfic_Templates {
 		// Check for action-based templates on stories and chapters
 		$action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
 
-		// Check if this is the main page with create-story action
+		// Check if this is a system page with create-story action
 		if ( is_page() && ! empty( $action ) && 'create-story' === $action ) {
 			$page_ids = get_option( 'fanfic_system_page_ids', array() );
-			if ( isset( $page_ids['main'] ) && is_page( $page_ids['main'] ) ) {
+			$is_main_page = isset( $page_ids['main'] ) && is_page( $page_ids['main'] );
+			$is_stories_page = isset( $page_ids['stories'] ) && is_page( $page_ids['stories'] );
+
+			if ( $is_main_page || $is_stories_page ) {
 				$fanfic_content_template = 'template-story-form.php';
 
 				// Use the wrapper template

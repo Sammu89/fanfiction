@@ -341,8 +341,21 @@ class Fanfic_URL_Manager {
 		// Special handling for create-story: use main page with ?action=create-story
 		if ( 'create-story' === $page_key ) {
 			$page_ids = get_option( 'fanfic_system_page_ids', array() );
-			if ( isset( $page_ids['main'] ) && $page_ids['main'] > 0 ) {
-				$url = get_permalink( $page_ids['main'] );
+			$use_base_slug = (bool) get_option( 'fanfic_use_base_slug', true );
+			$main_page_mode = (string) get_option( 'fanfic_main_page_mode', 'custom_homepage' );
+			$target_page_id = 0;
+
+			// In no-base-slug + stories-homepage mode, create-story should live on the stories/front page.
+			if ( ! $use_base_slug && 'stories_homepage' === $main_page_mode && ! empty( $page_ids['stories'] ) ) {
+				$target_page_id = absint( $page_ids['stories'] );
+			} elseif ( ! empty( $page_ids['main'] ) ) {
+				$target_page_id = absint( $page_ids['main'] );
+			} elseif ( ! empty( $page_ids['stories'] ) ) {
+				$target_page_id = absint( $page_ids['stories'] );
+			}
+
+			if ( $target_page_id > 0 ) {
+				$url = get_permalink( $target_page_id );
 				if ( $url ) {
 					$args['action'] = 'create-story';
 					return add_query_arg( $args, $url );
@@ -681,7 +694,7 @@ class Fanfic_URL_Manager {
 
 		// Create fake post object.
 		$post = new stdClass();
-		$post->ID                    = -999; // Negative ID to avoid conflicts.
+		$post->ID                    = $this->resolve_virtual_page_post_id( $fanfic_page );
 		$post->post_author           = 1;
 		$post->post_date             = current_time( 'mysql' );
 		$post->post_date_gmt         = current_time( 'mysql', 1 );
@@ -718,9 +731,15 @@ class Fanfic_URL_Manager {
 		$wp_post->page_template = 'default';
 
 		// Add to cache to prevent WordPress from firing database queries for this fake post.
-		// This is critical for performance and prevents WordPress from trying to fetch post ID -999.
-		wp_cache_set( $wp_post->ID, $wp_post, 'posts' );
-		wp_cache_set( $wp_post->ID, $wp_post, 'post_meta' );
+		// Cache by both exact and absint() ID because some themes/plugins normalize IDs.
+		$cache_ids = array_unique( array( (int) $wp_post->ID, absint( $wp_post->ID ) ) );
+		foreach ( $cache_ids as $cache_id ) {
+			if ( $cache_id <= 0 ) {
+				continue;
+			}
+			wp_cache_set( $cache_id, $wp_post, 'posts' );
+			wp_cache_set( $cache_id, array(), 'post_meta' );
+		}
 
 		$posts = array( $wp_post );
 
@@ -854,6 +873,37 @@ class Fanfic_URL_Manager {
 			}
 		}
 		return $classes;
+	}
+
+	/**
+	 * Resolve a stable virtual post ID that works with generic theme/plugin lookups.
+	 *
+	 * Uses a real system page ID when available, otherwise a high deterministic ID
+	 * reserved for virtual pages. If that ID exists in the database, increment until free.
+	 *
+	 * @since 2.0.0
+	 * @param string $fanfic_page Virtual page key.
+	 * @return int Positive post ID.
+	 */
+	private function resolve_virtual_page_post_id( $fanfic_page ) {
+		$page_ids = get_option( 'fanfic_system_page_ids', array() );
+		if ( isset( $page_ids[ $fanfic_page ] ) && absint( $page_ids[ $fanfic_page ] ) > 0 ) {
+			return absint( $page_ids[ $fanfic_page ] );
+		}
+
+		$virtual_ids = array(
+			'dashboard'      => 900001001,
+			'members'        => 900001002,
+			'member_profile' => 900001003,
+		);
+
+		$candidate_id = isset( $virtual_ids[ $fanfic_page ] ) ? $virtual_ids[ $fanfic_page ] : 900001999;
+
+		while ( get_post( $candidate_id ) ) {
+			$candidate_id++;
+		}
+
+		return $candidate_id;
 	}
 
 	/**
