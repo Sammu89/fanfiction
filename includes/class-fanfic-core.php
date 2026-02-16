@@ -1313,16 +1313,6 @@ class Fanfic_Core {
 			);
 		}
 
-		// Pills CSS for story form (shared pill component)
-		if ( 'template-story-form.php' === $current_template ) {
-			wp_enqueue_style(
-				'fanfic-pills',
-				FANFIC_PLUGIN_URL . 'assets/css/fanfic-pills.css',
-				array(),
-				FANFIC_VERSION
-			);
-		}
-
 		// Fandoms autocomplete for story form
 		// Note: Search bar enqueues its own script in the shortcode
 		if ( 'template-story-form.php' === $current_template && class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {

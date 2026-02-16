@@ -73,20 +73,6 @@ class Fanfic_Shortcodes_Search {
 			true
 		);
 
-		wp_enqueue_style(
-			'fanfic-search-bar-frontend',
-			FANFIC_PLUGIN_URL . 'assets/css/fanfic-search-bar.css',
-			array(),
-			FANFIC_VERSION
-		);
-
-		// Generic pills CSS (reusable throughout site)
-		wp_enqueue_style(
-			'fanfic-pills',
-			FANFIC_PLUGIN_URL . 'assets/css/fanfic-pills.css',
-			array(),
-			FANFIC_VERSION
-		);
 		// Enqueue fandoms script if Fanfic_Fandoms is enabled
 		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
 			wp_enqueue_script(

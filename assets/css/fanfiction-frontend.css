@@ -670,13 +670,19 @@ a:focus {
 .fanfic-form-field input[type="file"],
 .fanfic-form-field select,
 .fanfic-form-field textarea {
-	width: 100%;
 	padding: 10px;
-	border: 1px solid var(--color-border);
+	border: 1px solid #cccccc;
 	border-radius: 3px;
 	font-size: 14px;
 	font-family: inherit;
-	box-sizing: border-box; /* Added for consistency */
+	box-sizing: border-box;
+	background-color: #fff;
+}
+
+/* Placeholder text color for fanfic text inputs */
+input[type="text"][class*="fanfic"]::placeholder,
+#fanfic-search-input::placeholder {
+	color: #aaaaaa;
 }
 
 /* File inputs often need slight padding adjustments */
@@ -2748,20 +2754,20 @@ input:disabled,
 
 .fanfic-edit-profile-form .fanfic-input,
 .fanfic-edit-profile-form .fanfic-textarea {
-	width: 100%;
 	padding: 14px 16px;
-	border: 2px solid var(--color-border);
+	border: 2px solid #cccccc;
 	border-radius: 6px;
 	font-size: 15px;
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
 	transition: all 0.3s ease;
 	box-sizing: border-box;
 	background-color: var(--background-soft);
+	color: #aaaaaa;
 }
 
 .fanfic-edit-profile-form .fanfic-input:hover,
 .fanfic-edit-profile-form .fanfic-textarea:hover {
-	border-color: var(--color-border);
+	border-color: #cccccc;
 	background-color: white;
 }
 
@@ -3731,10 +3737,10 @@ input:disabled,
 
 .fanfic-stories-form input[type="text"],
 .fanfic-stories-form select {
-	width: 100%;
 	padding: 8px 10px;
-	border: 1px solid var(--color-border);
+	border: 1px solid #cccccc;
 	border-radius: 6px;
+	background-color: #fff;
 }
 
 .fanfic-stories-warning-list {
@@ -4780,12 +4786,12 @@ body.fanfiction-page .entry-content::after {
 
 .fanfic-modal-body input[type="email"],
 .fanfic-modal-body textarea {
-	width: 100%;
 	padding: 10px 12px;
-	border: 1px solid var(--color-border);
+	border: 1px solid #cccccc;
 	border-radius: 4px;
 	font-size: 15px;
 	font-family: inherit;
+	color: #aaaaaa;
 }
 
 .fanfic-modal-body textarea {
@@ -6298,4 +6304,568 @@ body.fanfic-member-profile .wp-block-post-title {
 	.fanfic-auto-columns::before {
 		display: none;
 	}
+}
+/**
+ * Generic Pills System CSS
+ *
+ * Reusable pill component for displaying grouped filter values
+ * Can be used throughout the site for any pill-based UI
+ *
+ * Structure:
+ * .fanfic-current-filters-section (optional wrapper)
+ *   ├─ .fanfic-current-filters-label (section heading)
+ *   ├─ .fanfic-current-filters-container (contains pills)
+ *   │   └─ .fanfic-pills-container
+ *   │       ├─ .fanfic-pill (one per taxonomy/group)
+ *   │       │   ├─ .fanfic-pill-label (taxonomy name)
+ *   │       │   ├─ .fanfic-pill-values
+ *   │       │   │   ├─ .fanfic-pill-value
+ *   │       │   │   │   ├─ .fanfic-pill-value-text
+ *   │       │   │   │   └─ .fanfic-pill-value-remove (button with x)
+ */
+
+/* Current Filters Section (Optional Wrapper) */
+.fanfic-current-filters-section {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f5f9fb;
+    border: 1px solid #d0e8f2;
+    border-radius: 6px;
+    display: none; /* Hidden by default, shown by JavaScript when pills appear */
+}
+
+.fanfic-current-filters-section[style*="display: block"] {
+    /* Visible when JavaScript shows it */
+}
+
+.fanfic-current-filters-label {
+    margin: 0 0 12px 0;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #333;
+}
+
+.fanfic-current-filters-container {
+    margin: 0;
+    padding: 0;
+}
+
+/* Container for all pills */
+.fanfic-pills-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-start;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Individual pill (one per taxonomy group) */
+.fanfic-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.95em;
+    color: #1976d2;
+    animation: fanfic-pill-appear 0.2s ease-out;
+}
+
+@keyframes fanfic-pill-appear {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Pill label (taxonomy name like "Genre:", "Status:", etc) */
+.fanfic-pill-label {
+    font-weight: 600;
+    white-space: nowrap;
+    margin: 0;
+    padding: 0;
+}
+
+/* Container for all values within a pill */
+.fanfic-pill-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Individual value within a pill with remove button */
+.fanfic-pill-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background-color: #64b5f6;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    white-space: nowrap;
+    animation: fanfic-pill-value-appear 0.15s ease-out;
+}
+
+@keyframes fanfic-pill-value-appear {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Value text (the actual value) */
+.fanfic-pill-value-text {
+    margin: 0;
+    padding: 0;
+}
+
+/* Remove button (X) */
+.fanfic-pill-value-remove {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-weight: bold;
+    font-size: 1em;
+    line-height: 1;
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
+    margin-left: 2px;
+}
+
+.fanfic-pill-value-remove:hover {
+    opacity: 1;
+}
+
+.fanfic-pill-value-remove:active {
+    transform: scale(0.95);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .fanfic-pills-container {
+        gap: 8px;
+    }
+
+    .fanfic-pill {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 6px 10px;
+    }
+
+    .fanfic-pill-label {
+        width: 100%;
+        margin-bottom: 4px;
+    }
+
+    .fanfic-pill-values {
+        width: 100%;
+    }
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+    .fanfic-pill {
+        background-color: #1e3a5f;
+        border-color: #2196f3;
+        color: #90caf9;
+    }
+
+    .fanfic-pill-value {
+        background-color: #1976d2;
+    }
+
+    .fanfic-pill-label {
+        color: #90caf9;
+    }
+
+    .fanfic-pill-value-text {
+        color: white;
+    }
+}
+
+/* Avatar inside pill (co-authors) */
+.fanfic-pill-value img {
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+/* Tags and inline pill input wrappers — pills + typing input inside a single input-like box */
+.fanfic-tags-input-wrapper,
+.fanfic-pill-input-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #cccccc;
+    border-radius: 3px;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+    background: #fff;
+    cursor: text;
+    min-height: 42px;
+}
+
+.fanfic-tags-input-wrapper:focus-within,
+.fanfic-pill-input-wrapper:focus-within {
+    outline: 2px solid var(--accent-color, #2271b1);
+    outline-offset: 2px;
+}
+
+.fanfic-tags-input-wrapper .fanfic-tags-pills {
+    display: contents;
+}
+
+.fanfic-tags-input-wrapper .fanfic-tags-pills:empty {
+    display: none;
+}
+
+.fanfic-pill-input-wrapper .fanfic-pill-values {
+    display: contents;
+}
+
+.fanfic-tags-typing {
+    flex: 1 1 120px;
+    min-width: 120px;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font: inherit;
+    line-height: inherit;
+}
+
+.fanfic-pill-input {
+    flex: 1 1 120px;
+    min-width: 120px;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font: inherit;
+    line-height: inherit;
+}
+
+/* Standalone pill-values containers (fandoms, coauthors, translations) */
+.fanfic-form-field > .fanfic-pill-values {
+    margin-top: 8px;
+}
+
+/* Accessibility */
+.fanfic-pill-value-remove:focus {
+    outline: 2px solid #fff;
+    outline-offset: -2px;
+}
+
+
+/* CSS for fanfic-search-bar.css */
+
+.fanfic-stories-form {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+}
+
+/* Common filters section (always visible) */
+.fanfic-common-filters {
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+    margin-top: 15px;
+}
+
+.fanfic-basic-search-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.fanfic-search-input-wrapper {
+    flex-grow: 1;
+    min-width: 200px; /* Allow input to grow but have a minimum width */
+}
+
+.fanfic-status-filter-wrapper,
+.fanfic-sort-filter-wrapper {
+    flex-grow: 1;
+    flex-basis: 200px; /* Give them a starting point for their size */
+}
+
+
+.fanfic-basic-search-row .fanfic-button {
+    padding: 8px 15px;
+    white-space: nowrap; /* Prevent button text from wrapping */
+}
+
+.fanfic-advanced-search-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    color: #0073aa;
+    font-weight: bold;
+    margin-top: 10px;
+    padding: 5px 0;
+    width: fit-content; /* Only take up as much width as content needs */
+}
+
+.fanfic-advanced-search-toggle:hover {
+    color: #005177;
+}
+
+.fanfic-advanced-search-toggle .dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+.fanfic-advanced-search-filters {
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+    margin-top: 15px;
+}
+
+.fanfic-stories-row {
+    margin-bottom: 15px;
+}
+
+.fanfic-stories-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.fanfic-stories-column {
+    flex: 1; /* Each column takes equal space */
+    min-width: 200px; /* Minimum width for columns before wrapping */
+}
+
+.fanfic-stories-row label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+/* Advanced filters input styling - global select styling inherited from fanfiction-frontend.css */
+.fanfic-stories-row input[type="text"].fanfic-input,
+.fanfic-stories-row select:not([multiple]) {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    background-color: #fff;
+}
+
+/* Multi-select dropdown styles - now in global fanfiction-frontend.css */
+
+/* Hide inline fandom pills in search form (Current Filters pills handle display) */
+.fanfic-stories-form .fanfic-selected-fandoms {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Warnings Columns (Exclude / Include side by side) */
+.fanfic-stories-warnings.fanfic-stories-columns {
+    margin-top: 5px;
+}
+
+/* Smart Toggle Styling */
+.fanfic-smart-toggle-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 15px;
+}
+
+.fanfic-toggle-label {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    font-weight: normal; /* Default to normal */
+}
+
+.fanfic-toggle-label.is-active {
+    font-weight: bold; /* Bold when active */
+}
+
+.fanfic-toggle-subtext {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 2px;
+}
+
+/* The actual switch - checkbox styled */
+.fanfic-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 24px;
+}
+
+.fanfic-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.fanfic-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  -webkit-transition: .4s;
+  transition: .4s;
+  border-radius: 24px; /* Make it round */
+}
+
+.fanfic-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  -webkit-transition: .4s;
+  transition: .4s;
+  border-radius: 50%; /* Make it round */
+}
+
+input:checked + .fanfic-slider {
+  background-color: #2196F3; /* Blue when checked */
+}
+
+input:focus + .fanfic-slider {
+  box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .fanfic-slider:before {
+  -webkit-transform: translateX(16px);
+  -ms-transform: translateX(16px);
+  transform: translateX(16px);
+}
+
+
+/* Style for Select2 dropdowns if used */
+.select2-container .select2-selection--multiple {
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    padding: 5px !important;
+    min-height: 34px !important;
+}
+
+.select2-container .select2-selection--single {
+    height: 34px !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    padding: 5px 0 5px 8px !important;
+}
+
+.select2-container .select2-selection--single .select2-selection__arrow {
+    height: 32px !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 22px !important;
+}
+
+.fanfic-stories-warning-list label {
+    display: inline-block;
+    margin-right: 15px;
+    font-weight: normal; /* Override bold from general label style */
+}
+
+.fanfic-advanced-actions {
+    margin-top: 20px;
+    text-align: right; /* Align "Clear all" button to the right */
+}
+
+/* Disabled checkbox styling for warnings cross-disable */
+.multi-select__dropdown label.fanfic-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #f5f5f5;
+}
+
+.multi-select__dropdown label.fanfic-disabled input[type="checkbox"] {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.multi-select__dropdown label.fanfic-disabled:hover {
+    background-color: #f5f5f5; /* Don't change on hover when disabled */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .fanfic-basic-search-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .fanfic-search-input-wrapper,
+    .fanfic-status-filter-wrapper,
+    .fanfic-sort-filter-wrapper {
+        min-width: unset;
+        width: 100%;
+    }
+
+    .fanfic-stories-columns {
+        flex-direction: column;
+    }
+
+    .fanfic-stories-column {
+        min-width: unset;
+        width: 100%;
+    }
+
+    .fanfic-pills-container {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .fanfic-filter-pill {
+        width: 100%;
+    }
 }

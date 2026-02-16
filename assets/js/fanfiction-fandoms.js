@@ -26,6 +26,7 @@
 		var maxFandoms = parseInt(container.getAttribute('data-max-fandoms'), 10) || 5;
 		var parentForm = container.closest('form');
 		var disableEmptyFandoms = !!(parentForm && parentForm.classList.contains('fanfic-stories-form'));
+		var savedFandomHTML = '';
 
 		if (!searchInput || !resultsBox || !selectedBox) {
 			return;
@@ -44,11 +45,19 @@
 
 		function setOriginalMode(isOriginal) {
 			if (isOriginal) {
+				// Save current pills (including hidden inputs) before wiping
+				savedFandomHTML = selectedBox.innerHTML;
+				// Clear so hidden inputs are not submitted with the form
 				selectedBox.innerHTML = '';
 				searchInput.value = '';
 				searchInput.disabled = true;
 				resultsBox.innerHTML = '';
+				// Hide the entire fandom field
+				container.style.display = 'none';
 			} else {
+				// Show the fandom field and restore previous selection
+				container.style.display = '';
+				selectedBox.innerHTML = savedFandomHTML;
 				searchInput.disabled = false;
 			}
 			dispatchChange();
