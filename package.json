@@ -1,0 +1,28 @@
+{
+  "name": "fanfiction",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "purge:frontend": "node purge.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sammu89/fanfiction.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Sammu89/fanfiction/issues"
+  },
+  "homepage": "https://github.com/Sammu89/fanfiction#readme",
+  "devDependencies": {
+    "purgecss": "^8.0.0"
+  }
+}
