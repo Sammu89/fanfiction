@@ -128,5 +128,8 @@ if ( $story_post && 'fanfiction_story' === $story_post->post_type && 'publish' !
 	<?php
 }
 
+// Render breadcrumb navigation
+fanfic_render_breadcrumb( 'view-story', array( 'story_id' => get_the_ID() ) );
+
 // Process shortcodes in the template
 echo do_shortcode( $template );

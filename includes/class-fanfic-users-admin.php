@@ -295,10 +295,21 @@ class Fanfic_Users_List_Table extends WP_List_Table {
 		$nonce = wp_create_nonce( 'fanfic_user_action_' . $item->ID );
 		$roles = $item->roles;
 		$is_banned = in_array( 'fanfiction_banned_user', $roles, true );
-		$is_wp_admin = in_array( 'administrator', $roles, true );
-		$is_fanfic_admin = in_array( 'fanfiction_admin', $roles, true );
-		$is_moderator = in_array( 'fanfiction_moderator', $roles, true );
 		$is_author = in_array( 'fanfiction_author', $roles, true );
+
+		$effective_target_roles = (array) $roles;
+		if ( $is_banned ) {
+			$original_role = get_user_meta( $item->ID, 'fanfic_original_role', true );
+			if ( is_array( $original_role ) ) {
+				$effective_target_roles = array_merge( $effective_target_roles, $original_role );
+			} elseif ( is_string( $original_role ) && '' !== $original_role ) {
+				$effective_target_roles[] = $original_role;
+			}
+		}
+
+		$is_wp_admin = in_array( 'administrator', $effective_target_roles, true );
+		$is_fanfic_admin = in_array( 'fanfiction_admin', $effective_target_roles, true );
+		$is_moderator = in_array( 'fanfiction_moderator', $effective_target_roles, true );
 
 		// Prevent actions on current user or super admins
 		if ( $item->ID === get_current_user_id() || ( is_multisite() && is_super_admin( $item->ID ) ) ) {
@@ -308,11 +319,17 @@ class Fanfic_Users_List_Table extends WP_List_Table {
 		// Check current user's permissions
 		$current_user_is_wp_admin = current_user_can( 'manage_options' );
 		$current_user_is_fanfic_admin = in_array( 'fanfiction_admin', wp_get_current_user()->roles, true );
-		$current_user_is_moderator = in_array( 'fanfiction_moderator', wp_get_current_user()->roles, true );
+		$current_user_can_promote_admin = current_user_can( 'manage_options' ) || current_user_can( 'manage_fanfiction_settings' );
 
 		// Determine if current user can take actions on target user
 		$can_ban_target = true;
 		$can_demote_target = true;
+
+		// Only WordPress admins can ban/demote WordPress administrators.
+		if ( $is_wp_admin && ! $current_user_is_wp_admin ) {
+			$can_ban_target = false;
+			$can_demote_target = false;
+		}
 
 		// Only WordPress admins can ban/demote fanfiction_admins
 		if ( $is_fanfic_admin && ! $current_user_is_wp_admin ) {
@@ -355,13 +372,22 @@ class Fanfic_Users_List_Table extends WP_List_Table {
 								<span class="dashicons dashicons-arrow-down"></span> <?php esc_html_e( 'Remove Administrator Role', 'fanfiction-manager' ); ?>
 							</a>
 						</li>
-					<?php elseif ( $is_moderator && $can_demote_target ) : ?>
+					<?php endif; ?>
+					<?php if ( $is_moderator && $can_demote_target ) : ?>
 						<li>
 							<a href="#" class="fanfic-action-remove-moderator" data-user-id="<?php echo absint( $item->ID ); ?>" data-nonce="<?php echo esc_attr( $nonce ); ?>">
 								<span class="dashicons dashicons-arrow-down"></span> <?php esc_html_e( 'Remove Moderator Role', 'fanfiction-manager' ); ?>
 							</a>
 						</li>
-					<?php elseif ( $is_author ) : ?>
+						<?php if ( $current_user_can_promote_admin ) : ?>
+							<li>
+								<a href="#" class="fanfic-action-promote" data-user-id="<?php echo absint( $item->ID ); ?>" data-nonce="<?php echo esc_attr( $nonce ); ?>" data-target="fanfiction_admin">
+									<span class="dashicons dashicons-arrow-up"></span> <?php esc_html_e( 'Promote to Administrator', 'fanfiction-manager' ); ?>
+								</a>
+							</li>
+						<?php endif; ?>
+					<?php endif; ?>
+					<?php if ( $is_author ) : ?>
 						<?php if ( $current_user_is_fanfic_admin || $current_user_is_wp_admin ) : ?>
 							<li>
 								<a href="#" class="fanfic-action-promote" data-user-id="<?php echo absint( $item->ID ); ?>" data-nonce="<?php echo esc_attr( $nonce ); ?>" data-target="fanfiction_moderator">
@@ -705,6 +731,155 @@ class Fanfic_Users_List_Table extends WP_List_Table {
 class Fanfic_Users_Admin {
 
 	/**
+	 * Get hierarchy rank for a role.
+	 *
+	 * @since 1.0.0
+	 * @param string $role Role slug.
+	 * @return int
+	 */
+	private static function get_role_rank( $role ) {
+		$ranks = array(
+			'administrator'        => 300,
+			'fanfiction_admin'     => 200,
+			'fanfiction_moderator' => 100,
+			'fanfiction_author'    => 20,
+			'fanfiction_reader'    => 10,
+			'fanfiction_banned_user' => 0,
+		);
+
+		return isset( $ranks[ $role ] ) ? (int) $ranks[ $role ] : -1;
+	}
+
+	/**
+	 * Get highest ranked role from a role list.
+	 *
+	 * @since 1.0.0
+	 * @param array $roles Role slugs.
+	 * @return string
+	 */
+	private static function get_highest_ranked_role( $roles ) {
+		if ( ! is_array( $roles ) || empty( $roles ) ) {
+			return '';
+		}
+
+		$highest_role = '';
+		$highest_rank = -1;
+
+		foreach ( $roles as $role ) {
+			$rank = self::get_role_rank( $role );
+			if ( $rank > $highest_rank ) {
+				$highest_rank = $rank;
+				$highest_role = $role;
+			}
+		}
+
+		if ( '' === $highest_role && ! empty( $roles[0] ) ) {
+			return sanitize_key( $roles[0] );
+		}
+
+		return $highest_role;
+	}
+
+	/**
+	 * Get effective hierarchy rank for a user.
+	 *
+	 * For banned users, original role is considered so rank checks are still enforced.
+	 *
+	 * @since 1.0.0
+	 * @param WP_User $user User object.
+	 * @return int
+	 */
+	private static function get_user_effective_rank( $user ) {
+		if ( ! ( $user instanceof WP_User ) ) {
+			return -1;
+		}
+
+		$highest_role = self::get_highest_ranked_role( (array) $user->roles );
+		$rank = self::get_role_rank( $highest_role );
+
+		if ( in_array( 'fanfiction_banned_user', (array) $user->roles, true ) ) {
+			$original_role = get_user_meta( $user->ID, 'fanfic_original_role', true );
+			if ( is_array( $original_role ) ) {
+				$original_role = self::get_highest_ranked_role( $original_role );
+			}
+
+			if ( is_string( $original_role ) && '' !== $original_role ) {
+				$rank = max( $rank, self::get_role_rank( $original_role ) );
+			}
+		}
+
+		return $rank;
+	}
+
+	/**
+	 * Check if current user can change target user's status.
+	 *
+	 * @since 1.0.0
+	 * @param WP_User $target_user Target user.
+	 * @return bool
+	 */
+	private static function can_current_user_change_target_status( $target_user ) {
+		if ( ! ( $target_user instanceof WP_User ) ) {
+			return false;
+		}
+
+		$current_user = wp_get_current_user();
+		if ( ! ( $current_user instanceof WP_User ) ) {
+			return false;
+		}
+
+		// Banned users cannot perform moderation/admin actions, regardless of past role.
+		if ( in_array( 'fanfiction_banned_user', (array) $current_user->roles, true ) ) {
+			return false;
+		}
+
+		return self::get_user_effective_rank( $current_user ) > self::get_user_effective_rank( $target_user );
+	}
+
+	/**
+	 * Get role value stored before banning a user.
+	 *
+	 * @since 1.0.0
+	 * @param WP_User $user User object.
+	 * @return string
+	 */
+	private static function get_role_to_store_before_ban( $user ) {
+		if ( ! ( $user instanceof WP_User ) ) {
+			return '';
+		}
+
+		$role = self::get_highest_ranked_role( (array) $user->roles );
+		if ( '' !== $role ) {
+			return $role;
+		}
+
+		$roles = (array) $user->roles;
+		return ! empty( $roles[0] ) ? sanitize_key( $roles[0] ) : '';
+	}
+
+	/**
+	 * Determine role to restore during unban.
+	 *
+	 * @since 1.0.0
+	 * @param int          $user_id User ID.
+	 * @param string|array $original_role Original role value.
+	 * @return string
+	 */
+	private static function get_role_to_restore_after_unban( $user_id, $original_role ) {
+		if ( is_array( $original_role ) ) {
+			$original_role = self::get_highest_ranked_role( $original_role );
+		}
+
+		$original_role = is_string( $original_role ) ? sanitize_key( $original_role ) : '';
+		if ( in_array( $original_role, array( 'administrator', 'fanfiction_admin', 'fanfiction_moderator' ), true ) ) {
+			return $original_role;
+		}
+
+		$story_count = count_user_posts( $user_id, 'fanfiction_story', true );
+		return ( $story_count > 0 ) ? 'fanfiction_author' : 'fanfiction_reader';
+	}
+
+	/**
 	 * Initialize the users admin class
 	 *
 	 * Sets up WordPress hooks for user management.
@@ -805,7 +980,7 @@ class Fanfic_Users_Admin {
 						<ul>
 							<li><strong><?php esc_html_e( 'Ban:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Banned users can still log in but cannot create/edit content. Their stories are marked as blocked and hidden from public view. Fanfiction admins cannot ban other admins; moderators cannot ban other moderators.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Unban:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Restores user role based on published story count. Users with stories become Authors; users without stories become Readers.', 'fanfiction-manager' ); ?></li>
-							<li><strong><?php esc_html_e( 'Promote:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Only Moderator role can be manually promoted. Reader → Author promotion is automatic when a user publishes their first story. Only administrators can promote to Moderator role.', 'fanfiction-manager' ); ?></li>
+							<li><strong><?php esc_html_e( 'Promote:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Reader → Author promotion is automatic when a user publishes their first story. Only administrators can promote users to Moderator or Administrator roles.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Remove Role:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Remove Administrator or Moderator roles. Only WordPress administrators can remove Administrator roles. Only administrators can remove Moderator roles.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Auto-Demotion:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Authors with 0 published stories are automatically demoted to Reader role daily via WP-Cron.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Content Preservation:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Banning preserves all user content - it just hides stories from public view. Stories remain in the database.', 'fanfiction-manager' ); ?></li>
@@ -1169,27 +1344,15 @@ class Fanfic_Users_Admin {
 			wp_send_json_error( array( 'message' => __( 'Cannot ban this user.', 'fanfiction-manager' ) ) );
 		}
 
-		// Permission checks for banning admins and moderators
-		$target_roles = $user->roles;
-		$current_user_id = get_current_user_id();
-		$is_wp_admin = current_user_can( 'manage_options' );
-		$is_fanfic_admin = in_array( 'fanfiction_admin', wp_get_current_user()->roles, true );
-		$is_moderator = in_array( 'fanfiction_moderator', wp_get_current_user()->roles, true );
-
-		// Only WordPress admins can ban fanfiction_admins
-		if ( in_array( 'fanfiction_admin', $target_roles, true ) && ! $is_wp_admin ) {
-			wp_send_json_error( array( 'message' => __( 'Only WordPress administrators can ban fanfiction administrators.', 'fanfiction-manager' ) ) );
-		}
-
-		// Only fanfiction_admins or WordPress admins can ban moderators
-		if ( in_array( 'fanfiction_moderator', $target_roles, true ) && ! $is_fanfic_admin && ! $is_wp_admin ) {
-			wp_send_json_error( array( 'message' => __( 'Only administrators can ban moderators.', 'fanfiction-manager' ) ) );
+		// Enforce hierarchy: cannot change status for equal/higher rank.
+		if ( ! self::can_current_user_change_target_status( $user ) ) {
+			wp_send_json_error( array( 'message' => __( 'You cannot change status for users with equal or higher rank.', 'fanfiction-manager' ) ) );
 		}
 
 		// Store original role
-		$current_roles = $user->roles;
-		if ( ! empty( $current_roles ) ) {
-			update_user_meta( $user_id, 'fanfic_original_role', $current_roles[0] );
+		$original_role = self::get_role_to_store_before_ban( $user );
+		if ( '' !== $original_role ) {
+			update_user_meta( $user_id, 'fanfic_original_role', $original_role );
 		}
 
 		// Change to banned role
@@ -1232,26 +1395,18 @@ class Fanfic_Users_Admin {
 			wp_send_json_error( array( 'message' => __( 'Invalid user.', 'fanfiction-manager' ) ) );
 		}
 
+		if ( ! in_array( 'fanfiction_banned_user', $user->roles, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'This user is not banned.', 'fanfiction-manager' ) ) );
+		}
+
+		// Enforce hierarchy: cannot change status for equal/higher rank.
+		if ( ! self::can_current_user_change_target_status( $user ) ) {
+			wp_send_json_error( array( 'message' => __( 'You cannot change status for users with equal or higher rank.', 'fanfiction-manager' ) ) );
+		}
+
 		// Determine role to restore
 		$original_role = get_user_meta( $user_id, 'fanfic_original_role', true );
-
-		// Check published story count
-		$story_count = count_user_posts( $user_id, 'fanfiction_story', true );
-
-		// Determine appropriate role based on original role and current story count
-		$restored_role = '';
-
-		// If original role was moderator or admin, restore that role regardless of story count
-		if ( 'fanfiction_moderator' === $original_role || 'fanfiction_admin' === $original_role ) {
-			$restored_role = $original_role;
-		} else {
-			// For author, reader, or no original role - verify based on current story count
-			if ( $story_count > 0 ) {
-				$restored_role = 'fanfiction_author';
-			} else {
-				$restored_role = 'fanfiction_reader';
-			}
-		}
+		$restored_role = self::get_role_to_restore_after_unban( $user_id, $original_role );
 
 		// Restore role
 		$user->set_role( $restored_role );
@@ -1295,26 +1450,33 @@ class Fanfic_Users_Admin {
 			wp_send_json_error( array( 'message' => __( 'Invalid user.', 'fanfiction-manager' ) ) );
 		}
 
-		// Validate target role - author role is automatically assigned, not manually promoted
-		$allowed_roles = array( 'fanfiction_moderator', 'administrator' );
-		if ( ! in_array( $target_role, $allowed_roles, true ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid target role. Author role is automatically assigned when a user publishes their first story.', 'fanfiction-manager' ) ) );
+		// Enforce hierarchy: cannot change status for equal/higher rank.
+		if ( ! self::can_current_user_change_target_status( $user ) ) {
+			wp_send_json_error( array( 'message' => __( 'You cannot change status for users with equal or higher rank.', 'fanfiction-manager' ) ) );
 		}
 
-		// Permission check: only fanfiction_admins or WordPress admins can promote to moderator role
-		if ( 'fanfiction_moderator' === $target_role ) {
-			$is_wp_admin = current_user_can( 'manage_options' );
-			$is_fanfic_admin = in_array( 'fanfiction_admin', wp_get_current_user()->roles, true );
+		// Validate target role.
+		$allowed_roles = array( 'fanfiction_moderator', 'fanfiction_admin' );
+		if ( ! in_array( $target_role, $allowed_roles, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid target role.', 'fanfiction-manager' ) ) );
+		}
 
-			if ( ! $is_fanfic_admin && ! $is_wp_admin ) {
+		// Permission check: only fanfiction_admins or WordPress admins can promote.
+		if ( 'fanfiction_moderator' === $target_role ) {
+			if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_fanfiction_settings' ) ) {
 				wp_send_json_error( array( 'message' => __( 'Only administrators can promote users to moderator role.', 'fanfiction-manager' ) ) );
+			}
+		}
+		if ( 'fanfiction_admin' === $target_role ) {
+			if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_fanfiction_settings' ) ) {
+				wp_send_json_error( array( 'message' => __( 'Only administrators can promote users to administrator role.', 'fanfiction-manager' ) ) );
 			}
 		}
 
 		// Store previous role
-		$previous_roles = $user->roles;
-		if ( ! empty( $previous_roles ) ) {
-			update_user_meta( $user_id, 'fanfic_previous_role', $previous_roles[0] );
+		$previous_role = self::get_role_to_store_before_ban( $user );
+		if ( '' !== $previous_role ) {
+			update_user_meta( $user_id, 'fanfic_previous_role', $previous_role );
 		}
 
 		// Set new role
@@ -1372,6 +1534,11 @@ class Fanfic_Users_Admin {
 		$user = get_userdata( $user_id );
 		if ( ! $user ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid user.', 'fanfiction-manager' ) ) );
+		}
+
+		// Enforce hierarchy: cannot change status for equal/higher rank.
+		if ( ! self::can_current_user_change_target_status( $user ) ) {
+			wp_send_json_error( array( 'message' => __( 'You cannot change status for users with equal or higher rank.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if user already has the target role
@@ -1442,6 +1609,11 @@ class Fanfic_Users_Admin {
 		$user = get_userdata( $user_id );
 		if ( ! $user ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid user.', 'fanfiction-manager' ) ) );
+		}
+
+		// Enforce hierarchy: cannot change status for equal/higher rank.
+		if ( ! self::can_current_user_change_target_status( $user ) ) {
+			wp_send_json_error( array( 'message' => __( 'You cannot change status for users with equal or higher rank.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if user has moderator role
@@ -1519,6 +1691,11 @@ class Fanfic_Users_Admin {
 			wp_send_json_error( array( 'message' => __( 'Invalid user.', 'fanfiction-manager' ) ) );
 		}
 
+		// Enforce hierarchy: cannot change status for equal/higher rank.
+		if ( ! self::can_current_user_change_target_status( $user ) ) {
+			wp_send_json_error( array( 'message' => __( 'You cannot change status for users with equal or higher rank.', 'fanfiction-manager' ) ) );
+		}
+
 		// Check if user has admin role
 		if ( ! in_array( 'fanfiction_admin', $user->roles, true ) ) {
 			wp_send_json_error( array( 'message' => __( 'This user does not have the admin role.', 'fanfiction-manager' ) ) );
@@ -1592,33 +1769,20 @@ class Fanfic_Users_Admin {
 			return;
 		}
 
-		// Check permission level for bulk actions
-		$is_wp_admin = current_user_can( 'manage_options' );
-		$is_fanfic_admin = in_array( 'fanfiction_admin', wp_get_current_user()->roles, true );
-
 		switch ( $action ) {
 			case 'ban':
 				$banned_count = 0;
 				foreach ( $user_ids as $user_id ) {
 					$user = get_userdata( $user_id );
 					if ( $user && $user_id !== get_current_user_id() ) {
-						// Permission checks for banning admins and moderators
-						$target_roles = $user->roles;
-
-						// Only WordPress admins can ban fanfiction_admins
-						if ( in_array( 'fanfiction_admin', $target_roles, true ) && ! $is_wp_admin ) {
-							continue; // Skip this user
-						}
-
-						// Only fanfiction_admins or WordPress admins can ban moderators
-						if ( in_array( 'fanfiction_moderator', $target_roles, true ) && ! $is_fanfic_admin && ! $is_wp_admin ) {
+						if ( ! self::can_current_user_change_target_status( $user ) ) {
 							continue; // Skip this user
 						}
 
 						// Store original role
-						$current_roles = $user->roles;
-						if ( ! empty( $current_roles ) ) {
-							update_user_meta( $user_id, 'fanfic_original_role', $current_roles[0] );
+						$original_role = self::get_role_to_store_before_ban( $user );
+						if ( '' !== $original_role ) {
+							update_user_meta( $user_id, 'fanfic_original_role', $original_role );
 						}
 
 						// Ban user
@@ -1645,29 +1809,17 @@ class Fanfic_Users_Admin {
 				exit;
 
 			case 'unban':
+				$unbanned_count = 0;
 				foreach ( $user_ids as $user_id ) {
 					$user = get_userdata( $user_id );
 					if ( $user && in_array( 'fanfiction_banned_user', $user->roles, true ) ) {
+						if ( ! self::can_current_user_change_target_status( $user ) ) {
+							continue; // Skip this user.
+						}
+
 						// Determine role to restore
 						$original_role = get_user_meta( $user_id, 'fanfic_original_role', true );
-
-						// Check published story count
-						$story_count = count_user_posts( $user_id, 'fanfiction_story', true );
-
-						// Determine appropriate role based on original role and current story count
-						$restored_role = '';
-
-						// If original role was moderator or admin, restore that role regardless of story count
-						if ( 'fanfiction_moderator' === $original_role || 'fanfiction_admin' === $original_role ) {
-							$restored_role = $original_role;
-						} else {
-							// For author, reader, or no original role - verify based on current story count
-							if ( $story_count > 0 ) {
-								$restored_role = 'fanfiction_author';
-							} else {
-								$restored_role = 'fanfiction_reader';
-							}
-						}
+						$restored_role = self::get_role_to_restore_after_unban( $user_id, $original_role );
 
 						$user->set_role( $restored_role );
 						delete_user_meta( $user_id, 'fanfic_banned' );
@@ -1676,6 +1828,7 @@ class Fanfic_Users_Admin {
 						update_user_meta( $user_id, 'fanfic_unbanned_at', current_time( 'mysql' ) );
 
 						do_action( 'fanfic_user_unbanned', $user_id, get_current_user_id() );
+						$unbanned_count++;
 					}
 				}
 
@@ -1684,7 +1837,7 @@ class Fanfic_Users_Admin {
 						array(
 							'page'    => 'fanfiction-users',
 							'success' => 'bulk_unban',
-							'count'   => count( $user_ids ),
+							'count'   => $unbanned_count,
 						),
 						admin_url( 'admin.php' )
 					)
@@ -1696,6 +1849,10 @@ class Fanfic_Users_Admin {
 				foreach ( $user_ids as $user_id ) {
 					$user = get_userdata( $user_id );
 					if ( $user && $user_id !== get_current_user_id() ) {
+						if ( ! self::can_current_user_change_target_status( $user ) ) {
+							continue;
+						}
+
 						// Check if user is banned - if so, skip them completely
 						if ( in_array( 'fanfiction_banned_user', $user->roles, true ) ) {
 							continue;

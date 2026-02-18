@@ -1440,6 +1440,7 @@ class Fanfic_Settings {
 								<p class="description"><?php esc_html_e( 'Hour of the day (server time) when daily maintenance tasks should run.', 'fanfiction-manager' ); ?></p>
 							</td>
 						</tr>
+
 					</tbody>
 				</table>
 

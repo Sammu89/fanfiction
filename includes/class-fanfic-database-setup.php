@@ -151,6 +151,7 @@ class Fanfic_Database_Setup {
 			message text NOT NULL,
 			data longtext DEFAULT NULL,
 			is_read tinyint(1) NOT NULL DEFAULT 0,
+			is_persistent tinyint(1) NOT NULL DEFAULT 0,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY idx_user_read (user_id, is_read),

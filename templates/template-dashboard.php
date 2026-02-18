@@ -35,8 +35,12 @@ if ( ! is_user_logged_in() ) {
 	return;
 }
 
-// Check if user has author capability
-if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
+$current_user = wp_get_current_user();
+$is_banned_user = in_array( 'fanfiction_banned_user', (array) $current_user->roles, true );
+
+// Check if user can access dashboard.
+// Banned users keep read-only dashboard/profile access.
+if ( ! current_user_can( 'edit_fanfiction_stories' ) && ! $is_banned_user ) {
 	?>
 	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
 		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
@@ -46,7 +50,6 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) ) {
 	return;
 }
 
-$current_user = wp_get_current_user();
 $user_id = get_current_user_id();
 
 $coauthors_enabled = class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled();
@@ -163,10 +166,12 @@ if ( isset( $_GET['error'] ) ) {
 	<h2 id="actions-heading"><?php esc_html_e( 'Quick Actions', 'fanfiction-manager' ); ?></h2>
 
 	<div class="fanfic-actions-grid">
-		<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button fanfic-action-primary">
-			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
-			<span><?php esc_html_e( 'Create New Story', 'fanfiction-manager' ); ?></span>
-		</a>
+		<?php if ( ! $is_banned_user ) : ?>
+			<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button fanfic-action-primary">
+				<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
+				<span><?php esc_html_e( 'Create New Story', 'fanfiction-manager' ); ?></span>
+			</a>
+		<?php endif; ?>
 
 		<a href="<?php echo esc_url( fanfic_get_dashboard_url() . '#my-stories' ); ?>" class="fanfic-button fanfic-action-secondary">
 			<span class="dashicons dashicons-portfolio" aria-hidden="true"></span>
@@ -330,7 +335,11 @@ if ( isset( $_GET['error'] ) ) {
 											</time>
 										</td>
 										<td class="fanfic-story-actions">
-											<?php if ( $is_blocked ) : ?>
+											<?php if ( $is_banned_user ) : ?>
+												<span class="fanfic-badge fanfic-badge-blocked">
+													<?php esc_html_e( 'Suspended (read-only)', 'fanfiction-manager' ); ?>
+												</span>
+											<?php elseif ( $is_blocked ) : ?>
 												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
 													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
 												</span>
@@ -383,9 +392,11 @@ if ( isset( $_GET['error'] ) ) {
 				<?php else : ?>
 					<div class="fanfic-empty-state">
 						<p><?php esc_html_e( 'You have not created any stories yet.', 'fanfiction-manager' ); ?></p>
-						<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button">
-							<?php esc_html_e( 'Create Your First Story', 'fanfiction-manager' ); ?>
-						</a>
+						<?php if ( ! $is_banned_user ) : ?>
+							<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button">
+								<?php esc_html_e( 'Create Your First Story', 'fanfiction-manager' ); ?>
+							</a>
+						<?php endif; ?>
 					</div>
 				<?php endif; ?>
 			</div>
@@ -399,31 +410,29 @@ if ( isset( $_GET['error'] ) ) {
 		<h2 id="sidebar-heading" class="screen-reader-text"><?php esc_html_e( 'Dashboard Sidebar', 'fanfiction-manager' ); ?></h2>
 
 		<!-- Notifications -->
+		<?php
+		$notif_per_page   = 30;
+		$notif_all        = Fanfic_Notifications::get_user_notifications( $current_user->ID, false, $notif_per_page, 0 );
+		$notif_unread     = Fanfic_Notifications::get_unread_count( $current_user->ID );
+		$notif_total      = Fanfic_Notifications::get_total_count( $current_user->ID );
+		$notif_has_more   = $notif_total > $notif_per_page;
+		?>
 		<section class="fanfic-dashboard-widget fanfic-notifications-widget" aria-labelledby="notifications-heading">
 			<h3 id="notifications-heading">
 				<?php esc_html_e( 'Notifications', 'fanfiction-manager' ); ?>
-				<?php
-				$unread_count = Fanfic_Notifications::get_unread_count( $current_user->ID );
-				if ( $unread_count > 0 ) :
-					?>
-					<span class="fanfic-notification-badge" aria-label="<?php echo esc_attr( sprintf( _n( '%d unread notification', '%d unread notifications', $unread_count, 'fanfiction-manager' ), $unread_count ) ); ?>">
-						<?php echo esc_html( $unread_count ); ?>
+				<?php if ( $notif_unread > 0 ) : ?>
+					<span class="fanfic-notification-badge" aria-label="<?php echo esc_attr( sprintf( _n( '%d unread notification', '%d unread notifications', $notif_unread, 'fanfiction-manager' ), $notif_unread ) ); ?>">
+						<?php echo esc_html( $notif_unread ); ?>
 					</span>
 				<?php endif; ?>
 			</h3>
-			<div class="fanfic-notifications-container">
-				<?php
-				// Get first page of notifications (10 per page)
-				$notifications = Fanfic_Notifications::get_user_notifications( $current_user->ID, true, 10, 0 );
-
-				if ( ! empty( $notifications ) ) :
-					?>
+			<div class="fanfic-notifications-container" data-total="<?php echo esc_attr( $notif_total ); ?>">
+				<?php if ( ! empty( $notif_all ) ) : ?>
 					<div class="fanfic-notifications-list">
-						<?php foreach ( $notifications as $notification ) : ?>
+						<?php foreach ( $notif_all as $notification ) : ?>
 							<div class="fanfic-notification-item fanfic-notification-<?php echo esc_attr( $notification->type ); ?>" data-notification-id="<?php echo esc_attr( $notification->id ); ?>">
 								<div class="fanfic-notification-icon" aria-hidden="true">
 									<?php
-									// Display different icons based on notification type
 									switch ( $notification->type ) {
 										case Fanfic_Notifications::TYPE_NEW_COMMENT:
 										case Fanfic_Notifications::TYPE_COMMENT_REPLY:
@@ -441,6 +450,10 @@ if ( isset( $_GET['error'] ) ) {
 										case Fanfic_Notifications::TYPE_COAUTHOR_DISABLED:
 										case Fanfic_Notifications::TYPE_COAUTHOR_ENABLED:
 											echo '<span class="dashicons dashicons-groups"></span>';
+											break;
+										case Fanfic_Notifications::TYPE_USER_BANNED:
+										case Fanfic_Notifications::TYPE_USER_UNBANNED:
+											echo '<span class="dashicons dashicons-shield"></span>';
 											break;
 										default:
 											echo '<span class="dashicons dashicons-bell"></span>';
@@ -467,32 +480,29 @@ if ( isset( $_GET['error'] ) ) {
 						<?php endforeach; ?>
 					</div>
 
-					<?php
-					// Show pagination if there are more notifications
-					$total_notifications = $unread_count;
-					if ( $total_notifications > 10 ) :
-						$total_pages = min( ceil( $total_notifications / 10 ), 5 ); // Max 50 notifications = 5 pages
-						?>
-						<div class="fanfic-notifications-pagination">
-							<?php for ( $page = 1; $page <= $total_pages; $page++ ) : ?>
-								<button type="button"
-									class="fanfic-notification-page-button<?php echo ( 1 === $page ) ? ' active' : ''; ?>"
-									data-page="<?php echo esc_attr( $page ); ?>"
-									aria-label="<?php echo esc_attr( sprintf( __( 'Page %d', 'fanfiction-manager' ), $page ) ); ?>">
-									<?php echo esc_html( $page ); ?>
-								</button>
-							<?php endfor; ?>
-						</div>
-					<?php endif; ?>
+					<div class="fanfic-notifications-footer">
+						<?php if ( $notif_has_more ) : ?>
+							<button type="button"
+								class="fanfic-notification-show-more"
+								data-offset="<?php echo esc_attr( $notif_per_page ); ?>"
+								data-total="<?php echo esc_attr( $notif_total ); ?>">
+								<?php esc_html_e( 'Show more', 'fanfiction-manager' ); ?>
+							</button>
+						<?php endif; ?>
+						<button type="button" class="fanfic-notification-clear-all">
+							<?php esc_html_e( 'Clear all', 'fanfiction-manager' ); ?>
+						</button>
+					</div>
+
 				<?php else : ?>
 					<div class="fanfic-notifications-empty">
-						<p><?php esc_html_e( 'No unread notifications', 'fanfiction-manager' ); ?></p>
+						<p><?php esc_html_e( 'No notifications', 'fanfiction-manager' ); ?></p>
 					</div>
 				<?php endif; ?>
 
 				<div class="fanfic-notifications-loading" style="display: none;">
 					<span class="spinner is-active"></span>
-					<p><?php esc_html_e( 'Loading notifications...', 'fanfiction-manager' ); ?></p>
+					<p><?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?></p>
 				</div>
 			</div>
 		</section>

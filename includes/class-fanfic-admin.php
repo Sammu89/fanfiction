@@ -33,8 +33,32 @@ class Fanfic_Admin {
 	 */
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'add_admin_menu' ) );
+		add_action( 'admin_menu', array( __CLASS__, 'limit_fanfic_staff_admin_menu' ), 999 );
+		add_action( 'admin_init', array( __CLASS__, 'restrict_fanfic_staff_admin_pages' ), 1 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
 		add_action( 'admin_footer', array( __CLASS__, 'add_external_link_target_blank' ) );
+	}
+
+	/**
+	 * Check if current user should be limited to fanfiction menu only.
+	 *
+	 * @since 1.0.0
+	 * @return bool
+	 */
+	private static function is_limited_fanfic_staff_user() {
+		if ( ! is_user_logged_in() ) {
+			return false;
+		}
+
+		$current_user = wp_get_current_user();
+		$roles = (array) $current_user->roles;
+
+		// WordPress administrators keep full wp-admin access.
+		if ( in_array( 'administrator', $roles, true ) ) {
+			return false;
+		}
+
+		return in_array( 'fanfiction_moderator', $roles, true ) || in_array( 'fanfiction_admin', $roles, true );
 	}
 
 	/**
@@ -60,7 +84,7 @@ class Fanfic_Admin {
 		add_menu_page(
 			__( 'Fanfiction', 'fanfiction-manager' ),
 			__( 'Fanfiction', 'fanfiction-manager' ),
-			'manage_options',
+			'moderate_fanfiction',
 			'fanfiction-manager',
 			array( __CLASS__, 'render_stories_page' ),
 			'dashicons-book',
@@ -72,7 +96,7 @@ class Fanfic_Admin {
 			'fanfiction-manager',
 			__( 'Story list', 'fanfiction-manager' ),
 			__( 'Story list', 'fanfiction-manager' ),
-			'manage_options',
+			'moderate_fanfiction',
 			'fanfiction-manager',
 			array( __CLASS__, 'render_stories_page' )
 		);
@@ -102,7 +126,7 @@ class Fanfic_Admin {
 			'fanfiction-manager',
 			__( 'Users', 'fanfiction-manager' ),
 			__( 'Users', 'fanfiction-manager' ),
-			'manage_options',
+			'moderate_fanfiction',
 			'fanfiction-users',
 			array( __CLASS__, 'render_users_page' )
 		);
@@ -158,6 +182,67 @@ class Fanfic_Admin {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Hide non-fanfiction WP admin menus for fanfiction staff users.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function limit_fanfic_staff_admin_menu() {
+		if ( ! self::is_limited_fanfic_staff_user() ) {
+			return;
+		}
+
+		$menus_to_remove = array(
+			'index.php',                    // Dashboard
+			'edit.php',                     // Posts (Articles)
+			'upload.php',                   // Media
+			'edit.php?post_type=page',      // Pages
+			'edit-comments.php',            // Comments
+			'profile.php',                  // Profile
+			'tools.php',                    // Tools
+			'users.php',                    // Users
+			'plugins.php',                  // Plugins
+			'themes.php',                   // Appearance
+			'options-general.php',          // Settings
+		);
+
+		foreach ( $menus_to_remove as $menu_slug ) {
+			remove_menu_page( $menu_slug );
+		}
+	}
+
+	/**
+	 * Block direct access to non-fanfiction wp-admin pages for fanfiction staff users.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public static function restrict_fanfic_staff_admin_pages() {
+		if ( ! self::is_limited_fanfic_staff_user() ) {
+			return;
+		}
+
+		if ( wp_doing_ajax() ) {
+			return;
+		}
+
+		global $pagenow;
+		$pagenow = is_string( $pagenow ) ? $pagenow : '';
+
+		// Allow the fanfiction admin pages only.
+		if ( 'admin.php' === $pagenow ) {
+			$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+			if ( 0 === strpos( $page, 'fanfiction' ) || 0 === strpos( $page, 'fanfic-' ) ) {
+				return;
+			}
+		}
+
+		$redirect_url = admin_url( 'admin.php?page=fanfiction-manager' );
+		wp_safe_redirect( $redirect_url );
+		exit;
 	}
 
 	/**
@@ -257,7 +342,7 @@ jQuery(document).ready(function($) {
 	 */
 	public static function render_stories_page() {
 		// Check user capabilities
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
 			wp_die( __( 'You do not have sufficient permissions to access this page.', 'fanfiction-manager' ) );
 		}
 
@@ -472,7 +557,7 @@ jQuery(document).ready(function($) {
 								<?php esc_html_e( 'Display breadcrumb navigation on plugin pages', 'fanfiction-manager' ); ?>
 							</label>
 							<p class="description">
-								<?php esc_html_e( 'Breadcrumbs help users understand their location and navigate through the site hierarchy. You can also use the [fanfic-breadcrumbs] shortcode to display breadcrumbs anywhere.', 'fanfiction-manager' ); ?>
+								<?php esc_html_e( 'Breadcrumbs help users understand their location and navigate through the site hierarchy.', 'fanfiction-manager' ); ?>
 							</p>
 						</td>
 					</tr>

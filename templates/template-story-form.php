@@ -1388,6 +1388,106 @@ fanfic_render_breadcrumb( 'edit-story', array(
 			});
 		});
 
+		var fanficPendingFormMessageKey = 'fanfic_pending_form_message';
+		var storyMessagesContainer = document.getElementById('fanfic-messages');
+
+		function scrollStoryMessagesIntoViewTwice() {
+			if (!storyMessagesContainer) {
+				return;
+			}
+
+			var adminBar = document.getElementById('wpadminbar');
+			var topOffset = (adminBar ? adminBar.offsetHeight : 0) + 16;
+			var targetY = storyMessagesContainer.getBoundingClientRect().top + window.pageYOffset - topOffset;
+			var scrollTarget = Math.max(targetY, 0);
+
+			window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+			setTimeout(function() {
+				window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+			}, 220);
+		}
+
+		function appendStoryFormMessage(type, message, persistent) {
+			if (!message) {
+				return;
+			}
+
+			var normalizedType = (type === 'error' || type === 'warning') ? type : 'success';
+			if (!storyMessagesContainer) {
+				console[(normalizedType === 'error') ? 'error' : 'log'](message);
+				return;
+			}
+
+			var icon = normalizedType === 'error' ? '&#10007;' : (normalizedType === 'warning' ? '&#9888;' : '&#10003;');
+			var notice = document.createElement('div');
+			notice.className = 'fanfic-message fanfic-message-' + normalizedType;
+			notice.setAttribute('role', normalizedType === 'error' ? 'alert' : 'status');
+			notice.setAttribute('aria-live', normalizedType === 'error' ? 'assertive' : 'polite');
+			notice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">' + icon + '</span><span class="fanfic-message-content"></span><button type="button" class="fanfic-message-close" aria-label="<?php echo esc_attr( __( 'Close message', 'fanfiction-manager' ) ); ?>">&times;</button>';
+
+			var contentNode = notice.querySelector('.fanfic-message-content');
+			if (contentNode) {
+				contentNode.textContent = message;
+				contentNode.style.whiteSpace = 'pre-line';
+			}
+
+			var closeBtn = notice.querySelector('.fanfic-message-close');
+			if (closeBtn) {
+				closeBtn.addEventListener('click', function() {
+					notice.remove();
+				});
+			}
+
+			storyMessagesContainer.appendChild(notice);
+			scrollStoryMessagesIntoViewTwice();
+
+			if (!persistent && normalizedType !== 'error') {
+				setTimeout(function() {
+					notice.remove();
+				}, 5000);
+			}
+		}
+
+		function queueStoryFormMessage(type, message, persistent) {
+			if (!message) {
+				return;
+			}
+
+			try {
+				sessionStorage.setItem(fanficPendingFormMessageKey, JSON.stringify({
+					type: type || 'success',
+					message: message,
+					persistent: !!persistent
+				}));
+			} catch (storageError) {
+				appendStoryFormMessage(type, message, persistent);
+			}
+		}
+
+		function consumeStoryFormMessage() {
+			try {
+				var rawMessage = sessionStorage.getItem(fanficPendingFormMessageKey);
+				if (!rawMessage) {
+					return;
+				}
+
+				sessionStorage.removeItem(fanficPendingFormMessageKey);
+				var parsedMessage = JSON.parse(rawMessage);
+				if (parsedMessage && parsedMessage.message) {
+					appendStoryFormMessage(parsedMessage.type, parsedMessage.message, parsedMessage.persistent);
+				}
+			} catch (storageError) {
+				try {
+					sessionStorage.removeItem(fanficPendingFormMessageKey);
+				} catch (cleanupError) {}
+			}
+		}
+
+		consumeStoryFormMessage();
+		if (storyMessagesContainer && storyMessagesContainer.querySelector('.fanfic-message')) {
+			setTimeout(scrollStoryMessagesIntoViewTwice, 60);
+		}
+
 		function reorderStoryFormFields() {
 			var form = document.getElementById('fanfic-story-form');
 			if (!form) {
@@ -1724,7 +1824,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 									errorMessage += '- ' + error + '\n';
 								});
 							}
-							alert(errorMessage);
+							appendStoryFormMessage('error', errorMessage, true);
 
 							// Log detailed error for debugging
 							console.error('Story delete failed:', data);
@@ -1734,7 +1834,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 						// Re-enable button and show error
 						buttonElement.disabled = false;
 						buttonElement.textContent = FanficMessages.delete;
-						alert(FanficMessages.errorDeletingStory + '\n\n' + '<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>');
+						appendStoryFormMessage('error', FanficMessages.errorDeletingStory + '\n\n' + '<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>', true);
 						console.error('Error deleting story:', error);
 					});
 				}
@@ -1801,7 +1901,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 						if (data.success) {
 							// Show alert if story was auto-drafted
 							if (data.data.story_auto_drafted) {
-								alert(FanficMessages.unpublishChapterAutoDraftAlert);
+								queueStoryFormMessage('warning', FanficMessages.unpublishChapterAutoDraftAlert, true);
 							}
 							// Reload page to show updated status
 							location.reload();
@@ -1809,14 +1909,14 @@ fanfic_render_breadcrumb( 'edit-story', array(
 							// Re-enable button and show error
 							buttonElement.disabled = false;
 							buttonElement.textContent = FanficMessages.unpublish;
-							alert(data.data.message || FanficMessages.errorUnpublishingChapter);
+							appendStoryFormMessage('error', data.data.message || FanficMessages.errorUnpublishingChapter, true);
 						}
 					})
 					.catch(function(error) {
 						// Re-enable button and show error
 						buttonElement.disabled = false;
 						buttonElement.textContent = FanficMessages.unpublish;
-						alert(FanficMessages.errorUnpublishingChapter);
+						appendStoryFormMessage('error', FanficMessages.errorUnpublishingChapter, true);
 						console.error('Error:', error);
 					});
 				})
@@ -1844,13 +1944,13 @@ fanfic_render_breadcrumb( 'edit-story', array(
 						.then(function(data) {
 							if (data.success) {
 								if (data.data.story_auto_drafted) {
-									alert(FanficMessages.unpublishChapterAutoDraftAlert);
+									queueStoryFormMessage('warning', FanficMessages.unpublishChapterAutoDraftAlert, true);
 								}
 								location.reload();
 							} else {
 								buttonElement.disabled = false;
 								buttonElement.textContent = FanficMessages.unpublish;
-								alert(data.data.message || FanficMessages.errorUnpublishingChapter);
+								appendStoryFormMessage('error', data.data.message || FanficMessages.errorUnpublishingChapter, true);
 							}
 						});
 					}
@@ -1913,9 +2013,9 @@ fanfic_render_breadcrumb( 'edit-story', array(
 								errorMessage += '- ' + message + '\n';
 							});
 							errorMessage += '\n' + FanficMessages.clickEditToFix;
-							alert(errorMessage);
+							appendStoryFormMessage('error', errorMessage, true);
 						} else {
-							alert(data.data.message || FanficMessages.errorPublishingChapter);
+							appendStoryFormMessage('error', data.data.message || FanficMessages.errorPublishingChapter, true);
 						}
 					}
 				})
@@ -1923,7 +2023,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					// Re-enable button and show error
 					buttonElement.disabled = false;
 					buttonElement.textContent = FanficMessages.publish;
-					alert(FanficMessages.errorPublishingChapter);
+					appendStoryFormMessage('error', FanficMessages.errorPublishingChapter, true);
 					console.error('Error:', error);
 				});
 			});
@@ -1985,7 +2085,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 								if (data.success) {
 									// If story was auto-drafted, reload page to update all button states and warnings
 									if (data.data.story_auto_drafted) {
-										alert('<?php esc_html_e( 'Chapter deleted. Your story has been set to DRAFT because it no longer has any chapters or prologues.', 'fanfiction-manager' ); ?>');
+										queueStoryFormMessage('warning', '<?php echo esc_js( __( 'Chapter deleted. Your story has been set to DRAFT because it no longer has any chapters or prologues.', 'fanfiction-manager' ) ); ?>', true);
 										window.location.reload();
 										return;
 									}
@@ -2009,14 +2109,14 @@ fanfic_render_breadcrumb( 'edit-story', array(
 									// Re-enable button and show error
 									buttonElement.disabled = false;
 									buttonElement.textContent = FanficMessages.delete;
-									alert(data.data.message || FanficMessages.errorDeletingChapter);
+									appendStoryFormMessage('error', data.data.message || FanficMessages.errorDeletingChapter, true);
 								}
 							})
 							.catch(function(error) {
 								// Re-enable button and show error
 								buttonElement.disabled = false;
 								buttonElement.textContent = '<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>';
-								alert(FanficMessages.errorDeletingChapter);
+								appendStoryFormMessage('error', FanficMessages.errorDeletingChapter, true);
 								console.error('Error:', error);
 							});
 						}
@@ -2056,7 +2156,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 								} else {
 									buttonElement.disabled = false;
 									buttonElement.textContent = FanficMessages.delete;
-									alert(data.data.message || FanficMessages.errorDeletingChapter);
+									appendStoryFormMessage('error', data.data.message || FanficMessages.errorDeletingChapter, true);
 								}
 							});
 						}
@@ -2094,47 +2194,9 @@ fanfic_render_breadcrumb( 'edit-story', array(
 		var storyForm = document.getElementById('fanfic-story-form');
 		if (storyForm) {
 			var storyAjaxUrl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
-			var storyMessagesContainer = document.getElementById('fanfic-messages');
 
 			function showStoryFormMessage(type, message, persistent) {
-				if (!message) {
-					return;
-				}
-
-				if (window.FanficMessages && typeof window.FanficMessages[type] === 'function') {
-					if ('error' === type) {
-						window.FanficMessages.error(message, { autoDismiss: !persistent });
-					} else {
-						window.FanficMessages.success(message);
-					}
-					return;
-				}
-
-				if (!storyMessagesContainer) {
-					alert(message);
-					return;
-				}
-
-				var notice = document.createElement('div');
-				notice.className = 'fanfic-message ' + ('error' === type ? 'fanfic-message-error' : 'fanfic-message-success');
-				notice.setAttribute('role', 'error' === type ? 'alert' : 'status');
-				notice.setAttribute('aria-live', 'error' === type ? 'assertive' : 'polite');
-				notice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">' + ('error' === type ? '&#10007;' : '&#10003;') + '</span><span class="fanfic-message-content"></span><button type="button" class="fanfic-message-close" aria-label="<?php echo esc_attr( __( 'Close message', 'fanfiction-manager' ) ); ?>">&times;</button>';
-				notice.querySelector('.fanfic-message-content').textContent = message;
-				storyMessagesContainer.appendChild(notice);
-
-				var closeBtn = notice.querySelector('.fanfic-message-close');
-				if (closeBtn) {
-					closeBtn.addEventListener('click', function() {
-						notice.remove();
-					});
-				}
-
-				if (!persistent && 'error' !== type) {
-					setTimeout(function() {
-						notice.remove();
-					}, 5000);
-				}
+				appendStoryFormMessage(type, message, persistent);
 			}
 
 			function updateStoryOriginalState() {

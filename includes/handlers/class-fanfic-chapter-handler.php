@@ -381,7 +381,7 @@ class Fanfic_Chapter_Handler {
 		$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
 
 		// Add message if this is first published chapter
-		if ( $is_first_published_chapter ) {
+		if ( $is_first_published_chapter && ! $is_ajax ) {
 			Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first published chapter! Consider publishing your story now.', 'fanfiction-manager' ) );
 		}
 
@@ -679,17 +679,19 @@ class Fanfic_Chapter_Handler {
 			}
 		}
 
-		// Add success message
-		Fanfic_Flash_Messages::add_message( 'success', __( 'Chapter updated successfully!', 'fanfiction-manager' ) );
+		if ( ! $is_ajax ) {
+			// Add success message
+			Fanfic_Flash_Messages::add_message( 'success', __( 'Chapter updated successfully!', 'fanfiction-manager' ) );
 
-		// Add warning message if story was auto-drafted
-		if ( $was_story_auto_drafted ) {
-			Fanfic_Flash_Messages::add_message( 'warning', __( 'Story was automatically set to draft status because this was its last published chapter/prologue.', 'fanfiction-manager' ) );
-		}
+			// Add warning message if story was auto-drafted
+			if ( $was_story_auto_drafted ) {
+				Fanfic_Flash_Messages::add_message( 'warning', __( 'Story was automatically set to draft status because this was its last published chapter/prologue.', 'fanfiction-manager' ) );
+			}
 
-		// Add info message if this is first published chapter
-		if ( $is_first_published_chapter ) {
-			Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first published chapter! Consider publishing your story now.', 'fanfiction-manager' ) );
+			// Add info message if this is first published chapter
+			if ( $is_first_published_chapter ) {
+				Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first published chapter! Consider publishing your story now.', 'fanfiction-manager' ) );
+			}
 		}
 
 		// Anti-cheat guard: chapter publish date edits must not count as content updates.

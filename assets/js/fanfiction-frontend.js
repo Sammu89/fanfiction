@@ -1897,7 +1897,7 @@
 	/**
 	 * ============================================
 	 * NOTIFICATION SYSTEM
-	 * Dashboard notifications with AJAX pagination and dismiss
+	 * Dashboard notifications with dismiss, show more, and clear all
 	 * ============================================
 	 */
 
@@ -1911,15 +1911,18 @@
 			return; // Not on dashboard page
 		}
 
-		// Handle dismiss button clicks
+		// Handle dismiss (×) button clicks
 		$(document).on('click', '.fanfic-notification-dismiss', handleDismissNotification);
 
-		// Handle pagination button clicks
-		$(document).on('click', '.fanfic-notification-page-button', handleNotificationPagination);
+		// Handle "Show more" button
+		$(document).on('click', '.fanfic-notification-show-more', handleShowMoreNotifications);
+
+		// Handle "Clear all" button
+		$(document).on('click', '.fanfic-notification-clear-all', handleClearAllNotifications);
 	}
 
 	/**
-	 * Handle notification dismiss
+	 * Handle notification dismiss (× button) — deletes from DB
 	 */
 	function handleDismissNotification(e) {
 		e.preventDefault();
@@ -1928,13 +1931,9 @@
 		const notificationItem = button.closest('.fanfic-notification-item');
 		const notificationId = button.data('notification-id');
 
-		// Disable button during request
 		button.prop('disabled', true);
-
-		// Add dismissing class for animation
 		notificationItem.addClass('dismissing');
 
-		// Send AJAX request
 		$.ajax({
 			url: fanficData.ajaxUrl,
 			type: 'POST',
@@ -1945,108 +1944,156 @@
 			},
 			success: function(response) {
 				if (response.success) {
-					// Wait for animation to complete before removing
 					setTimeout(function() {
 						notificationItem.remove();
 
-						// Update unread count badge
 						if (response.data && typeof response.data.unread_count !== 'undefined') {
 							updateNotificationBadge(response.data.unread_count);
 						}
 
-						// Check if list is now empty
-						const notificationsList = $('.fanfic-notifications-list');
-						if (notificationsList.children().length === 0) {
-							// Show empty state
+						// Update container total count
+						const container = $('.fanfic-notifications-container');
+						const currentTotal = parseInt(container.data('total'), 10) || 0;
+						if (currentTotal > 0) {
+							container.data('total', currentTotal - 1);
+						}
+
+						if ($('.fanfic-notifications-list').children().length === 0) {
 							showEmptyNotifications();
 						}
-					}, 300); // Match CSS transition duration
+					}, 300);
 				} else {
-					// Remove dismissing class on error
 					notificationItem.removeClass('dismissing');
 					button.prop('disabled', false);
-
-					// Show error message
-					const errorMsg = response.data && response.data.message
-						? response.data.message
-						: 'Failed to dismiss notification';
-					showNotificationError(errorMsg);
+					showNotificationError(
+						(response.data && response.data.message) ? response.data.message : 'Failed to dismiss notification'
+					);
 				}
 			},
 			error: function() {
-				// Remove dismissing class on error
 				notificationItem.removeClass('dismissing');
 				button.prop('disabled', false);
-
-				// Show error message
 				showNotificationError('Network error. Please try again.');
 			}
 		});
 	}
 
 	/**
-	 * Handle notification pagination
+	 * Handle "Show more" — appends next batch of notifications
 	 */
-	function handleNotificationPagination(e) {
+	function handleShowMoreNotifications(e) {
 		e.preventDefault();
 
 		const button = $(this);
-		const page = button.data('page');
-		const notificationsContainer = $('.fanfic-notifications-container');
+		const offset = parseInt(button.data('offset'), 10) || 0;
 
-		// Don't do anything if already on this page
-		if (button.hasClass('active')) {
-			return;
-		}
-
-		// Show loading state
+		button.prop('disabled', true);
 		showNotificationsLoading();
 
-		// Disable all pagination buttons
-		$('.fanfic-notification-page-button').prop('disabled', true);
-
-		// Send AJAX request
 		$.ajax({
 			url: fanficData.ajaxUrl,
 			type: 'POST',
 			data: {
 				action: 'fanfic_get_notifications',
-				page: page,
-				unread_only: true,
+				offset: offset,
 				nonce: fanficData.nonce
 			},
 			success: function(response) {
+				hideNotificationsLoading();
+
 				if (response.success && response.data && response.data.notifications) {
-					// Replace notifications list
-					renderNotifications(response.data.notifications);
+					appendNotifications(response.data.notifications);
 
-					// Update pagination
-					updatePaginationButtons(page);
-
-					// Update unread count
 					if (typeof response.data.unread_count !== 'undefined') {
 						updateNotificationBadge(response.data.unread_count);
 					}
+
+					if (response.data.has_more) {
+						button.data('offset', response.data.next_offset);
+						button.prop('disabled', false);
+					} else {
+						button.remove();
+					}
 				} else {
-					showNotificationError('Failed to load notifications');
+					button.prop('disabled', false);
+					showNotificationError('Failed to load notifications.');
 				}
-
-				// Hide loading state
-				hideNotificationsLoading();
-
-				// Re-enable pagination buttons
-				$('.fanfic-notification-page-button').prop('disabled', false);
 			},
 			error: function() {
 				hideNotificationsLoading();
-				$('.fanfic-notification-page-button').prop('disabled', false);
+				button.prop('disabled', false);
 				showNotificationError('Network error. Please try again.');
 			}
 		});
 	}
 
 	/**
-	 * Render notifications list from AJAX response
+	 * Handle "Clear all" — deletes all non-invite notifications from DB
+	 */
+	function handleClearAllNotifications(e) {
+		e.preventDefault();
+
+		const button = $(this);
+		button.prop('disabled', true);
+
+		$.ajax({
+			url: fanficData.ajaxUrl,
+			type: 'POST',
+			data: {
+				action: 'fanfic_clear_all_notifications',
+				nonce: fanficData.nonce
+			},
+			success: function(response) {
+				if (response.success) {
+					// Remove all items that are not co-author invites
+					$('.fanfic-notification-item').not('.fanfic-notification-coauthor_invite').addClass('dismissing');
+					setTimeout(function() {
+						$('.fanfic-notification-item').not('.fanfic-notification-coauthor_invite').remove();
+
+						if (response.data && typeof response.data.unread_count !== 'undefined') {
+							updateNotificationBadge(response.data.unread_count);
+						}
+
+						// Hide "show more" if no more exist
+						if (response.data && typeof response.data.total_count !== 'undefined') {
+							$('.fanfic-notifications-container').data('total', response.data.total_count);
+							$('.fanfic-notification-show-more').remove();
+						}
+
+						if ($('.fanfic-notifications-list').children().length === 0) {
+							showEmptyNotifications();
+						}
+
+						button.prop('disabled', false);
+					}, 300);
+				} else {
+					button.prop('disabled', false);
+					showNotificationError('Failed to clear notifications.');
+				}
+			},
+			error: function() {
+				button.prop('disabled', false);
+				showNotificationError('Network error. Please try again.');
+			}
+		});
+	}
+
+	/**
+	 * Append notifications to the existing list (used by "Show more")
+	 */
+	function appendNotifications(notifications) {
+		if (!notifications.length) return;
+
+		const notificationsList = $('.fanfic-notifications-list');
+		let html = '';
+		notifications.forEach(function(notification) {
+			html += buildNotificationHtml(notification);
+		});
+		notificationsList.append(html);
+	}
+
+	/**
+	 * Render (replace) notifications list — kept for potential reuse
 	 */
 	function renderNotifications(notifications) {
 		const notificationsList = $('.fanfic-notifications-list');
@@ -2056,13 +2103,11 @@
 			return;
 		}
 
-		// Build HTML for notifications
 		let html = '';
 		notifications.forEach(function(notification) {
 			html += buildNotificationHtml(notification);
 		});
 
-		// Replace list content
 		notificationsList.html(html);
 	}
 
@@ -2111,7 +2156,9 @@
 			'coauthor_refused': 'dashicons-groups',
 			'coauthor_removed': 'dashicons-groups',
 			'coauthor_disabled': 'dashicons-groups',
-			'coauthor_enabled': 'dashicons-groups'
+			'coauthor_enabled': 'dashicons-groups',
+			'user_banned': 'dashicons-shield',
+			'user_unbanned': 'dashicons-shield'
 		};
 
 		const iconClass = icons[type] || 'dashicons-bell';
@@ -2139,19 +2186,9 @@
 	}
 
 	/**
-	 * Update pagination button active state
-	 */
-	function updatePaginationButtons(activePage) {
-		$('.fanfic-notification-page-button').removeClass('active');
-		$(`.fanfic-notification-page-button[data-page="${activePage}"]`).addClass('active');
-	}
-
-	/**
-	 * Show loading state
+	 * Show loading state (below existing list, not replacing it)
 	 */
 	function showNotificationsLoading() {
-		$('.fanfic-notifications-list').hide();
-		$('.fanfic-notifications-empty').hide();
 		$('.fanfic-notifications-loading').show();
 	}
 
@@ -2160,7 +2197,6 @@
 	 */
 	function hideNotificationsLoading() {
 		$('.fanfic-notifications-loading').hide();
-		$('.fanfic-notifications-list').show();
 	}
 
 	/**
@@ -2168,9 +2204,9 @@
 	 */
 	function showEmptyNotifications() {
 		$('.fanfic-notifications-list').empty();
-		$('.fanfic-notifications-pagination').hide();
+		$('.fanfic-notifications-footer').hide();
 
-		const emptyHtml = '<div class="fanfic-notifications-empty"><p>No unread notifications</p></div>';
+		const emptyHtml = '<div class="fanfic-notifications-empty"><p>No notifications</p></div>';
 
 		if ($('.fanfic-notifications-empty').length === 0) {
 			$('.fanfic-notifications-container').prepend(emptyHtml);
@@ -2178,7 +2214,6 @@
 			$('.fanfic-notifications-empty').show();
 		}
 
-		// Update badge
 		updateNotificationBadge(0);
 	}
 

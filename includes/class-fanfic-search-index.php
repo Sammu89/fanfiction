@@ -530,7 +530,42 @@ class Fanfic_Search_Index {
 	 * @return int Word count
 	 */
 	private static function get_word_count( $story_id ) {
-		return absint( get_post_meta( $story_id, '_fanfic_word_count', true ) );
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return 0;
+		}
+
+		$chapters = get_posts(
+			array(
+				'post_type'              => 'fanfiction_chapter',
+				'post_parent'            => $story_id,
+				'post_status'            => 'publish',
+				'posts_per_page'         => -1,
+				'orderby'                => 'ID',
+				'order'                  => 'ASC',
+				'no_found_rows'          => true,
+				'update_post_meta_cache' => false,
+				'update_post_term_cache' => false,
+			)
+		);
+
+		if ( empty( $chapters ) ) {
+			update_post_meta( $story_id, '_fanfic_word_count', 0 );
+			return 0;
+		}
+
+		$total_words = 0;
+		foreach ( $chapters as $chapter ) {
+			if ( ! ( $chapter instanceof WP_Post ) ) {
+				continue;
+			}
+			$total_words += str_word_count( wp_strip_all_tags( $chapter->post_content ) );
+		}
+
+		$total_words = absint( $total_words );
+		update_post_meta( $story_id, '_fanfic_word_count', $total_words );
+
+		return $total_words;
 	}
 
 	/**

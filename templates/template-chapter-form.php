@@ -1094,6 +1094,86 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				});
 			});
 
+			var fanficPendingFormMessageKey = 'fanfic_pending_form_message';
+			var chapterMessagesContainer = document.getElementById('fanfic-messages');
+
+			function scrollChapterMessagesIntoViewTwice() {
+				if (!chapterMessagesContainer) {
+					return;
+				}
+
+				var adminBar = document.getElementById('wpadminbar');
+				var topOffset = (adminBar ? adminBar.offsetHeight : 0) + 16;
+				var targetY = chapterMessagesContainer.getBoundingClientRect().top + window.pageYOffset - topOffset;
+				var scrollTarget = Math.max(targetY, 0);
+
+				window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+				setTimeout(function() {
+					window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+				}, 220);
+			}
+
+			function appendChapterFormMessage(type, message, persistent) {
+				if (!message) {
+					return;
+				}
+
+				var normalizedType = (type === 'error' || type === 'warning') ? type : 'success';
+				if (!chapterMessagesContainer) {
+					console[(normalizedType === 'error') ? 'error' : 'log'](message);
+					return;
+				}
+
+				var icon = normalizedType === 'error' ? '&#10007;' : (normalizedType === 'warning' ? '&#9888;' : '&#10003;');
+				var notice = document.createElement('div');
+				notice.className = 'fanfic-message fanfic-message-' + normalizedType;
+				notice.setAttribute('role', normalizedType === 'error' ? 'alert' : 'status');
+				notice.setAttribute('aria-live', normalizedType === 'error' ? 'assertive' : 'polite');
+				notice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">' + icon + '</span><span class="fanfic-message-content"></span><button type="button" class="fanfic-message-close" aria-label="<?php echo esc_attr( __( 'Close message', 'fanfiction-manager' ) ); ?>">&times;</button>';
+
+				var contentNode = notice.querySelector('.fanfic-message-content');
+				if (contentNode) {
+					contentNode.textContent = message;
+					contentNode.style.whiteSpace = 'pre-line';
+				}
+
+				var closeBtn = notice.querySelector('.fanfic-message-close');
+				if (closeBtn) {
+					closeBtn.addEventListener('click', function() {
+						notice.remove();
+					});
+				}
+
+				chapterMessagesContainer.appendChild(notice);
+				scrollChapterMessagesIntoViewTwice();
+
+				if (!persistent && normalizedType !== 'error') {
+					setTimeout(function() {
+						notice.remove();
+					}, 5000);
+				}
+			}
+
+			function queueChapterFormMessage(type, message, persistent) {
+				if (!message) {
+					return;
+				}
+
+				try {
+					sessionStorage.setItem(fanficPendingFormMessageKey, JSON.stringify({
+						type: type || 'success',
+						message: message,
+						persistent: !!persistent
+					}));
+				} catch (storageError) {
+					appendChapterFormMessage(type, message, persistent);
+				}
+			}
+
+			if (chapterMessagesContainer && chapterMessagesContainer.querySelector('.fanfic-message')) {
+				setTimeout(scrollChapterMessagesIntoViewTwice, 60);
+			}
+
 			// Delete chapter confirmation with AJAX
 			var deleteChapterButton = document.getElementById('delete-chapter-button');
 			console.log('Delete button search result:', deleteChapterButton);
@@ -1158,11 +1238,11 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 							})
 							.then(function(data) {
 								if (data.success) {
-									// Show auto-draft alert if story was auto-drafted
+									// Queue message for the destination page message container.
 									if (data.data.story_auto_drafted) {
-										alert(FanficMessages.deleteChapterAutoDraftAlert);
+										queueChapterFormMessage('warning', FanficMessages.deleteChapterAutoDraftAlert, true);
 									} else {
-										alert(FanficMessages.deleteChapterSuccess);
+										queueChapterFormMessage('success', FanficMessages.deleteChapterSuccess, false);
 									}
 
 									// Redirect to story edit page
@@ -1171,14 +1251,14 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 									// Re-enable button and show error
 									buttonElement.disabled = false;
 									buttonElement.textContent = FanficMessages.delete;
-									alert(data.data.message || FanficMessages.errorDeletingChapter);
+									appendChapterFormMessage('error', data.data.message || FanficMessages.errorDeletingChapter, true);
 								}
 							})
 							.catch(function(error) {
 								// Re-enable button and show error
 								buttonElement.disabled = false;
 								buttonElement.textContent = FanficMessages.delete;
-								alert(FanficMessages.errorDeletingChapter + '\n\n<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>');
+								appendChapterFormMessage('error', FanficMessages.errorDeletingChapter + '\n\n<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>', true);
 								console.error('Error deleting chapter:', error);
 								console.error('Full error details:', {
 									error: error,
@@ -1195,7 +1275,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 							message: error.message,
 							stack: error.stack
 						});
-						alert(FanficMessages.errorCheckingLastChapter + '\n\n<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>');
+						appendChapterFormMessage('error', FanficMessages.errorCheckingLastChapter + '\n\n<?php echo esc_js( __( 'Check browser console for details.', 'fanfiction-manager' ) ); ?>', true);
 					});
 				});
 			}
@@ -1260,7 +1340,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					})
 					.catch(function(error) {
 						console.error('Error checking last chapter:', error);
-						alert(FanficMessages.errorCheckingLastChapter);
+						appendChapterFormMessage('error', FanficMessages.errorCheckingLastChapter, true);
 					});
 				});
 			}
@@ -1454,7 +1534,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			})
 			.catch(function(error) {
 				console.error('Error updating chapter:', error);
-				alert('<?php echo esc_js( __( 'An error occurred while updating the chapter.', 'fanfiction-manager' ) ); ?>');
+				showChapterFormMessage('error', '<?php echo esc_js( __( 'An error occurred while updating the chapter.', 'fanfiction-manager' ) ); ?>', true);
 
 				// Re-enable button
 				button.textContent = originalText;
@@ -1645,6 +1725,49 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			var chapterAjaxUrl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
 			var chapterMessagesContainer = document.getElementById('fanfic-messages');
 
+			function ensureChapterMessagesContainer() {
+				if (chapterMessagesContainer) {
+					return chapterMessagesContainer;
+				}
+
+				chapterMessagesContainer = document.getElementById('fanfic-messages');
+				if (chapterMessagesContainer) {
+					return chapterMessagesContainer;
+				}
+
+				var candidateTarget = chapterForm.closest('.fanfic-content-section') || chapterForm.parentElement || document.body;
+				if (!candidateTarget) {
+					return null;
+				}
+
+				chapterMessagesContainer = document.createElement('div');
+				chapterMessagesContainer.id = 'fanfic-messages';
+				chapterMessagesContainer.className = 'fanfic-messages-container';
+				chapterMessagesContainer.setAttribute('role', 'region');
+				chapterMessagesContainer.setAttribute('aria-label', '<?php echo esc_attr( __( 'System Messages', 'fanfiction-manager' ) ); ?>');
+				chapterMessagesContainer.setAttribute('aria-live', 'polite');
+				candidateTarget.insertBefore(chapterMessagesContainer, candidateTarget.firstChild);
+
+				return chapterMessagesContainer;
+			}
+
+			function scrollChapterMessagesIntoViewTwice() {
+				var targetContainer = ensureChapterMessagesContainer();
+				if (!targetContainer) {
+					return;
+				}
+
+				var adminBar = document.getElementById('wpadminbar');
+				var topOffset = (adminBar ? adminBar.offsetHeight : 0) + 16;
+				var targetY = targetContainer.getBoundingClientRect().top + window.pageYOffset - topOffset;
+				var scrollTarget = Math.max(targetY, 0);
+
+				window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+				setTimeout(function() {
+					window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+				}, 220);
+			}
+
 			function showChapterFormMessage(type, message, persistent) {
 				if (!message) {
 					return;
@@ -1656,11 +1779,13 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					} else {
 						window.FanficMessages.success(message);
 					}
+					setTimeout(scrollChapterMessagesIntoViewTwice, 20);
 					return;
 				}
 
-				if (!chapterMessagesContainer) {
-					alert(message);
+				var targetContainer = ensureChapterMessagesContainer();
+				if (!targetContainer) {
+					console.error(message);
 					return;
 				}
 
@@ -1670,7 +1795,9 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				notice.setAttribute('aria-live', 'error' === type ? 'assertive' : 'polite');
 				notice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">' + ('error' === type ? '&#10007;' : '&#10003;') + '</span><span class="fanfic-message-content"></span><button type="button" class="fanfic-message-close" aria-label="<?php echo esc_attr( __( 'Close message', 'fanfiction-manager' ) ); ?>">&times;</button>';
 				notice.querySelector('.fanfic-message-content').textContent = message;
-				chapterMessagesContainer.appendChild(notice);
+				notice.querySelector('.fanfic-message-content').style.whiteSpace = 'pre-line';
+				targetContainer.appendChild(notice);
+				scrollChapterMessagesIntoViewTwice();
 
 				var closeBtn = notice.querySelector('.fanfic-message-close');
 				if (closeBtn) {
@@ -1684,6 +1811,10 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						notice.remove();
 					}, 5000);
 				}
+			}
+
+			if (chapterMessagesContainer && chapterMessagesContainer.querySelector('.fanfic-message')) {
+				setTimeout(scrollChapterMessagesIntoViewTwice, 60);
 			}
 
 			function moveChapterFormToEditMode(chapterId, editNonce) {

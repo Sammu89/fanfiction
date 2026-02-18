@@ -213,6 +213,27 @@
 	font-size: 0.95em;
 }
 
+.fanfic-wizard-user-checklist {
+	max-width: 500px;
+	max-height: 260px;
+	overflow-y: auto;
+	border: 1px solid #c3c4c7;
+	background: #fff;
+	padding: 8px 10px;
+	border-radius: 4px;
+}
+
+.fanfic-wizard-user-checklist-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+}
+
+.fanfic-wizard-user-checklist-item input[type="checkbox"] {
+	margin: 0;
+}
+
 /* ========== Complete Step ========== */
 .fanfic-wizard-complete {
 	text-align: center;

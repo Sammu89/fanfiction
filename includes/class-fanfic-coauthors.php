@@ -260,7 +260,8 @@ class Fanfic_Coauthors {
 				'story_id'    => $story_id,
 				'story_title' => get_the_title( $story_id ),
 				'invited_by'  => $invited_by,
-			)
+			),
+			true // persistent — must not be auto-deleted until user responds
 		);
 
 		return array(
@@ -310,6 +311,34 @@ class Fanfic_Coauthors {
 			return false;
 		}
 
+		$story_title = get_the_title( $story_id );
+
+		// Remove the stale pending invite notification for the responding user.
+		if ( class_exists( 'Fanfic_Notifications' ) ) {
+			Fanfic_Notifications::delete_notifications_by_type_and_story(
+				$user_id,
+				Fanfic_Notifications::TYPE_COAUTHOR_INVITE,
+				$story_id
+			);
+		}
+
+		// Notify the responding user that their acceptance was recorded.
+		self::notify_user(
+			$user_id,
+			'TYPE_COAUTHOR_ACCEPTED',
+			'coauthor_accepted',
+			sprintf(
+				/* translators: %s: story title. */
+				__( 'You accepted the co-author invitation for "%s".', 'fanfiction-manager' ),
+				$story_title
+			),
+			array(
+				'story_id'    => $story_id,
+				'story_title' => $story_title,
+			)
+		);
+
+		// Notify the original author that their invitation was accepted.
 		$original_author = (int) get_post_field( 'post_author', $story_id );
 		if ( $original_author > 0 && $original_author !== $user_id ) {
 			self::notify_user(
@@ -320,13 +349,13 @@ class Fanfic_Coauthors {
 					/* translators: 1: user display name, 2: story title. */
 					__( '%1$s accepted your co-author invitation for "%2$s".', 'fanfiction-manager' ),
 					self::get_user_display_name( $user_id ),
-					get_the_title( $story_id )
+					$story_title
 				),
 				array(
 					'story_id'    => $story_id,
 					'user_id'     => $user_id,
 					'user_name'   => self::get_user_display_name( $user_id ),
-					'story_title' => get_the_title( $story_id ),
+					'story_title' => $story_title,
 				)
 			);
 		}
@@ -378,6 +407,34 @@ class Fanfic_Coauthors {
 			return false;
 		}
 
+		$story_title = get_the_title( $story_id );
+
+		// Remove the stale pending invite notification for the responding user.
+		if ( class_exists( 'Fanfic_Notifications' ) ) {
+			Fanfic_Notifications::delete_notifications_by_type_and_story(
+				$user_id,
+				Fanfic_Notifications::TYPE_COAUTHOR_INVITE,
+				$story_id
+			);
+		}
+
+		// Notify the responding user that their decline was recorded.
+		self::notify_user(
+			$user_id,
+			'TYPE_COAUTHOR_REFUSED',
+			'coauthor_refused',
+			sprintf(
+				/* translators: %s: story title. */
+				__( 'You declined the co-author invitation for "%s".', 'fanfiction-manager' ),
+				$story_title
+			),
+			array(
+				'story_id'    => $story_id,
+				'story_title' => $story_title,
+			)
+		);
+
+		// Notify the original author that their invitation was refused.
 		$original_author = (int) get_post_field( 'post_author', $story_id );
 		if ( $original_author > 0 && $original_author !== $user_id ) {
 			self::notify_user(
@@ -388,13 +445,13 @@ class Fanfic_Coauthors {
 					/* translators: 1: user display name, 2: story title. */
 					__( '%1$s refused your co-author invitation for "%2$s".', 'fanfiction-manager' ),
 					self::get_user_display_name( $user_id ),
-					get_the_title( $story_id )
+					$story_title
 				),
 				array(
 					'story_id'    => $story_id,
 					'user_id'     => $user_id,
 					'user_name'   => self::get_user_display_name( $user_id ),
-					'story_title' => get_the_title( $story_id ),
+					'story_title' => $story_title,
 				)
 			);
 		}
@@ -456,6 +513,13 @@ class Fanfic_Coauthors {
 			);
 		}
 
+		// Read the current status before deleting so we know what kind of notification to send.
+		$row = $wpdb->get_row( $wpdb->prepare(
+			'SELECT status FROM ' . self::get_table_name() . ' WHERE story_id = %d AND user_id = %d',
+			$story_id,
+			$user_id
+		) );
+
 		$deleted = $wpdb->delete(
 			self::get_table_name(),
 			array(
@@ -473,21 +537,37 @@ class Fanfic_Coauthors {
 		}
 
 		self::clear_caches();
-		self::notify_user(
-			$user_id,
-			'TYPE_COAUTHOR_REMOVED',
-			'coauthor_removed',
-			sprintf(
-				/* translators: %s: story title. */
-				__( 'You have been removed as co-author from "%s".', 'fanfiction-manager' ),
-				get_the_title( $story_id )
-			),
-			array(
-				'story_id'    => $story_id,
-				'story_title' => get_the_title( $story_id ),
-				'removed_by'  => $removed_by,
-			)
-		);
+
+		$story_title     = get_the_title( $story_id );
+		$was_accepted    = $row && self::STATUS_ACCEPTED === $row->status;
+
+		if ( $was_accepted ) {
+			// Co-author had already accepted — tell them they were removed.
+			self::notify_user(
+				$user_id,
+				'TYPE_COAUTHOR_REMOVED',
+				'coauthor_removed',
+				sprintf(
+					/* translators: %s: story title. */
+					__( 'You have been removed as co-author from "%s".', 'fanfiction-manager' ),
+					$story_title
+				),
+				array(
+					'story_id'    => $story_id,
+					'story_title' => $story_title,
+					'removed_by'  => $removed_by,
+				)
+			);
+		} else {
+			// Invitation was still pending — silently delete the invite notification, no removal notice.
+			if ( class_exists( 'Fanfic_Notifications' ) ) {
+				Fanfic_Notifications::delete_notifications_by_type_and_story(
+					$user_id,
+					Fanfic_Notifications::TYPE_COAUTHOR_INVITE,
+					$story_id
+				);
+			}
+		}
 
 		self::reindex_story( $story_id );
 
@@ -1262,7 +1342,7 @@ class Fanfic_Coauthors {
 	 * @param array  $data Notification data.
 	 * @return void
 	 */
-	private static function notify_user( $user_id, $type_const, $fallback_type, $message, $data = array() ) {
+	private static function notify_user( $user_id, $type_const, $fallback_type, $message, $data = array(), $persistent = false ) {
 		if ( ! class_exists( 'Fanfic_Notifications' ) ) {
 			return;
 		}
@@ -1275,6 +1355,6 @@ class Fanfic_Coauthors {
 		$const_name = 'Fanfic_Notifications::' . preg_replace( '/[^A-Z0-9_]/', '', (string) $type_const );
 		$type = defined( $const_name ) ? constant( $const_name ) : $fallback_type;
 
-		Fanfic_Notifications::create_notification( $user_id, $type, $message, $data );
+		Fanfic_Notifications::create_notification( $user_id, $type, $message, $data, $persistent );
 	}
 }

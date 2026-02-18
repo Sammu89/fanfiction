@@ -3023,6 +3023,10 @@ input:disabled,
 	align-items: stretch;
 }
 
+.fanfic-stories-page .fanfic-search-story-card-layout.fanfic-search-story-card-layout-no-image {
+	grid-template-columns: minmax(0, 1fr);
+}
+
 .fanfic-stories-page .fanfic-search-story-card-left {
 	display: flex;
 	flex-direction: column;
@@ -3129,11 +3133,18 @@ input:disabled,
 	color: var(--color-text-muted);
 }
 
+.fanfic-stories-page .fanfic-search-story-card-bottom {
+	display: flex;
+	flex-direction: column;
+	gap: 0.65rem;
+	margin-top: auto;
+}
+
 .fanfic-stories-page .fanfic-search-story-card-details-grid {
 	display: grid;
 	grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
 	gap: 0.65rem 1.25rem;
-	margin-top: auto;
+	margin-top: 0;
 }
 
 .fanfic-stories-page .fanfic-search-story-card-details-left,
@@ -4025,53 +4036,58 @@ body.fanfiction-page .entry-content::after {
 	color: var(--color-text-muted);
 }
 
-/* Pagination */
-.fanfic-notifications-pagination {
+/* Footer (Show more + Clear all) */
+.fanfic-notifications-footer {
 	display: flex;
-	gap: 4px;
-	justify-content: center;
-	padding: 8px 0;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 0 0;
 	border-top: 1px solid #dcdcde;
 	margin-top: 8px;
 }
 
-.fanfic-notification-page-button {
-	min-width: 32px;
-	height: 32px;
-	padding: 0 8px;
-	background: var(--color-white);
+.fanfic-notification-show-more {
+	background: none;
 	border: 1px solid #c3c4c7;
 	color: var(--accent-dark);
 	font-size: 13px;
-	font-weight: 400;
-	cursor: pointer;
+	padding: 4px 12px;
 	border-radius: 3px;
+	cursor: pointer;
 	transition: all 0.2s ease;
 }
 
-.fanfic-notification-page-button:hover {
+.fanfic-notification-show-more:hover {
 	background: var(--background-soft);
 	border-color: var(--accent-dark);
-	color: var(--accent-dark);
 }
 
-.fanfic-notification-page-button.active {
-	background: var(--accent-dark);
-	border-color: var(--accent-dark);
-	color: var(--color-white);
-	font-weight: 600;
-	cursor: default;
-}
-
-.fanfic-notification-page-button:focus {
-	outline: 2px solid var(--accent-color);
-	outline-offset: 1px;
-}
-
-.fanfic-notification-page-button:disabled {
+.fanfic-notification-show-more:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
-	background: #f8fafb;
+}
+
+.fanfic-notification-clear-all {
+	background: none;
+	border: none;
+	color: var(--color-text-muted, #6c757d);
+	font-size: 12px;
+	padding: 4px 0;
+	cursor: pointer;
+	margin-left: auto;
+	transition: color 0.2s ease;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.fanfic-notification-clear-all:hover {
+	color: var(--color-error);
+}
+
+.fanfic-notification-clear-all:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
 }
 
 /* Responsive adjustments */

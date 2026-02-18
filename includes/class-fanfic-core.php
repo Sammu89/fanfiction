@@ -696,6 +696,16 @@ class Fanfic_Core {
 				}
 			}
 		}
+
+		if ( class_exists( 'Fanfic_Notifications' ) ) {
+			Fanfic_Notifications::create_notification(
+				$user_id,
+				Fanfic_Notifications::TYPE_USER_BANNED,
+				__( 'Your account has been suspended. You can still read stories, but publishing and interactions are disabled.', 'fanfiction-manager' ),
+				array( 'banned_by' => $moderator_id ),
+				true // persistent — user must see this regardless of cleanup
+			);
+		}
 	}
 
 	/**
@@ -768,6 +778,16 @@ class Fanfic_Core {
 				delete_post_meta( $chapter_id, '_fanfic_block_reason' );
 				delete_post_meta( $chapter_id, '_fanfic_blocked_timestamp' );
 			}
+		}
+
+		if ( class_exists( 'Fanfic_Notifications' ) ) {
+			Fanfic_Notifications::create_notification(
+				$user_id,
+				Fanfic_Notifications::TYPE_USER_UNBANNED,
+				__( 'Your account suspension has been lifted. You can now publish and interact again.', 'fanfiction-manager' ),
+				array( 'reinstated_by' => $moderator_id ),
+				true // persistent â user must see this regardless of cleanup
+			);
 		}
 	}
 

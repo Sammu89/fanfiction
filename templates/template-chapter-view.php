@@ -27,9 +27,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 function fanfic_get_default_chapter_view_template() {
 	ob_start();
 	?>
-<!-- Breadcrumb navigation for context -->
-[fanfic-breadcrumbs]
-
 <!-- Chapter header with hierarchical titles -->
 <header class="fanfic-chapter-header">
 	<!-- Story title as primary heading (parent context) -->
@@ -218,6 +215,12 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 		);
 	}
 }
+
+// Render breadcrumb navigation
+fanfic_render_breadcrumb( 'view-chapter', array(
+	'story_id'   => $chapter_post ? absint( $chapter_post->post_parent ) : 0,
+	'chapter_id' => $chapter_post ? absint( $chapter_post->ID ) : 0,
+) );
 
 // Process shortcodes in the template
 echo do_shortcode( $template );

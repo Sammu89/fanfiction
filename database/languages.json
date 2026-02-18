@@ -46,8 +46,8 @@
   { "slug": "ja", "name": "Japanese", "native_name": "日本語" },
 
   { "slug": "kk", "name": "Kazakh", "native_name": "Қазақ тілі" },
-  { "slug": "ko", "name": "Latin", "native_name": "Latinum" },
-  { "slug": "la", "name": "Korean", "native_name": "한국어" },
+  { "slug": "ko", "name": "Korean", "native_name": "한국어" },
+  { "slug": "la", "name": "Latin", "native_name": "Latinum" },
   { "slug": "lv", "name": "Latvian", "native_name": "Latviešu" },
   { "slug": "lt", "name": "Lithuanian", "native_name": "Lietuvių" },
   { "slug": "lle", "name": "Leonese", "native_name": "Llionés" },

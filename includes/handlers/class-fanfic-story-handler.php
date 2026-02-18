@@ -782,11 +782,15 @@ class Fanfic_Story_Handler {
 
 			// Redirect based on action
 			if ( 'add_chapter' === $form_action ) {
-				Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated. Now add your first chapter!', 'fanfiction-manager' ) );
+				if ( ! $is_ajax ) {
+					Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated. Now add your first chapter!', 'fanfiction-manager' ) );
+				}
 				$story_permalink = get_permalink( $story_id );
 				$redirect_url = add_query_arg( 'action', 'add-chapter', $story_permalink );
 			} else {
-				Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated successfully!', 'fanfiction-manager' ) );
+				if ( ! $is_ajax ) {
+					Fanfic_Flash_Messages::add_message( 'success', __( 'Story updated successfully!', 'fanfiction-manager' ) );
+				}
 				$redirect_url = self::get_story_edit_url( $story_id );
 				$redirect_url = remove_query_arg( array( 'success', 'error' ), $redirect_url );
 				$redirect_url = add_query_arg( 'action', 'edit', $redirect_url );

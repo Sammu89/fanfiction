@@ -485,6 +485,8 @@ class Fanfic_Shortcodes_User {
 		), $atts, 'user-story-list' );
 
 		$user_id = get_current_user_id();
+		$current_user = wp_get_current_user();
+		$is_banned_user = in_array( 'fanfiction_banned_user', (array) $current_user->roles, true );
 		$paged = get_query_var( 'paged' ) ? get_query_var( 'paged' ) : 1;
 
 		// Query user's stories
@@ -547,7 +549,9 @@ class Fanfic_Shortcodes_User {
 			$output .= '</p>';
 			$output .= '</div>';
 			$output .= '<div class="fanfic-story-actions">';
-			$output .= '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-edit-button">' . esc_html__( 'Edit', 'fanfiction-manager' ) . '</a>';
+			if ( ! $is_banned_user ) {
+				$output .= '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-edit-button">' . esc_html__( 'Edit', 'fanfiction-manager' ) . '</a>';
+			}
 			$output .= '</div>';
 			$output .= '</li>';
 		}
@@ -1195,6 +1199,11 @@ class Fanfic_Shortcodes_User {
 			return '<div class="fanfic-error">' . esc_html__( 'User not found.', 'fanfiction-manager' ) . '</div>';
 		}
 
+		// Enforce hierarchy: cannot change status for equal/higher rank.
+		if ( ! self::can_current_user_change_target_status( $user ) ) {
+			return '';
+		}
+
 		// Prevent users from banning themselves
 		if ( get_current_user_id() === $target_user_id ) {
 			return '<div class="fanfic-error">' . esc_html__( 'You cannot ban yourself.', 'fanfiction-manager' ) . '</div>';
@@ -1220,6 +1229,11 @@ class Fanfic_Shortcodes_User {
 
 			// Get user object
 			$target_user = new WP_User( $target_user_id );
+
+			// Enforce hierarchy again on submit.
+			if ( ! self::can_current_user_change_target_status( $target_user ) ) {
+				return '<div class="fanfic-error">' . esc_html__( 'You cannot change status for users with equal or higher rank.', 'fanfiction-manager' ) . '</div>';
+			}
 
 			// Change user role to banned
 			$target_user->set_role( 'fanfiction_banned_user' );
@@ -1432,6 +1446,110 @@ class Fanfic_Shortcodes_User {
 		</form>
 		<?php
 		return $output . ob_get_clean();
+	}
+
+	/**
+	 * Get hierarchy rank for a role.
+	 *
+	 * @since 1.0.0
+	 * @param string $role Role slug.
+	 * @return int
+	 */
+	private static function get_role_rank( $role ) {
+		$ranks = array(
+			'administrator'        => 300,
+			'fanfiction_admin'     => 200,
+			'fanfiction_moderator' => 100,
+			'fanfiction_author'    => 20,
+			'fanfiction_reader'    => 10,
+			'fanfiction_banned_user' => 0,
+		);
+
+		return isset( $ranks[ $role ] ) ? (int) $ranks[ $role ] : -1;
+	}
+
+	/**
+	 * Get highest ranked role from a role list.
+	 *
+	 * @since 1.0.0
+	 * @param array $roles Role slugs.
+	 * @return string
+	 */
+	private static function get_highest_ranked_role( $roles ) {
+		if ( ! is_array( $roles ) || empty( $roles ) ) {
+			return '';
+		}
+
+		$highest_role = '';
+		$highest_rank = -1;
+
+		foreach ( $roles as $role ) {
+			$rank = self::get_role_rank( $role );
+			if ( $rank > $highest_rank ) {
+				$highest_rank = $rank;
+				$highest_role = $role;
+			}
+		}
+
+		if ( '' === $highest_role && ! empty( $roles[0] ) ) {
+			return sanitize_key( $roles[0] );
+		}
+
+		return $highest_role;
+	}
+
+	/**
+	 * Get effective hierarchy rank for a user.
+	 *
+	 * @since 1.0.0
+	 * @param WP_User $user User object.
+	 * @return int
+	 */
+	private static function get_user_effective_rank( $user ) {
+		if ( ! ( $user instanceof WP_User ) ) {
+			return -1;
+		}
+
+		$highest_role = self::get_highest_ranked_role( (array) $user->roles );
+		$rank = self::get_role_rank( $highest_role );
+
+		if ( in_array( 'fanfiction_banned_user', (array) $user->roles, true ) ) {
+			$original_role = get_user_meta( $user->ID, 'fanfic_original_role', true );
+			if ( is_array( $original_role ) ) {
+				$original_role = self::get_highest_ranked_role( $original_role );
+			}
+
+			if ( is_string( $original_role ) && '' !== $original_role ) {
+				$rank = max( $rank, self::get_role_rank( $original_role ) );
+			}
+		}
+
+		return $rank;
+	}
+
+	/**
+	 * Check if current user can change the target user's status.
+	 *
+	 * @since 1.0.0
+	 * @param WP_User $target_user Target user object.
+	 * @return bool
+	 */
+	private static function can_current_user_change_target_status( $target_user ) {
+		if ( ! ( $target_user instanceof WP_User ) ) {
+			return false;
+		}
+
+		$current_user = wp_get_current_user();
+		if ( ! ( $current_user instanceof WP_User ) ) {
+			return false;
+		}
+
+		// Banned users cannot perform moderation/admin actions, regardless of past role.
+		if ( in_array( 'fanfiction_banned_user', (array) $current_user->roles, true ) ) {
+			return false;
+		}
+
+		return self::get_user_effective_rank( $current_user ) > self::get_user_effective_rank( $target_user );
 	}
 
 	/**

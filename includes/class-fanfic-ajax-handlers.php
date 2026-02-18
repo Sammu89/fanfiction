@@ -172,6 +172,17 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
+		// Clear all notifications except invites (authenticated only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_clear_all_notifications',
+			array( __CLASS__, 'ajax_clear_all_notifications' ),
+			true, // Require login
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'read',
+			)
+		);
+
 		// Report content (public + authenticated)
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_report_content',
@@ -1085,8 +1096,8 @@ class Fanfic_AJAX_Handlers {
 	public static function ajax_get_notifications() {
 		// Get and validate parameters
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'page' ),
-			array( 'unread_only' )
+			array(),
+			array( 'offset' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -1097,54 +1108,40 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		$page = absint( $params['page'] );
-		$unread_only = isset( $params['unread_only'] ) ? (bool) $params['unread_only'] : true;
-		$user_id = get_current_user_id();
-
-		// Validate page number
-		if ( $page < 1 ) {
-			$page = 1;
-		}
-
-		// Max 5 pages (50 notifications)
-		if ( $page > 5 ) {
-			$page = 5;
-		}
-
-		// Calculate offset (10 per page)
-		$per_page = 10;
-		$offset = ( $page - 1 ) * $per_page;
+		$offset   = isset( $params['offset'] ) ? absint( $params['offset'] ) : 0;
+		$per_page = 30;
+		$user_id  = get_current_user_id();
 
 		// Get notifications
-		$notifications = Fanfic_Notifications::get_user_notifications( $user_id, $unread_only, $per_page, $offset );
+		$notifications = Fanfic_Notifications::get_user_notifications( $user_id, false, $per_page, $offset );
 
 		// Format notifications for frontend
 		$formatted_notifications = array();
 		foreach ( $notifications as $notification ) {
 			$formatted_notifications[] = array(
-				'id'              => $notification->id,
-				'type'            => $notification->type,
-				'message'         => $notification->message,
-				'created_at'      => $notification->created_at,
-				'relative_time'   => Fanfic_Notifications::get_relative_time( $notification->created_at ),
-				'is_read'         => (bool) $notification->is_read,
-				'data'            => ! empty( $notification->data ) ? json_decode( $notification->data, true ) : array(),
+				'id'            => $notification->id,
+				'type'          => $notification->type,
+				'message'       => $notification->message,
+				'created_at'    => $notification->created_at,
+				'relative_time' => Fanfic_Notifications::get_relative_time( $notification->created_at ),
+				'is_read'       => (bool) $notification->is_read,
+				'data'          => ! empty( $notification->data ) ? json_decode( $notification->data, true ) : array(),
 			);
 		}
 
-		// Get total count and pages
-		$total_count = Fanfic_Notifications::get_unread_count( $user_id );
-		$total_pages = min( ceil( $total_count / $per_page ), 5 );
+		$total_count  = Fanfic_Notifications::get_total_count( $user_id );
+		$unread_count = Fanfic_Notifications::get_unread_count( $user_id );
+		$next_offset  = $offset + $per_page;
 
 		// Return notifications
 		Fanfic_AJAX_Security::send_success_response(
 			array(
-				'notifications'   => $formatted_notifications,
-				'page'            => $page,
-				'total_pages'     => $total_pages,
-				'total_count'     => $total_count,
-				'unread_count'    => $total_count,
-				'has_more'        => $page < $total_pages,
+				'notifications' => $formatted_notifications,
+				'offset'        => $offset,
+				'next_offset'   => $next_offset,
+				'total_count'   => $total_count,
+				'unread_count'  => $unread_count,
+				'has_more'      => $next_offset < $total_count,
 			),
 			__( 'Notifications loaded successfully.', 'fanfiction-manager' )
 		);
@@ -1310,6 +1307,33 @@ class Fanfic_AJAX_Handlers {
 		Fanfic_AJAX_Security::send_success_response(
 			array( 'unread_count' => 0 ),
 			__( 'All notifications marked as read.', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * AJAX: Clear all notifications except co-author invites
+	 *
+	 * Deletes all notifications for the current user, preserving
+	 * coauthor_invite notifications that require a response.
+	 * Authenticated users only.
+	 *
+	 * @since 1.0.16
+	 * @return void Sends JSON response.
+	 */
+	public static function ajax_clear_all_notifications() {
+		$user_id = get_current_user_id();
+
+		Fanfic_Notifications::delete_clearable_notifications( $user_id );
+
+		$unread_count = Fanfic_Notifications::get_unread_count( $user_id );
+		$total_count  = Fanfic_Notifications::get_total_count( $user_id );
+
+		Fanfic_AJAX_Security::send_success_response(
+			array(
+				'unread_count' => $unread_count,
+				'total_count'  => $total_count,
+			),
+			__( 'Notifications cleared.', 'fanfiction-manager' )
 		);
 	}
 

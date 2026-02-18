@@ -59,9 +59,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 	<?php endif; ?>
 
 	<?php
+	$is_banned_commenter = false;
+	if ( is_user_logged_in() ) {
+		$current_user = wp_get_current_user();
+		$is_banned_commenter = in_array( 'fanfiction_banned_user', (array) $current_user->roles, true );
+	}
+
 	// Display comment form
 	if ( comments_open() ) :
-		comment_form();
+		if ( $is_banned_commenter ) :
+			?>
+			<p class="fanfic-no-comments">
+				<?php esc_html_e( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ); ?>
+			</p>
+			<?php
+		else :
+			comment_form();
+		endif;
 	elseif ( is_singular( array( 'fanfiction_story', 'fanfiction_chapter' ) ) ) :
 		?>
 		<p class="fanfic-no-comments">

@@ -923,9 +923,14 @@ function fanfic_render_breadcrumb( $context, $args = array() ) {
 	// Build breadcrumb items array
 	$items = array();
 
-	// Home icon - always first
+	// Home icon - always first.
+	// When stories_homepage mode is active, the stories listing IS the fanfiction root,
+	// so the home icon has no link (Stories breadcrumb item already covers that target).
+	$homepage_state = Fanfic_Homepage_State::get_current_state();
+	$home_url       = ( 'stories_homepage' === $homepage_state['main_page_mode'] ) ? '' : fanfic_get_main_url();
+
 	$items[] = array(
-		'url'   => fanfic_get_main_url(),
+		'url'   => $home_url,
 		'label' => '⌂', // U+2302 House symbol
 		'class' => 'fanfic-breadcrumb-home',
 	);
@@ -1194,91 +1199,6 @@ function fanfic_render_breadcrumb( $context, $args = array() ) {
 	</nav>
 	<?php
 }
-
-/**
- * Breadcrumb shortcode handler
- *
- * Allows breadcrumbs to be displayed anywhere using the [fanfic-breadcrumbs] shortcode.
- * The shortcode will automatically detect the current context and display appropriate breadcrumbs.
- *
- * @since 1.0.12
- * @param array $atts Shortcode attributes.
- *                    - 'context' (string) : Force a specific context (optional)
- *                    - 'position' (string) : 'top' or 'bottom' (default: 'top')
- * @return string The breadcrumb HTML
- */
-function fanfic_breadcrumb_shortcode( $atts ) {
-	// Parse attributes
-	$atts = shortcode_atts(
-		array(
-			'context'  => '',
-			'position' => 'top',
-		),
-		$atts,
-		'fanfic-breadcrumbs'
-	);
-
-	// Auto-detect context if not provided
-	$context = $atts['context'];
-	if ( empty( $context ) ) {
-		// Try to detect context from current page
-		if ( is_admin() ) {
-			// In admin area
-			global $pagenow;
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only URL parameter check
-			if ( 'admin.php' === $pagenow && isset( $_GET['page'] ) ) {
-				$page = sanitize_text_field( wp_unslash( $_GET['page'] ) );
-				if ( 'fanfiction' === $page || 'fanfiction-dashboard' === $page ) {
-					$context = 'dashboard';
-				}
-			}
-		} else {
-			// On frontend
-			$post_type = get_post_type();
-
-			if ( 'fanfiction_story' === $post_type ) {
-				$context = 'view-story';
-			} elseif ( 'fanfiction_chapter' === $post_type ) {
-				$context = 'view-chapter';
-			} elseif ( is_post_type_archive( 'fanfiction_story' ) ) {
-				$context = 'stories';
-			} elseif ( function_exists( 'fanfic_is_members_page' ) && fanfic_is_members_page() ) {
-				$context = 'members';
-			}
-		}
-	}
-
-	// If we still don't have a context, don't show breadcrumbs
-	if ( empty( $context ) ) {
-		return '';
-	}
-
-	// Build arguments based on context
-	$args = array(
-		'position' => $atts['position'],
-	);
-
-	// Add context-specific arguments
-	if ( 'view-story' === $context || 'edit-story' === $context ) {
-		$post_id = get_the_ID();
-		if ( $post_id ) {
-			$args['story_id'] = $post_id;
-		}
-	} elseif ( 'view-chapter' === $context || 'edit-chapter' === $context ) {
-		$post_id = get_the_ID();
-		if ( $post_id ) {
-			$chapter = get_post( $post_id );
-			$args['chapter_id'] = $post_id;
-			$args['story_id'] = wp_get_post_parent_id( $post_id );
-		}
-	}
-
-	// Capture output
-	ob_start();
-	fanfic_render_breadcrumb( $context, $args );
-	return ob_get_clean();
-}
-add_shortcode( 'fanfic-breadcrumbs', 'fanfic_breadcrumb_shortcode' );
 
 /**
  * Custom comment template callback
@@ -3702,7 +3622,7 @@ function fanfic_get_story_card_html( $story_id ) {
 	}
 	$inline_translation_links = array_slice( $translation_links, 0, 3 );
 	$extra_translation_links = array_slice( $translation_links, 3 );
-	$taxonomy_has_values = ! empty( $genre_items ) || ! empty( $visible_tag_items ) || ! empty( $warning_items ) || ! empty( $fandom_items );
+	$taxonomy_has_values = ! empty( $genre_items ) || ! empty( $warning_items ) || ! empty( $fandom_items );
 
 	$author_login = sanitize_user( (string) $card_index_data['author_login'], true );
 	$author_profile_url = ( '' !== $author_login && '' !== $members_base_url )
@@ -3747,13 +3667,14 @@ function fanfic_get_story_card_html( $story_id ) {
 	if ( '' === $featured_image_alt ) {
 		$featured_image_alt = $story_title;
 	}
+	$has_featured_image = '' !== $featured_image_url;
 
 	ob_start();
 	?>
 	<article id="story-<?php echo esc_attr( $story_id ); ?>" class="fanfic-story-card fanfic-search-story-card" data-language="<?php echo esc_attr( $language_slug ); ?>" data-translation-group="<?php echo esc_attr( $translation_group_id ); ?>" data-views="<?php echo esc_attr( $story_views ); ?>">
-		<div class="fanfic-search-story-card-layout">
-			<div class="fanfic-search-story-card-left">
-				<?php if ( '' !== $featured_image_url ) : ?>
+		<div class="fanfic-search-story-card-layout<?php echo $has_featured_image ? '' : ' fanfic-search-story-card-layout-no-image'; ?>">
+			<?php if ( $has_featured_image ) : ?>
+				<div class="fanfic-search-story-card-left">
 					<div class="fanfic-story-card-image fanfic-search-story-card-image">
 						<a href="<?php echo esc_url( $story_url ); ?>">
 							<img src="<?php echo esc_url( $featured_image_url ); ?>"
@@ -3761,10 +3682,8 @@ function fanfic_get_story_card_html( $story_id ) {
 								loading="lazy" class="attachment-medium size-medium wp-post-image" />
 						</a>
 					</div>
-				<?php else : ?>
-					<div class="fanfic-search-story-card-image fanfic-search-story-card-image-placeholder" aria-hidden="true"></div>
-				<?php endif; ?>
-			</div>
+				</div>
+			<?php endif; ?>
 
 			<div class="fanfic-search-story-card-main">
 				<header class="fanfic-search-story-card-title-row">
@@ -3826,153 +3745,156 @@ function fanfic_get_story_card_html( $story_id ) {
 					<?php echo esc_html( number_format_i18n( $chapters ) . ' ' . _n( 'chapter', 'chapters', $chapters, 'fanfiction-manager' ) ); ?>
 				</div>
 
-				<div class="fanfic-search-story-card-details-grid">
-					<div class="fanfic-search-story-card-details-left">
-						<?php if ( $taxonomy_has_values ) : ?>
-							<div class="fanfic-search-story-card-taxonomies">
-								<?php if ( ! empty( $genre_items ) ) : ?>
-									<div class="fanfic-search-story-card-taxonomy-row fanfic-search-story-card-taxonomy-row-genres">
-										<span class="fanfic-search-story-card-taxonomy-group">
-											<strong><?php esc_html_e( 'Genres:', 'fanfiction-manager' ); ?></strong>
-											<?php foreach ( $genre_items as $index => $genre_item ) : ?>
-												<?php if ( $index > 0 ) : ?>
-													<span class="fanfic-search-story-card-link-separator">, </span>
-												<?php endif; ?>
-												<a href="<?php echo esc_url( $genre_item['url'] ); ?>" class="fanfic-search-story-card-filter-link fanfic-search-story-card-filter-link-genre">
-													<?php echo esc_html( $genre_item['label'] ); ?>
-												</a>
-											<?php endforeach; ?>
-										</span>
-									</div>
+				<div class="fanfic-search-story-card-bottom">
+					<?php if ( ! empty( $visible_tag_items ) ) : ?>
+						<div class="fanfic-search-story-card-taxonomy-row fanfic-search-story-card-visible-tags-row">
+							<strong><?php esc_html_e( 'Tags:', 'fanfiction-manager' ); ?></strong>
+							<?php foreach ( $visible_tag_items as $index => $visible_tag_item ) : ?>
+								<?php if ( $index > 0 ) : ?>
+									<span class="fanfic-search-story-card-link-separator">, </span>
 								<?php endif; ?>
-								<?php if ( ! empty( $visible_tag_items ) ) : ?>
-									<div class="fanfic-search-story-card-taxonomy-row fanfic-search-story-card-visible-tags-row">
-										<strong><?php esc_html_e( 'Tags:', 'fanfiction-manager' ); ?></strong>
-										<?php foreach ( $visible_tag_items as $index => $visible_tag_item ) : ?>
-											<?php if ( $index > 0 ) : ?>
-												<span class="fanfic-search-story-card-link-separator">, </span>
-											<?php endif; ?>
-											<span class="fanfic-search-story-card-visible-tag"><?php echo esc_html( $visible_tag_item ); ?></span>
-										<?php endforeach; ?>
-									</div>
-								<?php endif; ?>
-								<?php if ( ! empty( $warning_items ) ) : ?>
-									<div class="fanfic-search-story-card-taxonomy-row fanfic-search-story-card-taxonomy-row-warnings">
-										<span class="fanfic-search-story-card-taxonomy-group">
-											<strong><?php esc_html_e( 'Warnings:', 'fanfiction-manager' ); ?></strong>
-											<?php foreach ( $warning_items as $index => $warning_item ) : ?>
-												<?php if ( $index > 0 ) : ?>
-													<span class="fanfic-search-story-card-link-separator">, </span>
-												<?php endif; ?>
-												<a href="<?php echo esc_url( $warning_item['url'] ); ?>" class="fanfic-search-story-card-filter-link fanfic-search-story-card-filter-link-warning">
-													<?php echo esc_html( $warning_item['label'] ); ?>
-												</a>
-											<?php endforeach; ?>
-										</span>
-									</div>
-								<?php endif; ?>
-								<?php if ( ! empty( $fandom_items ) ) : ?>
-									<div class="fanfic-search-story-card-taxonomy-row fanfic-search-story-card-taxonomy-row-fandoms">
-										<span class="fanfic-search-story-card-taxonomy-group">
-											<strong><?php esc_html_e( 'Fandoms:', 'fanfiction-manager' ); ?></strong>
-											<?php foreach ( $fandom_items as $index => $fandom_item ) : ?>
-												<?php if ( $index > 0 ) : ?>
-													<span class="fanfic-search-story-card-link-separator">, </span>
-												<?php endif; ?>
-												<a href="<?php echo esc_url( $fandom_item['url'] ); ?>" class="fanfic-search-story-card-filter-link fanfic-search-story-card-filter-link-fandom">
-													<?php echo esc_html( $fandom_item['label'] ); ?>
-												</a>
-											<?php endforeach; ?>
-										</span>
-									</div>
-								<?php endif; ?>
-							</div>
-						<?php endif; ?>
-
-						<div class="fanfic-search-story-card-metrics" aria-label="<?php esc_attr_e( 'Story metrics', 'fanfiction-manager' ); ?>">
-							<span class="fanfic-search-story-card-metric">
-								<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
-								<span><?php echo esc_html( number_format_i18n( $story_views ) ); ?></span>
-							</span>
-							<span class="fanfic-search-story-card-metric">
-								<span class="dashicons dashicons-thumbs-up" aria-hidden="true"></span>
-								<span><?php echo esc_html( number_format_i18n( $story_likes ) ); ?></span>
-							</span>
-							<span class="fanfic-search-story-card-metric">
-								<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>
-								<span><?php echo esc_html( number_format_i18n( $story_rating_avg, 1 ) ); ?></span>
-							</span>
-							<span class="fanfic-search-story-card-metric">
-								<span class="dashicons dashicons-edit" aria-hidden="true"></span>
-								<span>
-									<?php
-									printf(
-										/* translators: %s: story word count */
-										esc_html__( '%s words', 'fanfiction-manager' ),
-										esc_html( number_format_i18n( $word_count ) )
-									);
-									?>
-								</span>
-							</span>
+								<span class="fanfic-search-story-card-visible-tag"><?php echo esc_html( $visible_tag_item ); ?></span>
+							<?php endforeach; ?>
 						</div>
-					</div>
+					<?php endif; ?>
 
-					<div class="fanfic-search-story-card-details-right">
-						<div class="fanfic-search-story-card-language-row">
-							<strong><?php esc_html_e( 'Language:', 'fanfiction-manager' ); ?></strong>
-							<span><?php echo esc_html( '' !== $language_label ? $language_label : __( 'Unknown', 'fanfiction-manager' ) ); ?></span>
-						</div>
-
-						<?php if ( ! empty( $translation_links ) || ( $translation_group_id && $translation_count > 0 ) ) : ?>
-							<div class="fanfic-search-story-card-translations-row">
-								<span class="dashicons dashicons-admin-site-alt3 fanfic-search-story-card-translations-icon" aria-hidden="true"></span>
-								<strong><?php esc_html_e( 'Also available in:', 'fanfiction-manager' ); ?></strong>
-								<?php if ( ! empty( $inline_translation_links ) ) : ?>
-									<span class="fanfic-search-story-card-translation-links">
-										<?php foreach ( $inline_translation_links as $index => $translation_link ) : ?>
-											<?php if ( $index > 0 ) : ?>
-												<span class="fanfic-search-story-card-link-separator">, </span>
-											<?php endif; ?>
-											<a href="<?php echo esc_url( $translation_link['url'] ); ?>" class="fanfic-translation-link">
-												<?php echo esc_html( $translation_link['label'] ); ?>
-											</a>
-										<?php endforeach; ?>
-									</span>
-								<?php endif; ?>
-								<?php if ( ! empty( $extra_translation_links ) ) : ?>
-									<details class="fanfic-search-story-card-translation-dropdown">
-										<summary>
-											<?php
-											printf(
-												/* translators: %d: number of extra translations */
-												esc_html__( '+%d more', 'fanfiction-manager' ),
-												absint( count( $extra_translation_links ) )
-											);
-											?>
-										</summary>
-										<ul>
-											<?php foreach ( $extra_translation_links as $translation_link ) : ?>
-												<li>
-													<a href="<?php echo esc_url( $translation_link['url'] ); ?>" class="fanfic-translation-link">
-														<?php echo esc_html( $translation_link['label'] ); ?>
+					<div class="fanfic-search-story-card-details-grid">
+						<div class="fanfic-search-story-card-details-left">
+							<?php if ( $taxonomy_has_values ) : ?>
+								<div class="fanfic-search-story-card-taxonomies">
+									<?php if ( ! empty( $genre_items ) ) : ?>
+										<div class="fanfic-search-story-card-taxonomy-row fanfic-search-story-card-taxonomy-row-genres">
+											<span class="fanfic-search-story-card-taxonomy-group">
+												<strong><?php esc_html_e( 'Genres:', 'fanfiction-manager' ); ?></strong>
+												<?php foreach ( $genre_items as $index => $genre_item ) : ?>
+													<?php if ( $index > 0 ) : ?>
+														<span class="fanfic-search-story-card-link-separator">, </span>
+													<?php endif; ?>
+													<a href="<?php echo esc_url( $genre_item['url'] ); ?>" class="fanfic-search-story-card-filter-link fanfic-search-story-card-filter-link-genre">
+														<?php echo esc_html( $genre_item['label'] ); ?>
 													</a>
-												</li>
-											<?php endforeach; ?>
-										</ul>
-									</details>
-								<?php endif; ?>
-								<?php if ( empty( $translation_links ) && $translation_count > 0 ) : ?>
-									<span class="fanfic-search-story-card-translation-count">
+												<?php endforeach; ?>
+											</span>
+										</div>
+									<?php endif; ?>
+									<?php if ( ! empty( $warning_items ) ) : ?>
+										<div class="fanfic-search-story-card-taxonomy-row fanfic-search-story-card-taxonomy-row-warnings">
+											<span class="fanfic-search-story-card-taxonomy-group">
+												<strong><?php esc_html_e( 'Warnings:', 'fanfiction-manager' ); ?></strong>
+												<?php foreach ( $warning_items as $index => $warning_item ) : ?>
+													<?php if ( $index > 0 ) : ?>
+														<span class="fanfic-search-story-card-link-separator">, </span>
+													<?php endif; ?>
+													<a href="<?php echo esc_url( $warning_item['url'] ); ?>" class="fanfic-search-story-card-filter-link fanfic-search-story-card-filter-link-warning">
+														<?php echo esc_html( $warning_item['label'] ); ?>
+													</a>
+												<?php endforeach; ?>
+											</span>
+										</div>
+									<?php endif; ?>
+									<?php if ( ! empty( $fandom_items ) ) : ?>
+										<div class="fanfic-search-story-card-taxonomy-row fanfic-search-story-card-taxonomy-row-fandoms">
+											<span class="fanfic-search-story-card-taxonomy-group">
+												<strong><?php esc_html_e( 'Fandoms:', 'fanfiction-manager' ); ?></strong>
+												<?php foreach ( $fandom_items as $index => $fandom_item ) : ?>
+													<?php if ( $index > 0 ) : ?>
+														<span class="fanfic-search-story-card-link-separator">, </span>
+													<?php endif; ?>
+													<a href="<?php echo esc_url( $fandom_item['url'] ); ?>" class="fanfic-search-story-card-filter-link fanfic-search-story-card-filter-link-fandom">
+														<?php echo esc_html( $fandom_item['label'] ); ?>
+													</a>
+												<?php endforeach; ?>
+											</span>
+										</div>
+									<?php endif; ?>
+								</div>
+							<?php endif; ?>
+
+							<div class="fanfic-search-story-card-metrics" aria-label="<?php esc_attr_e( 'Story metrics', 'fanfiction-manager' ); ?>">
+								<span class="fanfic-search-story-card-metric">
+									<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+									<span><?php echo esc_html( number_format_i18n( $story_views ) ); ?></span>
+								</span>
+								<span class="fanfic-search-story-card-metric">
+									<span class="dashicons dashicons-thumbs-up" aria-hidden="true"></span>
+									<span><?php echo esc_html( number_format_i18n( $story_likes ) ); ?></span>
+								</span>
+								<span class="fanfic-search-story-card-metric">
+									<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>
+									<span><?php echo esc_html( number_format_i18n( $story_rating_avg, 1 ) ); ?></span>
+								</span>
+								<span class="fanfic-search-story-card-metric">
+									<span class="dashicons dashicons-edit" aria-hidden="true"></span>
+									<span>
 										<?php
 										printf(
-											esc_html( _n( '%d translation', '%d translations', $translation_count, 'fanfiction-manager' ) ),
-											absint( $translation_count )
+											/* translators: %s: story word count */
+											esc_html__( '%s words', 'fanfiction-manager' ),
+											esc_html( number_format_i18n( $word_count ) )
 										);
 										?>
 									</span>
-								<?php endif; ?>
+								</span>
 							</div>
-						<?php endif; ?>
+						</div>
+
+						<div class="fanfic-search-story-card-details-right">
+							<div class="fanfic-search-story-card-language-row">
+								<strong><?php esc_html_e( 'Language:', 'fanfiction-manager' ); ?></strong>
+								<span><?php echo esc_html( '' !== $language_label ? $language_label : __( 'Unknown', 'fanfiction-manager' ) ); ?></span>
+							</div>
+
+							<?php if ( ! empty( $translation_links ) || ( $translation_group_id && $translation_count > 0 ) ) : ?>
+								<div class="fanfic-search-story-card-translations-row">
+									<span class="dashicons dashicons-admin-site-alt3 fanfic-search-story-card-translations-icon" aria-hidden="true"></span>
+									<strong><?php esc_html_e( 'Also available in:', 'fanfiction-manager' ); ?></strong>
+									<?php if ( ! empty( $inline_translation_links ) ) : ?>
+										<span class="fanfic-search-story-card-translation-links">
+											<?php foreach ( $inline_translation_links as $index => $translation_link ) : ?>
+												<?php if ( $index > 0 ) : ?>
+													<span class="fanfic-search-story-card-link-separator">, </span>
+												<?php endif; ?>
+												<a href="<?php echo esc_url( $translation_link['url'] ); ?>" class="fanfic-translation-link">
+													<?php echo esc_html( $translation_link['label'] ); ?>
+												</a>
+											<?php endforeach; ?>
+										</span>
+									<?php endif; ?>
+									<?php if ( ! empty( $extra_translation_links ) ) : ?>
+										<details class="fanfic-search-story-card-translation-dropdown">
+											<summary>
+												<?php
+												printf(
+													/* translators: %d: number of extra translations */
+													esc_html__( '+%d more', 'fanfiction-manager' ),
+													absint( count( $extra_translation_links ) )
+												);
+												?>
+											</summary>
+											<ul>
+												<?php foreach ( $extra_translation_links as $translation_link ) : ?>
+													<li>
+														<a href="<?php echo esc_url( $translation_link['url'] ); ?>" class="fanfic-translation-link">
+															<?php echo esc_html( $translation_link['label'] ); ?>
+														</a>
+													</li>
+												<?php endforeach; ?>
+											</ul>
+										</details>
+									<?php endif; ?>
+									<?php if ( empty( $translation_links ) && $translation_count > 0 ) : ?>
+										<span class="fanfic-search-story-card-translation-count">
+											<?php
+											printf(
+												esc_html( _n( '%d translation', '%d translations', $translation_count, 'fanfiction-manager' ) ),
+												absint( $translation_count )
+											);
+											?>
+										</span>
+									<?php endif; ?>
+								</div>
+							<?php endif; ?>
+						</div>
 					</div>
 				</div>
 			</div>

@@ -298,6 +298,63 @@ var FanficMessages = {
 		var publishNowButton = document.getElementById('publish-story-now');
 		var keepDraftButton = document.getElementById('keep-as-draft');
 
+		function showInlineModalMessage(type, message, persistent) {
+			if (!message) {
+				return;
+			}
+
+			var container = document.getElementById('fanfic-messages');
+			if (!container) {
+				var target = document.querySelector('.fanfic-content-primary, .fanfic-form-wrapper, .fanfic-content-section, main') || document.body;
+				if (!target) {
+					console.error(message);
+					return;
+				}
+
+				container = document.createElement('div');
+				container.id = 'fanfic-messages';
+				container.className = 'fanfic-messages-container';
+				container.setAttribute('role', 'region');
+				container.setAttribute('aria-label', '<?php echo esc_attr( __( 'System Messages', 'fanfiction-manager' ) ); ?>');
+				container.setAttribute('aria-live', 'polite');
+				target.insertBefore(container, target.firstChild);
+			}
+
+			var normalizedType = (type === 'error' || type === 'warning') ? type : 'success';
+			var icon = normalizedType === 'error' ? '&#10007;' : (normalizedType === 'warning' ? '&#9888;' : '&#10003;');
+			var notice = document.createElement('div');
+			notice.className = 'fanfic-message fanfic-message-' + normalizedType;
+			notice.setAttribute('role', normalizedType === 'error' ? 'alert' : 'status');
+			notice.setAttribute('aria-live', normalizedType === 'error' ? 'assertive' : 'polite');
+			notice.innerHTML = '<span class="fanfic-message-icon" aria-hidden="true">' + icon + '</span><span class="fanfic-message-content"></span><button type="button" class="fanfic-message-close" aria-label="<?php echo esc_attr( __( 'Close message', 'fanfiction-manager' ) ); ?>">&times;</button>';
+			notice.querySelector('.fanfic-message-content').textContent = message;
+			notice.querySelector('.fanfic-message-content').style.whiteSpace = 'pre-line';
+			container.appendChild(notice);
+
+			var closeBtn = notice.querySelector('.fanfic-message-close');
+			if (closeBtn) {
+				closeBtn.addEventListener('click', function() {
+					notice.remove();
+				});
+			}
+
+			var adminBar = document.getElementById('wpadminbar');
+			var topOffset = (adminBar ? adminBar.offsetHeight : 0) + 16;
+			var targetY = container.getBoundingClientRect().top + window.pageYOffset - topOffset;
+			var scrollTarget = Math.max(targetY, 0);
+
+			window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+			setTimeout(function() {
+				window.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+			}, 220);
+
+			if (!persistent && normalizedType !== 'error') {
+				setTimeout(function() {
+					notice.remove();
+				}, 5000);
+			}
+		}
+
 		// Show modal if show_publish_prompt parameter is present
 		var urlParams = new URLSearchParams(window.location.search);
 		if (urlParams.get('show_publish_prompt') === '1' && publishModal) {
@@ -341,7 +398,7 @@ var FanficMessages = {
 				var storyId = this.getAttribute('data-story-id');
 
 				if (!storyId) {
-					alert('<?php echo esc_js( __( 'Story ID not found.', 'fanfiction-manager' ) ); ?>');
+					showInlineModalMessage('error', '<?php echo esc_js( __( 'Story ID not found.', 'fanfiction-manager' ) ); ?>', true);
 					return;
 				}
 
@@ -381,14 +438,14 @@ var FanficMessages = {
 						// Re-enable button and show error
 						publishNowButton.disabled = false;
 						publishNowButton.textContent = FanficMessages.publishStoryYes;
-						alert(data.data.message || '<?php esc_html_e( 'Failed to publish story.', 'fanfiction-manager' ); ?>');
+						showInlineModalMessage('error', data.data.message || '<?php echo esc_js( __( 'Failed to publish story.', 'fanfiction-manager' ) ); ?>', true);
 					}
 				})
 				.catch(function(error) {
 					// Re-enable button and show error
 					publishNowButton.disabled = false;
 					publishNowButton.textContent = FanficMessages.publishStoryYes;
-					alert('<?php esc_html_e( 'An error occurred while publishing the story.', 'fanfiction-manager' ); ?>');
+					showInlineModalMessage('error', '<?php echo esc_js( __( 'An error occurred while publishing the story.', 'fanfiction-manager' ) ); ?>', true);
 					console.error('Error:', error);
 				});
 			});

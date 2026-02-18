@@ -61,6 +61,25 @@ class Fanfic_Comments {
 
 		// Add comment moderation integration
 		add_action( 'wp_insert_comment', array( __CLASS__, 'on_comment_inserted' ), 10, 2 );
+
+		// Block banned users from posting comments.
+		add_filter( 'preprocess_comment', array( __CLASS__, 'block_banned_user_comment_submission' ) );
+	}
+
+	/**
+	 * Check if a user has banned role.
+	 *
+	 * @since 1.0.0
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	private static function is_user_banned( $user_id ) {
+		$user = get_userdata( $user_id );
+		if ( ! $user ) {
+			return false;
+		}
+
+		return in_array( 'fanfiction_banned_user', (array) $user->roles, true );
 	}
 
 	/**
@@ -113,6 +132,10 @@ class Fanfic_Comments {
 		}
 
 		$current_user_id = get_current_user_id();
+		if ( self::is_user_banned( $current_user_id ) ) {
+			return $comment_text;
+		}
+
 		$comment_user_id = absint( $comment->user_id );
 
 		// Check if user owns the comment or is moderator/admin
@@ -180,6 +203,10 @@ class Fanfic_Comments {
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
 			wp_send_json_error( array( 'message' => __( 'You must be logged in.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( self::is_user_banned( get_current_user_id() ) ) {
+			wp_send_json_error( array( 'message' => __( 'Your account is suspended. You cannot edit comments.', 'fanfiction-manager' ) ) );
 		}
 
 		// Get comment ID and new content
@@ -250,6 +277,10 @@ class Fanfic_Comments {
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
 			wp_send_json_error( array( 'message' => __( 'You must be logged in.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( self::is_user_banned( get_current_user_id() ) ) {
+			wp_send_json_error( array( 'message' => __( 'Your account is suspended. You cannot delete comments.', 'fanfiction-manager' ) ) );
 		}
 
 		// Get comment ID
@@ -333,6 +364,18 @@ class Fanfic_Comments {
 	public static function customize_comment_form( $defaults ) {
 		// Only on fanfiction post types
 		if ( ! is_singular( array( 'fanfiction_story', 'fanfiction_chapter' ) ) ) {
+			return $defaults;
+		}
+
+		if ( is_user_logged_in() && self::is_user_banned( get_current_user_id() ) ) {
+			$defaults['title_reply']          = __( 'Comments Disabled', 'fanfiction-manager' );
+			$defaults['comment_field']        = '<p class="fanfic-no-comments">' . esc_html__( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ) . '</p>';
+			$defaults['comment_notes_before'] = '';
+			$defaults['comment_notes_after']  = '';
+			$defaults['submit_button']        = '';
+			$defaults['submit_field']         = '%1$s';
+			$defaults['logged_in_as']         = '';
+
 			return $defaults;
 		}
 
@@ -437,6 +480,10 @@ class Fanfic_Comments {
 			return false;
 		}
 
+		if ( self::is_user_banned( $user_id ) ) {
+			return false;
+		}
+
 		// Check if moderator
 		$user = get_userdata( $user_id );
 		if ( $user && ( $user->has_cap( 'moderate_fanfiction' ) || $user->has_cap( 'manage_options' ) ) ) {
@@ -453,6 +500,36 @@ class Fanfic_Comments {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Block comment submissions for banned users on fanfiction content.
+	 *
+	 * @since 1.0.0
+	 * @param array $commentdata Raw comment payload.
+	 * @return array
+	 */
+	public static function block_banned_user_comment_submission( $commentdata ) {
+		if ( ! is_user_logged_in() ) {
+			return $commentdata;
+		}
+
+		$current_user_id = get_current_user_id();
+		if ( ! self::is_user_banned( $current_user_id ) ) {
+			return $commentdata;
+		}
+
+		$post_id = isset( $commentdata['comment_post_ID'] ) ? absint( $commentdata['comment_post_ID'] ) : 0;
+		$post = $post_id ? get_post( $post_id ) : null;
+		if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+			return $commentdata;
+		}
+
+		wp_die(
+			esc_html__( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ),
+			esc_html__( 'Commenting Disabled', 'fanfiction-manager' ),
+			array( 'response' => 403 )
+		);
 	}
 
 	/**

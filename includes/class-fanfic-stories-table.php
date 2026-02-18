@@ -1259,7 +1259,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		}
 
 		// Check user capabilities
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
 			wp_die( __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) );
 		}
 
@@ -1297,7 +1297,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		}
 
 		// Check user capabilities
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
 			wp_die( __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) );
 		}
 

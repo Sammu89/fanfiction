@@ -40,6 +40,8 @@ class Fanfic_Notifications {
 	const TYPE_COAUTHOR_ENABLED = 'coauthor_enabled';
 	const TYPE_CHAPTER_UPDATE = 'chapter_update';
 	const TYPE_STORY_STATUS_CHANGE = 'story_status_change';
+	const TYPE_USER_BANNED = 'user_banned';
+	const TYPE_USER_UNBANNED = 'user_unbanned';
 
 	/**
 	 * Cron continuation hook for old-notification cleanup.
@@ -49,11 +51,19 @@ class Fanfic_Notifications {
 	const CLEANUP_CONTINUATION_HOOK = 'fanfic_cleanup_old_notifications_continue';
 
 	/**
+	 * Maximum number of rows allowed in the notifications table.
+	 * When exceeded, the oldest rows are pruned during the daily cleanup.
+	 *
+	 * @var int
+	 */
+	const CLEANUP_MAX_ROWS = 50000;
+
+	/**
 	 * Cleanup batch size.
 	 *
 	 * @var int
 	 */
-	const CLEANUP_BATCH_SIZE = 1000;
+	const CLEANUP_BATCH_SIZE = 200;
 
 	/**
 	 * Cleanup worker time limit.
@@ -113,12 +123,13 @@ class Fanfic_Notifications {
 	 *
 	 * @since 1.0.0
 	 * @param int    $user_id User ID to receive notification.
-	 * @param string $type    Notification type (use class constants).
-	 * @param string $message Notification message.
-	 * @param array  $data    Additional data (stored as JSON).
+	 * @param string $type         Notification type (use class constants).
+	 * @param string $message      Notification message.
+	 * @param array  $data         Additional data (stored as JSON).
+	 * @param bool   $persistent   Whether the notification is protected from automatic cleanup.
 	 * @return int|false Notification ID on success, false on failure.
 	 */
-	public static function create_notification( $user_id, $type, $message, $data = array() ) {
+	public static function create_notification( $user_id, $type, $message, $data = array(), $persistent = false ) {
 		global $wpdb;
 
 		// Validate inputs
@@ -141,13 +152,16 @@ class Fanfic_Notifications {
 			self::TYPE_COAUTHOR_ENABLED,
 			self::TYPE_CHAPTER_UPDATE,
 			self::TYPE_STORY_STATUS_CHANGE,
+			self::TYPE_USER_BANNED,
+			self::TYPE_USER_UNBANNED,
 		);
 
 		if ( ! in_array( $type, $valid_types, true ) ) {
 			return false;
 		}
 
-		$message = sanitize_text_field( $message );
+		$message     = sanitize_text_field( $message );
+		$persistent  = ! empty( $persistent ) ? 1 : 0;
 
 		// Encode data as JSON
 		$data_json = ! empty( $data ) ? wp_json_encode( $data ) : null;
@@ -157,14 +171,15 @@ class Fanfic_Notifications {
 		$result = $wpdb->insert(
 			$table_name,
 			array(
-				'user_id'    => $user_id,
-				'type'       => $type,
-				'message'    => $message,
-				'data'       => $data_json,
-				'is_read'    => 0,
-				'created_at' => current_time( 'mysql' ),
+				'user_id'       => $user_id,
+				'type'          => $type,
+				'message'       => $message,
+				'data'          => $data_json,
+				'is_read'       => 0,
+				'is_persistent' => $persistent,
+				'created_at'    => current_time( 'mysql' ),
 			),
-			array( '%d', '%s', '%s', '%s', '%d', '%s' )
+			array( '%d', '%s', '%s', '%s', '%d', '%d', '%s' )
 		);
 
 		if ( ! $result ) {
@@ -400,6 +415,40 @@ class Fanfic_Notifications {
 	}
 
 	/**
+	 * Delete all notifications of a given type that reference a specific story, for a specific user.
+	 *
+	 * Used to remove stale invite notifications after the user has responded.
+	 *
+	 * @since 1.0.0
+	 * @param int    $user_id  User ID.
+	 * @param string $type     Notification type constant value.
+	 * @param int    $story_id Story ID to match inside the JSON data column.
+	 * @return void
+	 */
+	public static function delete_notifications_by_type_and_story( $user_id, $type, $story_id ) {
+		global $wpdb;
+
+		$user_id  = absint( $user_id );
+		$story_id = absint( $story_id );
+
+		if ( ! $user_id || ! $story_id ) {
+			return;
+		}
+
+		$table_name   = $wpdb->prefix . 'fanfic_notifications';
+		$story_pattern = '%' . $wpdb->esc_like( '"story_id":' . $story_id ) . '%';
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$table_name} WHERE user_id = %d AND type = %s AND data LIKE %s",
+				$user_id,
+				$type,
+				$story_pattern
+			)
+		);
+	}
+
+	/**
 	 * Delete all user notifications
 	 *
 	 * @since 1.0.0
@@ -432,9 +481,40 @@ class Fanfic_Notifications {
 	}
 
 	/**
-	 * Delete old notifications (90+ days)
+	 * Delete all notifications for a user except co-author invites.
 	 *
-	 * Called by cron job to clean up old notifications.
+	 * Used by the "Clear all" dashboard action. Preserves coauthor_invite
+	 * notifications because they require an explicit response from the user.
+	 *
+	 * @since 1.0.0
+	 * @param int $user_id User ID.
+	 * @return int|false Number of rows deleted, or false on failure.
+	 */
+	public static function delete_clearable_notifications( $user_id ) {
+		global $wpdb;
+
+		$user_id = absint( $user_id );
+		if ( ! $user_id ) {
+			return false;
+		}
+
+		$table_name = $wpdb->prefix . 'fanfic_notifications';
+
+		$result = $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$table_name} WHERE user_id = %d AND type != %s",
+				$user_id,
+				self::TYPE_COAUTHOR_INVITE
+			)
+		);
+
+		return $result;
+	}
+
+	/**
+	 * Delete oldest notifications when the table exceeds CLEANUP_MAX_ROWS.
+	 *
+	 * Called by cron job. Does nothing if the row count is within the limit.
 	 *
 	 * @since 1.0.0
 	 * @return int Number of notifications deleted.
@@ -444,18 +524,34 @@ class Fanfic_Notifications {
 			return 0;
 		}
 
+		global $wpdb;
+		$table_name  = $wpdb->prefix . 'fanfic_notifications';
+		$total_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name}" );
+
+		if ( $total_count <= self::CLEANUP_MAX_ROWS ) {
+			self::release_cleanup_lock();
+			return 0;
+		}
+
+		$excess        = $total_count - self::CLEANUP_MAX_ROWS;
 		$total_deleted = 0;
-		$start = microtime( true );
-		$time_budget = self::get_cleanup_time_budget_seconds();
-		$has_more = false;
+		$start         = microtime( true );
+		$time_budget   = self::get_cleanup_time_budget_seconds();
 
-		do {
-			$deleted = self::delete_old_notifications_batch( self::CLEANUP_BATCH_SIZE );
+		while ( $excess > 0 && ( microtime( true ) - $start ) < $time_budget ) {
+			$batch         = min( self::CLEANUP_BATCH_SIZE, $excess );
+			$deleted       = self::delete_oldest_notifications_batch( $batch );
 			$total_deleted += $deleted;
-			$has_more = ( self::CLEANUP_BATCH_SIZE === $deleted );
-		} while ( $has_more && ( microtime( true ) - $start ) < $time_budget );
+			$excess        -= $deleted;
 
-		if ( $has_more ) {
+			if ( $deleted < $batch ) {
+				// Fewer rows deleted than requested — nothing more to prune.
+				$excess = 0;
+			}
+		}
+
+		if ( $excess > 0 ) {
+			// Ran out of time budget — schedule a continuation run.
 			self::schedule_cleanup_continuation();
 		} else {
 			wp_clear_scheduled_hook( self::CLEANUP_CONTINUATION_HOOK );
@@ -464,33 +560,28 @@ class Fanfic_Notifications {
 		self::release_cleanup_lock();
 
 		if ( $total_deleted > 0 ) {
-			error_log( sprintf( 'Fanfiction Manager: Cleaned up %d old notifications', $total_deleted ) );
+			error_log( sprintf( 'Fanfiction Manager: Pruned %d notifications (table exceeded %d row limit)', $total_deleted, self::CLEANUP_MAX_ROWS ) );
 		}
 
 		return $total_deleted;
 	}
 
 	/**
-	 * Delete one old-notification batch.
+	 * Delete the oldest N notification rows by primary key order.
 	 *
 	 * @since 2.0.0
-	 * @param int $limit Batch size.
+	 * @param int $limit Number of rows to delete.
 	 * @return int Deleted row count.
 	 */
-	private static function delete_old_notifications_batch( $limit ) {
+	private static function delete_oldest_notifications_batch( $limit ) {
 		global $wpdb;
 
 		$table_name = $wpdb->prefix . 'fanfic_notifications';
-		$limit = max( 1, absint( $limit ) );
+		$limit      = max( 1, absint( $limit ) );
 
-		// Delete oldest rows first in bounded chunks.
 		$result = $wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$table_name}
-				WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)
-				ORDER BY id ASC
-				LIMIT %d",
-				90,
+				"DELETE FROM {$table_name} WHERE is_persistent = 0 ORDER BY id ASC LIMIT %d",
 				$limit
 			)
 		);
@@ -649,6 +740,8 @@ class Fanfic_Notifications {
 			self::TYPE_COAUTHOR_ENABLED => __( 'Co-Authors Enabled', 'fanfiction-manager' ),
 			self::TYPE_CHAPTER_UPDATE => __( 'Chapter Update', 'fanfiction-manager' ),
 			self::TYPE_STORY_STATUS_CHANGE => __( 'Story Status Change', 'fanfiction-manager' ),
+			self::TYPE_USER_BANNED => __( 'Account Suspended', 'fanfiction-manager' ),
+			self::TYPE_USER_UNBANNED => __( 'Account Reinstated', 'fanfiction-manager' ),
 		);
 	}
 

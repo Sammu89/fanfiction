@@ -680,14 +680,15 @@ class Fanfic_Wizard {
 							<label><?php esc_html_e( 'Assign Moderators', 'fanfiction-manager' ); ?></label>
 						</th>
 						<td>
-							<select name="fanfic_moderators[]" id="fanfic_moderators" multiple size="10" style="width: 100%; max-width: 500px;">
+							<div id="fanfic_moderators" class="fanfic-wizard-user-checklist" role="group" aria-label="<?php esc_attr_e( 'Assign Moderators', 'fanfiction-manager' ); ?>">
 								<?php foreach ( $users as $user ) : ?>
-									<option value="<?php echo esc_attr( $user->ID ); ?>" <?php selected( in_array( $user->ID, $assigned_moderators, true ) ); ?>>
-										<?php echo esc_html( $user->display_name . ' (' . $user->user_login . ')' ); ?>
-									</option>
+									<label class="fanfic-wizard-user-checklist-item">
+										<input type="checkbox" name="fanfic_moderators[]" value="<?php echo esc_attr( $user->ID ); ?>" <?php checked( in_array( $user->ID, $assigned_moderators, true ) ); ?>>
+										<span><?php echo esc_html( $user->display_name . ' (' . $user->user_login . ')' ); ?></span>
+									</label>
 								<?php endforeach; ?>
-							</select>
-							<p class="description"><?php esc_html_e( 'Hold Ctrl (Windows) or Cmd (Mac) to select multiple users. You can skip this step and assign roles later.', 'fanfiction-manager' ); ?></p>
+							</div>
+							<p class="description"><?php esc_html_e( 'Select one or more users. You can skip this step and assign roles later.', 'fanfiction-manager' ); ?></p>
 						</td>
 					</tr>
 
@@ -696,14 +697,15 @@ class Fanfic_Wizard {
 							<label><?php esc_html_e( 'Assign Administrators', 'fanfiction-manager' ); ?></label>
 						</th>
 						<td>
-							<select name="fanfic_admins[]" id="fanfic_admins" multiple size="10" style="width: 100%; max-width: 500px;">
+							<div id="fanfic_admins" class="fanfic-wizard-user-checklist" role="group" aria-label="<?php esc_attr_e( 'Assign Administrators', 'fanfiction-manager' ); ?>">
 								<?php foreach ( $users as $user ) : ?>
-									<option value="<?php echo esc_attr( $user->ID ); ?>" <?php selected( in_array( $user->ID, $assigned_admins, true ) ); ?>>
-										<?php echo esc_html( $user->display_name . ' (' . $user->user_login . ')' ); ?>
-									</option>
+									<label class="fanfic-wizard-user-checklist-item">
+										<input type="checkbox" name="fanfic_admins[]" value="<?php echo esc_attr( $user->ID ); ?>" <?php checked( in_array( $user->ID, $assigned_admins, true ) ); ?>>
+										<span><?php echo esc_html( $user->display_name . ' (' . $user->user_login . ')' ); ?></span>
+									</label>
 								<?php endforeach; ?>
-							</select>
-							<p class="description"><?php esc_html_e( 'Hold Ctrl (Windows) or Cmd (Mac) to select multiple users. You can skip this step and assign roles later.', 'fanfiction-manager' ); ?></p>
+							</div>
+							<p class="description"><?php esc_html_e( 'Select one or more users. You can skip this step and assign roles later.', 'fanfiction-manager' ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -2381,7 +2383,6 @@ class Fanfic_Wizard {
 		$esperanto_language_id = null; // Story 2 preferred language.
 		$latin_language_id = null; // Story 1 preferred language.
 		$english_language_id = null; // Story 3 preferred language.
-		$portuguese_language_id = null; // Fallback if English is unavailable.
 		if ( class_exists( 'Fanfic_Languages' ) && method_exists( 'Fanfic_Languages', 'get_active_languages' ) ) {
 			$languages_available = Fanfic_Languages::get_active_languages();
 			// Find Esperanto and Latin IDs.
@@ -2389,21 +2390,19 @@ class Fanfic_Wizard {
 				if ( ! isset( $lang['slug'], $lang['id'] ) ) {
 					continue;
 				}
+				$lang_slug = sanitize_title( (string) $lang['slug'] );
+				$lang_name = strtolower( trim( (string) ( $lang['name'] ?? '' ) ) );
 
-				if ( 'eo' === $lang['slug'] ) {
+				if ( 'eo' === $lang_slug || 'esperanto' === $lang_name ) {
 					$esperanto_language_id = $lang['id'];
 				}
 
-				if ( 'la' === $lang['slug'] ) {
+				if ( 'la' === $lang_slug || 'latin' === $lang_name ) {
 					$latin_language_id = $lang['id'];
 				}
 
-				if ( 'en' === $lang['slug'] ) {
+				if ( 'en' === $lang_slug || 'english' === $lang_name ) {
 					$english_language_id = $lang['id'];
-				}
-
-				if ( in_array( $lang['slug'], array( 'pt', 'pt-pt', 'pt-br' ), true ) && is_null( $portuguese_language_id ) ) {
-					$portuguese_language_id = $lang['id'];
 				}
 			}
 		}
@@ -2450,33 +2449,10 @@ class Fanfic_Wizard {
 			$random_warnings_2 = array_slice( $warnings_available, 0, rand( 1, min( 2, count( $warnings_available ) ) ) );
 		}
 
-		// Story language selection with fallback.
-		$random_language_1_id = null;
-		// Story 2 will be Esperanto if available, otherwise random or null.
+		// Story language selection: strict assignment (no fallback chain).
+		$random_language_1_id = $latin_language_id;
 		$random_language_2_id = $esperanto_language_id;
-		// Story 3 should be English if available.
 		$random_language_3_id = $english_language_id;
-
-		if ( ! empty( $languages_available ) ) {
-			// Story 1 should be Latin when available.
-			$random_language_1_id = $latin_language_id;
-			if ( is_null( $random_language_1_id ) ) {
-				$random_language_1_id = $languages_available[ array_rand( $languages_available ) ]['id'];
-			}
-
-			// If Esperanto is unavailable, fallback to random for story 2.
-			if ( is_null( $esperanto_language_id ) ) {
-				$random_language_2_id = $languages_available[ array_rand( $languages_available ) ]['id'];
-			}
-
-			// Story 3 fallback order: English -> Portuguese -> random.
-			if ( is_null( $random_language_3_id ) ) {
-				$random_language_3_id = $portuguese_language_id;
-			}
-			if ( is_null( $random_language_3_id ) ) {
-				$random_language_3_id = $languages_available[ array_rand( $languages_available ) ]['id'];
-			}
-		}
 
 		// Random fandoms (1 if available)
 		$random_fandom_1_id = null;

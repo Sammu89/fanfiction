@@ -24,6 +24,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Shortcodes_Comments {
 
 	/**
+	 * Check if current logged-in user has banned role.
+	 *
+	 * @since 1.0.0
+	 * @return bool
+	 */
+	private static function is_current_user_banned() {
+		if ( ! is_user_logged_in() ) {
+			return false;
+		}
+
+		$current_user = wp_get_current_user();
+		return in_array( 'fanfiction_banned_user', (array) $current_user->roles, true );
+	}
+
+	/**
 	 * Register comment shortcodes
 	 *
 	 * @since 1.0.0
@@ -172,6 +187,12 @@ class Fanfic_Shortcodes_Comments {
 					__( 'You must be <a href="%s">logged in</a> to post a comment.', 'fanfiction-manager' ),
 					esc_url( wp_login_url( get_permalink( $post_id ) ) )
 				) .
+				'</p>';
+		}
+
+		if ( self::is_current_user_banned() ) {
+			return '<p class="fanfic-no-comments">' .
+				esc_html__( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ) .
 				'</p>';
 		}
 
@@ -405,6 +426,12 @@ class Fanfic_Shortcodes_Comments {
 						?>
 					</p>
 					<?php
+				} elseif ( self::is_current_user_banned() ) {
+					?>
+					<p class="fanfic-no-comments">
+						<?php esc_html_e( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ); ?>
+					</p>
+					<?php
 				} else {
 					comment_form(
 						array(
@@ -530,6 +557,12 @@ class Fanfic_Shortcodes_Comments {
 							esc_url( wp_login_url( get_permalink( $chapter_id ) ) )
 						);
 						?>
+					</p>
+					<?php
+				} elseif ( self::is_current_user_banned() ) {
+					?>
+					<p class="fanfic-no-comments">
+						<?php esc_html_e( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ); ?>
 					</p>
 					<?php
 				} else {
