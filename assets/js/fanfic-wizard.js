@@ -49,6 +49,9 @@
 			// Toggle base slug field based on choice
 			$('input[name="fanfic_use_base_slug"]').on('change', this.toggleBaseSlugField.bind(this));
 			this.toggleBaseSlugField(); // Initial check
+
+			// Step 3 role matrix: one role per user.
+			$(document).on('change', '.fanfic-role-toggle', this.handleRoleToggle.bind(this));
 		},
 
 		/**
@@ -69,6 +72,25 @@
 				$baseSlugInput.prop('disabled', true);
 			}
 			this.updateLiveUrlPreviews();
+		},
+
+		/**
+		 * Keep Step 3 role selection mutually exclusive per user.
+		 *
+		 * @param {Event} e Change event
+		 */
+		handleRoleToggle: function(e) {
+			var $current = $(e.currentTarget);
+
+			if (!$current.is(':checked')) {
+				return;
+			}
+
+			var userId = String($current.data('user-id'));
+			var currentRole = String($current.data('role'));
+			var oppositeRole = currentRole === 'admin' ? 'moderator' : 'admin';
+
+			$('.fanfic-role-toggle[data-user-id="' + userId + '"][data-role="' + oppositeRole + '"]').prop('checked', false);
 		},
 
 		/**

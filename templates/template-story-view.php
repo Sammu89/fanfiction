@@ -68,11 +68,12 @@ function fanfic_get_default_story_view_template() {
 		<div class="fanfic-story-intro">
 			[story-intro]
 			<div class="fanfic-story-taxonomies">
-			[story-taxonomies]
+				[story-taxonomies]
+			</div>
+			<div class="fanfic-story-tags-row">
+				[story-visible-tags show_label="false" format="pills"]
+			</div>
 		</div>
-		</div>
-
-		
 	</section>
 
 	<section class="fanfic-story-chapters-list" aria-labelledby="chapters-heading">
@@ -110,6 +111,23 @@ $template = get_option( 'fanfic_shortcode_story_view', '' );
 
 if ( empty( $template ) ) {
 	$template = fanfic_get_default_story_view_template();
+}
+
+$template = str_replace(
+	'[story-visible-tags show_label="true" format="pills"]',
+	'[story-visible-tags show_label="false" format="pills"]',
+	$template
+);
+
+if (
+	false === strpos( $template, '[story-visible-tags' )
+	&& false !== strpos( $template, '[story-taxonomies]' )
+) {
+	$template = str_replace(
+		'[story-taxonomies]',
+		'[story-taxonomies]' . "\n" . '<div class="fanfic-story-tags-row">[story-visible-tags show_label="false" format="pills"]</div>',
+		$template
+	);
 }
 
 // Show a discreet warning if this story is not published

@@ -3272,6 +3272,24 @@ input:disabled,
 	margin-bottom: 25px;
 }
 
+.fanfic-story-tags-row {
+	margin-top: 10px;
+}
+
+.fanfic-story-content .fanfic-story-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.45rem;
+	align-items: center;
+}
+
+.fanfic-story-content .fanfic-story-tags .story-tags-pills {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	align-items: center;
+}
+
 .fanfic-story-genres {
 	display: flex;
 	flex-wrap: wrap;

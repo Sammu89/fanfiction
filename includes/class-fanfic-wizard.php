@@ -674,41 +674,61 @@ class Fanfic_Wizard {
 			<?php if ( empty( $users ) ) : ?>
 				<p class="description"><?php esc_html_e( 'No other users found. You can assign roles later from the Users page.', 'fanfiction-manager' ); ?></p>
 			<?php else : ?>
-				<table class="form-table">
-					<tr>
-						<th scope="row">
-							<label><?php esc_html_e( 'Assign Moderators', 'fanfiction-manager' ); ?></label>
-						</th>
-						<td>
-							<div id="fanfic_moderators" class="fanfic-wizard-user-checklist" role="group" aria-label="<?php esc_attr_e( 'Assign Moderators', 'fanfiction-manager' ); ?>">
-								<?php foreach ( $users as $user ) : ?>
-									<label class="fanfic-wizard-user-checklist-item">
-										<input type="checkbox" name="fanfic_moderators[]" value="<?php echo esc_attr( $user->ID ); ?>" <?php checked( in_array( $user->ID, $assigned_moderators, true ) ); ?>>
-										<span><?php echo esc_html( $user->display_name . ' (' . $user->user_login . ')' ); ?></span>
-									</label>
-								<?php endforeach; ?>
-							</div>
-							<p class="description"><?php esc_html_e( 'Select one or more users. You can skip this step and assign roles later.', 'fanfiction-manager' ); ?></p>
-						</td>
-					</tr>
-
-					<tr>
-						<th scope="row">
-							<label><?php esc_html_e( 'Assign Administrators', 'fanfiction-manager' ); ?></label>
-						</th>
-						<td>
-							<div id="fanfic_admins" class="fanfic-wizard-user-checklist" role="group" aria-label="<?php esc_attr_e( 'Assign Administrators', 'fanfiction-manager' ); ?>">
-								<?php foreach ( $users as $user ) : ?>
-									<label class="fanfic-wizard-user-checklist-item">
-										<input type="checkbox" name="fanfic_admins[]" value="<?php echo esc_attr( $user->ID ); ?>" <?php checked( in_array( $user->ID, $assigned_admins, true ) ); ?>>
-										<span><?php echo esc_html( $user->display_name . ' (' . $user->user_login . ')' ); ?></span>
-									</label>
-								<?php endforeach; ?>
-							</div>
-							<p class="description"><?php esc_html_e( 'Select one or more users. You can skip this step and assign roles later.', 'fanfiction-manager' ); ?></p>
-						</td>
-					</tr>
-				</table>
+				<div class="fanfic-wizard-role-table-wrap">
+					<table class="widefat striped fanfic-wizard-role-matrix">
+						<thead>
+							<tr>
+								<th scope="col"><?php esc_html_e( 'User', 'fanfiction-manager' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Administrator', 'fanfiction-manager' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Moderator', 'fanfiction-manager' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $users as $user ) : ?>
+								<?php
+								$is_admin_choice = in_array( $user->ID, $assigned_admins, true );
+								$is_moderator_choice = ! $is_admin_choice && in_array( $user->ID, $assigned_moderators, true );
+								?>
+								<tr>
+									<th scope="row" class="fanfic-wizard-role-user">
+										<?php echo esc_html( $user->display_name . ' (' . $user->user_login . ')' ); ?>
+									</th>
+									<td class="fanfic-wizard-role-cell">
+										<label for="fanfic_admin_user_<?php echo esc_attr( $user->ID ); ?>" class="fanfic-wizard-role-choice-label">
+											<input
+												type="checkbox"
+												id="fanfic_admin_user_<?php echo esc_attr( $user->ID ); ?>"
+												class="fanfic-role-toggle"
+												data-role="admin"
+												data-user-id="<?php echo esc_attr( $user->ID ); ?>"
+												name="fanfic_admins[]"
+												value="<?php echo esc_attr( $user->ID ); ?>"
+												<?php checked( $is_admin_choice ); ?>
+											>
+											<span class="screen-reader-text"><?php esc_html_e( 'Assign as administrator', 'fanfiction-manager' ); ?></span>
+										</label>
+									</td>
+									<td class="fanfic-wizard-role-cell">
+										<label for="fanfic_moderator_user_<?php echo esc_attr( $user->ID ); ?>" class="fanfic-wizard-role-choice-label">
+											<input
+												type="checkbox"
+												id="fanfic_moderator_user_<?php echo esc_attr( $user->ID ); ?>"
+												class="fanfic-role-toggle"
+												data-role="moderator"
+												data-user-id="<?php echo esc_attr( $user->ID ); ?>"
+												name="fanfic_moderators[]"
+												value="<?php echo esc_attr( $user->ID ); ?>"
+												<?php checked( $is_moderator_choice ); ?>
+											>
+											<span class="screen-reader-text"><?php esc_html_e( 'Assign as moderator', 'fanfiction-manager' ); ?></span>
+										</label>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				</div>
+				<p class="description"><?php esc_html_e( 'Choose at most one role per user. Leave both unchecked to skip that user.', 'fanfiction-manager' ); ?></p>
 			<?php endif; ?>
 		</form>
 		<?php
@@ -852,7 +872,7 @@ class Fanfic_Wizard {
 					<td>
 						<label>
 							<input type="checkbox" id="fanfic_wizard_create_samples" name="fanfic_create_samples" value="1" <?php checked( $create_samples, true ); ?>>
-							<?php esc_html_e( 'Create 2 sample stories for testing', 'fanfiction-manager' ); ?>
+							<?php esc_html_e( 'Create sample stories for testing', 'fanfiction-manager' ); ?>
 						</label>
 					</td>
 				</tr>
@@ -1435,13 +1455,18 @@ class Fanfic_Wizard {
 		if ( isset( $_POST['fanfic_moderators'] ) && is_array( $_POST['fanfic_moderators'] ) ) {
 			$moderators = array_map( 'absint', wp_unslash( $_POST['fanfic_moderators'] ) );
 		}
-		update_option( 'fanfic_wizard_moderators', $moderators );
 
 		// Save admins
 		$admins = array();
 		if ( isset( $_POST['fanfic_admins'] ) && is_array( $_POST['fanfic_admins'] ) ) {
 			$admins = array_map( 'absint', wp_unslash( $_POST['fanfic_admins'] ) );
 		}
+
+		$moderators = array_values( array_unique( array_filter( $moderators ) ) );
+		$admins = array_values( array_unique( array_filter( $admins ) ) );
+		$moderators = array_values( array_diff( $moderators, $admins ) );
+
+		update_option( 'fanfic_wizard_moderators', $moderators );
 		update_option( 'fanfic_wizard_admins', $admins );
 
 		error_log( '[Fanfic Wizard] Step 3: Saved moderators=' . wp_json_encode( $moderators ) . ', admins=' . wp_json_encode( $admins ) );

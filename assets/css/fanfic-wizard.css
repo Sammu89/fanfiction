@@ -213,24 +213,39 @@
 	font-size: 0.95em;
 }
 
-.fanfic-wizard-user-checklist {
-	max-width: 500px;
-	max-height: 260px;
-	overflow-y: auto;
-	border: 1px solid #c3c4c7;
-	background: #fff;
-	padding: 8px 10px;
-	border-radius: 4px;
+.fanfic-wizard-role-table-wrap {
+	max-width: 860px;
+	overflow-x: auto;
 }
 
-.fanfic-wizard-user-checklist-item {
-	display: flex;
+.fanfic-wizard-role-matrix {
+	margin-top: 10px;
+}
+
+.fanfic-wizard-role-matrix th,
+.fanfic-wizard-role-matrix td {
+	vertical-align: middle;
+}
+
+.fanfic-wizard-role-user {
+	font-weight: 600;
+	width: 56%;
+}
+
+.fanfic-wizard-role-cell {
+	width: 22%;
+	text-align: center;
+}
+
+.fanfic-wizard-role-choice-label {
+	display: inline-flex;
 	align-items: center;
-	gap: 8px;
-	padding: 4px 0;
+	justify-content: center;
+	min-width: 32px;
+	min-height: 32px;
 }
 
-.fanfic-wizard-user-checklist-item input[type="checkbox"] {
+.fanfic-wizard-role-choice-label input[type="checkbox"] {
 	margin: 0;
 }
 
@@ -399,6 +414,14 @@
 
 	.fanfic-wizard-role-descriptions {
 		grid-template-columns: 1fr;
+	}
+
+	.fanfic-wizard-role-table-wrap {
+		margin-bottom: 10px;
+	}
+
+	.fanfic-wizard-role-matrix {
+		min-width: 540px;
 	}
 
 	.fanfic-wizard-navigation {

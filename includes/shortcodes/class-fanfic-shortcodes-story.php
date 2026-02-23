@@ -782,6 +782,7 @@ class Fanfic_Shortcodes_Story {
 				'show_label' => 'true',  // Show "Tags:" label
 				'show_none'  => 'false', // Show message when no tags
 				'separator'  => ', ',    // Separator between tags
+				'format'     => 'text',  // text|pills
 			),
 			$atts,
 			'story-visible-tags'
@@ -804,6 +805,10 @@ class Fanfic_Shortcodes_Story {
 		$tags = fanfic_get_visible_tags( $story_id );
 		$show_label = filter_var( $atts['show_label'], FILTER_VALIDATE_BOOLEAN );
 		$show_none = filter_var( $atts['show_none'], FILTER_VALIDATE_BOOLEAN );
+		$format = strtolower( sanitize_key( (string) $atts['format'] ) );
+		if ( ! in_array( $format, array( 'text', 'pills' ), true ) ) {
+			$format = 'text';
+		}
 
 		if ( empty( $tags ) ) {
 			if ( $show_none ) {
@@ -826,10 +831,18 @@ class Fanfic_Shortcodes_Story {
 
 		$tag_items = array();
 		foreach ( $tags as $tag ) {
-			$tag_items[] = '<span class="story-tag-item">' . esc_html( $tag ) . '</span>';
+			if ( 'pills' === $format ) {
+				$tag_items[] = '<span class="fanfic-botaozinho tags story-tag-item">' . esc_html( $tag ) . '</span>';
+			} else {
+				$tag_items[] = '<span class="story-tag-item">' . esc_html( $tag ) . '</span>';
+			}
 		}
 
-		$output .= '<span class="story-tags" aria-label="' . esc_attr__( 'Story tags', 'fanfiction-manager' ) . '">' . implode( esc_html( $atts['separator'] ), $tag_items ) . '</span>';
+		if ( 'pills' === $format ) {
+			$output .= '<span class="story-tags story-tags-pills" aria-label="' . esc_attr__( 'Story tags', 'fanfiction-manager' ) . '">' . implode( '', $tag_items ) . '</span>';
+		} else {
+			$output .= '<span class="story-tags" aria-label="' . esc_attr__( 'Story tags', 'fanfiction-manager' ) . '">' . implode( esc_html( $atts['separator'] ), $tag_items ) . '</span>';
+		}
 		$output .= '</div>';
 
 		return $output;
