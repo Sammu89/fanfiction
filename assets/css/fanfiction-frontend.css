@@ -7554,3 +7554,44 @@ input:checked + .fanfic-slider:before {
 		min-width: 80px;
     }
 }
+
+/* Custom Taxonomy Search Results */
+.fanfic-custom-search-field {
+	position: relative;
+}
+
+.fanfic-custom-search-results {
+	display: none;
+	border: 1px solid var(--color-neutral-300);
+	background: white;
+	margin-top: 6px;
+	max-height: 200px;
+	overflow-y: auto;
+	border-radius: 4px;
+}
+
+.fanfic-custom-search-result {
+	display: block;
+	width: 100%;
+	padding: 8px 10px;
+	text-align: left;
+	background: white;
+	border: 0;
+	border-bottom: 1px solid #f0f0f0;
+	cursor: pointer;
+	box-sizing: border-box;
+}
+
+.fanfic-custom-search-result:hover {
+	background: #f7f7f7;
+}
+
+.fanfic-custom-search-result:last-child {
+	border-bottom: 0;
+}
+
+.fanfic-custom-search-no-results {
+	padding: 8px 10px;
+	color: var(--base-lighter);
+	font-style: italic;
+}

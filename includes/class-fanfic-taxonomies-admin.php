@@ -309,6 +309,19 @@ class Fanfic_Taxonomies_Admin {
 									<p class="description"><?php esc_html_e( 'Single: user selects one term. Multiple: user can select many terms.', 'fanfiction-manager' ); ?></p>
 								</td>
 							</tr>
+							<tr id="taxonomy_display_format_row" style="display: none;">
+								<th scope="row">
+									<label for="taxonomy_display_format"><?php esc_html_e( 'Display on story form as', 'fanfiction-manager' ); ?></label>
+								</th>
+								<td>
+									<select id="taxonomy_display_format" name="taxonomy_display_format">
+										<option value="grid"><?php esc_html_e( 'Checkbox Grid', 'fanfiction-manager' ); ?></option>
+										<option value="dropdown"><?php esc_html_e( 'Dropdown Multi-Select', 'fanfiction-manager' ); ?></option>
+										<option value="search"><?php esc_html_e( 'Searchable Field', 'fanfiction-manager' ); ?></option>
+									</select>
+									<p class="description"><?php esc_html_e( 'Grid: shows all options as checkboxes (best for small lists). Dropdown: collapsible list with checkboxes (best for medium lists). Searchable: type-ahead search field (best for large lists).', 'fanfiction-manager' ); ?></p>
+								</td>
+							</tr>
 						</table>
 	
 						<p class="submit">
@@ -345,7 +358,24 @@ class Fanfic_Taxonomies_Admin {
 											<strong><a href="<?php echo esc_url( $tab_link ); ?>"><?php echo esc_html( $taxonomy['name'] ); ?></a></strong>
 										</td>
 										<td class="column-type">
-											<?php echo 'multi' === $taxonomy['selection_type'] ? esc_html__( 'Multiple', 'fanfiction-manager' ) : esc_html__( 'Single', 'fanfiction-manager' ); ?>
+											<?php
+											if ( 'multi' === $taxonomy['selection_type'] ) {
+												$format_labels = array(
+													'grid'     => __( 'Grid', 'fanfiction-manager' ),
+													'dropdown' => __( 'Dropdown', 'fanfiction-manager' ),
+													'search'   => __( 'Searchable', 'fanfiction-manager' ),
+												);
+												$df = isset( $taxonomy['display_format'] ) ? $taxonomy['display_format'] : 'grid';
+												$df_label = isset( $format_labels[ $df ] ) ? $format_labels[ $df ] : $format_labels['grid'];
+												printf(
+													/* translators: %s: display format (Grid, Dropdown, Searchable) */
+													esc_html__( 'Multiple (%s)', 'fanfiction-manager' ),
+													esc_html( $df_label )
+												);
+											} else {
+												esc_html_e( 'Single', 'fanfiction-manager' );
+											}
+											?>
 										</td>
 										<td class="column-shortcode">
 											<code>[story-<?php echo esc_html( $taxonomy['slug'] ); ?>]</code>
@@ -376,6 +406,7 @@ class Fanfic_Taxonomies_Admin {
 												data-name="<?php echo esc_attr( $taxonomy['name'] ); ?>"
 												data-active="<?php echo $is_active ? '1' : '0'; ?>"
 												data-selection-type="<?php echo esc_attr( $taxonomy['selection_type'] ); ?>"
+												data-display-format="<?php echo esc_attr( isset( $taxonomy['display_format'] ) ? $taxonomy['display_format'] : 'grid' ); ?>"
 												data-nonce="<?php echo esc_attr( $edit_nonce ); ?>"
 												data-delete-nonce="<?php echo esc_attr( wp_create_nonce( 'fanfic_delete_custom_taxonomy' ) ); ?>">
 												<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
@@ -412,6 +443,16 @@ class Fanfic_Taxonomies_Admin {
 							</select>
 						</p>
 
+						<p id="fanfic-edit-taxonomy-display-format-row" style="display: none;">
+							<label for="fanfic-edit-taxonomy-display-format"><?php esc_html_e( 'Display on story form as', 'fanfiction-manager' ); ?></label>
+							<select id="fanfic-edit-taxonomy-display-format" name="taxonomy_display_format">
+								<option value="grid"><?php esc_html_e( 'Checkbox Grid', 'fanfiction-manager' ); ?></option>
+								<option value="dropdown"><?php esc_html_e( 'Dropdown Multi-Select', 'fanfiction-manager' ); ?></option>
+								<option value="search"><?php esc_html_e( 'Searchable Field', 'fanfiction-manager' ); ?></option>
+							</select>
+							<span class="description"><?php esc_html_e( 'Grid: checkboxes (small lists). Dropdown: collapsible list (medium lists). Searchable: type-ahead (large lists).', 'fanfiction-manager' ); ?></span>
+						</p>
+
 						<p>
 							<label>
 								<input type="checkbox" name="taxonomy_is_active" id="fanfic-edit-taxonomy-active" value="1">
@@ -436,6 +477,26 @@ class Fanfic_Taxonomies_Admin {
 	
 			<script>
 			jQuery(document).ready(function($) {
+				// Show/hide display format row based on selection type (Create form)
+				$('#taxonomy_selection_type').on('change', function() {
+					if ($(this).val() === 'multi') {
+						$('#taxonomy_display_format_row').show();
+					} else {
+						$('#taxonomy_display_format_row').hide();
+						$('#taxonomy_display_format').val('grid');
+					}
+				}).trigger('change');
+
+				// Show/hide display format row based on selection type (Edit modal)
+				$('#fanfic-edit-taxonomy-selection-type').on('change', function() {
+					if ($(this).val() === 'multi') {
+						$('#fanfic-edit-taxonomy-display-format-row').show();
+					} else {
+						$('#fanfic-edit-taxonomy-display-format-row').hide();
+						$('#fanfic-edit-taxonomy-display-format').val('grid');
+					}
+				});
+
 				// Edit Taxonomy Modal
 				$('.fanfic-edit-taxonomy-btn').on('click', function() {
 					var $btn = $(this);
@@ -443,6 +504,13 @@ class Fanfic_Taxonomies_Admin {
 					$('#fanfic-edit-taxonomy-name').val($btn.data('name'));
 					$('#fanfic-edit-taxonomy-active').prop('checked', $btn.data('active') === 1);
 					$('#fanfic-edit-taxonomy-selection-type').val($btn.data('selection-type'));
+					$('#fanfic-edit-taxonomy-display-format').val($btn.data('display-format') || 'grid');
+					// Toggle display format row visibility based on selection type
+					if ($btn.data('selection-type') === 'multi') {
+						$('#fanfic-edit-taxonomy-display-format-row').show();
+					} else {
+						$('#fanfic-edit-taxonomy-display-format-row').hide();
+					}
 					$('#fanfic-edit-taxonomy-nonce').val($btn.data('nonce'));
 					$('#fanfic-delete-taxonomy-id').val($btn.data('id'));
 					$('#fanfic-delete-taxonomy-nonce').val($btn.data('delete-nonce'));

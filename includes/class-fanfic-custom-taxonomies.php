@@ -264,7 +264,7 @@ class Fanfic_Custom_Taxonomies {
 	 * Create a new taxonomy.
 	 *
 	 * @since 1.4.0
-	 * @param array $data Taxonomy data (name, slug, selection_type).
+	 * @param array $data Taxonomy data (name, slug, selection_type, display_format).
 	 * @return int|WP_Error New taxonomy ID or error.
 	 */
 	public static function create_taxonomy( $data ) {
@@ -275,6 +275,14 @@ class Fanfic_Custom_Taxonomies {
 		$name           = isset( $data['name'] ) ? sanitize_text_field( $data['name'] ) : '';
 		$slug           = isset( $data['slug'] ) ? sanitize_title( $data['slug'] ) : sanitize_title( $name );
 		$selection_type = isset( $data['selection_type'] ) && 'multi' === $data['selection_type'] ? 'multi' : 'single';
+		$display_format = isset( $data['display_format'] ) ? sanitize_text_field( $data['display_format'] ) : 'grid';
+		if ( ! in_array( $display_format, array( 'grid', 'dropdown', 'search' ), true ) ) {
+			$display_format = 'grid';
+		}
+		// Single-select taxonomies always use default format (rendered as a regular dropdown).
+		if ( 'single' === $selection_type ) {
+			$display_format = 'grid';
+		}
 
 		if ( empty( $name ) || empty( $slug ) ) {
 			return new WP_Error( 'invalid_data', __( 'Name and slug are required.', 'fanfiction-manager' ) );
@@ -300,10 +308,11 @@ class Fanfic_Custom_Taxonomies {
 				'slug'           => $slug,
 				'name'           => $name,
 				'selection_type' => $selection_type,
+				'display_format' => $display_format,
 				'is_active'      => 1,
 				'sort_order'     => 0,
 			),
-			array( '%s', '%s', '%s', '%d', '%d' )
+			array( '%s', '%s', '%s', '%s', '%d', '%d' )
 		);
 
 		if ( false === $result ) {
@@ -353,6 +362,22 @@ class Fanfic_Custom_Taxonomies {
 
 		if ( isset( $data['selection_type'] ) ) {
 			$update['selection_type'] = 'multi' === $data['selection_type'] ? 'multi' : 'single';
+			$format[]                 = '%s';
+		}
+
+		if ( isset( $data['display_format'] ) ) {
+			$display_format = sanitize_text_field( $data['display_format'] );
+			if ( ! in_array( $display_format, array( 'grid', 'dropdown', 'search' ), true ) ) {
+				$display_format = 'grid';
+			}
+			$update['display_format'] = $display_format;
+			$format[]                 = '%s';
+		}
+
+		// If switching to single-select, reset display_format to grid.
+		$new_selection = isset( $update['selection_type'] ) ? $update['selection_type'] : $existing['selection_type'];
+		if ( 'single' === $new_selection && ! isset( $update['display_format'] ) ) {
+			$update['display_format'] = 'grid';
 			$format[]                 = '%s';
 		}
 

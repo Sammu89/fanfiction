@@ -122,6 +122,7 @@ class Fanfic_Custom_Taxonomies_Admin {
 					data-id="<?php echo esc_attr( $taxonomy['id'] ); ?>"
 					data-name="<?php echo esc_attr( $taxonomy['name'] ); ?>"
 					data-selection-type="<?php echo esc_attr( $taxonomy['selection_type'] ); ?>"
+					data-display-format="<?php echo esc_attr( isset( $taxonomy['display_format'] ) ? $taxonomy['display_format'] : 'grid' ); ?>"
 					data-active="<?php echo ! empty( $taxonomy['is_active'] ) ? '1' : '0'; ?>"
 					data-nonce="<?php echo esc_attr( wp_create_nonce( 'fanfic_update_custom_taxonomy_' . $taxonomy['id'] ) ); ?>">
 					<?php esc_html_e( 'Edit Taxonomy', 'fanfiction-manager' ); ?>
@@ -319,6 +320,16 @@ class Fanfic_Custom_Taxonomies_Admin {
 							</select>
 						</p>
 
+						<p id="fanfic-edit-taxonomy-display-format-row" style="display: none;">
+							<label for="fanfic-edit-taxonomy-display-format"><?php esc_html_e( 'Display on story form as', 'fanfiction-manager' ); ?></label>
+							<select id="fanfic-edit-taxonomy-display-format" name="taxonomy_display_format">
+								<option value="grid"><?php esc_html_e( 'Checkbox Grid', 'fanfiction-manager' ); ?></option>
+								<option value="dropdown"><?php esc_html_e( 'Dropdown Multi-Select', 'fanfiction-manager' ); ?></option>
+								<option value="search"><?php esc_html_e( 'Searchable Field', 'fanfiction-manager' ); ?></option>
+							</select>
+							<span class="description"><?php esc_html_e( 'Grid: checkboxes (small lists). Dropdown: collapsible list (medium lists). Searchable: type-ahead (large lists).', 'fanfiction-manager' ); ?></span>
+						</p>
+
 						<p>
 							<label>
 								<input type="checkbox" name="taxonomy_is_active" id="fanfic-edit-taxonomy-active" value="1">
@@ -387,11 +398,26 @@ class Fanfic_Custom_Taxonomies_Admin {
 			});
 
 			// Edit Taxonomy Modal
+			$('#fanfic-edit-taxonomy-selection-type').on('change', function() {
+				if ($(this).val() === 'multi') {
+					$('#fanfic-edit-taxonomy-display-format-row').show();
+				} else {
+					$('#fanfic-edit-taxonomy-display-format-row').hide();
+					$('#fanfic-edit-taxonomy-display-format').val('grid');
+				}
+			});
+
 			$('.fanfic-edit-taxonomy-btn').on('click', function() {
 				var $btn = $(this);
 				$('#fanfic-edit-taxonomy-id').val($btn.data('id'));
 				$('#fanfic-edit-taxonomy-name').val($btn.data('name'));
 				$('#fanfic-edit-taxonomy-selection-type').val($btn.data('selection-type'));
+				$('#fanfic-edit-taxonomy-display-format').val($btn.data('display-format') || 'grid');
+				if ($btn.data('selection-type') === 'multi') {
+					$('#fanfic-edit-taxonomy-display-format-row').show();
+				} else {
+					$('#fanfic-edit-taxonomy-display-format-row').hide();
+				}
 				$('#fanfic-edit-taxonomy-active').prop('checked', $btn.data('active') === 1);
 				$('#fanfic-edit-taxonomy-nonce').val($btn.data('nonce'));
 				$('#fanfic-edit-taxonomy-modal').attr('aria-hidden', 'false');
@@ -457,6 +483,7 @@ class Fanfic_Custom_Taxonomies_Admin {
 
 		$name           = isset( $_POST['taxonomy_name'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_name'] ) ) : '';
 		$selection_type = isset( $_POST['taxonomy_selection_type'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_selection_type'] ) ) : 'single';
+		$display_format = isset( $_POST['taxonomy_display_format'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_display_format'] ) ) : 'grid';
 		$name           = '' !== $name ? ucfirst( $name ) : '';
 
 		if ( '' === $name ) {
@@ -467,6 +494,7 @@ class Fanfic_Custom_Taxonomies_Admin {
 			array(
 				'name'           => $name,
 				'selection_type' => $selection_type,
+				'display_format' => $display_format,
 			)
 		);
 
@@ -487,10 +515,11 @@ class Fanfic_Custom_Taxonomies_Admin {
 		$taxonomy_id = isset( $_POST['taxonomy_id'] ) ? absint( $_POST['taxonomy_id'] ) : 0;
 		self::check_admin_nonce( 'fanfic_update_custom_taxonomy_' . $taxonomy_id, 'fanfic_update_custom_taxonomy_nonce' );
 
-		$name      = isset( $_POST['taxonomy_name'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_name'] ) ) : '';
-		$name      = '' !== $name ? ucfirst( $name ) : '';
+		$name           = isset( $_POST['taxonomy_name'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_name'] ) ) : '';
+		$name           = '' !== $name ? ucfirst( $name ) : '';
 		$selection_type = isset( $_POST['taxonomy_selection_type'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_selection_type'] ) ) : 'single';
-		$is_active = isset( $_POST['taxonomy_is_active'] ) ? 1 : 0;
+		$display_format = isset( $_POST['taxonomy_display_format'] ) ? sanitize_text_field( wp_unslash( $_POST['taxonomy_display_format'] ) ) : 'grid';
+		$is_active      = isset( $_POST['taxonomy_is_active'] ) ? 1 : 0;
 
 		if ( ! $taxonomy_id || '' === $name ) {
 			self::redirect_with_message( 'general', 'error', 'missing_fields' );
@@ -501,6 +530,7 @@ class Fanfic_Custom_Taxonomies_Admin {
 			array(
 				'name'           => $name,
 				'selection_type' => $selection_type,
+				'display_format' => $display_format,
 				'is_active'      => $is_active,
 			)
 		);

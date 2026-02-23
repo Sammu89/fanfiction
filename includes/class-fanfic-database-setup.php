@@ -323,6 +323,7 @@ class Fanfic_Database_Setup {
 			slug varchar(191) NOT NULL,
 			name varchar(255) NOT NULL,
 			selection_type enum('single','multi') NOT NULL DEFAULT 'single',
+			display_format varchar(20) NOT NULL DEFAULT 'grid',
 			is_active tinyint(1) NOT NULL DEFAULT 1,
 			sort_order int(11) NOT NULL DEFAULT 0,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
