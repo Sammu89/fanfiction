@@ -97,17 +97,9 @@ class Fanfic_Shortcodes_Stats {
 		$count = $rating_data->total_votes;
 
 		$output = '<div class="fanfic-story-rating-display" data-avg="' . esc_attr( $rating ) . '" data-count="' . esc_attr( $count ) . '">';
-		$output .= Fanfic_Interactions::get_stars_html( $rating, false, $atts['size'] );
-		$output .= '<div class="fanfic-rating-info">';
 		$output .= '<span class="fanfic-rating-average">' . esc_html( number_format_i18n( $rating, 1 ) ) . '</span>';
-		$output .= '<span class="fanfic-rating-count">';
-		$output .= sprintf(
-			/* translators: %s: number of ratings */
-			esc_html( _n( '(%s rating)', '(%s ratings)', $count, 'fanfiction-manager' ) ),
-			esc_html( number_format_i18n( $count ) )
-		);
-		$output .= '</span>';
-		$output .= '</div>';
+		$output .= Fanfic_Interactions::get_star_icon_html( 'full' );
+		$output .= '<span class="fanfic-rating-count">(' . esc_html( number_format_i18n( $count ) ) . ')</span>';
 		$output .= '</div>';
 
 		return $output;
@@ -944,7 +936,7 @@ class Fanfic_Shortcodes_Stats {
 		$count = $rating_data->total_votes;
 
 		return sprintf(
-			'<span class="fanfic-rating-compact fanfic-rating-short">%s&#9733; (%s)</span>',
+			'<span class="fanfic-rating-compact fanfic-rating-short"><span class="fanfic-rating-value">%s</span><span class="fanfic-rating-star">&#9733;</span><span class="fanfic-rating-count">(%s)</span></span>',
 			esc_html( number_format_i18n( $rating, 2 ) ),
 			esc_html( number_format_i18n( $count ) )
 		);

@@ -633,3 +633,188 @@ body.fanfic-admin-modal-open {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* ==========================================================================
+   Documentation Page — Accordion
+   ========================================================================== */
+
+.fanfic-docs-accordion {
+	max-width: 960px;
+	margin-top: 20px;
+}
+
+.fanfic-docs-accordion-item {
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	margin-bottom: 8px;
+	background: #fff;
+	overflow: hidden;
+}
+
+.fanfic-docs-accordion-header {
+	margin: 0;
+}
+
+.fanfic-docs-accordion-toggle {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 14px 18px;
+	background: #f6f7f7;
+	border: none;
+	border-bottom: 1px solid transparent;
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: 600;
+	color: #1d2327;
+	text-align: left;
+	transition: background 0.12s ease;
+}
+
+.fanfic-docs-accordion-toggle:hover,
+.fanfic-docs-accordion-toggle:focus-visible {
+	background: #f0f0f1;
+	outline: 2px solid #2271b1;
+	outline-offset: -2px;
+}
+
+.fanfic-docs-accordion-toggle[aria-expanded="true"] {
+	background: #fff;
+	border-bottom-color: #c3c4c7;
+}
+
+.fanfic-docs-accordion-icon {
+	flex-shrink: 0;
+	color: #646970;
+	transition: color 0.12s ease;
+}
+
+.fanfic-docs-accordion-toggle[aria-expanded="true"] .fanfic-docs-accordion-icon {
+	color: #2271b1;
+}
+
+.fanfic-docs-accordion-body {
+	padding: 24px 28px;
+}
+
+/* Loading state */
+.fanfic-doc-loading {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	color: #646970;
+	font-size: 13px;
+}
+
+.fanfic-doc-loading .spinner {
+	margin: 0;
+	float: none;
+}
+
+/* Rendered documentation prose */
+.fanfic-docs-accordion-content h1,
+.fanfic-docs-accordion-content h2,
+.fanfic-docs-accordion-content h3,
+.fanfic-docs-accordion-content h4 {
+	color: #1d2327;
+	margin-bottom: 0.4em;
+}
+
+.fanfic-docs-accordion-content h1 {
+	font-size: 1.4em;
+	margin-top: 0;
+	padding-bottom: 0.35em;
+	border-bottom: 1px solid #c3c4c7;
+}
+
+.fanfic-docs-accordion-content h2 {
+	font-size: 1.2em;
+	margin-top: 1.6em;
+}
+
+.fanfic-docs-accordion-content h3 {
+	font-size: 1.05em;
+	margin-top: 1.4em;
+}
+
+.fanfic-docs-accordion-content h4 {
+	font-size: 1em;
+	margin-top: 1.2em;
+}
+
+.fanfic-docs-accordion-content p {
+	margin: 0.7em 0;
+	line-height: 1.65;
+	color: #2c3338;
+}
+
+.fanfic-docs-accordion-content ul,
+.fanfic-docs-accordion-content ol {
+	padding-left: 1.5em;
+	margin: 0.7em 0;
+}
+
+.fanfic-docs-accordion-content li {
+	margin-bottom: 0.35em;
+	line-height: 1.6;
+	color: #2c3338;
+}
+
+.fanfic-docs-accordion-content code {
+	background: #f0f0f1;
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 0.875em;
+	color: #1d2327;
+}
+
+.fanfic-docs-accordion-content pre {
+	background: #f0f0f1;
+	padding: 16px;
+	border-radius: 4px;
+	overflow-x: auto;
+	margin: 1em 0;
+	line-height: 1.5;
+}
+
+.fanfic-docs-accordion-content pre code {
+	background: none;
+	padding: 0;
+	border-radius: 0;
+}
+
+.fanfic-docs-accordion-content blockquote {
+	border-left: 4px solid #2271b1;
+	margin: 1em 0;
+	padding: 10px 16px;
+	background: #f0f6fc;
+	border-radius: 0 4px 4px 0;
+}
+
+.fanfic-docs-accordion-content blockquote p {
+	margin: 0;
+	color: #2c3338;
+}
+
+.fanfic-docs-accordion-content hr {
+	border: none;
+	border-top: 1px solid #c3c4c7;
+	margin: 1.5em 0;
+}
+
+.fanfic-docs-accordion-content strong {
+	font-weight: 600;
+	color: #1d2327;
+}
+
+.fanfic-doc-table {
+	margin: 1em 0;
+	font-size: 13px;
+}
+
+.fanfic-doc-table th {
+	font-weight: 600;
+	white-space: nowrap;
+}

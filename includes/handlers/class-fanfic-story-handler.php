@@ -227,6 +227,24 @@ class Fanfic_Story_Handler {
 	}
 
 	/**
+	 * Refresh story search index after story field updates.
+	 *
+	 * @since 2.1.0
+	 * @param int $story_id Story ID.
+	 * @return void
+	 */
+	private static function refresh_story_search_index( $story_id ) {
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return;
+		}
+
+		if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+			Fanfic_Search_Index::update_index( $story_id );
+		}
+	}
+
+	/**
 	 * Get a safe referer URL with fallback.
 	 *
 	 * @since 1.2.0
@@ -381,6 +399,7 @@ class Fanfic_Story_Handler {
 		$is_original_work = isset( $_POST['fanfic_is_original_work'] ) && '1' === $_POST['fanfic_is_original_work'];
 		list( $image_url, $image_attachment_id ) = self::get_story_image_input( $errors );
 		$form_action = isset( $_POST['fanfic_form_action'] ) ? sanitize_text_field( $_POST['fanfic_form_action'] ) : 'save_draft';
+		$comments_enabled = isset( $_POST['fanfic_comments_enabled'] ) ? '1' : '0';
 
 		// Get warnings and tags (Phase 4.1)
 		$enable_warnings = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_warnings', true ) : true;
@@ -427,6 +446,46 @@ class Fanfic_Story_Handler {
 
 		if ( ! $status ) {
 			$errors[] = __( 'Story status is required.', 'fanfiction-manager' );
+		}
+
+		// Block manual transition from On Hiatus / Abandoned back to Ongoing
+		// only when the story's content update date does not meet the ongoing threshold.
+		// If no content update date exists (e.g. new story, no chapters yet) the change is allowed.
+		// Administrators, fanfiction admins, and moderators bypass this restriction entirely.
+		$privileged_roles   = array( 'administrator', 'fanfiction_admin', 'fanfiction_moderator' );
+		$current_user_roles = (array) $current_user->roles;
+		$bypass_status_restriction = count( array_intersect( $privileged_roles, $current_user_roles ) ) > 0;
+
+		if ( ! $bypass_status_restriction && $is_edit_mode && $story_id > 0 && $status > 0 ) {
+			$status_id_map = get_option( 'fanfic_default_status_term_ids', array() );
+			$status_id_map = is_array( $status_id_map ) ? array_map( 'absint', $status_id_map ) : array();
+			$id_ongoing    = isset( $status_id_map['ongoing'] ) ? $status_id_map['ongoing'] : 0;
+			$id_on_hiatus  = isset( $status_id_map['on-hiatus'] ) ? $status_id_map['on-hiatus'] : 0;
+			$id_abandoned  = isset( $status_id_map['abandoned'] ) ? $status_id_map['abandoned'] : 0;
+
+			if ( $id_ongoing > 0 && $status === $id_ongoing ) {
+				$current_terms    = wp_get_post_terms( $story_id, 'fanfiction_status', array( 'fields' => 'ids' ) );
+				$current_term_ids = ( ! is_wp_error( $current_terms ) ) ? array_map( 'absint', $current_terms ) : array();
+				$is_from_restricted = ( $id_on_hiatus > 0 && in_array( $id_on_hiatus, $current_term_ids, true ) ) ||
+					( $id_abandoned > 0 && in_array( $id_abandoned, $current_term_ids, true ) );
+
+				if ( $is_from_restricted ) {
+					$content_updated_raw = (string) get_post_meta( $story_id, '_fanfic_content_updated_date', true );
+					$qualifies           = true; // Allow by default when no update date exists yet.
+
+					if ( '' !== $content_updated_raw ) {
+						$updated_ts = strtotime( $content_updated_raw );
+						$cutoff_ts  = Fanfic_Story_Status_Automation::get_hiatus_cutoff_timestamp();
+						if ( false !== $updated_ts && $updated_ts <= $cutoff_ts ) {
+							$qualifies = false;
+						}
+					}
+
+					if ( ! $qualifies ) {
+						$errors[] = __( "You can't change the current status to Ongoing unless you add or update a chapter.", 'fanfiction-manager' );
+					}
+				}
+			}
 		}
 
 		// If errors, store in transient and redirect back
@@ -530,10 +589,20 @@ class Fanfic_Story_Handler {
 				set_post_thumbnail( $new_story_id, $image_attachment_id );
 			}
 
+			// Author's Notes
+			$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+			$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+			$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
+			update_post_meta( $new_story_id, '_fanfic_author_notes_enabled', $notes_enabled );
+			update_post_meta( $new_story_id, '_fanfic_author_notes_position', $notes_position );
+			update_post_meta( $new_story_id, '_fanfic_author_notes', $notes_content );
+			update_post_meta( $new_story_id, '_fanfic_comments_enabled', $comments_enabled );
+
 			$coauthor_sync = self::sync_story_coauthors( $new_story_id, $current_user->ID, $coauthor_ids );
 			if ( ! empty( $coauthor_sync['errors'] ) && ! $is_ajax ) {
 				Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
 			}
+			self::refresh_story_search_index( $new_story_id );
 
 			// Redirect based on action
 			$story_permalink = get_permalink( $new_story_id );
@@ -775,10 +844,21 @@ class Fanfic_Story_Handler {
 			if ( ! empty( $image_attachment_id ) ) {
 				set_post_thumbnail( $story_id, $image_attachment_id );
 			}
+
+			// Author's Notes
+			$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+			$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+			$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
+			update_post_meta( $story_id, '_fanfic_author_notes_enabled', $notes_enabled );
+			update_post_meta( $story_id, '_fanfic_author_notes_position', $notes_position );
+			update_post_meta( $story_id, '_fanfic_author_notes', $notes_content );
+			update_post_meta( $story_id, '_fanfic_comments_enabled', $comments_enabled );
+
 			$coauthor_sync = self::sync_story_coauthors( $story_id, $current_user->ID, $coauthor_ids );
 			if ( ! empty( $coauthor_sync['errors'] ) && ! $is_ajax ) {
 				Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
 			}
+			self::refresh_story_search_index( $story_id );
 
 			// Redirect based on action
 			if ( 'add_chapter' === $form_action ) {
@@ -991,10 +1071,20 @@ class Fanfic_Story_Handler {
 			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 
+		// Author's Notes
+		$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+		$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+		$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
+		update_post_meta( $story_id, '_fanfic_author_notes_enabled', $notes_enabled );
+		update_post_meta( $story_id, '_fanfic_author_notes_position', $notes_position );
+		update_post_meta( $story_id, '_fanfic_author_notes', $notes_content );
+		update_post_meta( $story_id, '_fanfic_comments_enabled', $comments_enabled );
+
 		$coauthor_sync = self::sync_story_coauthors( $story_id, $current_user->ID, $coauthor_ids );
 		if ( ! empty( $coauthor_sync['errors'] ) ) {
 			Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
 		}
+		self::refresh_story_search_index( $story_id );
 
 		// Redirect to story permalink with action parameter
 		$story_permalink = get_permalink( $story_id );
@@ -1117,10 +1207,21 @@ class Fanfic_Story_Handler {
 		if ( ! empty( $image_attachment_id ) ) {
 			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
+
+		// Author's Notes
+		$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+		$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+		$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
+		update_post_meta( $story_id, '_fanfic_author_notes_enabled', $notes_enabled );
+		update_post_meta( $story_id, '_fanfic_author_notes_position', $notes_position );
+		update_post_meta( $story_id, '_fanfic_author_notes', $notes_content );
+		update_post_meta( $story_id, '_fanfic_comments_enabled', $comments_enabled );
+
 		$coauthor_sync = self::sync_story_coauthors( $story_id, $current_user->ID, $coauthor_ids );
 		if ( ! empty( $coauthor_sync['errors'] ) ) {
 			Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
 		}
+		self::refresh_story_search_index( $story_id );
 
 		// Determine redirect based on whether story had chapters before
 		if ( ! $had_chapters_before && 'draft' === $save_action ) {
@@ -1302,6 +1403,7 @@ class Fanfic_Story_Handler {
 		}
 
 		$coauthor_sync = self::sync_story_coauthors( $story_id, $current_user->ID, $coauthor_ids );
+		self::refresh_story_search_index( $story_id );
 
 		// Build redirect URL to story permalink with action=add-chapter
 		$story_permalink = get_permalink( $story_id );
@@ -1416,6 +1518,7 @@ class Fanfic_Story_Handler {
 			set_post_thumbnail( $story_id, $image_attachment_id );
 		}
 		$coauthor_sync = self::sync_story_coauthors( $story_id, $current_user->ID, $coauthor_ids );
+		self::refresh_story_search_index( $story_id );
 
 		// Build redirect URL with fallback for clients that do full-page navigation.
 		$fallback_url = self::get_story_edit_url( $story_id );
@@ -1502,6 +1605,7 @@ class Fanfic_Story_Handler {
 		clean_post_cache( $story_id );
 		wp_cache_delete( $story_id, 'posts' );
 		wp_cache_delete( $story_id, 'post_meta' );
+		self::refresh_story_search_index( $story_id );
 
 		wp_send_json_success( array(
 			'message' => __( 'Story is now visible to readers.', 'fanfiction-manager' ),

@@ -34,6 +34,7 @@ class Fanfic_Shortcodes_Story {
 		add_shortcode( 'story-intro', array( __CLASS__, 'story_intro' ) );
 		add_shortcode( 'story-featured-image', array( __CLASS__, 'story_featured_image' ) );
 		add_shortcode( 'story-genres', array( __CLASS__, 'story_genres' ) );
+		add_shortcode( 'story-genres-pills', array( __CLASS__, 'story_genres_pills' ) );
 		add_shortcode( 'story-fandoms', array( __CLASS__, 'story_fandoms' ) );
 		add_shortcode( 'story-language', array( __CLASS__, 'story_language' ) );
 		add_shortcode( 'story-status', array( __CLASS__, 'story_status' ) );
@@ -42,6 +43,7 @@ class Fanfic_Shortcodes_Story {
 		add_shortcode( 'story-word-count-estimate', array( __CLASS__, 'story_word_count_estimate' ) );
 		add_shortcode( 'story-chapters', array( __CLASS__, 'story_chapters' ) );
 		add_shortcode( 'story-views', array( __CLASS__, 'story_views' ) );
+		add_shortcode( 'story-likes', array( __CLASS__, 'story_likes' ) );
 		add_shortcode( 'story-is-featured', array( __CLASS__, 'story_is_featured' ) );
 		add_shortcode( 'fanfic-story-image', array( __CLASS__, 'fanfic_story_image' ) );
 
@@ -180,12 +182,25 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		$excerpt = get_post_field( 'post_excerpt', $story_id );
+		$heading = '<h3 class="fanfic-story-intro-title">' . esc_html__( 'Summary', 'fanfiction-manager' ) . '</h3>';
+		$intro = empty( $excerpt )
+			? '<p class="story-no-intro">' . esc_html__( 'No introduction available.', 'fanfiction-manager' ) . '</p>'
+			: '<div class="story-intro">' . wp_kses_post( wpautop( $excerpt ) ) . '</div>';
 
-		if ( empty( $excerpt ) ) {
-			return '<p class="story-no-intro">' . esc_html__( 'No introduction available.', 'fanfiction-manager' ) . '</p>';
+		// Author's Notes
+		$notes_enabled  = get_post_meta( $story_id, '_fanfic_author_notes_enabled', true );
+		$notes_position = get_post_meta( $story_id, '_fanfic_author_notes_position', true ) ?: 'below';
+		$notes_raw      = get_post_meta( $story_id, '_fanfic_author_notes', true );
+
+		if ( '1' === $notes_enabled && ! empty( $notes_raw ) ) {
+			$notes_html = '<aside class="fanfic-author-notes">'
+				. '<h4 class="fanfic-author-notes-title">' . esc_html__( "Author's Notes", 'fanfiction-manager' ) . '</h4>'
+				. '<div class="fanfic-author-notes-content">' . wp_kses_post( wpautop( $notes_raw ) ) . '</div>'
+				. '</aside>';
+			return $heading . ( ( 'above' === $notes_position ) ? $notes_html . $intro : $intro . $notes_html );
 		}
 
-		return '<div class="story-intro">' . wp_kses_post( wpautop( $excerpt ) ) . '</div>';
+		return $heading . $intro;
 	}
 
 	/**
@@ -257,6 +272,48 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		return '<span class="story-genres" aria-label="' . esc_attr__( 'Story genres', 'fanfiction-manager' ) . '">' . implode( ', ', $genre_links ) . '</span>';
+	}
+
+	/**
+	 * Story genres pills shortcode
+	 *
+	 * [story-genres-pills]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Genres as card-style pills.
+	 */
+	public static function story_genres_pills( $atts ) {
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		$genres = get_the_terms( $story_id, 'fanfiction_genre' );
+		if ( ! $genres || is_wp_error( $genres ) ) {
+			return '';
+		}
+
+		$pills = array();
+		foreach ( $genres as $genre ) {
+			$term_link = get_term_link( $genre );
+			if ( is_wp_error( $term_link ) ) {
+				continue;
+			}
+
+			$pills[] = sprintf(
+				'<span class="fanfic-botaozinho genre"><a href="%1$s" class="story-genre-link">%2$s</a></span>',
+				esc_url( $term_link ),
+				esc_html( $genre->name )
+			);
+		}
+
+		if ( empty( $pills ) ) {
+			return '';
+		}
+
+		return '<div class="fanfic-story-genres-pills" aria-label="' . esc_attr__( 'Story genres', 'fanfiction-manager' ) . '">' . implode( '', $pills ) . '</div>';
 	}
 
 	/**
@@ -589,6 +646,25 @@ class Fanfic_Shortcodes_Story {
 	}
 
 	/**
+	 * Story likes shortcode
+	 *
+	 * [story-likes]
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Likes count.
+	 */
+	public static function story_likes( $atts ) {
+		$story_id = Fanfic_Shortcodes::get_current_story_id();
+		if ( ! $story_id ) {
+			return '';
+		}
+
+		$total_likes = class_exists( 'Fanfic_Interactions' ) ? absint( Fanfic_Interactions::get_story_likes( $story_id ) ) : 0;
+		return '<span class="story-likes">' . Fanfic_Shortcodes::format_number( $total_likes ) . '</span>';
+	}
+
+	/**
 	 * Story is featured shortcode
 	 *
 	 * [story-is-featured]
@@ -825,4 +901,5 @@ class Fanfic_Shortcodes_Story {
 
 		return $output;
 	}
+
 }

@@ -2364,4 +2364,60 @@
 		}, 5000);
 	}
 
+	/**
+	 * Story view media layout
+	 * Portrait covers use image-left + vertical stats.
+	 * Square/landscape covers use image-top + horizontal stats.
+	 */
+	function initializeStoryMediaGridLayout() {
+		$('[data-fanfic-story-media-grid]').each(function() {
+			var $grid = $(this);
+			var $image = $grid.find('.fanfic-story-featured-image img').first();
+
+			function setLayoutFromImage() {
+				var imageElement = $image.get(0);
+				if (!imageElement) {
+					return;
+				}
+
+				var naturalWidth = imageElement.naturalWidth || 0;
+				var naturalHeight = imageElement.naturalHeight || 0;
+				if (!naturalWidth || !naturalHeight) {
+					return;
+				}
+
+				var ratio = naturalWidth / naturalHeight;
+				var isPortrait = ratio < 0.9; // 1:1 and landscape are treated as wide layout.
+
+				$grid.toggleClass('fanfic-story-media-grid--portrait', isPortrait);
+				$grid.toggleClass('fanfic-story-media-grid--wide', !isPortrait);
+			}
+
+			if (!$image.length) {
+				$grid.removeClass('fanfic-story-media-grid--portrait').addClass('fanfic-story-media-grid--wide');
+				return;
+			}
+
+			if ($image.get(0).complete) {
+				setLayoutFromImage();
+			} else {
+				$image.one('load', setLayoutFromImage);
+			}
+		});
+	}
+
+	$(document).ready(function() {
+		initializeStoryMediaGridLayout();
+	});
+
+	// Author's Notes toggle
+	$(document).on('change', '.fanfic-author-notes-toggle', function() {
+		var $options = $(this).closest('.fanfic-author-notes-field').find('.fanfic-author-notes-options');
+		if ($(this).is(':checked')) {
+			$options.show();
+		} else {
+			$options.hide();
+		}
+	});
+
 })(jQuery);

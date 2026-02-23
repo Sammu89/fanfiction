@@ -31,6 +31,14 @@ class Fanfic_Templates {
 	const TEMPLATE_FILE = 'fanfiction-page-template.php';
 
 	/**
+	 * Flag to bypass slug reservation during system page creation.
+	 *
+	 * @since 1.0.0
+	 * @var bool
+	 */
+	private static $creating_system_pages = false;
+
+	/**
 	 * Initialize the template loader
 	 *
 	 * Sets up WordPress hooks for template loading.
@@ -777,6 +785,9 @@ class Fanfic_Templates {
 	 * @return array Array with success status, created/existing/failed pages, and summary message.
 	 */
 	public static function create_system_pages( $base_slug = 'fanfiction' ) {
+		// Bypass slug reservation filter during system page creation
+		self::$creating_system_pages = true;
+
 		// Increase memory limit temporarily for page creation
 		$original_memory_limit = ini_get( 'memory_limit' );
 		if ( (int) $original_memory_limit < 512 ) {
@@ -1112,6 +1123,9 @@ class Fanfic_Templates {
 		if ( isset( $original_memory_limit ) ) {
 			@ini_set( 'memory_limit', $original_memory_limit );
 		}
+
+		// Re-enable slug reservation filter
+		self::$creating_system_pages = false;
 
 		error_log( sprintf(
 			'Fanfic Templates: Page creation complete | mem=%dMB peak=%dMB',
@@ -1715,6 +1729,11 @@ class Fanfic_Templates {
 	public static function reserve_plugin_urls( $data, $postarr ) {
 		// Skip if not a page
 		if ( $data['post_type'] !== 'page' ) {
+			return $data;
+		}
+
+		// Skip during system page creation (wizard/rebuild)
+		if ( self::$creating_system_pages ) {
 			return $data;
 		}
 

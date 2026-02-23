@@ -1763,6 +1763,11 @@ class Fanfic_Wizard {
 			delete_option( 'fanfic_wizard_moderators' );
 			delete_option( 'fanfic_wizard_admins' );
 
+			// Clear stale admin notice transients that may have been set before wizard ran
+			delete_transient( 'fanfic_homepage_changed' );
+			delete_transient( 'fanfic_homepage_sync_check_throttle' );
+			delete_transient( 'fanfic_slug_conflict' );
+
 			// Delete draft on success
 			error_log( '[Fanfic Wizard Complete] Deleting wizard draft' );
 			delete_option( 'fanfic_wizard_draft' );
@@ -2322,6 +2327,111 @@ class Fanfic_Wizard {
 		do_action( 'fanfic_tags_updated', $story_id );
 	}
 
+	/**
+	 * Import a bundled sample image into the WordPress media library.
+	 *
+	 * @since 1.0.0
+	 * @param string $relative_asset_path Relative path from plugin root.
+	 * @param int    $parent_post_id      Parent post ID for the attachment.
+	 * @param int    $author_id           Attachment author ID.
+	 * @return int Attachment ID or 0 on failure.
+	 */
+	private function import_sample_image_attachment( $relative_asset_path, $parent_post_id, $author_id ) {
+		$relative_asset_path = ltrim( (string) $relative_asset_path, '/\\' );
+		$parent_post_id      = absint( $parent_post_id );
+		$author_id           = absint( $author_id );
+		$source_path         = trailingslashit( FANFIC_PLUGIN_DIR ) . $relative_asset_path;
+
+		if ( empty( $relative_asset_path ) || ! file_exists( $source_path ) || ! is_readable( $source_path ) ) {
+			error_log( '[Fanfic Wizard Samples] Sample image not found or unreadable: ' . $source_path );
+			return 0;
+		}
+
+		$file_contents = file_get_contents( $source_path );
+		if ( false === $file_contents ) {
+			error_log( '[Fanfic Wizard Samples] Failed reading sample image: ' . $source_path );
+			return 0;
+		}
+
+		if ( ! function_exists( 'wp_upload_bits' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+		}
+
+		$uploaded = wp_upload_bits( wp_basename( $source_path ), null, $file_contents );
+		if ( ! empty( $uploaded['error'] ) || empty( $uploaded['file'] ) ) {
+			error_log( '[Fanfic Wizard Samples] Failed uploading sample image: ' . ( $uploaded['error'] ?? 'unknown error' ) );
+			return 0;
+		}
+
+		$filetype = wp_check_filetype( wp_basename( $uploaded['file'] ), null );
+		$attachment_id = wp_insert_attachment(
+			array(
+				'post_mime_type' => ! empty( $filetype['type'] ) ? $filetype['type'] : 'image/jpeg',
+				'post_title'     => sanitize_text_field( pathinfo( wp_basename( $uploaded['file'] ), PATHINFO_FILENAME ) ),
+				'post_content'   => '',
+				'post_status'    => 'inherit',
+				'post_author'    => $author_id,
+			),
+			$uploaded['file'],
+			$parent_post_id,
+			true
+		);
+
+		if ( is_wp_error( $attachment_id ) || $attachment_id <= 0 ) {
+			error_log( '[Fanfic Wizard Samples] Failed creating attachment for sample image: ' . ( is_wp_error( $attachment_id ) ? $attachment_id->get_error_message() : 'unknown error' ) );
+			return 0;
+		}
+
+		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+		}
+
+		$metadata = wp_generate_attachment_metadata( $attachment_id, $uploaded['file'] );
+		if ( ! is_wp_error( $metadata ) && ! empty( $metadata ) ) {
+			wp_update_attachment_metadata( $attachment_id, $metadata );
+		}
+
+		return absint( $attachment_id );
+	}
+
+	/**
+	 * Assign an attachment as featured image for a sample story/chapter post.
+	 *
+	 * @since 1.0.0
+	 * @param int $post_id       Target post ID.
+	 * @param int $attachment_id Attachment ID.
+	 * @return void
+	 */
+	private function assign_sample_featured_image( $post_id, $attachment_id ) {
+		$post_id       = absint( $post_id );
+		$attachment_id = absint( $attachment_id );
+
+		if ( ! $post_id || ! $attachment_id ) {
+			return;
+		}
+
+		$post_type = get_post_type( $post_id );
+		if ( 'fanfiction_story' === $post_type ) {
+			if ( post_type_supports( $post_type, 'thumbnail' ) ) {
+				set_post_thumbnail( $post_id, $attachment_id );
+			}
+
+			$attachment_url = wp_get_attachment_url( $attachment_id );
+			if ( ! empty( $attachment_url ) ) {
+				update_post_meta( $post_id, '_fanfic_featured_image', esc_url_raw( $attachment_url ) );
+			}
+		}
+
+		if ( 'fanfiction_chapter' === $post_type ) {
+			delete_post_meta( $post_id, '_thumbnail_id' );
+
+			$attachment_url = wp_get_attachment_url( $attachment_id );
+			if ( ! empty( $attachment_url ) ) {
+				update_post_meta( $post_id, '_fanfic_chapter_image_url', esc_url_raw( $attachment_url ) );
+			}
+		}
+	}
+
 	private function create_sample_stories() {
 		error_log( '[Fanfic Wizard Samples] Starting sample story creation' );
 		$current_user_id = get_current_user_id();
@@ -2606,6 +2716,16 @@ class Fanfic_Wizard {
 				$story2_tag_sets['invisible']
 			);
 
+			$shared_story_featured_image_id = $this->import_sample_image_attachment(
+				'assets/img/storyimg.jpg',
+				$story2_id,
+				$current_user_id
+			);
+			$this->assign_sample_featured_image( $story2_id, $shared_story_featured_image_id );
+
+			$shared_prologue_featured_image_id = 0;
+			$shared_chapter_featured_image_id  = 0;
+
 			// Prologue (Published, NO TITLE - blank title)
 			$prologue_id = wp_insert_post( array(
 				'post_title'   => '', // Blank title as requested
@@ -2619,6 +2739,13 @@ class Fanfic_Wizard {
 			if ( ! is_wp_error( $prologue_id ) && $prologue_id > 0 ) {
 				update_post_meta( $prologue_id, '_fanfic_chapter_type', 'prologue' );
 				update_post_meta( $prologue_id, '_fanfic_chapter_number', 0 );
+
+				$shared_prologue_featured_image_id = $this->import_sample_image_attachment(
+					'assets/img/prologue.jpg',
+					$prologue_id,
+					$current_user_id
+				);
+				$this->assign_sample_featured_image( $prologue_id, $shared_prologue_featured_image_id );
 			}
 
 			// Chapter 1 (Published)
@@ -2634,6 +2761,13 @@ class Fanfic_Wizard {
 			if ( ! is_wp_error( $chapter1_s2_id ) && $chapter1_s2_id > 0 ) {
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_type', 'chapter' );
 				update_post_meta( $chapter1_s2_id, '_fanfic_chapter_number', 1 );
+
+				$shared_chapter_featured_image_id = $this->import_sample_image_attachment(
+					'assets/img/chapter1.jpg',
+					$chapter1_s2_id,
+					$current_user_id
+				);
+				$this->assign_sample_featured_image( $chapter1_s2_id, $shared_chapter_featured_image_id );
 			}
 
 			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
@@ -2653,6 +2787,7 @@ class Fanfic_Wizard {
 
 			if ( ! is_wp_error( $story3_id ) && $story3_id > 0 ) {
 				error_log( '[Fanfic Wizard Samples] Story 3 created with ID: ' . $story3_id );
+				$this->assign_sample_featured_image( $story3_id, $shared_story_featured_image_id );
 
 				// Copy WordPress taxonomies from Story 2.
 				$story2_status_term_ids = wp_get_object_terms( $story2_id, 'fanfiction_status', array( 'fields' => 'ids' ) );
@@ -2722,6 +2857,7 @@ class Fanfic_Wizard {
 				if ( ! is_wp_error( $prologue3_id ) && $prologue3_id > 0 ) {
 					update_post_meta( $prologue3_id, '_fanfic_chapter_type', 'prologue' );
 					update_post_meta( $prologue3_id, '_fanfic_chapter_number', 0 );
+					$this->assign_sample_featured_image( $prologue3_id, $shared_prologue_featured_image_id );
 				}
 
 				// Chapter 1 (Published, translated title/content).
@@ -2737,6 +2873,7 @@ class Fanfic_Wizard {
 				if ( ! is_wp_error( $chapter1_s3_id ) && $chapter1_s3_id > 0 ) {
 					update_post_meta( $chapter1_s3_id, '_fanfic_chapter_type', 'chapter' );
 					update_post_meta( $chapter1_s3_id, '_fanfic_chapter_number', 1 );
+					$this->assign_sample_featured_image( $chapter1_s3_id, $shared_chapter_featured_image_id );
 				}
 
 				// Link Story 2 and Story 3 directly in translation groups.

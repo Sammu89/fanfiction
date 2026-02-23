@@ -22,6 +22,27 @@
 	'use strict';
 
 	/**
+	 * Convert a 0-1 fill fraction to an SVG star state string.
+	 * Used by both FanficInteractions and FanficUnifiedInteractions.
+	 */
+	function fanficFillToState(fill) {
+		if (fill < 0.25) { return 'empty'; }
+		if (fill < 0.75) { return 'half'; }
+		return 'full';
+	}
+
+	/**
+	 * Apply a rating value to all .fanfic-star-wrap elements inside a stars container.
+	 * Sets data-state on each wrap so CSS shows the correct SVG layer.
+	 */
+	function fanficPreviewStars($starsEl, rating) {
+		$starsEl.find('.fanfic-star-wrap').each(function(index) {
+			var fill = Math.max(0, Math.min(1, rating - index));
+			$(this).attr('data-state', fanficFillToState(fill));
+		});
+	}
+
+	/**
 	 * Main interactions object
 	 */
 	const FanficInteractions = {
@@ -369,12 +390,45 @@
 				$(this).toggle(!!(entry && entry.follow));
 			});
 
-			// Bookmarked badges (chapter-level)
-			$('.fanfic-badge-bookmarked[data-badge-story-id][data-badge-chapter-id]').each(function() {
-				var storyId = parseInt($(this).data('badge-story-id'), 10);
-				var chapterId = parseInt($(this).data('badge-chapter-id'), 10);
-				var entry = FanficLocalStore.getChapter(storyId, chapterId);
-				$(this).toggle(!!(entry && entry.follow));
+			this.updateChapterIndicators();
+		},
+
+		/**
+		 * Update chapter-scoped indicators from localStorage in one pass:
+		 * - read indicator (entry.read)
+		 * - bookmarked badge visibility (entry.follow)
+		 */
+		updateChapterIndicators: function() {
+			var entryCache = {};
+			var getEntry = function(storyId, chapterId) {
+				var key = String(storyId) + ':' + String(chapterId);
+				if (!Object.prototype.hasOwnProperty.call(entryCache, key)) {
+					entryCache[key] = FanficLocalStore.getChapter(storyId, chapterId) || null;
+				}
+				return entryCache[key];
+			};
+
+			$('.fanfic-read-indicator[data-story-id][data-chapter-id], .fanfic-badge-bookmarked[data-badge-story-id][data-badge-chapter-id]').each(function() {
+				var $node = $(this);
+				var isReadIndicator = $node.hasClass('fanfic-read-indicator');
+				var storyId = isReadIndicator
+					? (parseInt($node.data('story-id'), 10) || 0)
+					: (parseInt($node.data('badge-story-id'), 10) || 0);
+				var chapterId = isReadIndicator
+					? (parseInt($node.data('chapter-id'), 10) || 0)
+					: (parseInt($node.data('badge-chapter-id'), 10) || 0);
+
+				if (!storyId || !chapterId) {
+					return;
+				}
+
+				var entry = getEntry(storyId, chapterId);
+
+				if (isReadIndicator) {
+					$node.toggleClass('fanfic-read-indicator-read', !!(entry && entry.read));
+				} else {
+					$node.toggle(!!(entry && entry.follow));
+				}
 			});
 		},
 
@@ -1343,11 +1397,38 @@
 			return !!(entry && entry.follow);
 		},
 
-		mergeFromServer: function(merged) {
+		mergeFromServer: function(merged, preserveSinceTs) {
 			if (!merged || typeof merged !== 'object') {
 				return;
 			}
-			this.saveAll(merged);
+
+			const serverData = merged;
+			const hasPreserveTs = Number.isFinite(preserveSinceTs) && preserveSinceTs > 0;
+
+			if (!hasPreserveTs) {
+				this.saveAll(serverData);
+				return;
+			}
+
+			const localData = this.getAll();
+			const finalData = Object.assign({}, serverData);
+
+			Object.keys(localData).forEach(function(key) {
+				const localEntry = localData[key];
+				if (!localEntry || typeof localEntry !== 'object') {
+					return;
+				}
+
+				const localTs = parseInt(localEntry.timestamp, 10) || 0;
+				const serverHasKey = Object.prototype.hasOwnProperty.call(serverData, key);
+
+				// Keep local entries created/updated after sync started to avoid stale overwrite.
+				if (!serverHasKey || localTs >= preserveSinceTs) {
+					finalData[key] = localEntry;
+				}
+			});
+
+			this.saveAll(finalData);
 		}
 	};
 
@@ -1361,6 +1442,9 @@
 				needsSync: !!fanficAjax.needsSync,
 				enableDislikes: !!fanficAjax.enableDislikes
 			};
+			this.interactionLocks = {};
+			this.likeDislikeLockMinMs = 700;
+			this.likeDislikeLockMaxMs = 5000;
 			this._readDebugLastHiddenLogAt = 0;
 			this.context = this.detectChapterContext();
 			this.activeReadSeconds = 0;
@@ -1503,6 +1587,16 @@
 				e.preventDefault();
 				const storyId = parseInt($(this).data('story-id'), 10);
 				const chapterId = parseInt($(this).data('chapter-id'), 10);
+				if (!storyId || !chapterId) {
+					return;
+				}
+				const lockKey = self.getChapterInteractionLockKey(storyId, chapterId);
+				if (self.isChapterInteractionLocked(lockKey)) {
+					return;
+				}
+				const lockStartedAt = Date.now();
+				self.lockChapterInteraction(lockKey, storyId, chapterId);
+
 				const wasLiked = FanficLocalStore.getChapter(storyId, chapterId);
 				const hadLike = !!(wasLiked && wasLiked.like);
 				const entry = FanficLocalStore.toggleLike(storyId, chapterId);
@@ -1510,10 +1604,23 @@
 
 				// Optimistic like count update
 				self.adjustCount('.like-count', hadLike ? -1 : 1, function(count) {
-					return '(' + count + ')';
+					return count > 0 ? '(' + count + ')' : '';
 				});
 
-				self.postInteraction(entry.like ? 'like' : 'remove_like', null, chapterId);
+				const request = self.postInteraction(entry.like ? 'like' : 'remove_like', null, chapterId);
+				const releaseLock = function() {
+					const elapsed = Date.now() - lockStartedAt;
+					const waitMs = Math.max(0, self.likeDislikeLockMinMs - elapsed);
+					window.setTimeout(function() {
+						self.unlockChapterInteraction(lockKey, storyId, chapterId);
+					}, waitMs);
+				};
+
+				if (request && typeof request.always === 'function') {
+					request.always(releaseLock);
+				} else {
+					releaseLock();
+				}
 			});
 
 			$(document).on('click', '.fanfic-dislike-button[data-story-id][data-chapter-id], .fanfic-button-dislike[data-story-id][data-chapter-id]', function(e) {
@@ -1523,6 +1630,16 @@
 				}
 				const storyId = parseInt($(this).data('story-id'), 10);
 				const chapterId = parseInt($(this).data('chapter-id'), 10);
+				if (!storyId || !chapterId) {
+					return;
+				}
+				const lockKey = self.getChapterInteractionLockKey(storyId, chapterId);
+				if (self.isChapterInteractionLocked(lockKey)) {
+					return;
+				}
+				const lockStartedAt = Date.now();
+				self.lockChapterInteraction(lockKey, storyId, chapterId);
+
 				const wasDisliked = FanficLocalStore.getChapter(storyId, chapterId);
 				const hadDislike = !!(wasDisliked && wasDisliked.dislike);
 				const entry = FanficLocalStore.toggleDislike(storyId, chapterId);
@@ -1530,36 +1647,137 @@
 
 				// Optimistic dislike count update
 				self.adjustCount('.dislike-count', hadDislike ? -1 : 1, function(count) {
-					return '(' + count + ')';
+					return count > 0 ? '(' + count + ')' : '';
 				});
 
-				self.postInteraction(entry.dislike ? 'dislike' : 'remove_dislike', null, chapterId);
+				const request = self.postInteraction(entry.dislike ? 'dislike' : 'remove_dislike', null, chapterId);
+				const releaseLock = function() {
+					const elapsed = Date.now() - lockStartedAt;
+					const waitMs = Math.max(0, self.likeDislikeLockMinMs - elapsed);
+					window.setTimeout(function() {
+						self.unlockChapterInteraction(lockKey, storyId, chapterId);
+					}, waitMs);
+				};
+
+				if (request && typeof request.always === 'function') {
+					request.always(releaseLock);
+				} else {
+					releaseLock();
+				}
 			});
+		},
+
+		getChapterInteractionLockKey: function(storyId, chapterId) {
+			return String(storyId) + ':' + String(chapterId);
+		},
+
+		isChapterInteractionLocked: function(lockKey) {
+			return !!(this.interactionLocks && this.interactionLocks[lockKey]);
+		},
+
+		lockChapterInteraction: function(lockKey, storyId, chapterId) {
+			const self = this;
+			if (!this.interactionLocks) {
+				this.interactionLocks = {};
+			}
+
+			// Replace stale lock for same chapter if it exists.
+			if (this.interactionLocks[lockKey] && this.interactionLocks[lockKey].timeoutId) {
+				window.clearTimeout(this.interactionLocks[lockKey].timeoutId);
+			}
+
+			const timeoutId = window.setTimeout(function() {
+				self.unlockChapterInteraction(lockKey, storyId, chapterId);
+			}, this.likeDislikeLockMaxMs);
+
+			this.interactionLocks[lockKey] = {
+				timeoutId: timeoutId,
+				storyId: storyId,
+				chapterId: chapterId
+			};
+
+			this.setLikeDislikeButtonsDisabled(storyId, chapterId, true);
+		},
+
+		unlockChapterInteraction: function(lockKey, storyId, chapterId) {
+			if (!this.interactionLocks || !this.interactionLocks[lockKey]) {
+				this.setLikeDislikeButtonsDisabled(storyId, chapterId, false);
+				return;
+			}
+
+			const lock = this.interactionLocks[lockKey];
+			if (lock.timeoutId) {
+				window.clearTimeout(lock.timeoutId);
+			}
+
+			delete this.interactionLocks[lockKey];
+			this.setLikeDislikeButtonsDisabled(storyId, chapterId, false);
+		},
+
+		setLikeDislikeButtonsDisabled: function(storyId, chapterId, disabled) {
+			const selector =
+				'.fanfic-like-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], ' +
+				'.fanfic-button-like[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], ' +
+				'.fanfic-dislike-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], ' +
+				'.fanfic-button-dislike[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]';
+
+			const $buttons = $(selector);
+			$buttons.prop('disabled', !!disabled);
+			$buttons.attr('aria-disabled', disabled ? 'true' : 'false');
 		},
 
 		bindRating: function() {
 			const self = this;
+
+			$(document).on('mouseenter', '.fanfic-rating-stars-half .fanfic-star-hit', function() {
+				const $hit = $(this);
+				const $starsEl = $hit.closest('.fanfic-rating-stars-half');
+				// Left half of star 1 previews as 0 (remove)
+				const isRemoveHit = $hit.hasClass('fanfic-star-hit-left') &&
+					$hit.closest('.fanfic-star-wrap').data('star') == 1;
+				const previewValue = isRemoveHit ? 0 : parseFloat($hit.data('value'));
+				fanficPreviewStars($starsEl, previewValue);
+			});
+
+			$(document).on('mouseleave', '.fanfic-rating-stars-half', function() {
+				const $starsEl = $(this);
+				const savedRating = parseFloat($starsEl.attr('data-rating')) || 0;
+				fanficPreviewStars($starsEl, savedRating);
+			});
+
 			$(document).on('click', '.fanfic-rating-stars-half .fanfic-star-hit', function(e) {
 				e.preventDefault();
 				const $hit = $(this);
 				const $root = $hit.closest('[data-story-id][data-chapter-id]');
 				const storyId = parseInt($root.data('story-id'), 10);
 				const chapterId = parseInt($root.data('chapter-id'), 10);
-				const value = parseFloat($hit.data('value'));
-				if (!storyId || !chapterId || !value) {
+				if (!storyId || !chapterId) {
 					return;
 				}
 
-				// Get old rating before updating localStorage
+				// Left half of star 1 = remove rating
+				const isRemoveHit = $hit.hasClass('fanfic-star-hit-left') &&
+					$hit.closest('.fanfic-star-wrap').data('star') == 1;
+
 				var oldEntry = FanficLocalStore.getChapter(storyId, chapterId) || {};
 				var oldRating = oldEntry.rating ? parseFloat(oldEntry.rating) : 0;
 
+				if (isRemoveHit) {
+					FanficLocalStore.setRating(storyId, chapterId, null);
+					self.applyUiFromLocal();
+					self.optimisticRatingUpdate(oldRating, 0);
+					self.postInteraction('remove_rating', null, chapterId);
+					return;
+				}
+
+				const value = parseFloat($hit.data('value'));
+				if (!value) {
+					return;
+				}
+
 				FanficLocalStore.setRating(storyId, chapterId, value);
 				self.applyUiFromLocal();
-
-				// Optimistic average/count update
 				self.optimisticRatingUpdate(oldRating, value);
-
 				self.postInteraction('rating', value, chapterId);
 			});
 		},
@@ -1568,7 +1786,7 @@
 			const self = this;
 			const finalChapterId = chapterId || (this.context ? this.context.chapterId : 0);
 			if (!finalChapterId) {
-				return;
+				return null;
 			}
 			const payload = {
 				action: 'fanfic_record_interaction',
@@ -1582,7 +1800,7 @@
 			if (value !== undefined && value !== null) {
 				payload.value = value;
 			}
-			$.post(this.config.ajaxUrl, payload).done(function(response) {
+			return $.post(this.config.ajaxUrl, payload).done(function(response) {
 				// Correct counts from server response
 				if (response && response.data && response.data.data && response.data.data.stats) {
 					self.applyStatsToCountElements(response.data.data.stats);
@@ -1595,6 +1813,7 @@
 			if (!this.config.isLoggedIn) {
 				return;
 			}
+			const syncStartedAt = Date.now();
 			const localData = FanficLocalStore.getAll();
 			const shouldSync = this.config.needsSync || (localData && Object.keys(localData).length > 0);
 			if (!shouldSync) {
@@ -1608,7 +1827,7 @@
 			}).done(function(response) {
 				const merged = response && response.data && response.data.data ? response.data.data.merged : null;
 				if (merged && typeof merged === 'object') {
-					FanficLocalStore.mergeFromServer(merged);
+					FanficLocalStore.mergeFromServer(merged, syncStartedAt);
 					self.applyUiFromLocal();
 				}
 			});
@@ -1678,7 +1897,9 @@
 				// Update display text
 				$container.find('.fanfic-rating-average').text(newAvg.toFixed(1));
 				var $countEl = $container.find('.fanfic-rating-count');
-				if (newCount === 0) {
+				if ($container.hasClass('fanfic-story-rating-display')) {
+					$countEl.text('(' + newCount + ')');
+				} else if (newCount === 0) {
 					$countEl.text('(No ratings yet)');
 				} else if (newCount === 1) {
 					$countEl.text('(1 rating)');
@@ -1744,7 +1965,8 @@
 					$c.data('count', rCount);
 					$c.find('.fanfic-rating-average').text(avg.toFixed(1));
 					var $countEl = $c.find('.fanfic-rating-count');
-					if (rCount === 0) { $countEl.text('(No ratings yet)'); }
+					if ($c.hasClass('fanfic-story-rating-display')) { $countEl.text('(' + rCount + ')'); }
+					else if (rCount === 0) { $countEl.text('(No ratings yet)'); }
 					else if (rCount === 1) { $countEl.text('(1 rating)'); }
 					else { $countEl.text('(' + rCount + ' ratings)'); }
 				});
@@ -1794,13 +2016,9 @@
 			});
 
 			const rating = entry.rating ? parseFloat(entry.rating) : 0;
-			$('.fanfic-rating-stars-half[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').each(function() {
+			$('.fanfic-rating-widget[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"] .fanfic-rating-stars-half').each(function() {
+				fanficPreviewStars($(this), rating);
 				$(this).attr('data-rating', rating);
-				$(this).find('.fanfic-star-wrap').each(function(index) {
-					const starNumber = index + 1;
-					const fill = Math.max(0, Math.min(1, rating - (starNumber - 1)));
-					$(this).find('.fanfic-star-fill').css('width', (fill * 100) + '%');
-				});
 			});
 
 			// Apply follow state for chapter-level follow button

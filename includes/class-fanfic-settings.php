@@ -190,6 +190,7 @@ class Fanfic_Settings {
 			'enable_report'                  => true,
 			'enable_warnings'                => true,
 			'enable_tags'                    => true,
+			'enable_comments'                => true,
 			'enable_coauthors'               => false,
 			'allow_anonymous_reports'        => false,
 			'enable_fandom_classification'   => false,
@@ -199,6 +200,10 @@ class Fanfic_Settings {
 			'image_upload_max_unit'          => 'mb',
 			'allow_sexual_content'           => true,
 			'allow_pornographic_content'     => false,
+			'hiatus_threshold_value'         => 4,
+			'hiatus_threshold_unit'          => 'months',
+			'abandoned_threshold_value'      => 10,
+			'abandoned_threshold_unit'       => 'months',
 		);
 	}
 
@@ -307,6 +312,7 @@ class Fanfic_Settings {
 		$sanitized['enable_report']    = isset( $settings['enable_report'] ) && $settings['enable_report'];
 		$sanitized['enable_warnings']  = isset( $settings['enable_warnings'] ) && $settings['enable_warnings'];
 		$sanitized['enable_tags']      = isset( $settings['enable_tags'] ) && $settings['enable_tags'];
+		$sanitized['enable_comments']  = isset( $settings['enable_comments'] ) && $settings['enable_comments'];
 		$sanitized['enable_coauthors'] = isset( $settings['enable_coauthors'] ) && $settings['enable_coauthors'];
 
 		// Anonymous user permissions
@@ -315,6 +321,15 @@ class Fanfic_Settings {
 		// Content restrictions (NEW in 1.2.0)
 		$sanitized['allow_sexual_content']       = isset( $settings['allow_sexual_content'] ) && $settings['allow_sexual_content'];
 		$sanitized['allow_pornographic_content'] = isset( $settings['allow_pornographic_content'] ) && $settings['allow_pornographic_content'];
+
+		// Inactivity thresholds
+		$sanitized['hiatus_threshold_value']    = max( 1, absint( $settings['hiatus_threshold_value'] ?? 4 ) );
+		$sanitized['abandoned_threshold_value'] = max( 1, absint( $settings['abandoned_threshold_value'] ?? 10 ) );
+		$allowed_units = array( 'days', 'weeks', 'months' );
+		$sanitized['hiatus_threshold_unit']    = in_array( $settings['hiatus_threshold_unit'] ?? '', $allowed_units, true )
+			? $settings['hiatus_threshold_unit'] : 'months';
+		$sanitized['abandoned_threshold_unit'] = in_array( $settings['abandoned_threshold_unit'] ?? '', $allowed_units, true )
+			? $settings['abandoned_threshold_unit'] : 'months';
 
 		return $sanitized;
 	}
@@ -1446,6 +1461,60 @@ class Fanfic_Settings {
 
 				<hr style="margin: 30px 0;">
 
+				<!-- Inactivity Thresholds Section -->
+				<h3><?php esc_html_e( 'Inactivity Thresholds', 'fanfiction-manager' ); ?></h3>
+				<p class="description" style="margin-bottom: 15px;">
+					<?php esc_html_e( 'Control how long a story must be inactive before its status changes automatically.', 'fanfiction-manager' ); ?>
+				</p>
+
+				<table class="form-table" role="presentation">
+					<tbody>
+						<?php
+						$hiatus_value    = isset( $settings['hiatus_threshold_value'] ) ? absint( $settings['hiatus_threshold_value'] ) : 4;
+						$hiatus_unit     = isset( $settings['hiatus_threshold_unit'] ) ? $settings['hiatus_threshold_unit'] : 'months';
+						$abandoned_value = isset( $settings['abandoned_threshold_value'] ) ? absint( $settings['abandoned_threshold_value'] ) : 10;
+						$abandoned_unit  = isset( $settings['abandoned_threshold_unit'] ) ? $settings['abandoned_threshold_unit'] : 'months';
+						?>
+
+						<!-- Ongoing → On Hiatus threshold -->
+						<tr>
+							<th scope="row">
+								<?php esc_html_e( 'Ongoing → On Hiatus after', 'fanfiction-manager' ); ?>
+							</th>
+							<td>
+								<input type="number" name="fanfic_settings[hiatus_threshold_value]"
+									value="<?php echo esc_attr( $hiatus_value ); ?>" min="1" style="width:70px">
+								<select name="fanfic_settings[hiatus_threshold_unit]">
+									<option value="days" <?php selected( $hiatus_unit, 'days' ); ?>><?php esc_html_e( 'Days', 'fanfiction-manager' ); ?></option>
+									<option value="weeks" <?php selected( $hiatus_unit, 'weeks' ); ?>><?php esc_html_e( 'Weeks', 'fanfiction-manager' ); ?></option>
+									<option value="months" <?php selected( $hiatus_unit, 'months' ); ?>><?php esc_html_e( 'Months', 'fanfiction-manager' ); ?></option>
+								</select>
+								<p class="description"><?php esc_html_e( 'Default: 4 months of inactivity.', 'fanfiction-manager' ); ?></p>
+							</td>
+						</tr>
+
+						<!-- On Hiatus → Abandoned threshold -->
+						<tr>
+							<th scope="row">
+								<?php esc_html_e( 'On Hiatus → Abandoned after', 'fanfiction-manager' ); ?>
+							</th>
+							<td>
+								<input type="number" name="fanfic_settings[abandoned_threshold_value]"
+									value="<?php echo esc_attr( $abandoned_value ); ?>" min="1" style="width:70px">
+								<select name="fanfic_settings[abandoned_threshold_unit]">
+									<option value="days" <?php selected( $abandoned_unit, 'days' ); ?>><?php esc_html_e( 'Days', 'fanfiction-manager' ); ?></option>
+									<option value="weeks" <?php selected( $abandoned_unit, 'weeks' ); ?>><?php esc_html_e( 'Weeks', 'fanfiction-manager' ); ?></option>
+									<option value="months" <?php selected( $abandoned_unit, 'months' ); ?>><?php esc_html_e( 'Months', 'fanfiction-manager' ); ?></option>
+								</select>
+								<p class="description"><?php esc_html_e( 'Default: 10 months of inactivity.', 'fanfiction-manager' ); ?></p>
+							</td>
+						</tr>
+
+					</tbody>
+				</table>
+
+				<hr style="margin: 30px 0;">
+
 				<!-- reCAPTCHA Settings Section -->
 				<h3><?php esc_html_e( 'Google reCAPTCHA v2 Settings', 'fanfiction-manager' ); ?></h3>
 				<p class="description" style="margin-bottom: 15px;">
@@ -1513,6 +1582,19 @@ class Fanfic_Settings {
 
 				<table class="form-table" role="presentation">
 					<tbody>
+						<!-- Enable Comments -->
+						<tr>
+							<th scope="row">
+								<label for="enable_comments"><?php esc_html_e( 'Enable Comments', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_comments" name="fanfic_settings[enable_comments]" value="1" <?php checked( isset( $settings['enable_comments'] ) ? $settings['enable_comments'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow comments on stories and chapters. Authors can control this per-story.', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
 						<!-- Enable Likes -->
 						<tr>
 							<th scope="row">
@@ -3692,13 +3774,15 @@ class Fanfic_Settings {
 		self::cleanup_memory();
 		self::log_delete_data_progress( 'builtin_taxonomy_terms_deleted' );
 
-		// Delete all options with "fanfic" in the name in one query (memory-safe).
+		// Delete all options and transients with "fanfic" in the name in one query (memory-safe).
 		self::log_delete_data_progress( 'deleting_options' );
-		$options_like = $wpdb->esc_like( 'fanfic' ) . '%';
+		$options_like    = $wpdb->esc_like( 'fanfic' ) . '%';
+		$transient_like  = $wpdb->esc_like( '_transient_fanfic' ) . '%';
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-				$options_like
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+				$options_like,
+				$transient_like
 			)
 		);
 		self::cleanup_memory();

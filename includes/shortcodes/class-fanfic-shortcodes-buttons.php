@@ -71,7 +71,25 @@ class Fanfic_Shortcodes_Buttons {
 		// Build output
 		$output = '<div class="fanfic-buttons fanfic-buttons-' . esc_attr( $context ) . '" data-context="' . esc_attr( $context ) . '">';
 
+		$has_dislike = in_array( 'dislike', $available_actions, true );
+		$skip_dislike = false;
+
 		foreach ( $available_actions as $action ) {
+			// Skip dislike if already rendered inside segmented like/dislike group.
+			if ( 'dislike' === $action && $skip_dislike ) {
+				continue;
+			}
+
+			// Segmented like/dislike group (YouTube-style).
+			if ( 'like' === $action && $has_dislike ) {
+				$output .= '<div class="fanfic-segmented-like-dislike">';
+				$output .= self::render_button( 'like', $context, $context_ids, $nonce, 'segmented-start' );
+				$output .= self::render_button( 'dislike', $context, $context_ids, $nonce, 'segmented-end' );
+				$output .= '</div>';
+				$skip_dislike = true;
+				continue;
+			}
+
 			$output .= self::render_button( $action, $context, $context_ids, $nonce );
 		}
 
@@ -211,13 +229,14 @@ class Fanfic_Shortcodes_Buttons {
 	 * Render individual button
 	 *
 	 * @since 2.0.0
-	 * @param string $action      Action type.
-	 * @param string $context     Context (story, chapter, author).
+	 * @param string $action    Action type.
+	 * @param string $context   Context (story, chapter, author).
 	 * @param array  $context_ids Context IDs.
-	 * @param string $nonce       AJAX nonce.
+	 * @param string $nonce     AJAX nonce.
+	 * @param string $segmented Segmented position: '' (none), 'segmented-start', 'segmented-end'.
 	 * @return string Button HTML.
 	 */
-	private static function render_button( $action, $context, $context_ids, $nonce ) {
+	private static function render_button( $action, $context, $context_ids, $nonce, $segmented = '' ) {
 		$user_id = get_current_user_id();
 
 		// Handle Edit button separately (it's a link, not a button)
@@ -237,9 +256,13 @@ class Fanfic_Shortcodes_Buttons {
 		// Get current state for toggle buttons
 		$current_state = self::get_button_state( $action, $context_ids, $user_id );
 
+		// Segmented like/dislike buttons skip the heavy fanfic-button base class.
+		$is_segmented = ( '' !== $segmented );
+		$base_class   = $is_segmented ? 'fanfic-action-btn' : 'fanfic-button';
+
 		// Build button classes
 		$classes = array(
-			'fanfic-button',
+			$base_class,
 			'fanfic-button-' . $action,
 		);
 
@@ -249,6 +272,11 @@ class Fanfic_Shortcodes_Buttons {
 			} else {
 				$classes[] = 'fanfic-button-' . $action . 'ed';
 			}
+		}
+
+		// Add segmented position class.
+		if ( $is_segmented ) {
+			$classes[] = 'fanfic-' . $segmented;
 		}
 
 		// Add disabled class for login-required buttons when not logged in
@@ -298,13 +326,13 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		// Get button label and icon
-		$label = self::get_button_label( $action, $current_state );
+		$label = self::get_button_label( $action, $current_state, $context );
 		$icon = self::get_button_icon( $action, $current_state );
 		$aria_label = self::get_button_aria_label( $action, $current_state, $context );
 
 		// Get inactive and active labels for JavaScript toggle
-		$inactive_label = self::get_button_label( $action, false );
-		$active_label = self::get_button_label( $action, true );
+		$inactive_label = self::get_button_label( $action, false, $context );
+		$active_label = self::get_button_label( $action, true, $context );
 
 		// Get text class name for JavaScript updates
 		$text_class = self::get_text_class_for_action( $action );
@@ -331,17 +359,25 @@ class Fanfic_Shortcodes_Buttons {
 		$output .= ' aria-label="' . esc_attr( $aria_label ) . '"';
 		$output .= ' type="button">';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
-		$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '">' . esc_html( $label ) . '</span>';
 
-		// Add count display for like/dislike buttons
+		// Segmented buttons hide text label but still show count.
+		$hide_text_label = ( '' !== $segmented );
+
+		if ( ! $hide_text_label ) {
+			$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '">' . esc_html( $label ) . '</span>';
+		}
+
+		// Add count display for like/dislike buttons.
 		if ( 'like' === $action && isset( $context_ids['chapter_id'] ) ) {
 			$like_count = Fanfic_Interactions::get_chapter_likes( $context_ids['chapter_id'] );
-			$output .= ' <span class="fanfic-button-count like-count" data-count="' . absint( $like_count ) . '">(' . absint( $like_count ) . ')</span>';
+			$count_text = absint( $like_count ) > 0 ? '(' . absint( $like_count ) . ')' : '';
+			$output .= '<span class="fanfic-button-count like-count" data-count="' . absint( $like_count ) . '">' . $count_text . '</span>';
 		}
 		if ( 'dislike' === $action && isset( $context_ids['chapter_id'] ) ) {
 			$stats         = Fanfic_Interactions::get_chapter_stats( $context_ids['chapter_id'] );
 			$dislike_count = absint( $stats['dislikes'] ?? 0 );
-			$output .= ' <span class="fanfic-button-count dislike-count" data-count="' . $dislike_count . '">(' . $dislike_count . ')</span>';
+			$count_text    = $dislike_count > 0 ? '(' . $dislike_count . ')' : '';
+			$output .= '<span class="fanfic-button-count dislike-count" data-count="' . $dislike_count . '">' . $count_text . '</span>';
 		}
 
 		$output .= '</button>';
@@ -516,11 +552,11 @@ class Fanfic_Shortcodes_Buttons {
 	 * @param bool   $current_state Current state.
 	 * @return string Button label.
 	 */
-	private static function get_button_label( $action, $current_state ) {
+	private static function get_button_label( $action, $current_state, $context = 'story' ) {
 		$labels = array(
 			'follow' => array(
-				'inactive' => __( 'Follow', 'fanfiction-manager' ),
-				'active'   => __( 'Followed', 'fanfiction-manager' ),
+				'inactive' => 'chapter' === $context ? __( 'Bookmark', 'fanfiction-manager' ) : __( 'Follow', 'fanfiction-manager' ),
+				'active'   => 'chapter' === $context ? __( 'Bookmarked', 'fanfiction-manager' ) : __( 'Followed', 'fanfiction-manager' ),
 			),
 			'like' => array(
 				'inactive' => __( 'Like', 'fanfiction-manager' ),
@@ -561,18 +597,22 @@ class Fanfic_Shortcodes_Buttons {
 	 * @return string Icon HTML/entity.
 	 */
 	private static function get_button_icon( $action, $current_state ) {
+		// SVG thumbs-up/down paths (outline style, viewBox 0 0 24 24).
+		$thumb_up_path   = 'M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z';
+		$thumb_down_path = 'M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z';
+
 		$icons = array(
 			'follow' => array(
 				'inactive' => '&#128278;', // Follow outline
 				'active'   => '&#128278;', // Follow filled
 			),
 			'like' => array(
-				'inactive' => '&#9829;', // Heart outline
-				'active'   => '&#9829;', // Heart filled
+				'inactive' => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_up_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_up_path ) . '"/></svg>',
+				'active'   => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_up_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_up_path ) . '"/></svg>',
 			),
 			'dislike' => array(
-				'inactive' => '&#128078;', // Thumbs down
-				'active'   => '&#128078;', // Thumbs down
+				'inactive' => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_down_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_down_path ) . '"/></svg>',
+				'active'   => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_down_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_down_path ) . '"/></svg>',
 			),
 			'mark-read' => array(
 				'inactive' => '&#128214;', // Book
@@ -616,8 +656,12 @@ class Fanfic_Shortcodes_Buttons {
 
 		$labels = array(
 			'follow' => array(
-				'inactive' => sprintf( __( 'Follow this %s', 'fanfiction-manager' ), $object_type ),
-				'active'   => sprintf( __( 'Remove follow from this %s', 'fanfiction-manager' ), $object_type ),
+				'inactive' => 'chapter' === $context
+					? __( 'Bookmark this chapter', 'fanfiction-manager' )
+					: sprintf( __( 'Follow this %s', 'fanfiction-manager' ), $object_type ),
+				'active'   => 'chapter' === $context
+					? __( 'Remove bookmark from this chapter', 'fanfiction-manager' )
+					: sprintf( __( 'Remove follow from this %s', 'fanfiction-manager' ), $object_type ),
 			),
 			'like' => array(
 				'inactive' => sprintf( __( 'Like this %s', 'fanfiction-manager' ), $object_type ),

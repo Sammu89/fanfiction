@@ -154,6 +154,16 @@ class Fanfic_Admin {
 			array( __CLASS__, 'render_moderation_page' )
 		);
 
+		// Add Documentation submenu
+		add_submenu_page(
+			'fanfiction-manager',
+			__( 'Documentation', 'fanfiction-manager' ),
+			__( 'Documentation', 'fanfiction-manager' ),
+			'manage_options',
+			'fanfiction-docs',
+			array( __CLASS__, 'render_docs_page' )
+		);
+
 		// Add My Dashboard submenu (links to frontend dashboard - opens in new tab)
 		$dashboard_url = fanfic_get_dashboard_url();
 		if ( $dashboard_url ) {
@@ -687,5 +697,15 @@ jQuery(document).ready(function($) {
 	public static function render_moderation_page() {
 		// Delegate to the Moderation class
 		Fanfic_Moderation::render();
+	}
+
+	/**
+	 * Render the Documentation admin page.
+	 *
+	 * @since 2.2.0
+	 * @return void
+	 */
+	public static function render_docs_page() {
+		Fanfic_Docs_Admin::render_page();
 	}
 }

@@ -29,58 +29,62 @@ function fanfic_get_default_story_view_template() {
 	?>
 <div class="fanfic-story-single">
 	<header class="fanfic-story-header">
-		[fanfic-story-title]
-		<div class="fanfic-story-meta">
-			<span class="fanfic-story-author"><?php esc_html_e( 'by', 'fanfiction-manager' ); ?> [story-author-link]</span>
-			<span class="fanfic-story-status">[story-status]</span>
-			<span class="fanfic-story-age">[story-age-badge]</span>
+		[fanfic-story-title with-badge]
+		<div class="fanfic-story-meta-details">
+			<div class="fanfic-story-meta-details-left">[story-genres-pills]</div>
+			<div class="fanfic-story-meta-details-right">[story-language] [story-translations]</div>
 		</div>
-		[story-translations]
 	</header>
 
-	<figure class="fanfic-story-featured-image">
-		[fanfic-story-image]
-	</figure>
+	<div class="fanfic-story-media-grid fanfic-story-media-grid--portrait" data-fanfic-story-media-grid>
+		<figure class="fanfic-story-featured-image" data-fanfic-story-featured-image>[fanfic-story-image]</figure>
+
+		<div class="fanfic-story-stats" role="contentinfo" aria-label="<?php esc_attr_e( 'Story statistics', 'fanfiction-manager' ); ?>">
+			<div class="fanfic-story-metric fanfic-story-metric-views">
+				<span class="fanfic-story-metric-value">[story-views]</span>
+				<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+			</div>
+			<div class="fanfic-story-metric fanfic-story-metric-chapters">
+				<span class="dashicons dashicons-text-page" aria-hidden="true"></span>
+				<span class="fanfic-story-metric-value">[story-chapters]</span>
+				<span class="fanfic-story-metric-label"><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></span>
+			</div>
+			<div class="fanfic-story-metric fanfic-story-metric-words">
+				<span class="dashicons dashicons-edit" aria-hidden="true"></span>
+				<span class="fanfic-story-metric-value">[story-word-count-estimate]</span>
+				<span class="fanfic-story-metric-label"><?php esc_html_e( 'Words', 'fanfiction-manager' ); ?></span>
+			</div>
+			<div class="fanfic-story-metric fanfic-story-metric-likes">
+				<span class="fanfic-story-metric-value">[story-likes]</span>
+				<span class="dashicons dashicons-thumbs-up" aria-hidden="true"></span>
+			</div>
+			<div class="fanfic-story-metric fanfic-story-metric-rating">
+				[story-rating-display]
+			</div>
+		</div>
+	</div>
 
 	<section class="fanfic-story-content">
 		<div class="fanfic-story-intro">
-			<h2><?php esc_html_e( 'Summary', 'fanfiction-manager' ); ?></h2>
 			[story-intro]
-		</div>
-
-		<div class="fanfic-story-taxonomies">
-			<div class="fanfic-story-genres">
-				<strong><?php esc_html_e( 'Genres:', 'fanfiction-manager' ); ?></strong> [story-genres]
-			</div>
+			<div class="fanfic-story-taxonomies">
 			[story-taxonomies]
 		</div>
-
-		<div class="fanfic-story-stats" role="contentinfo" aria-label="<?php esc_attr_e( 'Story statistics', 'fanfiction-manager' ); ?>">
-			<span class="fanfic-story-word-count"><strong><?php esc_html_e( 'Words:', 'fanfiction-manager' ); ?></strong> [story-word-count-estimate]</span>
-			<span class="fanfic-story-chapters-count"><strong><?php esc_html_e( 'Chapters:', 'fanfiction-manager' ); ?></strong> [story-chapters]</span>
-			<span class="fanfic-story-views"><strong><?php esc_html_e( 'Views:', 'fanfiction-manager' ); ?></strong> [story-views]</span>
-			<span class="fanfic-story-likes">[fanfiction-story-like-count]</span>
-			<span class="fanfic-story-rating">[fanfiction-story-rating]</span>
 		</div>
+
+		
 	</section>
-
-	<div class="fanfic-story-actions">
-		[fanfiction-action-buttons]
-	</div>
-
-	<nav class="fanfic-story-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">
-		<div class="fanfic-story-chapters-dropdown">
-			[story-chapters-dropdown]
-		</div>
-	</nav>
 
 	<section class="fanfic-story-chapters-list" aria-labelledby="chapters-heading">
 		<h2 id="chapters-heading"><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></h2>
 		[chapters-list]
 	</section>
 
+	<div class="fanfic-story-actions">
+		[fanfiction-action-buttons]
+	</div>
+
 	<section class="fanfic-story-comments" aria-labelledby="comments-heading">
-		<h2 id="comments-heading"><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h2>
 		[story-comments]
 	</section>
 </div>

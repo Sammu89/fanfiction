@@ -320,6 +320,16 @@ class Fanfic_Chapter_Handler {
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
 
+		// Author's Notes
+		$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+		$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+		$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
+		update_post_meta( $chapter_id, '_fanfic_author_notes_enabled', $notes_enabled );
+		update_post_meta( $chapter_id, '_fanfic_author_notes_position', $notes_position );
+		update_post_meta( $chapter_id, '_fanfic_author_notes', $notes_content );
+		$chapter_comments_enabled = isset( $_POST['fanfic_chapter_comments_enabled'] ) ? '1' : '0';
+		update_post_meta( $chapter_id, '_fanfic_chapter_comments_enabled', $chapter_comments_enabled );
+
 		// If user wants to publish, validate chapter first
 		if ( 'publish' === $chapter_status ) {
 			$validation = Fanfic_Validation::can_publish_chapter( $chapter_id );
@@ -352,6 +362,10 @@ class Fanfic_Chapter_Handler {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				error_log( 'Chapter ' . $chapter_id . ' published after validation' );
 			}
+
+			// Publishing a NEW chapter automatically moves the story back to Ongoing
+			// (unless it is Completed, which is a deliberate final state).
+			self::maybe_set_story_status_ongoing( $story_id );
 		}
 
 		// Check if this is the first published chapter and story is a draft
@@ -592,6 +606,16 @@ class Fanfic_Chapter_Handler {
 		// Update chapter metadata
 		update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 		update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
+
+		// Author's Notes
+		$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+		$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+		$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
+		update_post_meta( $chapter_id, '_fanfic_author_notes_enabled', $notes_enabled );
+		update_post_meta( $chapter_id, '_fanfic_author_notes_position', $notes_position );
+		update_post_meta( $chapter_id, '_fanfic_author_notes', $notes_content );
+		$chapter_comments_enabled = isset( $_POST['fanfic_chapter_comments_enabled'] ) ? '1' : '0';
+		update_post_meta( $chapter_id, '_fanfic_chapter_comments_enabled', $chapter_comments_enabled );
 
 		// If user wants to publish (and it wasn't already published), validate chapter first
 		if ( 'publish' === $chapter_status && 'publish' !== $old_status ) {
@@ -1154,6 +1178,52 @@ class Fanfic_Chapter_Handler {
 		$where .= " AND parent_story.post_status = 'publish'";
 
 		return $where;
+	}
+
+	/**
+	 * Set the parent story's fanfiction status to Ongoing when a new chapter is published,
+	 * unless the story is already marked Completed (a deliberate final state).
+	 *
+	 * Only called from the CREATE chapter path — editing an existing chapter never
+	 * triggers this so that minor content fixes do not silently reset the status.
+	 *
+	 * @since 2.2.0
+	 * @param int $story_id Parent story post ID.
+	 * @return void
+	 */
+	private static function maybe_set_story_status_ongoing( $story_id ) {
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return;
+		}
+
+		$status_id_map = get_option( 'fanfic_default_status_term_ids', array() );
+		$status_id_map = is_array( $status_id_map ) ? array_map( 'absint', $status_id_map ) : array();
+		$id_ongoing    = isset( $status_id_map['ongoing'] ) ? $status_id_map['ongoing'] : 0;
+		$id_completed  = isset( $status_id_map['completed'] ) ? $status_id_map['completed'] : 0;
+
+		if ( ! $id_ongoing ) {
+			return;
+		}
+
+		$current_terms    = wp_get_post_terms( $story_id, 'fanfiction_status', array( 'fields' => 'ids' ) );
+		$current_term_ids = ! is_wp_error( $current_terms ) ? array_map( 'absint', $current_terms ) : array();
+
+		// Never override Completed.
+		if ( $id_completed > 0 && in_array( $id_completed, $current_term_ids, true ) ) {
+			return;
+		}
+
+		// Nothing to do if already Ongoing.
+		if ( in_array( $id_ongoing, $current_term_ids, true ) ) {
+			return;
+		}
+
+		wp_set_post_terms( $story_id, array( $id_ongoing ), 'fanfiction_status', false );
+
+		if ( class_exists( 'Fanfic_Search_Index' ) ) {
+			Fanfic_Search_Index::update_index( $story_id );
+		}
 	}
 
 }

@@ -93,9 +93,35 @@ class Fanfic_Comments {
 	public static function enable_comments( $open, $post_id ) {
 		$post_type = get_post_type( $post_id );
 
-		// Enable comments for stories and chapters
-		if ( in_array( $post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
-			return true;
+		if ( ! in_array( $post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+			return $open;
+		}
+
+		// Level 1: Global setting
+		$global_enabled = class_exists( 'Fanfic_Settings' )
+			? Fanfic_Settings::get_setting( 'enable_comments', true )
+			: true;
+		if ( ! $global_enabled ) {
+			return false;
+		}
+
+		// Level 2: Story-level setting
+		if ( 'fanfiction_story' === $post_type ) {
+			$story_meta = get_post_meta( $post_id, '_fanfic_comments_enabled', true );
+			return '' === $story_meta || '1' === $story_meta;
+		}
+
+		// Level 3: Chapter - check parent story first, then chapter meta
+		if ( 'fanfiction_chapter' === $post_type ) {
+			$story_id = wp_get_post_parent_id( $post_id );
+			if ( $story_id ) {
+				$story_meta = get_post_meta( $story_id, '_fanfic_comments_enabled', true );
+				if ( '1' !== $story_meta && '' !== $story_meta ) {
+					return false;
+				}
+			}
+			$chapter_meta = get_post_meta( $post_id, '_fanfic_chapter_comments_enabled', true );
+			return '' === $chapter_meta || '1' === $chapter_meta;
 		}
 
 		return $open;

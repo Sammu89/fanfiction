@@ -97,6 +97,10 @@ class Fanfic_Story_Status_Automation {
 		add_action( 'fanfic_daily_maintenance', array( __CLASS__, 'start_daily_run' ) );
 		add_action( 'update_option_fanfic_settings', array( __CLASS__, 'reschedule_on_settings_change' ), 10, 2 );
 
+		// Keep the search-index facet_value in sync when a status slug is renamed.
+		add_action( 'edit_terms', array( __CLASS__, 'capture_status_slug_before_edit' ), 10, 2 );
+		add_action( 'edited_term', array( __CLASS__, 'sync_facet_value_after_slug_change' ), 10, 3 );
+
 		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
 			self::schedule_cron();
 		}
@@ -335,13 +339,39 @@ class Fanfic_Story_Status_Automation {
 	 * @return array{on-hiatus:int,abandoned:int}
 	 */
 	private static function get_transition_term_ids() {
-		$on_hiatus = get_term_by( 'slug', 'on-hiatus', 'fanfiction_status' );
-		$abandoned = get_term_by( 'slug', 'abandoned', 'fanfiction_status' );
+		$map = get_option( 'fanfic_default_status_term_ids', array() );
+		$map = is_array( $map ) ? array_map( 'absint', $map ) : array();
 
 		return array(
-			'on-hiatus' => ( $on_hiatus && ! is_wp_error( $on_hiatus ) ) ? absint( $on_hiatus->term_id ) : 0,
-			'abandoned' => ( $abandoned && ! is_wp_error( $abandoned ) ) ? absint( $abandoned->term_id ) : 0,
+			'on-hiatus' => isset( $map['on-hiatus'] ) ? $map['on-hiatus'] : 0,
+			'abandoned' => isset( $map['abandoned'] ) ? $map['abandoned'] : 0,
 		);
+	}
+
+	/**
+	 * Resolve the current slugs for the three transition statuses from the ID map.
+	 *
+	 * @since 2.1.0
+	 * @return array{ongoing:string,on-hiatus:string,abandoned:string}
+	 */
+	private static function get_transition_slugs() {
+		$map  = get_option( 'fanfic_default_status_term_ids', array() );
+		$map  = is_array( $map ) ? array_map( 'absint', $map ) : array();
+		$keys = array( 'ongoing', 'on-hiatus', 'abandoned' );
+		$out  = array();
+
+		foreach ( $keys as $canonical ) {
+			$slug = $canonical; // fallback to canonical if term missing
+			if ( ! empty( $map[ $canonical ] ) ) {
+				$term = get_term( $map[ $canonical ], 'fanfiction_status' );
+				if ( $term && ! is_wp_error( $term ) ) {
+					$slug = $term->slug;
+				}
+			}
+			$out[ $canonical ] = $slug;
+		}
+
+		return $out;
 	}
 
 	/**
@@ -358,18 +388,21 @@ class Fanfic_Story_Status_Automation {
 		$after_story_id = absint( $after_story_id );
 		$limit          = max( 1, absint( $limit ) );
 
-		$cutoff_hiatus    = self::get_cutoff_mysql_datetime( self::ONGOING_TO_HIATUS_MONTHS );
-		$cutoff_abandoned = self::get_cutoff_mysql_datetime( self::HIATUS_TO_ABANDONED_MONTHS );
+		$cutoff_hiatus    = date_i18n( 'Y-m-d H:i:s', self::get_hiatus_cutoff_timestamp() );
+		$cutoff_abandoned = date_i18n( 'Y-m-d H:i:s', self::get_abandoned_cutoff_timestamp() );
 
 		$table_index = $wpdb->prefix . 'fanfic_story_search_index';
 		$table_map   = $wpdb->prefix . 'fanfic_story_filter_map';
+
+		// Resolve current slugs from the ID map so renamed slugs still work.
+		$slugs = self::get_transition_slugs();
 
 		$sql = $wpdb->prepare(
 			"SELECT i.story_id,
 			        f.facet_value AS current_status,
 			        CASE
-			            WHEN f.facet_value = 'ongoing' THEN 'on-hiatus'
-			            WHEN f.facet_value = 'on-hiatus' THEN 'abandoned'
+			            WHEN f.facet_value = %s THEN 'on-hiatus'
+			            WHEN f.facet_value = %s THEN 'abandoned'
 			            ELSE ''
 			        END AS target_status
 			FROM {$table_index} i
@@ -385,11 +418,13 @@ class Fanfic_Story_Status_Automation {
 				)
 			ORDER BY i.story_id ASC
 			LIMIT %d",
+			$slugs['ongoing'],
+			$slugs['on-hiatus'],
 			$after_story_id,
 			'publish',
-			'ongoing',
+			$slugs['ongoing'],
 			$cutoff_hiatus,
-			'on-hiatus',
+			$slugs['on-hiatus'],
 			$cutoff_abandoned,
 			$limit
 		);
@@ -410,6 +445,48 @@ class Fanfic_Story_Status_Automation {
 		$now    = current_time( 'timestamp' );
 		$cutoff = strtotime( sprintf( '-%d months', $months ), $now );
 		return date_i18n( 'Y-m-d H:i:s', $cutoff );
+	}
+
+	/**
+	 * Compute a Unix timestamp for "N units ago" using the configured value and unit.
+	 *
+	 * @since 2.2.0
+	 * @param int    $value Positive integer.
+	 * @param string $unit  'days', 'weeks', or 'months'.
+	 * @return int Unix timestamp.
+	 */
+	private static function get_cutoff_timestamp( $value, $unit ) {
+		$value = max( 1, absint( $value ) );
+		$unit  = in_array( $unit, array( 'days', 'weeks', 'months' ), true ) ? $unit : 'months';
+		return strtotime( sprintf( '-%d %s', $value, $unit ), current_time( 'timestamp' ) );
+	}
+
+	/**
+	 * Get the cutoff timestamp for the ongoing → on-hiatus transition.
+	 *
+	 * Reads from settings, falls back to ONGOING_TO_HIATUS_MONTHS constant.
+	 *
+	 * @since 2.2.0
+	 * @return int Unix timestamp.
+	 */
+	public static function get_hiatus_cutoff_timestamp() {
+		$value = (int) Fanfic_Settings::get_setting( 'hiatus_threshold_value', self::ONGOING_TO_HIATUS_MONTHS );
+		$unit  = (string) Fanfic_Settings::get_setting( 'hiatus_threshold_unit', 'months' );
+		return self::get_cutoff_timestamp( $value, $unit );
+	}
+
+	/**
+	 * Get the cutoff timestamp for the on-hiatus → abandoned transition.
+	 *
+	 * Reads from settings, falls back to HIATUS_TO_ABANDONED_MONTHS constant.
+	 *
+	 * @since 2.2.0
+	 * @return int Unix timestamp.
+	 */
+	public static function get_abandoned_cutoff_timestamp() {
+		$value = (int) Fanfic_Settings::get_setting( 'abandoned_threshold_value', self::HIATUS_TO_ABANDONED_MONTHS );
+		$unit  = (string) Fanfic_Settings::get_setting( 'abandoned_threshold_unit', 'months' );
+		return self::get_cutoff_timestamp( $value, $unit );
 	}
 
 	/**
@@ -462,5 +539,68 @@ class Fanfic_Story_Status_Automation {
 			$budget = max( 10, min( $budget, $max_exec - 5 ) );
 		}
 		return $budget;
+	}
+
+	/**
+	 * Capture the current slug of a required status term before it is edited.
+	 *
+	 * Stores it in a transient so that sync_facet_value_after_slug_change()
+	 * can detect and propagate the change to the search-index filter map.
+	 *
+	 * @param int    $term_id  Term ID being edited.
+	 * @param string $taxonomy Taxonomy name.
+	 * @return void
+	 */
+	public static function capture_status_slug_before_edit( $term_id, $taxonomy ) {
+		if ( 'fanfiction_status' !== $taxonomy ) {
+			return;
+		}
+
+		$map     = get_option( 'fanfic_default_status_term_ids', array() );
+		$map     = is_array( $map ) ? array_map( 'absint', $map ) : array();
+		if ( ! in_array( absint( $term_id ), $map, true ) ) {
+			return;
+		}
+
+		$term = get_term( $term_id, 'fanfiction_status' );
+		if ( $term && ! is_wp_error( $term ) ) {
+			set_transient( 'fanfic_old_status_slug_' . $term_id, $term->slug, 120 );
+		}
+	}
+
+	/**
+	 * After a status term is saved, update facet_value rows in the filter map
+	 * if the slug changed so the automation SQL still finds the correct stories.
+	 *
+	 * @param int    $term_id  Term ID.
+	 * @param int    $tt_id    Term taxonomy ID (unused).
+	 * @param string $taxonomy Taxonomy name.
+	 * @return void
+	 */
+	public static function sync_facet_value_after_slug_change( $term_id, $tt_id, $taxonomy ) {
+		if ( 'fanfiction_status' !== $taxonomy ) {
+			return;
+		}
+
+		$old_slug = get_transient( 'fanfic_old_status_slug_' . $term_id );
+		delete_transient( 'fanfic_old_status_slug_' . $term_id );
+
+		if ( ! $old_slug ) {
+			return;
+		}
+
+		$term = get_term( $term_id, 'fanfiction_status' );
+		if ( ! $term || is_wp_error( $term ) || $term->slug === $old_slug ) {
+			return;
+		}
+
+		global $wpdb;
+		$wpdb->update(
+			$wpdb->prefix . 'fanfic_story_filter_map',
+			array( 'facet_value' => $term->slug ),
+			array( 'facet_type' => 'status', 'facet_value' => $old_slug ),
+			array( '%s' ),
+			array( '%s', '%s' )
+		);
 	}
 }

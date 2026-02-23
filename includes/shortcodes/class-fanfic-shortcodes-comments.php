@@ -364,7 +364,7 @@ class Fanfic_Shortcodes_Comments {
 		// Check if comments are open
 		if ( ! comments_open( $story_id ) ) {
 			return '<div class="fanfic-story-comments-closed" role="status" aria-live="polite">' .
-				'<p>' . esc_html__( 'Comments are closed for this story.', 'fanfiction-manager' ) . '</p>' .
+				'<p>' . esc_html__( 'Comments are closed.', 'fanfiction-manager' ) . '</p>' .
 				'</div>';
 		}
 
@@ -497,7 +497,7 @@ class Fanfic_Shortcodes_Comments {
 		// Check if comments are open
 		if ( ! comments_open( $chapter_id ) ) {
 			return '<div class="fanfic-chapter-comments-closed" role="status" aria-live="polite">' .
-				'<p>' . esc_html__( 'Comments are closed for this chapter.', 'fanfiction-manager' ) . '</p>' .
+				'<p>' . esc_html__( 'Comments are closed.', 'fanfiction-manager' ) . '</p>' .
 				'</div>';
 		}
 

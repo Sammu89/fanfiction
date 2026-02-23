@@ -500,7 +500,7 @@ class Fanfic_Taxonomies {
 	 *
 	 * @return void
 	 */
-	private static function ensure_default_statuses() {
+	public static function ensure_default_statuses() {
 		$map = get_option( 'fanfic_default_status_term_ids', array() );
 		$map = is_array( $map ) ? $map : array();
 
@@ -537,6 +537,38 @@ class Fanfic_Taxonomies {
 		}
 
 		update_option( 'fanfic_default_status_term_ids', $map );
+	}
+
+	/**
+	 * Return slugs of required status terms that are currently missing.
+	 *
+	 * @return string[] Associative array of slug => label for each missing term.
+	 */
+	public static function get_missing_default_status_slugs() {
+		$missing = array();
+		$map     = get_option( 'fanfic_default_status_term_ids', array() );
+		$map     = is_array( $map ) ? $map : array();
+
+		foreach ( self::DEFAULT_STATUSES as $slug => $label ) {
+			$term_id = isset( $map[ $slug ] ) ? absint( $map[ $slug ] ) : 0;
+			$found   = false;
+
+			if ( $term_id > 0 ) {
+				$term  = get_term( $term_id, 'fanfiction_status' );
+				$found = $term && ! is_wp_error( $term );
+			}
+
+			if ( ! $found ) {
+				$existing = get_term_by( 'slug', $slug, 'fanfiction_status' );
+				$found    = $existing && ! is_wp_error( $existing );
+			}
+
+			if ( ! $found ) {
+				$missing[ $slug ] = $label;
+			}
+		}
+
+		return $missing;
 	}
 
 	/**

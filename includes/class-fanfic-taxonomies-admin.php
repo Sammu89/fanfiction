@@ -43,6 +43,11 @@ class Fanfic_Taxonomies_Admin {
 		add_action( 'admin_post_fanfic_save_fandom_settings', array( __CLASS__, 'save_fandom_settings' ) );
 		add_action( 'admin_post_fanfic_save_taxonomy_settings', array( __CLASS__, 'save_taxonomy_settings' ) );
 		add_action( 'admin_post_fanfic_save_language_settings', array( __CLASS__, 'save_language_settings' ) );
+
+		// Status taxonomy protection
+		add_action( 'admin_init', array( __CLASS__, 'block_required_status_term_deletion' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'render_status_taxonomy_notices' ) );
+		add_action( 'wp_ajax_fanfic_rebuild_status_terms', array( __CLASS__, 'ajax_rebuild_status_terms' ) );
 	}
 
 	/**
@@ -524,6 +529,164 @@ class Fanfic_Taxonomies_Admin {
 	 * @since 1.2.0
 	 * @return void
 	 */
+	/**
+	 * Block deletion of the four required status terms via admin_init.
+	 *
+	 * Intercepts the delete action on edit-tags.php before WordPress processes it.
+	 * Checks by stored term ID (canonical and rename-safe) with slug as fallback.
+	 *
+	 * @return void
+	 */
+	public static function block_required_status_term_deletion() {
+		if (
+			! is_admin() ||
+			! isset( $_GET['action'], $_GET['taxonomy'], $_GET['tag_ID'] ) ||
+			'delete' !== $_GET['action'] ||
+			'fanfiction_status' !== $_GET['taxonomy']
+		) {
+			return;
+		}
+
+		$term_id      = absint( $_GET['tag_ID'] );
+		$map          = get_option( 'fanfic_default_status_term_ids', array() );
+		$map          = is_array( $map ) ? $map : array();
+		$map_ids      = array_map( 'absint', $map );
+		$required_slugs = array_keys( Fanfic_Taxonomies::DEFAULT_STATUSES );
+
+		$term    = get_term( $term_id, 'fanfiction_status' );
+		$is_required = in_array( $term_id, $map_ids, true ) ||
+			( $term && ! is_wp_error( $term ) && in_array( $term->slug, $required_slugs, true ) );
+
+		if ( ! $is_required ) {
+			return;
+		}
+
+		// Store error notice and redirect back without deleting.
+		$term_name = ( $term && ! is_wp_error( $term ) ) ? $term->name : __( 'this status', 'fanfiction-manager' );
+		set_transient( 'fanfic_status_delete_blocked_' . get_current_user_id(), $term_name, 60 );
+		wp_safe_redirect(
+			admin_url( 'edit-tags.php?taxonomy=fanfiction_status&post_type=fanfiction_story' )
+		);
+		exit;
+	}
+
+	/**
+	 * Render admin notices on the fanfiction_status taxonomy edit page.
+	 *
+	 * Shows:
+	 * - Informational notice: names can be changed, terms must not be deleted.
+	 * - Error notice: if a deletion was blocked (with the term name).
+	 * - Error notice: if required terms are currently missing (with a Rebuild button).
+	 *
+	 * @return void
+	 */
+	public static function render_status_taxonomy_notices() {
+		$screen = get_current_screen();
+		if ( ! $screen || 'edit-tags' !== $screen->base || 'fanfiction_status' !== $screen->taxonomy ) {
+			return;
+		}
+
+		// Notice: blocked deletion.
+		$blocked_term = get_transient( 'fanfic_status_delete_blocked_' . get_current_user_id() );
+		if ( $blocked_term ) {
+			delete_transient( 'fanfic_status_delete_blocked_' . get_current_user_id() );
+			printf(
+				'<div class="notice notice-error is-dismissible"><p><strong>%s</strong> %s</p></div>',
+				esc_html__( 'Deletion blocked.', 'fanfiction-manager' ),
+				sprintf(
+					/* translators: %s: status term name */
+					esc_html__( '"%s" is a required plugin status and cannot be deleted. You may rename it, but removing it will break the automation system.', 'fanfiction-manager' ),
+					esc_html( $blocked_term )
+				)
+			);
+		}
+
+		// Notice: informational — always shown on this screen.
+		echo '<div class="notice notice-info"><p>';
+		esc_html_e( 'You can rename and re-slug these status terms freely — the plugin tracks them by ID. However, the four required statuses (Ongoing, Finished, On Hiatus, Abandoned) must not be deleted, as they power the story automation system.', 'fanfiction-manager' );
+		echo '</p></div>';
+
+		// Notice: missing terms — show rebuild button.
+		if ( class_exists( 'Fanfic_Taxonomies' ) ) {
+			$missing = Fanfic_Taxonomies::get_missing_default_status_slugs();
+			if ( ! empty( $missing ) ) {
+				$missing_names = implode( ', ', array_map( 'esc_html', array_values( $missing ) ) );
+				$nonce         = wp_create_nonce( 'fanfic_rebuild_status_terms' );
+				echo '<div class="notice notice-error"><p>';
+				printf(
+					/* translators: %s: comma-separated list of missing status slugs */
+					esc_html__( 'The following required status terms are missing and must be restored: %s.', 'fanfiction-manager' ),
+					'<strong>' . $missing_names . '</strong>'
+				);
+				echo '</p><p>';
+				printf(
+					'<button type="button" class="button button-primary" id="fanfic-rebuild-statuses" data-nonce="%s">%s</button>',
+					esc_attr( $nonce ),
+					esc_html__( 'Rebuild Status Terms', 'fanfiction-manager' )
+				);
+				echo '</p></div>';
+				self::inline_rebuild_script();
+			}
+		}
+	}
+
+	/**
+	 * Output the inline JS for the "Rebuild Status Terms" button.
+	 *
+	 * @return void
+	 */
+	private static function inline_rebuild_script() {
+		?>
+		<script>
+		(function() {
+			var btn = document.getElementById('fanfic-rebuild-statuses');
+			if (!btn) return;
+			btn.addEventListener('click', function() {
+				btn.disabled = true;
+				btn.textContent = <?php echo wp_json_encode( __( 'Rebuilding…', 'fanfiction-manager' ) ); ?>;
+				fetch(ajaxurl, {
+					method: 'POST',
+					headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+					body: 'action=fanfic_rebuild_status_terms&nonce=' + encodeURIComponent(btn.dataset.nonce)
+				})
+				.then(function(r) { return r.json(); })
+				.then(function(data) {
+					if (data.success) {
+						location.reload();
+					} else {
+						alert(data.data && data.data.message ? data.data.message : <?php echo wp_json_encode( __( 'Rebuild failed. Please try again.', 'fanfiction-manager' ) ); ?>);
+						btn.disabled = false;
+						btn.textContent = <?php echo wp_json_encode( __( 'Rebuild Status Terms', 'fanfiction-manager' ) ); ?>;
+					}
+				});
+			});
+		})();
+		</script>
+		<?php
+	}
+
+	/**
+	 * AJAX handler: rebuild missing required status terms.
+	 *
+	 * @return void
+	 */
+	public static function ajax_rebuild_status_terms() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_rebuild_status_terms' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! class_exists( 'Fanfic_Taxonomies' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Taxonomies class not available.', 'fanfiction-manager' ) ) );
+		}
+
+		Fanfic_Taxonomies::ensure_default_statuses();
+		wp_send_json_success( array( 'message' => __( 'Status terms rebuilt successfully.', 'fanfiction-manager' ) ) );
+	}
+
 	private static function render_status_tab() {
 		$statuses = get_terms(
 			array(
@@ -539,6 +702,13 @@ class Fanfic_Taxonomies_Admin {
 		<div class="fanfic-taxonomy-tab">
 			<h2><?php esc_html_e( 'Story Status', 'fanfiction-manager' ); ?></h2>
 			<p class="description"><?php esc_html_e( 'Manage story status options (e.g., In Progress, Complete, On Hiatus).', 'fanfiction-manager' ); ?></p>
+
+			<div class="notice notice-warning inline">
+				<p>
+					<strong><?php esc_html_e( 'Important:', 'fanfiction-manager' ); ?></strong>
+					<?php esc_html_e( 'You are free to rename or re-slug any status term — the plugin tracks them by ID. However, the four required terms (Ongoing, Finished, On Hiatus, Abandoned) must never be deleted, as they drive the story automation system.', 'fanfiction-manager' ); ?>
+				</p>
+			</div>
 
 			<table class="form-table" role="presentation">
 				<tbody>

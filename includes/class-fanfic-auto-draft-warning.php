@@ -229,6 +229,9 @@ class Fanfic_Auto_Draft_Warning {
 		$chapter_content = isset( $_POST['chapter_content'] ) ? wp_kses_post( $_POST['chapter_content'] ) : '';
 		$chapter_type = isset( $_POST['chapter_type'] ) ? sanitize_text_field( $_POST['chapter_type'] ) : 'chapter';
 		$chapter_number = isset( $_POST['chapter_number'] ) ? absint( $_POST['chapter_number'] ) : 0;
+		$notes_enabled = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+		$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === sanitize_text_field( wp_unslash( $_POST['fanfic_author_notes_position'] ) ) ) ? 'above' : 'below';
+		$notes_content = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
 
 		// Temporarily update post meta for validation
 		$old_title = $chapter->post_title;
@@ -267,6 +270,15 @@ class Fanfic_Auto_Draft_Warning {
 				'errors'          => array_values( $validation_result['missing_fields'] ),
 			) );
 		}
+
+		// Persist notes fields sent from quick update action.
+		update_post_meta( $chapter_id, '_fanfic_author_notes_enabled', $notes_enabled );
+		update_post_meta( $chapter_id, '_fanfic_author_notes_position', $notes_position );
+		update_post_meta( $chapter_id, '_fanfic_author_notes', $notes_content );
+
+		// Save comments enabled meta
+		$chapter_comments_enabled = isset( $_POST['fanfic_chapter_comments_enabled'] ) ? '1' : '0';
+		update_post_meta( $chapter_id, '_fanfic_chapter_comments_enabled', $chapter_comments_enabled );
 
 		// Update successful - changes are already saved
 		wp_send_json_success( array(

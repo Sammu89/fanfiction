@@ -30,10 +30,10 @@ function fanfic_get_default_chapter_view_template() {
 <!-- Chapter header with hierarchical titles -->
 <header class="fanfic-chapter-header">
 	<!-- Story title as primary heading (parent context) -->
-	[fanfic-story-title]
+	[fanfic-story-title with-badge]
 
 	<!-- Chapter title as secondary heading -->
-	<h2 class="fanfic-chapter-title">[fanfic-chapter-title]</h2>
+	<h2 class="fanfic-chapter-title">[fanfic-chapter-title with-badge]</h2>
 
 	<!-- Chapter Cover Image -->
 [fanfic-chapter-image]
@@ -205,12 +205,14 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 	if ( $badge_story_id ) {
 		printf(
 			'<div class="fanfic-chapter-badges">' .
-			'<span class="fanfic-badge fanfic-badge-following" data-badge-story-id="%1$d" style="display:none;">%2$s</span>' .
-			'<span class="fanfic-badge fanfic-badge-bookmarked" data-badge-story-id="%1$d" data-badge-chapter-id="%3$d" style="display:none;">%4$s</span>' .
+			'<span class="fanfic-badge fanfic-badge-following" data-badge-story-id="%1$d" style="display:none;" aria-label="%2$s" title="%2$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%3$s</span></span>' .
+			'<span class="fanfic-badge fanfic-badge-bookmarked" data-badge-story-id="%1$d" data-badge-chapter-id="%4$d" style="display:none;" aria-label="%5$s" title="%5$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%6$s</span></span>' .
 			'</div>',
 			$badge_story_id,
+			esc_attr__( 'Following', 'fanfiction-manager' ),
 			esc_html__( 'Following', 'fanfiction-manager' ),
 			$badge_chapter_id,
+			esc_attr__( 'Bookmarked', 'fanfiction-manager' ),
 			esc_html__( 'Bookmarked', 'fanfiction-manager' )
 		);
 	}

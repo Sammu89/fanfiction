@@ -193,6 +193,12 @@ if ( isset( $_POST['fanfic_create_chapter_submit'] ) ) {
 					// Set chapter metadata
 					update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 					update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
+					$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+					$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+					$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
+					update_post_meta( $chapter_id, '_fanfic_author_notes_enabled', $notes_enabled );
+					update_post_meta( $chapter_id, '_fanfic_author_notes_position', $notes_position );
+					update_post_meta( $chapter_id, '_fanfic_author_notes', $notes_content );
 
 					// Save chapter image URL if provided
 					if ( isset( $_POST['fanfic_chapter_image_url'] ) ) {
@@ -341,6 +347,12 @@ if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 					// Update chapter metadata
 					update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
 					update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
+					$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
+					$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+					$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
+					update_post_meta( $chapter_id, '_fanfic_author_notes_enabled', $notes_enabled );
+					update_post_meta( $chapter_id, '_fanfic_author_notes_position', $notes_position );
+					update_post_meta( $chapter_id, '_fanfic_author_notes', $notes_content );
 
 					// Update chapter image URL
 					if ( ! empty( $_POST['fanfic_chapter_image_url'] ) ) {
@@ -681,13 +693,26 @@ $has_epilogue = fanfic_template_story_has_epilogue( $story_id, $is_edit_mode ? $
 // Prepare data attributes for change detection (edit mode only)
 $data_attrs = '';
 if ( $is_edit_mode ) {
+	$chapter_notes_enabled = get_post_meta( $chapter_id, '_fanfic_author_notes_enabled', true );
+	if ( '1' !== $chapter_notes_enabled ) {
+		$chapter_notes_enabled = '0';
+	}
+	$chapter_notes_position = get_post_meta( $chapter_id, '_fanfic_author_notes_position', true );
+	if ( 'above' !== $chapter_notes_position ) {
+		$chapter_notes_position = 'below';
+	}
+	$chapter_notes_content = get_post_meta( $chapter_id, '_fanfic_author_notes', true );
+
 	$data_attrs = sprintf(
-		'data-original-title="%s" data-original-content="%s" data-original-type="%s" data-original-number="%s" data-original-publish-date="%s"',
+		'data-original-title="%s" data-original-content="%s" data-original-type="%s" data-original-number="%s" data-original-publish-date="%s" data-original-notes-enabled="%s" data-original-notes-position="%s" data-original-notes-content="%s"',
 		esc_attr( $chapter->post_title ),
 		esc_attr( $chapter->post_content ),
 		esc_attr( $chapter_type ),
 		esc_attr( $chapter_number ),
-		esc_attr( $chapter_publish_date )
+		esc_attr( $chapter_publish_date ),
+		esc_attr( $chapter_notes_enabled ),
+		esc_attr( $chapter_notes_position ),
+		esc_attr( $chapter_notes_content )
 	);
 }
 
@@ -976,6 +1001,87 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					?>
 					<?php if ( isset( $field_errors['chapter_content'] ) ) : ?>
 						<p class="fanfic-field-error"><?php echo esc_html( $field_errors['chapter_content'] ); ?></p>
+					<?php endif; ?>
+				</div>
+
+				<!-- Author's Notes -->
+				<?php
+				$notes_enabled  = $is_edit_mode ? get_post_meta( $chapter_id, '_fanfic_author_notes_enabled', true ) : '0';
+				$notes_position = $is_edit_mode ? ( get_post_meta( $chapter_id, '_fanfic_author_notes_position', true ) ?: 'below' ) : 'below';
+				$notes_content  = $is_edit_mode ? get_post_meta( $chapter_id, '_fanfic_author_notes', true ) : '';
+				if ( isset( $_POST['fanfic_author_notes_enabled'] ) ) {
+					$notes_enabled = '1';
+				}
+				if ( isset( $_POST['fanfic_author_notes_position'] ) ) {
+					$notes_position = ( 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+				}
+				if ( isset( $_POST['fanfic_author_notes'] ) ) {
+					$notes_content = wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) );
+				}
+				?>
+				<div class="fanfic-form-field fanfic-author-notes-field">
+					<label>
+						<input type="checkbox" name="fanfic_author_notes_enabled" value="1" class="fanfic-author-notes-toggle" <?php checked( '1', $notes_enabled ); ?> />
+						<?php esc_html_e( "Enable Author's Notes", 'fanfiction-manager' ); ?>
+					</label>
+					<div class="fanfic-author-notes-options" <?php echo '1' !== $notes_enabled ? 'style="display:none;"' : ''; ?>>
+						<div class="fanfic-author-notes-position-row">
+							<span><?php esc_html_e( 'Notes', 'fanfiction-manager' ); ?></span>
+							<select name="fanfic_author_notes_position" class="fanfic-select">
+								<option value="above" <?php selected( 'above', $notes_position ); ?>><?php esc_html_e( 'above', 'fanfiction-manager' ); ?></option>
+								<option value="below" <?php selected( 'below', $notes_position ); ?>><?php esc_html_e( 'below', 'fanfiction-manager' ); ?></option>
+							</select>
+							<span><?php esc_html_e( 'the chapter content', 'fanfiction-manager' ); ?></span>
+						</div>
+						<?php
+						wp_editor( $notes_content, 'fanfic_chapter_author_notes', array(
+							'textarea_name' => 'fanfic_author_notes',
+							'media_buttons' => false,
+							'teeny'         => false,
+							'quicktags'     => false,
+							'tinymce'       => array(
+								'toolbar1'  => 'bold italic underline bullist numlist blockquote undo redo',
+								'toolbar2'  => '',
+								'menubar'   => false,
+								'statusbar' => false,
+							),
+						) );
+						?>
+					</div>
+				</div>
+
+				<!-- Enable Comments -->
+				<?php
+				$chapter_comments = $is_edit_mode ? get_post_meta( $chapter_id, '_fanfic_chapter_comments_enabled', true ) : '1';
+				if ( '' === $chapter_comments ) {
+					$chapter_comments = '1';
+				}
+				if ( isset( $_POST['fanfic_chapter_comments_enabled'] ) ) {
+					$chapter_comments = '1';
+				} elseif ( 'POST' === $_SERVER['REQUEST_METHOD'] ) {
+					$chapter_comments = '0';
+				}
+				$global_comments = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_comments', true ) : true;
+				$story_comments_meta = get_post_meta( $story_id, '_fanfic_comments_enabled', true );
+				if ( '' === $story_comments_meta ) {
+					$story_comments_meta = '1';
+				}
+				$parent_disabled = ! $global_comments || '1' !== $story_comments_meta;
+				?>
+				<div class="fanfic-form-field">
+					<label>
+						<input type="checkbox" id="fanfic_chapter_comments_enabled" name="fanfic_chapter_comments_enabled" value="1" <?php checked( '1', $chapter_comments ); ?> <?php disabled( $parent_disabled ); ?> />
+						<?php esc_html_e( 'Enable Comments', 'fanfiction-manager' ); ?>
+					</label>
+					<?php if ( $parent_disabled ) : ?>
+						<input type="hidden" name="fanfic_chapter_comments_enabled" value="<?php echo esc_attr( $chapter_comments ); ?>" />
+					<?php endif; ?>
+					<?php if ( ! $global_comments ) : ?>
+						<p class="description"><?php esc_html_e( 'Comments are disabled globally by the site administrator.', 'fanfiction-manager' ); ?></p>
+					<?php elseif ( '1' !== $story_comments_meta ) : ?>
+						<p class="description"><?php esc_html_e( 'Comments are disabled for this story. Enable them in story settings first.', 'fanfiction-manager' ); ?></p>
+					<?php else : ?>
+						<p class="description"><?php esc_html_e( 'Allow comments on this chapter.', 'fanfiction-manager' ); ?></p>
 					<?php endif; ?>
 				</div>
 
@@ -1424,6 +1530,11 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			var chapterType = typeRadios.length > 0 ? typeRadios[0].value : '';
 			var chapterNumber = (numberField && chapterType === 'chapter') ? numberField.value : '';
 			var chapterPublishDate = publishDateField ? publishDateField.value : '';
+			var notesEnabledField = document.querySelector('input[name="fanfic_author_notes_enabled"]');
+			var notesPositionField = document.querySelector('select[name="fanfic_author_notes_position"]');
+			var notesTextarea = document.querySelector('textarea[name="fanfic_author_notes"]');
+			var notesEnabled = notesEnabledField && notesEnabledField.checked;
+			var notesPosition = notesPositionField ? notesPositionField.value : 'below';
 
 			// Get content from TinyMCE if available
 			var chapterContent = '';
@@ -1432,6 +1543,14 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			} else {
 				var contentField = document.getElementById('fanfic_chapter_content');
 				chapterContent = contentField ? contentField.value : '';
+			}
+
+			// Get notes content from TinyMCE if available
+			var notesContent = '';
+			if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_author_notes')) {
+				notesContent = tinymce.get('fanfic_chapter_author_notes').getContent();
+			} else if (notesTextarea) {
+				notesContent = notesTextarea.value;
 			}
 
 			// Prepare form data
@@ -1444,6 +1563,15 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			formData.append('chapter_type', chapterType);
 			formData.append('chapter_number', chapterNumber);
 			formData.append('chapter_publish_date', chapterPublishDate);
+			if (notesEnabled) {
+				formData.append('fanfic_author_notes_enabled', '1');
+			}
+			formData.append('fanfic_author_notes_position', notesPosition);
+			formData.append('fanfic_author_notes', notesContent);
+			var commentsField = document.getElementById('fanfic_chapter_comments_enabled');
+			if (commentsField && !commentsField.disabled && commentsField.checked) {
+				formData.append('fanfic_chapter_comments_enabled', '1');
+			}
 			formData.append('nonce', '<?php echo wp_create_nonce( 'fanfic_update_chapter' ); ?>');
 
 			// Send AJAX request
@@ -1491,6 +1619,11 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					form.setAttribute('data-original-type', chapterType);
 					form.setAttribute('data-original-number', chapterNumber);
 					form.setAttribute('data-original-publish-date', chapterPublishDate);
+					form.setAttribute('data-original-notes-enabled', notesEnabled ? '1' : '0');
+					form.setAttribute('data-original-notes-position', notesPosition);
+					form.setAttribute('data-original-notes-content', notesContent);
+					var commentsVal = commentsField && commentsField.checked ? '1' : '0';
+					form.setAttribute('data-original-comments-enabled', commentsVal);
 
 					// Re-enable button and disable it again (no changes)
 					button.textContent = originalText;
@@ -1561,11 +1694,24 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				var typeRadios = document.querySelectorAll('.fanfic-chapter-type-input:checked');
 				var numberField = document.getElementById('fanfic_chapter_number');
 				var publishDateField = document.getElementById('fanfic_chapter_publish_date');
+				var notesEnabledField = document.querySelector('input[name="fanfic_author_notes_enabled"]');
+				var notesPositionField = document.querySelector('select[name="fanfic_author_notes_position"]');
+				var notesTextarea = document.querySelector('textarea[name="fanfic_author_notes"]');
+				var commentsEnabledField = document.getElementById('fanfic_chapter_comments_enabled');
 
 				var currentTitle = titleField ? titleField.value : '';
 				var currentType = typeRadios.length > 0 ? typeRadios[0].value : '';
 				var currentNumber = (numberField && numberField.style.display !== 'none') ? numberField.value : '';
 				var currentPublishDate = publishDateField ? publishDateField.value : '';
+				var currentNotesEnabled = notesEnabledField && notesEnabledField.checked ? '1' : '0';
+				var currentNotesPosition = notesPositionField ? notesPositionField.value : 'below';
+				var currentCommentsEnabled = commentsEnabledField && commentsEnabledField.checked ? '1' : '0';
+				var currentNotesContent = '';
+				if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_author_notes')) {
+					currentNotesContent = tinymce.get('fanfic_chapter_author_notes').getContent();
+				} else if (notesTextarea) {
+					currentNotesContent = notesTextarea.value;
+				}
 
 				// Get content from TinyMCE if available, otherwise from textarea
 				var currentContent = '';
@@ -1584,10 +1730,31 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				var originalType = form.getAttribute('data-original-type') || '';
 				var originalNumber = form.getAttribute('data-original-number') || '';
 				var originalPublishDate = form.getAttribute('data-original-publish-date');
+				var originalNotesEnabled = form.getAttribute('data-original-notes-enabled');
+				var originalNotesPosition = form.getAttribute('data-original-notes-position');
+				var originalNotesContent = form.getAttribute('data-original-notes-content');
 
 				if (null === originalPublishDate) {
 					originalPublishDate = currentPublishDate;
 					form.setAttribute('data-original-publish-date', originalPublishDate);
+				}
+				if (null === originalNotesEnabled) {
+					originalNotesEnabled = currentNotesEnabled;
+					form.setAttribute('data-original-notes-enabled', originalNotesEnabled);
+				}
+				if (null === originalNotesPosition) {
+					originalNotesPosition = currentNotesPosition;
+					form.setAttribute('data-original-notes-position', originalNotesPosition);
+				}
+				if (null === originalNotesContent) {
+					originalNotesContent = currentNotesContent;
+					form.setAttribute('data-original-notes-content', originalNotesContent);
+				}
+
+				var originalCommentsEnabled = form.getAttribute('data-original-comments-enabled');
+				if (null === originalCommentsEnabled) {
+					originalCommentsEnabled = currentCommentsEnabled;
+					form.setAttribute('data-original-comments-enabled', originalCommentsEnabled);
 				}
 
 				if (editorAvailable && !tinymceInitialized && originalContent.length > 0 && currentContent.length === 0) {
@@ -1598,7 +1765,11 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 								(currentContent !== originalContent) ||
 								(currentType !== originalType) ||
 								(currentNumber !== originalNumber) ||
-								(currentPublishDate !== originalPublishDate);
+								(currentPublishDate !== originalPublishDate) ||
+								(currentNotesEnabled !== originalNotesEnabled) ||
+								(currentNotesPosition !== originalNotesPosition) ||
+								(currentNotesContent !== originalNotesContent) ||
+								(currentCommentsEnabled !== originalCommentsEnabled);
 
 				var liveUpdateBtn = document.getElementById('update-chapter-button');
 				var liveUpdateDraftBtn = document.getElementById('update-draft-chapter-button');
@@ -1646,47 +1817,48 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 			// Listen for TinyMCE changes
 			if (typeof tinymce !== 'undefined') {
-				tinymce.on('AddEditor', function(e) {
-					if (e.editor.id === 'fanfic_chapter_content') {
+				function attachChapterEditorEvents(editor) {
+					if (!editor || editor.fanficEventsAttached) {
+						return;
+					}
+
+					if (editor.id === 'fanfic_chapter_content') {
 						// Wait for TinyMCE to fully initialize with content
-						e.editor.on('init', function() {
+						editor.on('init', function() {
 							tinymceInitialized = true;
 							// Run initial check now that TinyMCE is ready
 							setTimeout(checkForChanges, 100);
 						});
+					}
 
-						e.editor.on('change keyup paste input NodeChange', function() {
+					if (editor.id === 'fanfic_chapter_content' || editor.id === 'fanfic_chapter_author_notes') {
+						editor.on('change keyup paste input NodeChange', function() {
 							checkForChanges();
 						});
 					}
+
+					editor.fanficEventsAttached = true;
+				}
+
+				tinymce.on('AddEditor', function(e) {
+					attachChapterEditorEvents(e.editor);
 				});
 
 				// If TinyMCE is already initialized
 				if (tinymce.get('fanfic_chapter_content')) {
 					var editor = tinymce.get('fanfic_chapter_content');
-
-					// Mark as initialized since it's already loaded
-					tinymceInitialized = true;
-
-					editor.on('change keyup paste input NodeChange', function() {
-						checkForChanges();
-					});
-
-					// Run initial check
+					attachChapterEditorEvents(editor);
 					setTimeout(checkForChanges, 100);
+				}
+				if (tinymce.get('fanfic_chapter_author_notes')) {
+					attachChapterEditorEvents(tinymce.get('fanfic_chapter_author_notes'));
 				}
 
 				// Poll for TinyMCE initialization
 				var tinymceCheckInterval = setInterval(function() {
 					var editor = tinymce.get('fanfic_chapter_content');
 					if (editor && !editor.fanficEventsAttached) {
-						// Mark as initialized
-						tinymceInitialized = true;
-
-						editor.on('change keyup paste input NodeChange', function() {
-							checkForChanges();
-						});
-						editor.fanficEventsAttached = true;
+						attachChapterEditorEvents(editor);
 						clearInterval(tinymceCheckInterval);
 
 						// Run initial check
@@ -2047,11 +2219,20 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					var typeField = document.querySelector('.fanfic-chapter-type-input:checked');
 					var numberField = document.getElementById('fanfic_chapter_number');
 					var publishDateField = document.getElementById('fanfic_chapter_publish_date');
+					var notesEnabledField = document.querySelector('input[name="fanfic_author_notes_enabled"]');
+					var notesPositionField = document.querySelector('select[name="fanfic_author_notes_position"]');
+					var notesTextarea = document.querySelector('textarea[name="fanfic_author_notes"]');
 					var savedContent = '';
 					if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_content')) {
 						savedContent = tinymce.get('fanfic_chapter_content').getContent();
 					} else if (contentField) {
 						savedContent = contentField.value;
+					}
+					var savedNotesContent = '';
+					if (typeof tinymce !== 'undefined' && tinymce.get('fanfic_chapter_author_notes')) {
+						savedNotesContent = tinymce.get('fanfic_chapter_author_notes').getContent();
+					} else if (notesTextarea) {
+						savedNotesContent = notesTextarea.value;
 					}
 
 					chapterForm.setAttribute('data-original-title', titleField ? titleField.value : '');
@@ -2059,6 +2240,9 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					chapterForm.setAttribute('data-original-type', typeField ? typeField.value : '');
 					chapterForm.setAttribute('data-original-number', numberField ? numberField.value : '');
 					chapterForm.setAttribute('data-original-publish-date', publishDateField ? publishDateField.value : '');
+					chapterForm.setAttribute('data-original-notes-enabled', notesEnabledField && notesEnabledField.checked ? '1' : '0');
+					chapterForm.setAttribute('data-original-notes-position', notesPositionField ? notesPositionField.value : 'below');
+					chapterForm.setAttribute('data-original-notes-content', savedNotesContent);
 
 					if (data.chapter_status) {
 						var storyIdInput = chapterForm.querySelector('input[name="fanfic_story_id"]');

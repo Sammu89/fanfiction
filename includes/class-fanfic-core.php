@@ -254,6 +254,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
 		require_once FANFIC_INCLUDES_DIR . 'functions.php';
+		require_once FANFIC_INCLUDES_DIR . 'fanfic-story-card.php';
 
 		// Load Settings class (needed by cron jobs in all contexts)
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-settings.php';
@@ -284,6 +285,7 @@ class Fanfic_Core {
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-warnings-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-languages-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-custom-taxonomies-admin.php';
+			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-docs-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-admin.php';
 		}
 	}
@@ -355,6 +357,7 @@ class Fanfic_Core {
 			Fanfic_Moderation_Stamps::init();
 			Fanfic_Users_Admin::init();
 			Fanfic_Export_Import_Admin::init();
+			Fanfic_Docs_Admin::init();
 			Fanfic_Admin::init();
 			$this->mark_post_delete_stage( 'init_hooks:admin_modules:moderation_admin:done' );
 			$this->mark_post_delete_stage( 'init_hooks:admin_modules:done' );
@@ -1163,6 +1166,8 @@ class Fanfic_Core {
 		}
 
 		// Enqueue frontend CSS
+		wp_enqueue_style( 'dashicons' );
+
 		$css_file    = FANFIC_PLUGIN_DIR . 'assets/css/fanfiction-frontend.css';
 		$css_version = file_exists( $css_file ) ? (string) filemtime( $css_file ) : FANFIC_VERSION;
 		wp_enqueue_style(

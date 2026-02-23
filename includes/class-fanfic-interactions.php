@@ -98,20 +98,19 @@ class Fanfic_Interactions {
 			return new WP_Error( 'invalid_like_payload', __( 'Invalid chapter or identity for like interaction.', 'fanfiction-manager' ) );
 		}
 
-		$current     = self::get_user_chapter_interactions_raw( $actor['user_id'], $chapter_id, $actor['anonymous_hash'] );
-		$has_like = isset( $current['like'] );
-		$has_dislike = isset( $current['dislike'] );
-
-		if ( ! $has_like ) {
-			$ok = self::upsert_interaction( $actor['user_id'], $chapter_id, 'like', null, $actor['anonymous_hash'] );
-			if ( ! $ok ) {
-				return new WP_Error( 'like_write_failed', __( 'Could not save like interaction.', 'fanfiction-manager' ) );
-			}
+		$inserted_like = self::insert_interaction_if_missing( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
+		if ( false === $inserted_like ) {
+			return new WP_Error( 'like_write_failed', __( 'Could not save like interaction.', 'fanfiction-manager' ) );
+		}
+		if ( $inserted_like > 0 ) {
 			self::apply_like_increment( $chapter_id, $story_id, 1 );
 		}
 
-		if ( $has_dislike ) {
-			self::delete_interaction( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
+		$removed_dislike = self::delete_interaction_count( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
+		if ( false === $removed_dislike ) {
+			return new WP_Error( 'dislike_delete_failed', __( 'Could not remove opposite dislike interaction.', 'fanfiction-manager' ) );
+		}
+		if ( $removed_dislike > 0 ) {
 			self::apply_dislike_increment( $chapter_id, $story_id, -1 );
 		}
 
@@ -119,7 +118,7 @@ class Fanfic_Interactions {
 
 		return array(
 			'success' => true,
-			'changed' => ( ! $has_like || $has_dislike ),
+			'changed' => ( $inserted_like > 0 || $removed_dislike > 0 ),
 			'stats'   => self::get_chapter_stats( $chapter_id ),
 		);
 	}
@@ -141,7 +140,12 @@ class Fanfic_Interactions {
 			return new WP_Error( 'invalid_like_remove_payload', __( 'Invalid chapter or identity for like removal.', 'fanfiction-manager' ) );
 		}
 
-		if ( ! self::has_interaction( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] ) ) {
+		$removed_like = self::delete_interaction_count( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
+		if ( false === $removed_like ) {
+			return new WP_Error( 'like_remove_failed', __( 'Could not remove like interaction.', 'fanfiction-manager' ) );
+		}
+
+		if ( $removed_like < 1 ) {
 			return array(
 				'success' => true,
 				'changed' => false,
@@ -149,7 +153,6 @@ class Fanfic_Interactions {
 			);
 		}
 
-		self::delete_interaction( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
 		self::apply_like_increment( $chapter_id, $story_id, -1 );
 		self::delete_stats_cache( $chapter_id, $story_id );
 
@@ -177,20 +180,19 @@ class Fanfic_Interactions {
 			return new WP_Error( 'invalid_dislike_payload', __( 'Invalid chapter or identity for dislike interaction.', 'fanfiction-manager' ) );
 		}
 
-		$current     = self::get_user_chapter_interactions_raw( $actor['user_id'], $chapter_id, $actor['anonymous_hash'] );
-		$has_like = isset( $current['like'] );
-		$has_dislike = isset( $current['dislike'] );
-
-		if ( ! $has_dislike ) {
-			$ok = self::upsert_interaction( $actor['user_id'], $chapter_id, 'dislike', null, $actor['anonymous_hash'] );
-			if ( ! $ok ) {
-				return new WP_Error( 'dislike_write_failed', __( 'Could not save dislike interaction.', 'fanfiction-manager' ) );
-			}
+		$inserted_dislike = self::insert_interaction_if_missing( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
+		if ( false === $inserted_dislike ) {
+			return new WP_Error( 'dislike_write_failed', __( 'Could not save dislike interaction.', 'fanfiction-manager' ) );
+		}
+		if ( $inserted_dislike > 0 ) {
 			self::apply_dislike_increment( $chapter_id, $story_id, 1 );
 		}
 
-		if ( $has_like ) {
-			self::delete_interaction( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
+		$removed_like = self::delete_interaction_count( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
+		if ( false === $removed_like ) {
+			return new WP_Error( 'like_delete_failed', __( 'Could not remove opposite like interaction.', 'fanfiction-manager' ) );
+		}
+		if ( $removed_like > 0 ) {
 			self::apply_like_increment( $chapter_id, $story_id, -1 );
 		}
 
@@ -198,7 +200,7 @@ class Fanfic_Interactions {
 
 		return array(
 			'success' => true,
-			'changed' => ( ! $has_dislike || $has_like ),
+			'changed' => ( $inserted_dislike > 0 || $removed_like > 0 ),
 			'stats'   => self::get_chapter_stats( $chapter_id ),
 		);
 	}
@@ -220,7 +222,12 @@ class Fanfic_Interactions {
 			return new WP_Error( 'invalid_dislike_remove_payload', __( 'Invalid chapter or identity for dislike removal.', 'fanfiction-manager' ) );
 		}
 
-		if ( ! self::has_interaction( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] ) ) {
+		$removed_dislike = self::delete_interaction_count( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
+		if ( false === $removed_dislike ) {
+			return new WP_Error( 'dislike_remove_failed', __( 'Could not remove dislike interaction.', 'fanfiction-manager' ) );
+		}
+
+		if ( $removed_dislike < 1 ) {
 			return array(
 				'success' => true,
 				'changed' => false,
@@ -228,7 +235,6 @@ class Fanfic_Interactions {
 			);
 		}
 
-		self::delete_interaction( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
 		self::apply_dislike_increment( $chapter_id, $story_id, -1 );
 		self::delete_stats_cache( $chapter_id, $story_id );
 
@@ -1066,19 +1072,49 @@ class Fanfic_Interactions {
 	 * @param string $size        Size class.
 	 * @return string
 	 */
-	public static function get_stars_html( $rating, $interactive = false, $size = 'medium' ) {
-		$rating = max( 0, min( 5, floatval( $rating ) ) );
-		$interactive_class = $interactive ? 'fanfic-rating-interactive' : 'fanfic-rating-readonly';
-		$size_class = 'fanfic-rating-' . sanitize_html_class( $size );
+	/** SVG path for a 5-pointed star, viewBox 0 0 24 24. */
+	private static $star_path = 'M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z';
 
-		$html  = '<div class="fanfic-rating-stars fanfic-rating-stars-half ' . esc_attr( $interactive_class ) . ' ' . esc_attr( $size_class ) . '" data-rating="' . esc_attr( $rating ) . '">';
+	/**
+	 * Render one SVG star icon using the same star system classes.
+	 *
+	 * @since 1.6.0
+	 * @param string $state Star state: empty|half|full.
+	 * @return string
+	 */
+	public static function get_star_icon_html( $state = 'full' ) {
+		$state = sanitize_key( $state );
+		if ( ! in_array( $state, array( 'empty', 'half', 'full' ), true ) ) {
+			$state = 'full';
+		}
+
+		$path = self::$star_path;
+		$html = '<span class="fanfic-rating-star-icon fanfic-star-wrap" data-state="' . esc_attr( $state ) . '" aria-hidden="true">';
+		$html .= '<svg class="fanfic-star-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">';
+		$html .= '<path class="fanfic-star-bg" d="' . esc_attr( $path ) . '"/>';
+		$html .= '<path class="fanfic-star-fg" d="' . esc_attr( $path ) . '"/>';
+		$html .= '</svg>';
+		$html .= '</span>';
+
+		return $html;
+	}
+
+	public static function get_stars_html( $rating, $interactive = false, $size = 'medium' ) {
+		$rating            = max( 0, min( 5, floatval( $rating ) ) );
+		$interactive_class = $interactive ? 'fanfic-rating-interactive' : 'fanfic-rating-readonly';
+		$size_class        = 'fanfic-rating-' . sanitize_html_class( $size );
+		$path              = self::$star_path;
+
+		$html = '<div class="fanfic-rating-stars fanfic-rating-stars-half ' . esc_attr( $interactive_class ) . ' ' . esc_attr( $size_class ) . '" data-rating="' . esc_attr( $rating ) . '">';
 		for ( $i = 1; $i <= 5; $i++ ) {
-			$start    = $i - 1;
-			$fill     = max( 0.0, min( 1.0, $rating - $start ) );
-			$fill_pct = round( $fill * 100, 2 );
-			$html .= '<span class="fanfic-star-wrap" data-star="' . esc_attr( $i ) . '">';
-			$html .= '<span class="fanfic-star fanfic-star-empty" aria-hidden="true">&#9733;</span>';
-			$html .= '<span class="fanfic-star fanfic-star-fill" aria-hidden="true" style="width:' . esc_attr( $fill_pct ) . '%">&#9733;</span>';
+			$fill  = max( 0.0, min( 1.0, $rating - ( $i - 1 ) ) );
+			$state = $fill < 0.25 ? 'empty' : ( $fill < 0.75 ? 'half' : 'full' );
+
+			$html .= '<span class="fanfic-star-wrap" data-star="' . esc_attr( $i ) . '" data-state="' . esc_attr( $state ) . '">';
+			$html .= '<svg class="fanfic-star-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">';
+			$html .= '<path class="fanfic-star-bg" d="' . esc_attr( $path ) . '"/>';
+			$html .= '<path class="fanfic-star-fg" d="' . esc_attr( $path ) . '"/>';
+			$html .= '</svg>';
 			if ( $interactive ) {
 				$left_value  = $i - 0.5;
 				$right_value = $i;
@@ -2305,20 +2341,84 @@ class Fanfic_Interactions {
 	}
 
 	/**
-	 * Delete interaction row.
+	 * Insert interaction row only when missing.
+	 *
+	 * This is used for idempotent like/dislike writes under concurrent requests.
+	 *
+	 * @since 1.6.0
+	 * @param int         $user_id        User ID.
+	 * @param int         $chapter_id     Chapter ID.
+	 * @param string      $type           Interaction type.
+	 * @param string|null $anonymous_hash Binary anonymous hash.
+	 * @return int|false Number of inserted rows (0 or 1), false on DB error.
+	 */
+	private static function insert_interaction_if_missing( $user_id, $chapter_id, $type, $anonymous_hash = '' ) {
+		global $wpdb;
+
+		$user_id        = absint( $user_id );
+		$chapter_id     = absint( $chapter_id );
+		$anonymous_hash = is_string( $anonymous_hash ) ? $anonymous_hash : '';
+		$type           = sanitize_key( $type );
+
+		$table = $wpdb->prefix . 'fanfic_interactions';
+		if ( ! self::table_exists( $table ) ) {
+			return false;
+		}
+
+		if ( ! in_array( $type, array( 'like', 'dislike' ), true ) ) {
+			return false;
+		}
+
+		if ( ! $chapter_id || ( ! $user_id && empty( $anonymous_hash ) ) ) {
+			return false;
+		}
+
+		if ( $user_id > 0 ) {
+			$result = $wpdb->query(
+				$wpdb->prepare(
+					"INSERT IGNORE INTO {$table}
+						(user_id, anon_hash, chapter_id, interaction_type, `value`, created_at, updated_at)
+					VALUES (%d, NULL, %d, %s, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+					$user_id,
+					$chapter_id,
+					$type
+				)
+			);
+		} else {
+			$result = $wpdb->query(
+				$wpdb->prepare(
+					"INSERT IGNORE INTO {$table}
+						(user_id, anon_hash, chapter_id, interaction_type, `value`, created_at, updated_at)
+					VALUES (NULL, %s, %d, %s, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+					$anonymous_hash,
+					$chapter_id,
+					$type
+				)
+			);
+		}
+
+		if ( false === $result ) {
+			return false;
+		}
+
+		return absint( $result );
+	}
+
+	/**
+	 * Delete interaction row and return affected row count.
 	 *
 	 * @since 1.6.0
 	 * @param int         $user_id         User ID.
 	 * @param int         $chapter_id      Chapter ID.
 	 * @param string      $type            Interaction type.
 	 * @param string|null $anonymous_hash  Binary anonymous hash.
-	 * @return bool
+	 * @return int|false Deleted rows count (0+), false on DB error.
 	 */
-	private static function delete_interaction( $user_id, $chapter_id, $type, $anonymous_hash = '' ) {
+	private static function delete_interaction_count( $user_id, $chapter_id, $type, $anonymous_hash = '' ) {
 		global $wpdb;
 
-		$user_id      = absint( $user_id );
-		$chapter_id   = absint( $chapter_id );
+		$user_id        = absint( $user_id );
+		$chapter_id     = absint( $chapter_id );
 		$anonymous_hash = is_string( $anonymous_hash ) ? $anonymous_hash : '';
 
 		$table = $wpdb->prefix . 'fanfic_interactions';
@@ -2352,6 +2452,25 @@ class Fanfic_Interactions {
 			);
 		}
 
+		if ( false === $deleted ) {
+			return false;
+		}
+
+		return absint( $deleted );
+	}
+
+	/**
+	 * Delete interaction row.
+	 *
+	 * @since 1.6.0
+	 * @param int         $user_id         User ID.
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param string      $type            Interaction type.
+	 * @param string|null $anonymous_hash  Binary anonymous hash.
+	 * @return bool
+	 */
+	private static function delete_interaction( $user_id, $chapter_id, $type, $anonymous_hash = '' ) {
+		$deleted = self::delete_interaction_count( $user_id, $chapter_id, $type, $anonymous_hash );
 		return false !== $deleted;
 	}
 
