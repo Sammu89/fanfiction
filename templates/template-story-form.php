@@ -160,6 +160,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 ) );
 ?>
 
+<?php ob_start(); ?>
 <!-- Unified Messages Container -->
 <div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php
@@ -254,6 +255,12 @@ if ( $validation_errors ) {
 do_action( 'fanfic_story_form_messages', $story_id, $is_edit_mode );
 ?>
 </div>
+<?php
+$fanfic_story_messages_markup = ob_get_clean();
+if ( ! $is_edit_mode ) {
+	echo $fanfic_story_messages_markup;
+}
+?>
 
 <?php
 // ========================================================================
@@ -409,13 +416,15 @@ if ( $is_edit_mode ) {
 		<section class="fanfic-content-section" class="fanfic-form-section" aria-labelledby="form-heading">
 			<h2 id="form-heading" class="screen-reader-text"><?php echo $is_edit_mode ? esc_html__( 'Story Edit Form', 'fanfiction-manager' ) : esc_html__( 'Story Creation Form', 'fanfiction-manager' ); ?></h2>
 
-			<!-- Info Box -->
-			<div class="fanfic-message fanfic-message-info" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
-				<span class="fanfic-message-icon" aria-hidden="true">&#8505;</span>
-				<span class="fanfic-message-content">
-					<?php echo $is_edit_mode ? esc_html__( 'Your story must have an introduction, at least one chapter, a genre, and a status to be published.', 'fanfiction-manager' ) : esc_html__( 'All fields marked with an asterisk (*) are required. Your story will be saved as a draft until you add at least one chapter.', 'fanfiction-manager' ); ?>
-				</span>
-			</div>
+			<?php if ( ! $is_edit_mode ) : ?>
+				<!-- Info Box -->
+				<div class="fanfic-message fanfic-message-info" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
+					<span class="fanfic-message-icon" aria-hidden="true">&#8505;</span>
+					<span class="fanfic-message-content">
+						<?php esc_html_e( 'All fields marked with an asterisk (*) are required. Your story will be saved as a draft until you add at least one chapter.', 'fanfiction-manager' ); ?>
+					</span>
+				</div>
+			<?php endif; ?>
 
 			<!-- Story Form -->
 			<div class="fanfic-form-wrapper fanfic-story-form-<?php echo esc_attr( $form_mode ); ?>">
@@ -434,9 +443,24 @@ if ( $is_edit_mode ) {
 					<?php endif; ?>
 				</div>
 
-				<form method="post" class="fanfic-story-form" id="fanfic-story-form" <?php echo $data_attrs; ?><?php echo $image_upload_enabled ? ' enctype="multipart/form-data"' : ''; ?>>
-					<div class="fanfic-form-content fanfic-auto-columns">
-						<?php wp_nonce_field( 'fanfic_story_form_action' . ( $is_edit_mode ? '_' . $story_id : '' ), 'fanfic_story_nonce' ); ?>
+				<form method="post" class="fanfic-story-form" id="fanfic-story-form" novalidate <?php echo $data_attrs; ?><?php echo $image_upload_enabled ? ' enctype="multipart/form-data"' : ''; ?>>
+					<?php wp_nonce_field( 'fanfic_story_form_action' . ( $is_edit_mode ? '_' . $story_id : '' ), 'fanfic_story_nonce' ); ?>
+					<?php
+					$notes_enabled  = $is_edit_mode ? get_post_meta( $story_id, '_fanfic_author_notes_enabled', true ) : '0';
+					$notes_position = $is_edit_mode ? ( get_post_meta( $story_id, '_fanfic_author_notes_position', true ) ?: 'below' ) : 'below';
+					$notes_content  = $is_edit_mode ? get_post_meta( $story_id, '_fanfic_author_notes', true ) : '';
+					if ( isset( $_POST['fanfic_author_notes_enabled'] ) ) {
+						$notes_enabled = '1';
+					}
+					if ( isset( $_POST['fanfic_author_notes_position'] ) ) {
+						$notes_position = ( 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
+					}
+					if ( isset( $_POST['fanfic_author_notes'] ) ) {
+						$notes_content = wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) );
+					}
+					?>
+
+					<div class="fanfic-form-content">
 
 						<!-- Story Title -->
 						<div class="fanfic-form-field">
@@ -465,6 +489,42 @@ if ( $is_edit_mode ) {
 							><?php echo isset( $_POST['fanfic_story_introduction'] ) ? esc_textarea( $_POST['fanfic_story_introduction'] ) : ( $is_edit_mode ? esc_textarea( $story->post_excerpt ) : '' ); ?></textarea>
 						</div>
 
+						<!-- Author's Notes -->
+						<div class="fanfic-form-field fanfic-author-notes-field">
+							<label>
+								<input type="checkbox" name="fanfic_author_notes_enabled" value="1" class="fanfic-author-notes-toggle" <?php checked( '1', $notes_enabled ); ?> />
+								<?php esc_html_e( "Enable Author's Notes", 'fanfiction-manager' ); ?>
+							</label>
+							<div class="fanfic-author-notes-options" <?php echo '1' !== $notes_enabled ? 'style="display:none;"' : ''; ?>>
+								<div class="fanfic-author-notes-position-row">
+									<span><?php esc_html_e( 'Notes', 'fanfiction-manager' ); ?></span>
+									<select name="fanfic_author_notes_position" class="fanfic-select">
+										<option value="above" <?php selected( 'above', $notes_position ); ?>><?php esc_html_e( 'above', 'fanfiction-manager' ); ?></option>
+										<option value="below" <?php selected( 'below', $notes_position ); ?>><?php esc_html_e( 'below', 'fanfiction-manager' ); ?></option>
+									</select>
+									<span><?php esc_html_e( 'the story content', 'fanfiction-manager' ); ?></span>
+								</div>
+								<?php
+								wp_editor( $notes_content, 'fanfic_story_author_notes', array(
+									'textarea_name' => 'fanfic_author_notes',
+									'media_buttons' => false,
+									'teeny'         => false,
+									'quicktags'     => false,
+									'tinymce'       => array(
+										'toolbar1'  => 'bold italic underline bullist numlist blockquote undo redo',
+										'toolbar2'  => '',
+										'menubar'   => false,
+										'statusbar' => true,
+										'resize'    => 'vertical',
+										'height'    => 220,
+									),
+								) );
+								?>
+							</div>
+						</div>
+					</div>
+
+					<div class="fanfic-form-content fanfic-auto-columns">
 						<?php if ( $can_edit_publish_date ) : ?>
 							<div class="fanfic-form-field">
 								<label for="fanfic_story_publish_date"><?php esc_html_e( 'Publication Date', 'fanfiction-manager' ); ?></label>
@@ -476,7 +536,7 @@ if ( $is_edit_mode ) {
 									max="<?php echo esc_attr( current_time( 'Y-m-d' ) ); ?>"
 									value="<?php echo esc_attr( $story_publish_date ); ?>"
 								/>
-								<p class="description"><?php esc_html_e( 'Use this for importing older works. Changing this date does not count as a qualifying update for inactivity status.', 'fanfiction-manager' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Changing this date does not count as a update for inactivity status.', 'fanfiction-manager' ); ?></p>
 							</div>
 						<?php endif; ?>
 
@@ -855,7 +915,7 @@ if ( $is_edit_mode ) {
 									<?php
 									printf(
 										/* translators: %d: Maximum number of visible tags */
-										esc_html__( 'Add up to %d visible tags. Press Enter or comma to add each tag.', 'fanfiction-manager' ),
+										esc_html__( 'Add up to %d tags to further help classify your story. Press Enter or comma to add each tag.', 'fanfiction-manager' ),
 										defined( 'FANFIC_MAX_VISIBLE_TAGS' ) ? FANFIC_MAX_VISIBLE_TAGS : 5
 									);
 									?>
@@ -895,7 +955,7 @@ if ( $is_edit_mode ) {
 									<?php
 									printf(
 										/* translators: %d: Maximum number of invisible tags */
-										esc_html__( 'Add up to %d hidden tags. Press Enter or comma to add each tag.', 'fanfiction-manager' ),
+										esc_html__( 'Add up to %d search tags. These will not be visible, but they will help your story appear in search results when someone looks for them. Press Enter or a comma to add each tag.', 'fanfiction-manager' ),
 										defined( 'FANFIC_MAX_INVISIBLE_TAGS' ) ? FANFIC_MAX_INVISIBLE_TAGS : 10
 									);
 									?>
@@ -918,7 +978,7 @@ if ( $is_edit_mode ) {
 								aria-label="<?php esc_attr_e( 'Click or drag to upload story cover image', 'fanfiction-manager' ); ?>"
 							>
 								<div class="fanfic-dropzone-placeholder">
-									<span class="fanfic-dropzone-placeholder-icon" aria-hidden="true">🖼️</span>
+									<span class="fanfic-dropzone-placeholder-icon dashicons dashicons-cloud-upload" aria-hidden="true"></span>
 									<span class="fanfic-dropzone-placeholder-text"><?php esc_html_e( 'Click to select image', 'fanfiction-manager' ); ?></span>
 									<span class="fanfic-dropzone-placeholder-hint"><?php esc_html_e( 'or drag and drop here', 'fanfiction-manager' ); ?></span>
 								</div>
@@ -939,52 +999,6 @@ if ( $is_edit_mode ) {
 							</p>
 						</div>
 
-						<!-- Author's Notes -->
-						<?php
-						$notes_enabled  = $is_edit_mode ? get_post_meta( $story_id, '_fanfic_author_notes_enabled', true ) : '0';
-						$notes_position = $is_edit_mode ? ( get_post_meta( $story_id, '_fanfic_author_notes_position', true ) ?: 'below' ) : 'below';
-						$notes_content  = $is_edit_mode ? get_post_meta( $story_id, '_fanfic_author_notes', true ) : '';
-						if ( isset( $_POST['fanfic_author_notes_enabled'] ) ) {
-							$notes_enabled = '1';
-						}
-						if ( isset( $_POST['fanfic_author_notes_position'] ) ) {
-							$notes_position = ( 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
-						}
-						if ( isset( $_POST['fanfic_author_notes'] ) ) {
-							$notes_content = wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) );
-						}
-						?>
-						<div class="fanfic-form-field fanfic-author-notes-field">
-							<label>
-								<input type="checkbox" name="fanfic_author_notes_enabled" value="1" class="fanfic-author-notes-toggle" <?php checked( '1', $notes_enabled ); ?> />
-								<?php esc_html_e( "Enable Author's Notes", 'fanfiction-manager' ); ?>
-							</label>
-							<div class="fanfic-author-notes-options" <?php echo '1' !== $notes_enabled ? 'style="display:none;"' : ''; ?>>
-								<div class="fanfic-author-notes-position-row">
-									<span><?php esc_html_e( 'Notes', 'fanfiction-manager' ); ?></span>
-									<select name="fanfic_author_notes_position" class="fanfic-select">
-										<option value="above" <?php selected( 'above', $notes_position ); ?>><?php esc_html_e( 'above', 'fanfiction-manager' ); ?></option>
-										<option value="below" <?php selected( 'below', $notes_position ); ?>><?php esc_html_e( 'below', 'fanfiction-manager' ); ?></option>
-									</select>
-									<span><?php esc_html_e( 'the story content', 'fanfiction-manager' ); ?></span>
-								</div>
-								<?php
-								wp_editor( $notes_content, 'fanfic_story_author_notes', array(
-									'textarea_name' => 'fanfic_author_notes',
-									'media_buttons' => false,
-									'teeny'         => false,
-									'quicktags'     => false,
-									'tinymce'       => array(
-										'toolbar1'  => 'bold italic underline bullist numlist blockquote undo redo',
-										'toolbar2'  => '',
-										'menubar'   => false,
-										'statusbar' => false,
-									),
-								) );
-								?>
-							</div>
-						</div>
-
 						<!-- Enable Comments -->
 						<?php
 						$comments_enabled = $is_edit_mode ? get_post_meta( $story_id, '_fanfic_comments_enabled', true ) : '1';
@@ -998,7 +1012,7 @@ if ( $is_edit_mode ) {
 						}
 						$global_comments = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_comments', true ) : true;
 						?>
-						<div class="fanfic-form-field">
+						<div class="fanfic-form-field fanfic-comment-option">
 							<label>
 								<input type="checkbox" name="fanfic_comments_enabled" value="1" <?php checked( '1', $comments_enabled ); ?> <?php disabled( ! $global_comments ); ?> />
 								<?php esc_html_e( 'Enable Comments', 'fanfiction-manager' ); ?>
@@ -1089,6 +1103,9 @@ if ( $is_edit_mode ) {
 						<?php endif; ?>
 					</div>
 				</form>
+				<?php if ( $is_edit_mode ) : ?>
+					<?php echo $fanfic_story_messages_markup; ?>
+				<?php endif; ?>
 			</div>
 		</section>
 	</div><!-- /.fanfic-content-primary -->
@@ -1359,27 +1376,6 @@ if ( $is_edit_mode ) {
 </section>
 <?php endif; ?>
 
-<!-- Delete Confirmation Modal (Edit mode only) -->
-<?php if ( $is_edit_mode ) : ?>
-<div id="delete-confirm-modal" class="fanfic-modal" role="dialog" aria-labelledby="modal-title" aria-modal="true" style="display: none;">
-	<div class="fanfic-modal-overlay"></div>
-	<div class="fanfic-modal-content">
-		<h2 id="modal-title"><?php esc_html_e( 'Confirm Deletion', 'fanfiction-manager' ); ?></h2>
-		<p id="modal-message"></p>
-		<div class="fanfic-modal-actions">
-			<button type="button" id="confirm-delete" class="danger">
-				<?php esc_html_e( 'Yes, Delete', 'fanfiction-manager' ); ?>
-			</button>
-			<button type="button" id="cancel-delete" class="secondary">
-				<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
-			</button>
-		</div>
-	</div>
-</div>
-
-<!-- Make Story Visible Prompt Modal -->
-<?php endif; ?>
-
 <!-- Breadcrumb Navigation (Bottom) -->
 <?php
 fanfic_render_breadcrumb( 'edit-story', array(
@@ -1390,7 +1386,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 ) );
 ?>
 
-<!-- Inline Script for Message Dismissal and Delete Confirmation -->
+<!-- Inline Script for Message Dismissal and Delete Actions -->
 <script>
 (function() {
 	document.addEventListener('DOMContentLoaded', function() {
@@ -1556,7 +1552,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				return;
 			}
 
-			var formContent = form.querySelector('.fanfic-form-content');
+			var formContent = form.querySelector('.fanfic-form-content.fanfic-auto-columns');
 			if (!formContent) {
 				return;
 			}
@@ -1892,7 +1888,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 			window.addEventListener('beforeunload', function(e) {
 				var updateBtn = document.getElementById('update-button');
-				var hasUnsaved = (updateBtn && \!updateBtn.disabled);
+				var hasUnsaved = (updateBtn && !updateBtn.disabled);
 				if (hasUnsaved) {
 					e.preventDefault();
 				}
@@ -2321,6 +2317,22 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				appendStoryFormMessage(type, message, persistent);
 			}
 
+			function highlightFieldContainer(fieldElement) {
+				if (!fieldElement) {
+					return;
+				}
+
+				var fieldContainer = fieldElement.closest('.fanfic-form-field');
+				if (!fieldContainer) {
+					return;
+				}
+
+				fieldContainer.style.border = '2px solid #e74c3c';
+				setTimeout(function() {
+					fieldContainer.style.border = '';
+				}, 3000);
+			}
+
 			function updateStoryOriginalState() {
 				var titleField = document.getElementById('fanfic_story_title');
 				var contentField = document.getElementById('fanfic_story_intro');
@@ -2483,7 +2495,21 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 			storyForm.addEventListener('submit', function(e) {
 				var submitter = e.submitter || document.activeElement;
+				var titleField = document.getElementById('fanfic_story_title');
+				var titleValue = titleField ? titleField.value.trim() : '';
 				var genreCheckboxes = document.querySelectorAll('input[name="fanfic_story_genres[]"]:checked');
+
+				if (!titleValue) {
+					e.preventDefault();
+					showStoryFormMessage('error', '<?php echo esc_js( __( 'Story title is required.', 'fanfiction-manager' ) ); ?>', true);
+					if (titleField) {
+						titleField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						titleField.focus();
+						highlightFieldContainer(titleField);
+					}
+					return false;
+				}
+
 				if (genreCheckboxes.length === 0) {
 					e.preventDefault();
 					showStoryFormMessage('error', '<?php echo esc_js( __( 'Please select at least one genre for your story.', 'fanfiction-manager' ) ); ?>', true);
@@ -2498,14 +2524,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					}
 					if (genresLabel) {
 						genresLabel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-						// Highlight the field briefly
-						var genresContainer = genresLabel.parentElement;
-						if (genresContainer) {
-							genresContainer.style.border = '2px solid #e74c3c';
-							setTimeout(function() {
-								genresContainer.style.border = '';
-							}, 3000);
-						}
+						highlightFieldContainer(genresLabel);
 					}
 					return false;
 				}

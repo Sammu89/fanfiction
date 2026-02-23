@@ -113,38 +113,16 @@ if ( empty( $template ) ) {
 	$template = fanfic_get_default_story_view_template();
 }
 
-$template = str_replace(
-	'[story-visible-tags show_label="true" format="pills"]',
-	'[story-visible-tags show_label="false" format="pills"]',
-	$template
-);
-
-if (
-	false === strpos( $template, '[story-visible-tags' )
-	&& false !== strpos( $template, '[story-taxonomies]' )
-) {
-	$template = str_replace(
-		'[story-taxonomies]',
-		'[story-taxonomies]' . "\n" . '<div class="fanfic-story-tags-row">[story-visible-tags show_label="false" format="pills"]</div>',
-		$template
-	);
-}
-
+// Show a discreet warning if this story is not published
 // Show a discreet warning if this story is not published
 $story_post = get_post();
+
 if ( $story_post && 'fanfiction_story' === $story_post->post_type && 'publish' !== $story_post->post_status ) {
-	$status_obj = get_post_status_object( $story_post->post_status );
-	$status_label = $status_obj && ! empty( $status_obj->label ) ? $status_obj->label : $story_post->post_status;
 	?>
 	<div class="fanfic-message fanfic-message-warning fanfic-draft-warning" role="status" aria-live="polite">
 		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
 		<span class="fanfic-message-content">
-			<?php
-			printf(
-				esc_html__( 'This story is not visible to the public because its status is %s.', 'fanfiction-manager' ),
-				esc_html( $status_label )
-			);
-			?>
+			<?php esc_html_e( 'This story is hidden from the public.', 'fanfiction-manager' ); ?>
 		</span>
 	</div>
 	<?php

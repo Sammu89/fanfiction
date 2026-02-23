@@ -270,10 +270,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		}
 
 		if ( 'publish' === $post_status ) {
-			return '<span class="status-badge status-published"><span class="dashicons dashicons-yes-alt"></span> ' . __( 'Published', 'fanfiction-manager' ) . '</span>';
+			return '<span class="status-badge status-visible"><span class="dashicons dashicons-yes-alt"></span> ' . __( 'Published', 'fanfiction-manager' ) . '</span>';
 		}
 
-		return '<span class="status-badge status-draft"><span class="dashicons dashicons-edit"></span> ' . __( 'Draft', 'fanfiction-manager' ) . '</span>';
+		return '<span class="status-badge status-hidden"><span class="dashicons dashicons-edit"></span> ' . __( 'Draft', 'fanfiction-manager' ) . '</span>';
 	}
 
 	/**

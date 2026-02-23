@@ -514,7 +514,7 @@ if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
 	color: #fff;
 }
 
-.fanfic-status-draft {
+.fanfic-status-hidden {
 	background-color: #ff9800;
 	color: #fff;
 }
@@ -772,24 +772,25 @@ fanfic_render_breadcrumb( 'edit-chapter', array(
 ) );
 ?>
 
+<?php ob_start(); ?>
 <!-- Unified Messages Container -->
 <div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php
 // Display flash messages
 $flash_messages = Fanfic_Flash_Messages::get_messages();
 if ( ! empty( $flash_messages ) ) {
-    foreach ( $flash_messages as $msg ) {
-        $type = esc_attr( $msg['type'] );
-        $message = esc_html( $msg['message'] );
-        $icon = ( $type === 'success' || $type === 'info' ) ? '&#10003;' : ( $type === 'warning' ? '&#9888;' : '&#10007;' );
-        $role = ( $type === 'error' ) ? 'alert' : 'status';
+	foreach ( $flash_messages as $msg ) {
+		$type = esc_attr( $msg['type'] );
+		$message = esc_html( $msg['message'] );
+		$icon = ( $type === 'success' || $type === 'info' ) ? '&#10003;' : ( $type === 'warning' ? '&#9888;' : '&#10007;' );
+		$role = ( $type === 'error' ) ? 'alert' : 'status';
 
-        echo "<div class='fanfic-message fanfic-message-{$type}' role='{$role}'>
-                <span class='fanfic-message-icon' aria-hidden='true'>{$icon}</span>
-                <span class='fanfic-message-content'>{$message}</span>
-                <button class='fanfic-message-close' aria-label='" . esc_attr__( 'Dismiss message', 'fanfiction-manager' ) . "'>&times;</button>
-              </div>";
-    }
+		echo "<div class='fanfic-message fanfic-message-{$type}' role='{$role}'>
+				<span class='fanfic-message-icon' aria-hidden='true'>{$icon}</span>
+				<span class='fanfic-message-content'>{$message}</span>
+				<button class='fanfic-message-close' aria-label='" . esc_attr__( 'Dismiss message', 'fanfiction-manager' ) . "'>&times;</button>
+			  </div>";
+	}
 }
 
 // General form errors from chapter handler.
@@ -830,6 +831,12 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 }
 ?>
 </div>
+<?php
+$fanfic_chapter_messages_markup = ob_get_clean();
+if ( ! $is_edit_mode ) {
+	echo $fanfic_chapter_messages_markup;
+}
+?>
 
 <p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
 
@@ -974,7 +981,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						aria-label="<?php esc_attr_e( 'Click or drag to upload chapter cover image', 'fanfiction-manager' ); ?>"
 					>
 						<div class="fanfic-dropzone-placeholder">
-							<span class="fanfic-dropzone-placeholder-icon" aria-hidden="true">🖼️</span>
+							<span class="fanfic-dropzone-placeholder-icon dashicons dashicons-cloud-upload" aria-hidden="true"></span>
 							<span class="fanfic-dropzone-placeholder-text"><?php esc_html_e( 'Click to select image', 'fanfiction-manager' ); ?></span>
 							<span class="fanfic-dropzone-placeholder-hint"><?php esc_html_e( 'or drag and drop here', 'fanfiction-manager' ); ?></span>
 						</div>
@@ -1058,7 +1065,9 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 								'toolbar1'  => 'bold italic underline bullist numlist blockquote undo redo',
 								'toolbar2'  => '',
 								'menubar'   => false,
-								'statusbar' => false,
+								'statusbar' => true,
+								'resize'    => 'vertical',
+								'height'    => 220,
 							),
 						) );
 						?>
@@ -1173,6 +1182,9 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				<?php endif; ?>
 			</div>
 		</form>
+		<?php if ( $is_edit_mode ) : ?>
+			<?php echo $fanfic_chapter_messages_markup; ?>
+		<?php endif; ?>
 	</div>
 </section>
 
@@ -1879,7 +1891,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 			window.addEventListener('beforeunload', function(e) {
 				var updateBtn = document.getElementById('update-chapter-button');
-				var hasUnsaved = (updateBtn && \!updateBtn.disabled);
+				var hasUnsaved = (updateBtn && !updateBtn.disabled);
 				if (hasUnsaved) {
 					e.preventDefault();
 				}
@@ -2083,10 +2095,10 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				var statusBadge = document.querySelector('.fanfic-chapter-status-badge');
 				if (statusBadge) {
 					if (chapterStatus === 'publish') {
-						statusBadge.className = 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-published';
+						statusBadge.className = 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-visible';
 						statusBadge.textContent = '<?php echo esc_js( __( 'Visible', 'fanfiction-manager' ) ); ?>';
 					} else {
-						statusBadge.className = 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-draft';
+						statusBadge.className = 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-hidden';
 						statusBadge.innerHTML = '<span class="dashicons dashicons-hidden"></span><?php echo esc_js( __( 'Hidden', 'fanfiction-manager' ) ); ?>';
 					}
 				}

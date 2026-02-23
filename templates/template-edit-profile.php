@@ -159,7 +159,7 @@ do_action( 'fanfic_profile_form_messages', $current_user );
 						aria-label="<?php esc_attr_e( 'Click or drag to upload avatar image', 'fanfiction-manager' ); ?>"
 					>
 						<div class="fanfic-dropzone-placeholder">
-							<span class="fanfic-dropzone-placeholder-icon" aria-hidden="true">👤</span>
+							<span class="fanfic-dropzone-placeholder-icon dashicons dashicons-cloud-upload" aria-hidden="true"></span>
 							<span class="fanfic-dropzone-placeholder-text"><?php esc_html_e( 'Click to select avatar', 'fanfiction-manager' ); ?></span>
 							<span class="fanfic-dropzone-placeholder-hint"><?php esc_html_e( 'or drag and drop here', 'fanfiction-manager' ); ?></span>
 						</div>
