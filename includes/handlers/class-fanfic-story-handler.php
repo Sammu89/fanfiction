@@ -613,7 +613,7 @@ class Fanfic_Story_Handler {
 			}
 
 			if ( $is_ajax ) {
-				$status_label = __( 'Draft', 'fanfiction-manager' );
+				$status_label = __( 'Hidden', 'fanfiction-manager' );
 				wp_send_json_success( array(
 					'message'         => __( 'Story saved successfully.', 'fanfiction-manager' ),
 					'story_id'        => $new_story_id,
@@ -879,7 +879,7 @@ class Fanfic_Story_Handler {
 			if ( $is_ajax ) {
 				$final_status = get_post_status( $story_id );
 				$status_class = ( 'publish' === $final_status ) ? 'published' : 'draft';
-				$status_label = ( 'publish' === $final_status ) ? __( 'Visible', 'fanfiction-manager' ) : __( 'Draft', 'fanfiction-manager' );
+				$status_label = ( 'publish' === $final_status ) ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
 				$success_message = ( 'add_chapter' === $form_action )
 					? __( 'Story updated. You can now add a chapter.', 'fanfiction-manager' )
 					: __( 'Story updated successfully!', 'fanfiction-manager' );

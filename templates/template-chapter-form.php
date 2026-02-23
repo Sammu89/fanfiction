@@ -839,6 +839,21 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 	<!-- Chapter Form -->
 	<div class="fanfic-form-wrapper fanfic-chapter-form-<?php echo $is_edit_mode ? 'edit' : 'create'; ?>" data-available-chapter-numbers="<?php echo esc_attr( json_encode( $available_numbers ) ); ?>">
+		<?php if ( $is_edit_mode ) : ?>
+			<div class="fanfic-form-header">
+				<?php
+				$chapter_post_status = get_post_status( $chapter_id );
+				$chapter_badge_class = 'publish' === $chapter_post_status ? 'published' : 'draft';
+				$chapter_badge_text  = 'publish' === $chapter_post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
+				?>
+				<span class="fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-<?php echo esc_attr( $chapter_badge_class ); ?>">
+					<?php if ( 'publish' !== $chapter_post_status ) : ?>
+						<span class="dashicons dashicons-hidden"></span>
+					<?php endif; ?>
+					<?php echo esc_html( $chapter_badge_text ); ?>
+				</span>
+			</div>
+		<?php endif; ?>
 		<form method="post" class="fanfic-<?php echo $is_edit_mode ? 'edit' : 'create'; ?>-chapter-form" id="fanfic-chapter-form" novalidate <?php echo $data_attrs; ?>>
 			<div class="fanfic-form-content">
 				<?php
@@ -1108,10 +1123,10 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				<?php if ( ! $is_edit_mode ) : ?>
 					<!-- CREATE MODE -->
 					<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button">
-						<?php esc_html_e( 'Publish Chapter', 'fanfiction-manager' ); ?>
+						<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
 					</button>
 					<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button secondary">
-						<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
+						<?php esc_html_e( 'Save', 'fanfiction-manager' ); ?>
 					</button>
 					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button secondary">
 						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
@@ -1120,36 +1135,41 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					<!-- EDIT MODE -->
 					<?php
 					$current_chapter_status = get_post_status( $chapter_id );
-					$is_chapter_published = 'publish' === $current_chapter_status;
+					$is_chapter_published   = 'publish' === $current_chapter_status;
 					?>
+
+					<!-- Update: saves changes only, disabled until form is dirty -->
+					<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-button" id="update-chapter-button" disabled>
+						<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
+					</button>
+
+					<!-- Visibility toggle -->
 					<?php if ( $is_chapter_published ) : ?>
-						<!-- EDIT MODE - CHAPTER IS PUBLISHED -->
-						<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-button" id="update-chapter-button" disabled>
-							<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
-						</button>
-						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button secondary" id="unpublish-chapter-button" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
-							<?php esc_html_e( 'Unpublish and save as draft', 'fanfiction-manager' ); ?>
+						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button secondary" id="hide-chapter-button" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
+							<?php esc_html_e( 'Hide Chapter', 'fanfiction-manager' ); ?>
 						</button>
 					<?php else : ?>
-						<!-- EDIT MODE - CHAPTER IS DRAFT -->
-						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button">
-							<?php esc_html_e( 'Publish Chapter', 'fanfiction-manager' ); ?>
-						</button>
-						<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-button secondary" id="update-draft-chapter-button" disabled>
-							<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
+						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button secondary" id="make-chapter-visible-button">
+							<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
 						</button>
 					<?php endif; ?>
+
+					<!-- View link: only when chapter is visible -->
 					<?php if ( $is_chapter_published ) : ?>
 						<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button secondary" target="_blank" rel="noopener noreferrer" data-fanfic-chapter-view="1">
 							<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 						</a>
 					<?php endif; ?>
-					<button type="button" id="delete-chapter-button" class="fanfic-button danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
-						<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
-					</button>
+
+					<!-- Cancel: always present -->
 					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button secondary">
 						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
 					</a>
+
+					<!-- Delete: always present in edit mode -->
+					<button type="button" id="delete-chapter-button" class="fanfic-button danger" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
+						<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+					</button>
 				<?php endif; ?>
 			</div>
 		</form>
@@ -1386,28 +1406,21 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				});
 			}
 
-			// Unpublish chapter confirmation
-			var unpublishButton = document.getElementById('unpublish-chapter-button');
+			// Hide chapter confirmation
+			var unpublishButton = document.getElementById('hide-chapter-button');
 			var chapterForm = document.querySelector('form');
 			var unpublishConfirmed = false;
 
-			console.log('Unpublish button found:', unpublishButton);
-			console.log('Chapter form found:', chapterForm);
-
 			if (unpublishButton && chapterForm) {
 				unpublishButton.addEventListener('click', function(e) {
-					console.log('Unpublish button clicked, unpublishConfirmed:', unpublishConfirmed);
 					if (unpublishConfirmed) {
-						console.log('Already confirmed, allowing submission');
 						return; // Allow submission
 					}
 
-					console.log('Preventing default, checking if last chapter');
 					e.preventDefault(); // Stop form submission
 
 					var chapterId = this.getAttribute('data-chapter-id');
 					var storyId = this.getAttribute('data-story-id');
-					console.log('Chapter ID:', chapterId, 'Story ID:', storyId);
 
 					// Check if this is the last published chapter via AJAX
 					var formData = new FormData();
@@ -1424,22 +1437,16 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						return response.json();
 					})
 					.then(function(data) {
-						console.log('AJAX response received:', data);
 						if (data.success && data.data.is_last_chapter) {
 							// This is the last chapter, show confirmation
-							console.log('This IS the last chapter, showing confirmation');
 							var confirmed = confirm(FanficMessages.unpublishChapterLastWarning);
 
 							if (confirmed) {
-								console.log('User confirmed, submitting form');
 								unpublishConfirmed = true;
 								unpublishButton.click(); // Trigger the button click again
-							} else {
-								console.log('User cancelled');
 							}
 						} else {
 							// Not the last chapter, proceed normally
-							console.log('NOT the last chapter, proceeding without confirmation');
 							unpublishConfirmed = true;
 							unpublishButton.click();
 						}
@@ -1675,10 +1682,10 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 			});
 		}
 
-		// Handle dynamically switched update buttons through delegation.
+		// Handle update button click through delegation.
 		if (form) {
 			form.addEventListener('click', function(e) {
-				var updateButton = e.target.closest('#update-chapter-button, #update-draft-chapter-button');
+				var updateButton = e.target.closest('#update-chapter-button');
 				if (updateButton) {
 					handleUpdateClick(e, updateButton);
 				}
@@ -1772,13 +1779,8 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 								(currentCommentsEnabled !== originalCommentsEnabled);
 
 				var liveUpdateBtn = document.getElementById('update-chapter-button');
-				var liveUpdateDraftBtn = document.getElementById('update-draft-chapter-button');
-
 				if (liveUpdateBtn) {
 					liveUpdateBtn.disabled = !hasChanges;
-				}
-				if (liveUpdateDraftBtn) {
-					liveUpdateDraftBtn.disabled = !hasChanges;
 				}
 			}
 
@@ -1874,6 +1876,14 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 			// Note: Initial checkForChanges() is now called after TinyMCE initialization
 			// to prevent race condition where TinyMCE returns empty content before loading
+
+			window.addEventListener('beforeunload', function(e) {
+				var updateBtn = document.getElementById('update-chapter-button');
+				var hasUnsaved = (updateBtn && \!updateBtn.disabled);
+				if (hasUnsaved) {
+					e.preventDefault();
+				}
+			});
 		}
 
 		// Close message buttons
@@ -2063,15 +2073,29 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				var viewLink = actionsContainer.querySelector('a[data-fanfic-chapter-view="1"]');
 				var chapterViewUrl = getChapterViewUrl(editUrl);
 
-				if (chapterStatus === 'publish') {
-					primaryButton.value = 'update';
-					primaryButton.id = 'update-chapter-button';
-					primaryButton.textContent = '<?php echo esc_js( __( 'Update', 'fanfiction-manager' ) ); ?>';
-					primaryButton.disabled = true;
+				// Primary always becomes Update (dirty-tracked, disabled until changes)
+				primaryButton.value = 'update';
+				primaryButton.id = 'update-chapter-button';
+				primaryButton.textContent = '<?php echo esc_js( __( 'Update', 'fanfiction-manager' ) ); ?>';
+				primaryButton.disabled = true;
 
+				// Update status badge
+				var statusBadge = document.querySelector('.fanfic-chapter-status-badge');
+				if (statusBadge) {
+					if (chapterStatus === 'publish') {
+						statusBadge.className = 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-published';
+						statusBadge.textContent = '<?php echo esc_js( __( 'Visible', 'fanfiction-manager' ) ); ?>';
+					} else {
+						statusBadge.className = 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-draft';
+						statusBadge.innerHTML = '<span class="dashicons dashicons-hidden"></span><?php echo esc_js( __( 'Hidden', 'fanfiction-manager' ) ); ?>';
+					}
+				}
+
+				if (chapterStatus === 'publish') {
+					// Secondary becomes Hide Chapter
 					secondaryButton.value = 'draft';
-					secondaryButton.id = 'unpublish-chapter-button';
-					secondaryButton.textContent = '<?php echo esc_js( __( 'Unpublish and save as draft', 'fanfiction-manager' ) ); ?>';
+					secondaryButton.id = 'hide-chapter-button';
+					secondaryButton.textContent = '<?php echo esc_js( __( 'Hide Chapter', 'fanfiction-manager' ) ); ?>';
 					secondaryButton.disabled = false;
 					if (chapterId) {
 						secondaryButton.setAttribute('data-chapter-id', String(chapterId));
@@ -2080,9 +2104,9 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						secondaryButton.setAttribute('data-story-id', String(storyId));
 					}
 
+					// Create or update the View link
 					if (!viewLink && chapterViewUrl) {
-						var deleteButton = actionsContainer.querySelector('#delete-chapter-button');
-						var cancelLink = actionsContainer.querySelector('a[href*="edit-story"]');
+						var cancelLink = actionsContainer.querySelector('a.fanfic-button:not([data-fanfic-chapter-view])');
 						viewLink = document.createElement('a');
 						viewLink.className = 'fanfic-button secondary';
 						viewLink.target = '_blank';
@@ -2090,10 +2114,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						viewLink.setAttribute('data-fanfic-chapter-view', '1');
 						viewLink.textContent = '<?php echo esc_js( __( 'View', 'fanfiction-manager' ) ); ?>';
 						viewLink.href = chapterViewUrl;
-
-						if (deleteButton) {
-							actionsContainer.insertBefore(viewLink, deleteButton);
-						} else if (cancelLink) {
+						if (cancelLink) {
 							actionsContainer.insertBefore(viewLink, cancelLink);
 						} else {
 							actionsContainer.appendChild(viewLink);
@@ -2102,15 +2123,11 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						viewLink.href = chapterViewUrl;
 					}
 				} else {
-					primaryButton.value = 'publish';
-					primaryButton.removeAttribute('id');
-					primaryButton.textContent = '<?php echo esc_js( __( 'Publish Chapter', 'fanfiction-manager' ) ); ?>';
-					primaryButton.disabled = false;
-
-					secondaryButton.value = 'update';
-					secondaryButton.id = 'update-draft-chapter-button';
-					secondaryButton.textContent = '<?php echo esc_js( __( 'Update Draft', 'fanfiction-manager' ) ); ?>';
-					secondaryButton.disabled = true;
+					// Secondary becomes Make Visible
+					secondaryButton.value = 'publish';
+					secondaryButton.id = 'make-chapter-visible-button';
+					secondaryButton.textContent = '<?php echo esc_js( __( 'Make Visible', 'fanfiction-manager' ) ); ?>';
+					secondaryButton.disabled = false;
 					secondaryButton.removeAttribute('data-chapter-id');
 					secondaryButton.removeAttribute('data-story-id');
 
@@ -2122,7 +2139,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 			chapterForm.addEventListener('submit', function(e) {
 				var submitter = e.submitter || document.activeElement;
-				if (submitter && (submitter.id === 'update-chapter-button' || submitter.id === 'update-draft-chapter-button')) {
+				if (submitter && submitter.id === 'update-chapter-button') {
 					return;
 				}
 
@@ -2275,13 +2292,10 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					if (submitter) {
 						submitter.textContent = originalButtonLabel;
 					}
+					// Only re-disable the dirty-tracked Update button
 					var updateButton = document.getElementById('update-chapter-button');
-					var updateDraftButton = document.getElementById('update-draft-chapter-button');
 					if (updateButton) {
 						updateButton.disabled = true;
-					}
-					if (updateDraftButton) {
-						updateDraftButton.disabled = true;
 					}
 				});
 			});
