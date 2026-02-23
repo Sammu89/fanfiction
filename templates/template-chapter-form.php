@@ -847,6 +847,9 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 				$chapter_badge_text  = 'publish' === $chapter_post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
 				?>
 				<span class="fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-<?php echo esc_attr( $chapter_badge_class ); ?>">
+					<?php if ( 'publish' !== $chapter_post_status ) : ?>
+						<span class="dashicons dashicons-hidden"></span>
+					<?php endif; ?>
 					<?php echo esc_html( $chapter_badge_text ); ?>
 				</span>
 			</div>
@@ -2084,7 +2087,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						statusBadge.textContent = '<?php echo esc_js( __( 'Visible', 'fanfiction-manager' ) ); ?>';
 					} else {
 						statusBadge.className = 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-draft';
-						statusBadge.textContent = '<?php echo esc_js( __( 'Hidden', 'fanfiction-manager' ) ); ?>';
+						statusBadge.innerHTML = '<span class="dashicons dashicons-hidden"></span><?php echo esc_js( __( 'Hidden', 'fanfiction-manager' ) ); ?>';
 					}
 				}
 
