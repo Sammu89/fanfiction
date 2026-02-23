@@ -1078,7 +1078,7 @@ if ( $is_edit_mode ) {
 								<?php endif; ?>
 							<?php elseif ( ! $is_published ) : ?>
 								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS BUT STORY IS DRAFT -->
-								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button">
+								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button" id="publish-button" disabled>
 									<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
 								</button>
 								<button type="submit" name="fanfic_form_action" value="update" class="fanfic-button secondary" id="update-draft-button" disabled>
@@ -1856,12 +1856,16 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 				var liveUpdateBtn = document.getElementById('update-button');
 				var liveUpdateDraftBtn = document.getElementById('update-draft-button');
+				var livePublishBtn = document.getElementById('publish-button');
 
 				if (liveUpdateBtn) {
 					liveUpdateBtn.disabled = !hasChanges;
 				}
 				if (liveUpdateDraftBtn) {
 					liveUpdateDraftBtn.disabled = !hasChanges;
+				}
+				if (livePublishBtn) {
+					livePublishBtn.disabled = !hasChanges;
 				}
 			}
 
@@ -1918,6 +1922,18 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 			// Initial check on page load
 			checkForChanges();
+
+			window.addEventListener('beforeunload', function(e) {
+				var updateBtn = document.getElementById('update-button');
+				var updateDraftBtn = document.getElementById('update-draft-button');
+				var publishBtn = document.getElementById('publish-button');
+				var hasUnsaved = (updateBtn && \!updateBtn.disabled) ||
+				                 (updateDraftBtn && \!updateDraftBtn.disabled) ||
+				                 (publishBtn && \!publishBtn.disabled);
+				if (hasUnsaved) {
+					e.preventDefault();
+				}
+			});
 		}
 
 		// Delete story confirmation
@@ -2499,9 +2515,9 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					}
 
 					primaryButton.value = 'publish';
-					primaryButton.removeAttribute('id');
+					primaryButton.id = 'publish-button';
 					primaryButton.textContent = '<?php echo esc_js( __( 'Make Visible', 'fanfiction-manager' ) ); ?>';
-					primaryButton.disabled = false;
+					primaryButton.disabled = true;
 
 					secondaryButton.value = 'update';
 					secondaryButton.id = 'update-draft-button';
@@ -2671,11 +2687,15 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					}
 					var updateButton = document.getElementById('update-button');
 					var updateDraftButton = document.getElementById('update-draft-button');
+					var publishButton = document.getElementById('publish-button');
 					if (updateButton) {
 						updateButton.disabled = true;
 					}
 					if (updateDraftButton) {
 						updateDraftButton.disabled = true;
+					}
+					if (publishButton) {
+						publishButton.disabled = true;
 					}
 				});
 			});

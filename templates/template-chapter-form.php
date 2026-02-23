@@ -1132,7 +1132,7 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 						</button>
 					<?php else : ?>
 						<!-- EDIT MODE - CHAPTER IS DRAFT -->
-						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button">
+						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button" id="publish-chapter-button" disabled>
 							<?php esc_html_e( 'Publish Chapter', 'fanfiction-manager' ); ?>
 						</button>
 						<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-button secondary" id="update-draft-chapter-button" disabled>
@@ -1628,6 +1628,10 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					// Re-enable button and disable it again (no changes)
 					button.textContent = originalText;
 					button.disabled = true;
+					var publishChapterBtn = document.getElementById('publish-chapter-button');
+					if (publishChapterBtn) {
+						publishChapterBtn.disabled = true;
+					}
 				} else {
 					// Update failed - show error message using unified message system
 					var errorMessage = '';
@@ -1773,12 +1777,16 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 				var liveUpdateBtn = document.getElementById('update-chapter-button');
 				var liveUpdateDraftBtn = document.getElementById('update-draft-chapter-button');
+				var livePublishBtn = document.getElementById('publish-chapter-button');
 
 				if (liveUpdateBtn) {
 					liveUpdateBtn.disabled = !hasChanges;
 				}
 				if (liveUpdateDraftBtn) {
 					liveUpdateDraftBtn.disabled = !hasChanges;
+				}
+				if (livePublishBtn) {
+					livePublishBtn.disabled = !hasChanges;
 				}
 			}
 
@@ -1874,6 +1882,18 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 
 			// Note: Initial checkForChanges() is now called after TinyMCE initialization
 			// to prevent race condition where TinyMCE returns empty content before loading
+
+			window.addEventListener('beforeunload', function(e) {
+				var updateBtn = document.getElementById('update-chapter-button');
+				var updateDraftBtn = document.getElementById('update-draft-chapter-button');
+				var publishBtn = document.getElementById('publish-chapter-button');
+				var hasUnsaved = (updateBtn && \!updateBtn.disabled) ||
+				                 (updateDraftBtn && \!updateDraftBtn.disabled) ||
+				                 (publishBtn && \!publishBtn.disabled);
+				if (hasUnsaved) {
+					e.preventDefault();
+				}
+			});
 		}
 
 		// Close message buttons
@@ -2277,11 +2297,15 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 					}
 					var updateButton = document.getElementById('update-chapter-button');
 					var updateDraftButton = document.getElementById('update-draft-chapter-button');
+					var publishChapterButton = document.getElementById('publish-chapter-button');
 					if (updateButton) {
 						updateButton.disabled = true;
 					}
 					if (updateDraftButton) {
 						updateDraftButton.disabled = true;
+					}
+					if (publishChapterButton) {
+						publishChapterButton.disabled = true;
 					}
 				});
 			});
