@@ -425,8 +425,8 @@ if ( $is_edit_mode ) {
 						<?php
 						$post_status = get_post_status( $story_id );
 						$status_class = 'publish' === $post_status ? 'published' : 'draft';
-						// Use "Visible" instead of "Published" for stories to avoid confusing users
-						$status_text = 'publish' === $post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Draft', 'fanfiction-manager' );
+						// Use plain-language labels: "Visible" and "Hidden" instead of "Published" / "Draft"
+						$status_text = 'publish' === $post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
 						?>
 						<span class="fanfic-story-status-badge fanfic-status-<?php echo esc_attr( $status_class ); ?>">
 							<?php echo esc_html( $status_text ); ?>
@@ -1034,82 +1034,58 @@ if ( $is_edit_mode ) {
 						<?php else : ?>
 							<!-- EDIT MODE -->
 							<?php
-							// Check if story has published chapters
-							$published_chapter_count = get_posts( array(
+							$current_post_status    = get_post_status( $story_id );
+							$is_published           = 'publish' === $current_post_status;
+							$has_published_chapters = ! empty( get_posts( array(
 								'post_type'      => 'fanfiction_chapter',
 								'post_parent'    => $story_id,
 								'post_status'    => 'publish',
 								'posts_per_page' => 1,
 								'fields'         => 'ids',
-							) );
-							$has_published_chapters = ! empty( $published_chapter_count );
-							$current_post_status = get_post_status( $story_id );
-							$is_published = 'publish' === $current_post_status;
+							) ) );
 							?>
-							<?php if ( ! $has_published_chapters ) : ?>
-								<!-- EDIT MODE - NO PUBLISHED CHAPTERS -->
-								<?php
-								// Check if story has any chapters at all (draft or published)
-								$all_chapter_count = get_posts( array(
-									'post_type'      => 'fanfiction_chapter',
-									'post_parent'    => $story_id,
-									'post_status'    => 'any',
-									'posts_per_page' => 1,
-									'fields'         => 'ids',
-								) );
-								$has_any_chapters = ! empty( $all_chapter_count );
-								?>
-								<?php if ( ! $is_published && $has_any_chapters ) : ?>
-									<!-- Story is draft with draft chapters but no published chapters -->
-									<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button" disabled>
-										<?php esc_html_e( 'Update and Publish', 'fanfiction-manager' ); ?>
-									</button>
-									<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary">
-										<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
-									</button>
-								<?php else : ?>
-									<!-- Story has no chapters yet, or is published but chapters were unpublished -->
-									<button type="submit" name="fanfic_form_action" value="add_chapter" class="fanfic-button">
-										<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
-									</button>
-									<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary">
-										<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
-									</button>
-								<?php endif; ?>
-							<?php elseif ( ! $is_published ) : ?>
-								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS BUT STORY IS DRAFT -->
-								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button" id="publish-button" disabled>
-									<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
-								</button>
-								<button type="submit" name="fanfic_form_action" value="update" class="fanfic-button secondary" id="update-draft-button" disabled>
-									<?php esc_html_e( 'Update Draft', 'fanfiction-manager' ); ?>
+
+							<!-- Update: saves changes only, disabled until form is dirty -->
+							<button type="submit" name="fanfic_form_action" value="update" class="fanfic-button" id="update-button" disabled>
+								<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
+							</button>
+
+							<!-- Visibility toggle -->
+							<?php if ( $is_published ) : ?>
+								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary" id="hide-story-button">
+									<?php esc_html_e( 'Hide Story', 'fanfiction-manager' ); ?>
 								</button>
 							<?php else : ?>
-								<!-- EDIT MODE - HAS PUBLISHED CHAPTERS AND STORY IS PUBLISHED -->
-								<button type="submit" name="fanfic_form_action" value="update" class="fanfic-button" id="update-button" disabled>
-									<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
-								</button>
-								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary">
-									<?php esc_html_e( 'Draft', 'fanfiction-manager' ); ?>
+								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button secondary" id="make-visible-button">
+									<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
 								</button>
 							<?php endif; ?>
+
+							<!-- View link: only when story is visible -->
 							<?php if ( $is_published ) : ?>
 								<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button secondary" target="_blank" rel="noopener noreferrer" data-fanfic-story-view="1">
 									<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 								</a>
 							<?php endif; ?>
+
+							<!-- Cancel: always present -->
+							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button secondary">
+								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+							</a>
+
+							<!-- Delete: if user has permission -->
 							<?php if ( current_user_can( 'delete_fanfiction_story', $story_id ) ) : ?>
 								<button type="button" id="delete-story-button" class="fanfic-button danger" data-story-id="<?php echo absint( $story_id ); ?>" data-story-title="<?php echo esc_attr( $story_title ); ?>">
 									<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 								</button>
 							<?php endif; ?>
-						<?php endif; ?>
 
-						<!-- Warning for draft stories with unpublished chapters -->
-						<?php if ( $is_edit_mode && ! $has_published_chapters && ! $is_published && ! empty( $all_chapter_count ) ) : ?>
-							<div style="margin-top: 12px; padding: 8px 12px; background-color: #fff3cd; border-left: 3px solid #ffc107; font-size: 13px; color: #856404;">
-								<?php esc_html_e( 'To make the story visible, you need to publish at least one chapter.', 'fanfiction-manager' ); ?>
-							</div>
+							<!-- Warning: shown when story is hidden and has no published chapters -->
+							<?php if ( ! $is_published && ! $has_published_chapters ) : ?>
+								<div style="margin-top: 12px; padding: 8px 12px; background-color: #fff3cd; border-left: 3px solid #ffc107; font-size: 13px; color: #856404;">
+									<?php esc_html_e( 'To make the story visible, you need to publish at least one chapter.', 'fanfiction-manager' ); ?>
+								</div>
+							<?php endif; ?>
 						<?php endif; ?>
 					</div>
 				</form>
@@ -1855,17 +1831,8 @@ fanfic_render_breadcrumb( 'edit-story', array(
 								(currentCommentsEnabled !== originalCommentsEnabled);
 
 				var liveUpdateBtn = document.getElementById('update-button');
-				var liveUpdateDraftBtn = document.getElementById('update-draft-button');
-				var livePublishBtn = document.getElementById('publish-button');
-
 				if (liveUpdateBtn) {
 					liveUpdateBtn.disabled = !hasChanges;
-				}
-				if (liveUpdateDraftBtn) {
-					liveUpdateDraftBtn.disabled = !hasChanges;
-				}
-				if (livePublishBtn) {
-					livePublishBtn.disabled = !hasChanges;
 				}
 			}
 
@@ -1925,11 +1892,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 			window.addEventListener('beforeunload', function(e) {
 				var updateBtn = document.getElementById('update-button');
-				var updateDraftBtn = document.getElementById('update-draft-button');
-				var publishBtn = document.getElementById('publish-button');
-				var hasUnsaved = (updateBtn && \!updateBtn.disabled) ||
-				                 (updateDraftBtn && \!updateDraftBtn.disabled) ||
-				                 (publishBtn && \!publishBtn.disabled);
+				var hasUnsaved = (updateBtn && \!updateBtn.disabled);
 				if (hasUnsaved) {
 					e.preventDefault();
 				}
@@ -2474,19 +2437,22 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				var viewLink = actionsContainer.querySelector('a[data-fanfic-story-view="1"]');
 				var viewUrl = getViewUrlFromEditUrl(editUrl);
 
-				if (postStatus === 'publish') {
-					primaryButton.value = 'update';
-					primaryButton.id = 'update-button';
-					primaryButton.textContent = '<?php echo esc_js( __( 'Update', 'fanfiction-manager' ) ); ?>';
-					primaryButton.disabled = true;
+				// Primary always becomes Update (dirty-tracked, disabled until changes)
+				primaryButton.value = 'update';
+				primaryButton.id = 'update-button';
+				primaryButton.textContent = '<?php echo esc_js( __( 'Update', 'fanfiction-manager' ) ); ?>';
+				primaryButton.disabled = true;
 
+				if (postStatus === 'publish') {
+					// Secondary becomes Hide Story
 					secondaryButton.value = 'save_draft';
-					secondaryButton.removeAttribute('id');
-					secondaryButton.textContent = '<?php echo esc_js( __( 'Draft', 'fanfiction-manager' ) ); ?>';
+					secondaryButton.id = 'hide-story-button';
+					secondaryButton.textContent = '<?php echo esc_js( __( 'Hide Story', 'fanfiction-manager' ) ); ?>';
 					secondaryButton.disabled = false;
 
+					// Create or update the View link
 					if (!viewLink && viewUrl) {
-						var deleteButton = actionsContainer.querySelector('#delete-story-button');
+						var cancelLink = actionsContainer.querySelector('a.fanfic-button:not([data-fanfic-story-view])');
 						viewLink = document.createElement('a');
 						viewLink.className = 'fanfic-button secondary';
 						viewLink.target = '_blank';
@@ -2494,35 +2460,20 @@ fanfic_render_breadcrumb( 'edit-story', array(
 						viewLink.setAttribute('data-fanfic-story-view', '1');
 						viewLink.textContent = '<?php echo esc_js( __( 'View', 'fanfiction-manager' ) ); ?>';
 						viewLink.href = viewUrl;
-						if (deleteButton) {
-							actionsContainer.insertBefore(viewLink, deleteButton);
+						if (cancelLink) {
+							actionsContainer.insertBefore(viewLink, cancelLink);
 						} else {
 							actionsContainer.appendChild(viewLink);
 						}
 					} else if (viewLink && viewUrl) {
 						viewLink.href = viewUrl;
 					}
-				} else if (postStatus === 'draft') {
-					if (primaryButton.value === 'add_chapter') {
-						secondaryButton.value = 'save_draft';
-						secondaryButton.id = 'update-draft-button';
-						secondaryButton.textContent = '<?php echo esc_js( __( 'Update Draft', 'fanfiction-manager' ) ); ?>';
-						secondaryButton.disabled = false;
-						if (viewLink) {
-							viewLink.remove();
-						}
-						return;
-					}
-
-					primaryButton.value = 'publish';
-					primaryButton.id = 'publish-button';
-					primaryButton.textContent = '<?php echo esc_js( __( 'Make Visible', 'fanfiction-manager' ) ); ?>';
-					primaryButton.disabled = true;
-
-					secondaryButton.value = 'update';
-					secondaryButton.id = 'update-draft-button';
-					secondaryButton.textContent = '<?php echo esc_js( __( 'Update Draft', 'fanfiction-manager' ) ); ?>';
-					secondaryButton.disabled = true;
+				} else {
+					// Secondary becomes Make Visible
+					secondaryButton.value = 'publish';
+					secondaryButton.id = 'make-visible-button';
+					secondaryButton.textContent = '<?php echo esc_js( __( 'Make Visible', 'fanfiction-manager' ) ); ?>';
+					secondaryButton.disabled = false;
 
 					if (viewLink) {
 						viewLink.remove();
@@ -2685,17 +2636,10 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					if (submitter) {
 						submitter.textContent = originalButtonLabel;
 					}
+					// Only re-disable the dirty-tracked Update button
 					var updateButton = document.getElementById('update-button');
-					var updateDraftButton = document.getElementById('update-draft-button');
-					var publishButton = document.getElementById('publish-button');
 					if (updateButton) {
 						updateButton.disabled = true;
-					}
-					if (updateDraftButton) {
-						updateDraftButton.disabled = true;
-					}
-					if (publishButton) {
-						publishButton.disabled = true;
 					}
 				});
 			});
