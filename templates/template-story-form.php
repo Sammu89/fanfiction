@@ -797,6 +797,7 @@ if ( $is_edit_mode ) {
 									$current_term_ids = array_map( 'absint', (array) $_POST[ $post_key ] );
 								}
 								?>
+								<?php $ct_display_format = isset( $custom_taxonomy['display_format'] ) ? $custom_taxonomy['display_format'] : 'grid'; ?>
 								<div class="fanfic-form-field">
 									<label for="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>"><?php echo esc_html( $custom_taxonomy['name'] ); ?></label>
 									<?php if ( 'single' === $custom_taxonomy['selection_type'] ) : ?>
@@ -808,12 +809,81 @@ if ( $is_edit_mode ) {
 												</option>
 											<?php endforeach; ?>
 										</select>
+									<?php elseif ( 'dropdown' === $ct_display_format ) : ?>
+										<!-- Multi-select dropdown -->
+										<?php
+										$ct_selected_names = array();
+										foreach ( $custom_terms as $term ) {
+											if ( in_array( (int) $term['id'], $current_term_ids, true ) ) {
+												$ct_selected_names[] = $term['name'];
+											}
+										}
+										$ct_placeholder = sprintf(
+											/* translators: %s: taxonomy name */
+											esc_attr__( 'Select %s...', 'fanfiction-manager' ),
+											esc_attr( strtolower( $custom_taxonomy['name'] ) )
+										);
+										?>
+										<div class="multi-select fanfic-custom-multiselect" data-placeholder="<?php echo esc_attr( $ct_placeholder ); ?>">
+											<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
+												<?php
+												if ( ! empty( $ct_selected_names ) ) {
+													if ( count( $ct_selected_names ) <= 2 ) {
+														echo esc_html( implode( ', ', $ct_selected_names ) );
+													} else {
+														printf(
+															/* translators: %d: number of items selected */
+															esc_html__( '%d selected', 'fanfiction-manager' ),
+															count( $ct_selected_names )
+														);
+													}
+												} else {
+													echo esc_html( $ct_placeholder );
+												}
+												?>
+											</button>
+											<div class="multi-select__dropdown">
+												<?php foreach ( $custom_terms as $term ) : ?>
+													<?php $is_checked = in_array( (int) $term['id'], $current_term_ids, true ); ?>
+													<label>
+														<input type="checkbox" name="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>[]" value="<?php echo esc_attr( $term['id'] ); ?>" <?php checked( $is_checked ); ?>>
+														<span class="fanfic-custom-term-name"><?php echo esc_html( $term['name'] ); ?></span>
+													</label>
+												<?php endforeach; ?>
+											</div>
+										</div>
+									<?php elseif ( 'search' === $ct_display_format ) : ?>
+										<!-- Searchable field -->
+										<div class="fanfic-custom-search-field" data-taxonomy="<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>" data-taxonomy-id="<?php echo esc_attr( $custom_taxonomy['id'] ); ?>">
+											<div class="fanfic-pill-input-wrapper">
+												<div class="fanfic-selected-custom-terms fanfic-pill-values" aria-live="polite">
+													<?php foreach ( $custom_terms as $term ) : ?>
+														<?php if ( in_array( (int) $term['id'], $current_term_ids, true ) ) : ?>
+															<span class="fanfic-pill-value" data-id="<?php echo esc_attr( $term['id'] ); ?>">
+																<span class="fanfic-pill-value-text"><?php echo esc_html( $term['name'] ); ?></span>
+																<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove', 'fanfiction-manager' ); ?>">&times;</button>
+																<input type="hidden" name="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>[]" value="<?php echo esc_attr( $term['id'] ); ?>">
+															</span>
+														<?php endif; ?>
+													<?php endforeach; ?>
+												</div>
+												<input
+													type="text"
+													class="fanfic-input fanfic-pill-input fanfic-custom-search-input"
+													autocomplete="off"
+													placeholder="<?php printf( esc_attr__( 'Search %s...', 'fanfiction-manager' ), esc_attr( strtolower( $custom_taxonomy['name'] ) ) ); ?>"
+												/>
+											</div>
+											<div class="fanfic-custom-search-results" role="listbox" aria-label="<?php printf( esc_attr__( '%s search results', 'fanfiction-manager' ), esc_attr( $custom_taxonomy['name'] ) ); ?>"></div>
+											<p class="description"><?php esc_html_e( 'Type at least 2 characters to search.', 'fanfiction-manager' ); ?></p>
+										</div>
 									<?php else : ?>
-										<div class="fanfic-checkboxes fanfic-checkboxes-custom">
+										<!-- Grid (default for multi) -->
+										<div class="fanfic-checkboxes fanfic-checkboxes-grid">
 											<?php foreach ( $custom_terms as $term ) : ?>
 												<?php $is_checked = in_array( (int) $term['id'], $current_term_ids, true ); ?>
 												<label class="fanfic-checkbox-label">
-													<input type="checkbox" name="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>[]" value="<?php echo esc_attr( $term['id'] ); ?>" <?php checked( $is_checked ); ?>>
+													<input type="checkbox" name="fanfic_custom_<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>[]" value="<?php echo esc_attr( $term['id'] ); ?>" class="fanfic-checkbox" <?php checked( $is_checked ); ?>>
 													<?php echo esc_html( $term['name'] ); ?>
 												</label>
 											<?php endforeach; ?>
@@ -1419,6 +1489,136 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 			checkboxes.forEach(function(cb) {
 				cb.addEventListener('change', updateLabel);
+			});
+		});
+
+		// Initialize custom taxonomy multi-select dropdowns
+		document.querySelectorAll('.fanfic-custom-multiselect').forEach(function(select) {
+			var trigger = select.querySelector('.multi-select__trigger');
+			var checkboxes = select.querySelectorAll('input[type="checkbox"]');
+			var placeholder = select.dataset.placeholder || 'Select';
+
+			function updateLabel() {
+				var checked = Array.from(checkboxes).filter(function(cb) { return cb.checked; });
+				if (checked.length === 0) {
+					trigger.textContent = placeholder;
+				} else if (checked.length <= 2) {
+					trigger.textContent = checked.map(function(cb) {
+						var nameEl = cb.parentNode.querySelector('.fanfic-custom-term-name');
+						return nameEl ? nameEl.textContent.trim() : '';
+					}).join(', ');
+				} else {
+					trigger.textContent = checked.length + ' <?php echo esc_js( __( 'selected', 'fanfiction-manager' ) ); ?>';
+				}
+			}
+
+			updateLabel();
+
+			trigger.addEventListener('click', function(e) {
+				e.stopPropagation();
+				select.classList.toggle('open');
+			});
+
+			checkboxes.forEach(function(cb) {
+				cb.addEventListener('change', updateLabel);
+			});
+		});
+
+		// Initialize custom taxonomy searchable fields
+		document.querySelectorAll('.fanfic-custom-search-field').forEach(function(searchField) {
+			var taxonomySlug = searchField.dataset.taxonomy;
+			var input = searchField.querySelector('.fanfic-custom-search-input');
+			var resultsContainer = searchField.querySelector('.fanfic-custom-search-results');
+			var pillContainer = searchField.querySelector('.fanfic-selected-custom-terms');
+			var inputName = 'fanfic_custom_' + taxonomySlug + '[]';
+			var searchTimeout = null;
+
+			function getSelectedIds() {
+				return Array.from(pillContainer.querySelectorAll('input[type="hidden"]')).map(function(h) {
+					return h.value;
+				});
+			}
+
+			function addPill(id, name) {
+				if (getSelectedIds().indexOf(String(id)) !== -1) return;
+				var pill = document.createElement('span');
+				pill.className = 'fanfic-pill-value';
+				pill.dataset.id = id;
+				pill.innerHTML = '<span class="fanfic-pill-value-text">' + name + '</span>' +
+					'<button type="button" class="fanfic-pill-value-remove" aria-label="<?php echo esc_js( __( 'Remove', 'fanfiction-manager' ) ); ?>">&times;</button>' +
+					'<input type="hidden" name="' + inputName + '" value="' + id + '">';
+				pillContainer.appendChild(pill);
+
+				pill.querySelector('.fanfic-pill-value-remove').addEventListener('click', function() {
+					pill.remove();
+				});
+			}
+
+			function doSearch(query) {
+				if (query.length < 2) {
+					resultsContainer.innerHTML = '';
+					resultsContainer.style.display = 'none';
+					return;
+				}
+
+				var restUrl = '<?php echo esc_js( rest_url( 'fanfic/v1/custom-terms/search' ) ); ?>';
+				var url = restUrl + '?taxonomy=' + encodeURIComponent(taxonomySlug) + '&q=' + encodeURIComponent(query);
+
+				fetch(url, {
+					headers: { 'X-WP-Nonce': '<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>' }
+				})
+				.then(function(resp) { return resp.json(); })
+				.then(function(terms) {
+					var selectedIds = getSelectedIds();
+					var html = '';
+					terms.forEach(function(term) {
+						if (selectedIds.indexOf(String(term.id)) === -1) {
+							html += '<div class="fanfic-custom-search-result" role="option" data-id="' + term.id + '" data-name="' + term.name.replace(/"/g, '&quot;') + '">' + term.name + '</div>';
+						}
+					});
+					if (html === '' && terms.length > 0) {
+						html = '<div class="fanfic-custom-search-no-results"><?php echo esc_js( __( 'All matching terms already selected.', 'fanfiction-manager' ) ); ?></div>';
+					} else if (html === '') {
+						html = '<div class="fanfic-custom-search-no-results"><?php echo esc_js( __( 'No results found.', 'fanfiction-manager' ) ); ?></div>';
+					}
+					resultsContainer.innerHTML = html;
+					resultsContainer.style.display = 'block';
+
+					resultsContainer.querySelectorAll('.fanfic-custom-search-result').forEach(function(result) {
+						result.addEventListener('click', function() {
+							addPill(this.dataset.id, this.dataset.name);
+							input.value = '';
+							resultsContainer.innerHTML = '';
+							resultsContainer.style.display = 'none';
+							input.focus();
+						});
+					});
+				})
+				.catch(function() {
+					resultsContainer.innerHTML = '';
+					resultsContainer.style.display = 'none';
+				});
+			}
+
+			input.addEventListener('input', function() {
+				clearTimeout(searchTimeout);
+				var query = this.value.trim();
+				searchTimeout = setTimeout(function() { doSearch(query); }, 250);
+			});
+
+			// Close results when clicking outside
+			document.addEventListener('click', function(e) {
+				if (!searchField.contains(e.target)) {
+					resultsContainer.innerHTML = '';
+					resultsContainer.style.display = 'none';
+				}
+			});
+
+			// Allow removing pre-existing pills
+			pillContainer.querySelectorAll('.fanfic-pill-value-remove').forEach(function(btn) {
+				btn.addEventListener('click', function() {
+					this.closest('.fanfic-pill-value').remove();
+				});
 			});
 		});
 

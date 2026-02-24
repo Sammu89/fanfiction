@@ -803,6 +803,10 @@ class Fanfic_Shortcodes_Search {
 		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
 			$all_custom = Fanfic_Custom_Taxonomies::get_active_taxonomies();
 			foreach ( $all_custom as $taxonomy ) {
+				// Only include searchable taxonomies in search filters.
+				if ( isset( $taxonomy['is_searchable'] ) && empty( $taxonomy['is_searchable'] ) ) {
+					continue;
+				}
 				$custom_taxonomies[] = array(
 					'id'             => $taxonomy['id'],
 					'slug'           => $taxonomy['slug'],
