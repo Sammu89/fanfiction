@@ -106,10 +106,13 @@ class Fanfic_Shortcodes_Taxonomy {
 			}
 		}
 
-		// Custom taxonomies.
+		// Custom taxonomies (only searchable ones shown in story view).
 		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
 			$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
 			foreach ( $custom_taxonomies as $taxonomy ) {
+				if ( isset( $taxonomy['is_searchable'] ) && empty( $taxonomy['is_searchable'] ) ) {
+					continue;
+				}
 				$terms = Fanfic_Custom_Taxonomies::get_story_terms( $story_id, $taxonomy['id'] );
 				if ( empty( $terms ) ) {
 					continue;

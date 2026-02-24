@@ -184,6 +184,10 @@ class Fanfic_Search_Index {
 		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
 			$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
 			foreach ( (array) $custom_taxonomies as $taxonomy ) {
+				// Only include searchable taxonomies in filter map.
+				if ( isset( $taxonomy['is_searchable'] ) && empty( $taxonomy['is_searchable'] ) ) {
+					continue;
+				}
 				$taxonomy_slug = sanitize_title( (string) ( $taxonomy['slug'] ?? '' ) );
 				$taxonomy_id   = absint( $taxonomy['id'] ?? 0 );
 				if ( ! $taxonomy_id || '' === $taxonomy_slug ) {
@@ -368,10 +372,13 @@ class Fanfic_Search_Index {
 			}
 		}
 
-		// 12. Custom taxonomies
+		// 12. Custom taxonomies (only searchable ones indexed for full-text search)
 		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
 			$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
 			foreach ( $custom_taxonomies as $taxonomy ) {
+				if ( isset( $taxonomy['is_searchable'] ) && empty( $taxonomy['is_searchable'] ) ) {
+					continue;
+				}
 				$terms = Fanfic_Custom_Taxonomies::get_story_terms( $story_id, $taxonomy['id'] );
 				if ( empty( $terms ) ) {
 					continue;

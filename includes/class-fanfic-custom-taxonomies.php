@@ -283,6 +283,7 @@ class Fanfic_Custom_Taxonomies {
 		if ( 'single' === $selection_type ) {
 			$display_format = 'grid';
 		}
+		$is_searchable = isset( $data['is_searchable'] ) ? (int) (bool) $data['is_searchable'] : 1;
 
 		if ( empty( $name ) || empty( $slug ) ) {
 			return new WP_Error( 'invalid_data', __( 'Name and slug are required.', 'fanfiction-manager' ) );
@@ -309,10 +310,11 @@ class Fanfic_Custom_Taxonomies {
 				'name'           => $name,
 				'selection_type' => $selection_type,
 				'display_format' => $display_format,
+				'is_searchable'  => $is_searchable,
 				'is_active'      => 1,
 				'sort_order'     => 0,
 			),
-			array( '%s', '%s', '%s', '%s', '%d', '%d' )
+			array( '%s', '%s', '%s', '%s', '%d', '%d', '%d' )
 		);
 
 		if ( false === $result ) {
@@ -379,6 +381,11 @@ class Fanfic_Custom_Taxonomies {
 		if ( 'single' === $new_selection && ! isset( $update['display_format'] ) ) {
 			$update['display_format'] = 'grid';
 			$format[]                 = '%s';
+		}
+
+		if ( isset( $data['is_searchable'] ) ) {
+			$update['is_searchable'] = (int) (bool) $data['is_searchable'];
+			$format[]                = '%d';
 		}
 
 		if ( isset( $data['sort_order'] ) ) {
