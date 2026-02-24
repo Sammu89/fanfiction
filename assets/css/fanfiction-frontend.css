@@ -7595,3 +7595,9 @@ input:checked + .fanfic-slider:before {
 	color: var(--base-lighter);
 	font-style: italic;
 }
+
+/* Non-searchable taxonomy values: always plain text, never clickable */
+.fanfic-taxonomy-not-searchable span {
+	pointer-events: none;
+	cursor: default;
+}

@@ -106,13 +106,10 @@ class Fanfic_Shortcodes_Taxonomy {
 			}
 		}
 
-		// Custom taxonomies (only searchable ones shown in story view).
+		// Custom taxonomies (all active taxonomies shown; non-searchable rendered as plain text).
 		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
 			$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
 			foreach ( $custom_taxonomies as $taxonomy ) {
-				if ( isset( $taxonomy['is_searchable'] ) && empty( $taxonomy['is_searchable'] ) ) {
-					continue;
-				}
 				$terms = Fanfic_Custom_Taxonomies::get_story_terms( $story_id, $taxonomy['id'] );
 				if ( empty( $terms ) ) {
 					continue;
@@ -128,8 +125,9 @@ class Fanfic_Shortcodes_Taxonomy {
 					continue;
 				}
 				$rows[] = array(
-					'label'  => $taxonomy['name'],
-					'values' => $term_names,
+					'label'         => $taxonomy['name'],
+					'values'        => $term_names,
+					'is_searchable' => ! empty( $taxonomy['is_searchable'] ),
 				);
 			}
 		}
@@ -140,7 +138,8 @@ class Fanfic_Shortcodes_Taxonomy {
 
 		$output = '<div class="fanfic-story-taxonomies-group">';
 		foreach ( $rows as $row ) {
-			$output .= '<div class="fanfic-story-taxonomy-row">';
+			$searchable_class = isset( $row['is_searchable'] ) && ! $row['is_searchable'] ? ' fanfic-taxonomy-not-searchable' : '';
+			$output .= '<div class="fanfic-story-taxonomy-row' . $searchable_class . '">';
 			$output .= '<strong>' . esc_html( $row['label'] ) . ':</strong> ';
 			$output .= '<span>' . esc_html( implode( ', ', $row['values'] ) ) . '</span>';
 			$output .= '</div>';
