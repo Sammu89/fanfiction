@@ -507,11 +507,13 @@ if ( isset( $_GET['error'] ) ) {
 			</div>
 		</section>
 
-		<!-- Recent Activity -->
-		<section class="fanfic-dashboard-widget" aria-labelledby="activity-heading">
+		<!-- Recent Activity (localStorage-based, rendered by JS) -->
+		<section class="fanfic-dashboard-widget fanfic-notifications-widget" aria-labelledby="activity-heading">
 			<h3 id="activity-heading"><?php esc_html_e( 'Recent Activity', 'fanfiction-manager' ); ?></h3>
-			<div class="fanfic-activity-list">
-				<?php echo Fanfic_Shortcodes_User::render_reading_history( array( 'limit' => 5 ) ); ?>
+			<div id="fanfic-recent-activity-list" class="fanfic-notifications-container">
+				<div class="fanfic-notifications-empty">
+					<p><?php esc_html_e( 'No recent activity', 'fanfiction-manager' ); ?></p>
+				</div>
 			</div>
 		</section>
 
