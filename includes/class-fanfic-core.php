@@ -1277,6 +1277,34 @@ class Fanfic_Core {
 			);
 		}
 
+		// Recent Activity tracker (localStorage-based, no server storage)
+		$activity_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfic-recent-activity.js';
+		if ( file_exists( $activity_js_file ) ) {
+			$activity_js_version = (string) filemtime( $activity_js_file );
+			wp_enqueue_script(
+				'fanfic-recent-activity',
+				FANFIC_PLUGIN_URL . 'assets/js/fanfic-recent-activity.js',
+				array( 'fanfiction-interactions' ),
+				$activity_js_version,
+				true
+			);
+
+			wp_localize_script(
+				'fanfic-recent-activity',
+				'fanficActivity',
+				array(
+					'dateFormat' => get_option( 'date_format', 'F j, Y' ),
+					'timeFormat' => str_replace( ':s', '', get_option( 'time_format', 'H:i' ) ),
+					'strings'    => array(
+						'emptyMessage' => __( 'No recent activity', 'fanfiction-manager' ),
+						'showMore'     => __( 'Show more', 'fanfiction-manager' ),
+						'clearAll'     => __( 'Clear all', 'fanfiction-manager' ),
+						'dismiss'      => __( 'Dismiss', 'fanfiction-manager' ),
+					),
+				)
+			);
+		}
+
 		// Stories archive enhancements (Phase 5)
 		$stories_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-stories.js';
 		$is_stories_context = is_post_type_archive( 'fanfiction_story' ) ||
