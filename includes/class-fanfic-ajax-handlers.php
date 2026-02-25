@@ -128,6 +128,17 @@ class Fanfic_AJAX_Handlers {
 			)
 		);
 
+		// Toggle featured story (moderators/admins only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_toggle_featured',
+			array( __CLASS__, 'ajax_toggle_featured' ),
+			true, // Require login
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'moderate_fanfiction',
+			)
+		);
+
 		// Follow pagination (authenticated only)
 		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_load_user_follows',
@@ -1366,10 +1377,19 @@ class Fanfic_AJAX_Handlers {
 	 * @return void Sends JSON response.
 	 */
 	public static function ajax_report_content() {
+		$reporting_enabled = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_report', true ) : true;
+		if ( ! $reporting_enabled ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'reporting_disabled',
+				__( 'Content reporting is currently disabled.', 'fanfiction-manager' ),
+				403
+			);
+		}
+
 		// Get and validate parameters
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
-			array( 'post_id', 'post_type', 'reason' ),
-			array( 'details' )
+			array( 'post_id', 'post_type' ),
+			array( 'reason', 'details', 'recaptcha_token' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -1380,22 +1400,8 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		$post_id = absint( $params['post_id'] );
-		$post_type = sanitize_text_field( $params['post_type'] );
-		$reason = sanitize_text_field( $params['reason'] );
-		$details = isset( $params['details'] ) ? sanitize_textarea_field( $params['details'] ) : '';
-
-		// Validate post exists
-		$post = get_post( $post_id );
-		if ( ! $post ) {
-			Fanfic_AJAX_Security::send_error_response(
-				'invalid_post',
-				__( 'Content not found.', 'fanfiction-manager' ),
-				404
-			);
-		}
-
-		// Validate post type
+		$post_id   = absint( $params['post_id'] );
+		$post_type = sanitize_key( $params['post_type'] );
 		$allowed_post_types = array( 'fanfiction_story', 'fanfiction_chapter', 'comment' );
 		if ( ! in_array( $post_type, $allowed_post_types, true ) ) {
 			Fanfic_AJAX_Security::send_error_response(
@@ -1405,15 +1411,8 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		// Validate reason
-		$valid_reasons = array(
-			'spam',
-			'harassment',
-			'inappropriate_content',
-			'copyright',
-			'other',
-		);
-
+		$reason = isset( $params['reason'] ) ? sanitize_key( $params['reason'] ) : 'other';
+		$valid_reasons = array( 'spam', 'harassment', 'inappropriate', 'inappropriate_content', 'copyright', 'other' );
 		if ( ! in_array( $reason, $valid_reasons, true ) ) {
 			Fanfic_AJAX_Security::send_error_response(
 				'invalid_reason',
@@ -1422,26 +1421,135 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		// Get reporter info
-		$reporter_id = is_user_logged_in() ? get_current_user_id() : 0;
-		$reporter_ip = $_SERVER['REMOTE_ADDR'];
+		$details = isset( $params['details'] ) ? sanitize_textarea_field( $params['details'] ) : '';
+		if ( strlen( $details ) > 2000 ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'invalid_details',
+				__( 'Details must be less than 2000 characters.', 'fanfiction-manager' ),
+				400
+			);
+		}
 
-		// Store report (you may want to create a dedicated table for this)
+		// Validate content exists and matches expected type.
+		if ( 'comment' === $post_type ) {
+			$comment = get_comment( $post_id );
+			if ( ! $comment ) {
+				Fanfic_AJAX_Security::send_error_response(
+					'invalid_post',
+					__( 'Content not found.', 'fanfiction-manager' ),
+					404
+				);
+			}
+		} else {
+			$post = get_post( $post_id );
+			if ( ! $post || $post_type !== $post->post_type ) {
+				Fanfic_AJAX_Security::send_error_response(
+					'invalid_post',
+					__( 'Content not found.', 'fanfiction-manager' ),
+					404
+				);
+			}
+		}
+
+		$reporter_id = is_user_logged_in() ? get_current_user_id() : 0;
+		$reporter_ip = Fanfic_Rate_Limit::get_ip_address();
+		$is_anonymous = ( 0 === $reporter_id );
+
+		$allow_anonymous_reports = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'allow_anonymous_reports', false ) : false;
+		if ( $is_anonymous && ! $allow_anonymous_reports ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'login_required',
+				__( 'Anonymous reports are disabled. Please log in to report content.', 'fanfiction-manager' ),
+				401
+			);
+		}
+
+		$settings = get_option( 'fanfic_settings', array() );
+		$recaptcha_require_logged_in = ! empty( $settings['recaptcha_require_logged_in'] );
+		$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
+		$recaptcha_secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
+		$should_verify_recaptcha = $is_anonymous || $recaptcha_require_logged_in;
+
+		if ( $should_verify_recaptcha ) {
+			if ( empty( $recaptcha_site_key ) || empty( $recaptcha_secret_key ) ) {
+				Fanfic_AJAX_Security::send_error_response(
+					'recaptcha_not_configured',
+					__( 'reCAPTCHA is not configured. Please contact the site administrator.', 'fanfiction-manager' ),
+					500
+				);
+			}
+
+			$recaptcha_token = isset( $params['recaptcha_token'] ) ? sanitize_text_field( $params['recaptcha_token'] ) : '';
+			$recaptcha_result = self::verify_report_recaptcha( $recaptcha_token, $recaptcha_secret_key, $reporter_ip );
+			if ( is_wp_error( $recaptcha_result ) ) {
+				Fanfic_AJAX_Security::send_error_response(
+					$recaptcha_result->get_error_code(),
+					$recaptcha_result->get_error_message(),
+					400
+				);
+			}
+		}
+
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'fanfic_reports';
 
-		// Check if reports table exists (it may not, so we'll handle gracefully)
+		// Duplicate protection in a rolling 24-hour window.
+		$time_24h_ago = gmdate( 'Y-m-d H:i:s', strtotime( '-24 hours' ) );
+		if ( $reporter_id > 0 ) {
+			$duplicate = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM {$table_name}
+					WHERE reported_item_id = %d
+					AND reported_item_type = %s
+					AND reporter_id = %d
+					AND created_at > %s",
+					$post_id,
+					$post_type,
+					$reporter_id,
+					$time_24h_ago
+				)
+			);
+		} else {
+			$duplicate = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM {$table_name}
+					WHERE reported_item_id = %d
+					AND reported_item_type = %s
+					AND reporter_ip = %s
+					AND created_at > %s",
+					$post_id,
+					$post_type,
+					$reporter_ip,
+					$time_24h_ago
+				)
+			);
+		}
+
+		if ( $duplicate ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'duplicate_report',
+				__( 'You have already reported this content recently.', 'fanfiction-manager' ),
+				409
+			);
+		}
+
+		$reason_label = self::get_report_reason_label( $reason );
+		$stored_reason = $reason_label;
+		if ( '' !== $details ) {
+			$stored_reason = sprintf( '[%1$s] %2$s', $reason_label, $details );
+		}
+
 		$result = $wpdb->insert(
 			$table_name,
 			array(
-				'post_id'     => $post_id,
-				'post_type'   => $post_type,
-				'reporter_id' => $reporter_id,
-				'reporter_ip' => $reporter_ip,
-				'reason'      => $reason,
-				'details'     => $details,
-				'status'      => 'pending',
-				'created_at'  => current_time( 'mysql' ),
+				'reported_item_id'   => $post_id,
+				'reported_item_type' => $post_type,
+				'reporter_id'        => $reporter_id,
+				'reporter_ip'        => $reporter_ip,
+				'reason'             => $stored_reason,
+				'details'            => $details,
+				'status'             => 'pending',
+				'created_at'         => current_time( 'mysql' ),
 			),
 			array( '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
 		);
@@ -1454,12 +1562,97 @@ class Fanfic_AJAX_Handlers {
 			);
 		}
 
-		// Send notification to admin
 		do_action( 'fanfic_content_reported', $post_id, $post_type, $reason, $details, $reporter_id );
 
 		Fanfic_AJAX_Security::send_success_response(
 			array( 'report_id' => $wpdb->insert_id ),
 			__( 'Report submitted successfully. Thank you for helping keep our community safe.', 'fanfiction-manager' )
 		);
+	}
+
+	/**
+	 * Verify report reCAPTCHA token with Google.
+	 *
+	 * @since 1.0.16
+	 * @param string $token      reCAPTCHA token.
+	 * @param string $secret_key reCAPTCHA secret key.
+	 * @param string $remote_ip  User IP.
+	 * @return true|WP_Error
+	 */
+	private static function verify_report_recaptcha( $token, $secret_key, $remote_ip ) {
+		if ( empty( $token ) ) {
+			return new WP_Error( 'missing_recaptcha_token', __( 'Please complete the reCAPTCHA verification.', 'fanfiction-manager' ) );
+		}
+
+		$response = wp_remote_post(
+			'https://www.google.com/recaptcha/api/siteverify',
+			array(
+				'timeout' => 10,
+				'body'    => array(
+					'secret'   => $secret_key,
+					'response' => $token,
+					'remoteip' => $remote_ip,
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error( 'recaptcha_request_failed', __( 'reCAPTCHA verification failed. Please try again.', 'fanfiction-manager' ) );
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( empty( $body['success'] ) ) {
+			return new WP_Error( 'invalid_recaptcha', __( 'reCAPTCHA verification failed. Please try again.', 'fanfiction-manager' ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Get human-readable label for report reason.
+	 *
+	 * @since 1.0.16
+	 * @param string $reason Reason code.
+	 * @return string
+	 */
+	private static function get_report_reason_label( $reason ) {
+		$labels = array(
+			'spam'                 => __( 'Spam', 'fanfiction-manager' ),
+			'harassment'           => __( 'Harassment or Bullying', 'fanfiction-manager' ),
+			'inappropriate'        => __( 'Inappropriate Content', 'fanfiction-manager' ),
+			'inappropriate_content' => __( 'Inappropriate Content', 'fanfiction-manager' ),
+			'copyright'            => __( 'Copyright Violation', 'fanfiction-manager' ),
+			'other'                => __( 'Other', 'fanfiction-manager' ),
+		);
+
+		return isset( $labels[ $reason ] ) ? $labels[ $reason ] : __( 'Other', 'fanfiction-manager' );
+	}
+
+	/**
+	 * AJAX handler: Toggle featured status on a story.
+	 *
+	 * @since 2.3.0
+	 * @return void
+	 */
+	public static function ajax_toggle_featured() {
+		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
+
+		if ( ! $story_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid story ID.', 'fanfiction-manager' ) ) );
+		}
+
+		$post = get_post( $story_id );
+		if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
+			wp_send_json_error( array( 'message' => __( 'Story not found.', 'fanfiction-manager' ) ) );
+		}
+
+		$mode = Fanfic_Settings::get_setting( 'featured_mode', 'manual' );
+		if ( 'automatic' === $mode ) {
+			wp_send_json_error( array( 'message' => __( 'Manual featuring is not available in automatic mode.', 'fanfiction-manager' ) ) );
+		}
+
+		$result = Fanfic_Featured_Stories::toggle_featured( $story_id );
+
+		wp_send_json_success( $result );
 	}
 }

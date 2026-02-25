@@ -144,40 +144,67 @@ do_action( 'fanfic_profile_form_messages', $current_user );
 					</p>
 				</div>
 
-				<!-- Avatar URL -->
+				<!-- Avatar Upload -->
 				<div class="fanfic-form-field fanfic-has-dropzone">
-					<label for="fanfic_avatar_url"><?php esc_html_e( 'Avatar Image', 'fanfiction-manager' ); ?></label>
+					<label><?php esc_html_e( 'Avatar Image', 'fanfiction-manager' ); ?></label>
 
-					<!-- Dropzone for WordPress Media Library -->
-					<div
+					<?php if ( $image_upload_enabled ) : ?>
+					<!--
+						File-input dropzone: uses <label for="fanfic_avatar_file"> so a plain click
+						opens the native file picker — no wp.media dependency needed on the frontend.
+						data-target is intentionally absent so FanficMediaUploader does NOT auto-init.
+					-->
+					<label
+						for="fanfic_avatar_file"
 						id="fanfic_avatar_dropzone"
 						class="fanfic-image-dropzone"
-						data-target="#fanfic_avatar_url"
-						data-title="<?php esc_attr_e( 'Select Avatar Image', 'fanfiction-manager' ); ?>"
-						role="button"
 						tabindex="0"
 						aria-label="<?php esc_attr_e( 'Click or drag to upload avatar image', 'fanfiction-manager' ); ?>"
 					>
-						<div class="fanfic-dropzone-placeholder">
+						<div class="fanfic-dropzone-placeholder" id="fanfic-avatar-placeholder"<?php echo $avatar_url ? ' style="display:none;"' : ''; ?>>
 							<span class="fanfic-dropzone-placeholder-icon dashicons dashicons-cloud-upload" aria-hidden="true"></span>
 							<span class="fanfic-dropzone-placeholder-text"><?php esc_html_e( 'Click to select avatar', 'fanfiction-manager' ); ?></span>
 							<span class="fanfic-dropzone-placeholder-hint"><?php esc_html_e( 'or drag and drop here', 'fanfiction-manager' ); ?></span>
 						</div>
-					</div>
+						<div class="fanfic-dropzone-preview" id="fanfic-avatar-preview"<?php echo $avatar_url ? '' : ' style="display:none;"'; ?>>
+							<img src="<?php echo $avatar_url ? esc_url( $avatar_url ) : ''; ?>" alt="" id="fanfic-avatar-preview-img">
+							<button type="button" class="fanfic-dropzone-remove" id="fanfic-avatar-remove-btn" aria-label="<?php esc_attr_e( 'Remove avatar', 'fanfiction-manager' ); ?>">&times;</button>
+						</div>
+					</label>
 
-					<!-- Hidden URL input (populated by dropzone) -->
+					<!-- Hidden file input triggered by the label above -->
+					<input
+						type="file"
+						id="fanfic_avatar_file"
+						name="fanfic_avatar_file"
+						accept="image/jpeg,image/png,image/gif,image/webp"
+						style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;"
+						aria-hidden="true"
+						tabindex="-1"
+					>
+
+					<!-- Preserves the current avatar URL on save; JS clears it to remove the avatar -->
+					<input type="hidden" id="fanfic_avatar_url" name="fanfic_avatar_url" value="<?php echo esc_attr( $avatar_url ); ?>">
+
+					<p class="description">
+						<?php esc_html_e( 'JPG, PNG, GIF or WebP. Click or drag-and-drop to upload.', 'fanfiction-manager' ); ?>
+					</p>
+
+					<?php else : ?>
+					<!-- File uploads disabled: fall back to plain URL input -->
 					<input
 						type="url"
 						id="fanfic_avatar_url"
 						name="fanfic_avatar_url"
 						class="fanfic-input"
 						value="<?php echo isset( $_POST['fanfic_avatar_url'] ) ? esc_attr( $_POST['fanfic_avatar_url'] ) : esc_attr( $avatar_url ); ?>"
-						placeholder="<?php esc_attr_e( 'Image URL will appear here', 'fanfiction-manager' ); ?>"
+						placeholder="<?php esc_attr_e( 'Image URL', 'fanfiction-manager' ); ?>"
 						aria-label="<?php esc_attr_e( 'Avatar image URL', 'fanfiction-manager' ); ?>"
-					/>
+					>
 					<p class="description">
-						<?php esc_html_e( 'Select an image from your media library or enter a URL directly.', 'fanfiction-manager' ); ?>
+						<?php esc_html_e( 'Enter a direct URL to your avatar image.', 'fanfiction-manager' ); ?>
 					</p>
+					<?php endif; ?>
 				</div>
 			</div>
 
@@ -200,3 +227,75 @@ do_action( 'fanfic_profile_form_messages', $current_user );
 <nav aria-label="<?php esc_attr_e( 'Profile navigation', 'fanfiction-manager' ); ?>">
 	<p><a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>"><?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?></a></p>
 </nav>
+
+<?php if ( $image_upload_enabled ) : ?>
+<script>
+(function () {
+	'use strict';
+
+	var fileInput   = document.getElementById( 'fanfic_avatar_file' );
+	var urlInput    = document.getElementById( 'fanfic_avatar_url' );
+	var dropzone    = document.getElementById( 'fanfic_avatar_dropzone' );
+	var placeholder = document.getElementById( 'fanfic-avatar-placeholder' );
+	var preview     = document.getElementById( 'fanfic-avatar-preview' );
+	var previewImg  = document.getElementById( 'fanfic-avatar-preview-img' );
+	var removeBtn   = document.getElementById( 'fanfic-avatar-remove-btn' );
+
+	if ( ! fileInput || ! dropzone ) { return; }
+
+	function showPreview( src ) {
+		previewImg.src            = src;
+		preview.style.display     = 'block';
+		placeholder.style.display = 'none';
+	}
+
+	function clearAvatar() {
+		fileInput.value           = '';
+		urlInput.value            = '';
+		previewImg.src            = '';
+		preview.style.display     = 'none';
+		placeholder.style.display = '';
+	}
+
+	/* File chosen via file picker → preview with FileReader */
+	fileInput.addEventListener( 'change', function () {
+		var file = this.files[0];
+		if ( ! file ) { return; }
+		var reader = new FileReader();
+		reader.onload = function ( e ) { showPreview( e.target.result ); };
+		reader.readAsDataURL( file );
+	} );
+
+	/* Remove button: stop the click from bubbling to the <label> (would re-open picker) */
+	removeBtn.addEventListener( 'click', function ( e ) {
+		e.preventDefault();
+		e.stopPropagation();
+		clearAvatar();
+	} );
+
+	/* Drag-and-drop */
+	dropzone.addEventListener( 'dragover', function ( e ) {
+		e.preventDefault();
+		this.classList.add( 'fanfic-dropzone-dragover' );
+	} );
+	dropzone.addEventListener( 'dragleave', function () {
+		this.classList.remove( 'fanfic-dropzone-dragover' );
+	} );
+	dropzone.addEventListener( 'drop', function ( e ) {
+		e.preventDefault();
+		this.classList.remove( 'fanfic-dropzone-dragover' );
+		var files = e.dataTransfer.files;
+		if ( ! files.length || ! files[0].type.match( 'image.*' ) ) { return; }
+		try {
+			var dt = new DataTransfer();
+			dt.items.add( files[0] );
+			fileInput.files = dt.files;
+			fileInput.dispatchEvent( new Event( 'change' ) );
+		} catch ( _ ) {
+			/* DataTransfer not supported – show preview from object URL only */
+			showPreview( URL.createObjectURL( files[0] ) );
+		}
+	} );
+}());
+</script>
+<?php endif; ?>

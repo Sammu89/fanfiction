@@ -105,7 +105,7 @@ class Fanfic_Export {
 			}
 
 			// Get featured status
-			$featured = get_post_meta( $story->ID, '_fanfic_featured', true ) ? 'Yes' : 'No';
+			$featured = get_post_meta( $story->ID, 'fanfic_is_featured', true ) ? 'Yes' : 'No';
 
 			// Write row
 			fputcsv( $output, array(
@@ -384,7 +384,7 @@ class Fanfic_Export {
 		if ( isset( $filters['featured'] ) && '' !== $filters['featured'] ) {
 			$args['meta_query'] = array(
 				array(
-					'key'     => '_fanfic_featured',
+					'key'     => 'fanfic_is_featured',
 					'value'   => $filters['featured'] ? '1' : '0',
 					'compare' => '=',
 				),

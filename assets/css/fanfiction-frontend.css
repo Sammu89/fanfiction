@@ -253,6 +253,11 @@ a.fanfic-button.is-disabled {
 	font-size: 12px;
 }
 
+.fanfic-button-icon:empty,
+.fanfic-icon:empty {
+	display: none;
+}
+
 /* ==========================================================
    Layout helpers (containers)
    ========================================================== */
@@ -370,6 +375,285 @@ a.fanfic-button.is-disabled {
 	color: var(--color-text);
 	opacity: 1;
 }
+
+/* Bookmark heart beat animation (chapter bookmarked state) */
+.fanfic-button-icon .dashicons-heart,
+.fanfic-icon .dashicons-heart {
+	display: inline-block;
+	transform-origin: center;
+}
+
+.fanfic-button-icon.fanfic-heart-beat,
+.fanfic-icon.fanfic-heart-beat {
+	display: inline-block;
+	transform-origin: center;
+}
+
+@keyframes fanfic-heart-beat-3s {
+	0%   { transform: scale(1); filter: drop-shadow(0 0 0 rgb(185 48 48 / 0)); }
+	7%   { transform: scale(1.22); filter: drop-shadow(0 0 2px rgb(185 48 48 / 0.35)); }
+	12%  { transform: scale(0.95); }
+	18%  { transform: scale(1.28); filter: drop-shadow(0 0 5px rgb(185 48 48 / 0.45)); }
+	24%  { transform: scale(1); }
+	36%  { transform: scale(1.2); }
+	42%  { transform: scale(0.98); }
+	48%  { transform: scale(1.24); }
+	54%  { transform: scale(1); }
+	66%  { transform: scale(1.14); filter: drop-shadow(0 0 3px rgb(185 48 48 / 0.3)); }
+	72%  { transform: scale(1); }
+	82%  { transform: scale(1.08); }
+	88%  { transform: scale(1); }
+	100% { transform: scale(1); filter: drop-shadow(0 0 0 rgb(185 48 48 / 0)); }
+}
+
+.dashicons-heart.fanfic-heart-beat {
+	animation: fanfic-heart-beat-3s 3s cubic-bezier(0.22, 0.61, 0.36, 1);
+	will-change: transform, filter;
+}
+
+.fanfic-button-icon.fanfic-heart-beat,
+.fanfic-icon.fanfic-heart-beat {
+	animation: fanfic-heart-beat-3s 3s cubic-bezier(0.22, 0.61, 0.36, 1);
+	will-change: transform, filter;
+}
+
+/* Read confirm animation (check pop + subtle ring) */
+.fanfic-read-check {
+	display: inline-block;
+	line-height: 1;
+	transform-origin: center;
+}
+
+.fanfic-read-confirm .fanfic-button-icon,
+.fanfic-read-confirm .fanfic-icon {
+	position: relative;
+}
+
+.fanfic-read-confirm .fanfic-button-icon::after,
+.fanfic-read-confirm .fanfic-icon::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 1.55em;
+	height: 1.55em;
+	border-radius: 999px;
+	border: 2px solid rgb(117 153 73 / 0.52);
+	background: radial-gradient(circle, rgb(117 153 73 / 0.16) 0%, transparent 68%);
+	transform: translate(-50%, -50%) scale(0.45);
+	opacity: 0.72;
+	pointer-events: none;
+	animation: fanfic-read-ring 620ms ease-out forwards;
+}
+
+.fanfic-read-check.fanfic-read-check-enter {
+	animation: fanfic-read-check-pop 520ms cubic-bezier(0.22, 0.72, 0.3, 1) both;
+}
+
+@keyframes fanfic-read-check-pop {
+	0% {
+		opacity: 0;
+		transform: scale(0.28) rotate(-20deg);
+	}
+	48% {
+		opacity: 1;
+		transform: scale(1.28) rotate(3deg);
+	}
+	72% {
+		transform: scale(0.92) rotate(0deg);
+	}
+	100% {
+		opacity: 1;
+		transform: scale(1) rotate(0deg);
+	}
+}
+
+@keyframes fanfic-read-ring {
+	0% {
+		opacity: 0.72;
+		transform: translate(-50%, -50%) scale(0.45);
+	}
+	100% {
+		opacity: 0;
+		transform: translate(-50%, -50%) scale(1.75);
+	}
+}
+
+/* Like confetti burst */
+.fanfic-button-effect-host {
+	position: relative;
+	overflow: visible;
+}
+
+.fanfic-like-confetti-burst {
+	position: absolute;
+	left: var(--fanfic-origin-x, 50%);
+	top: var(--fanfic-origin-y, 50%);
+	width: 0;
+	height: 0;
+	pointer-events: none;
+	z-index: 4;
+}
+
+.fanfic-like-confetti-piece {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: var(--fanfic-confetti-size, 7px);
+	height: calc(var(--fanfic-confetti-size, 7px) * 0.62);
+	background: var(--fanfic-confetti-color, var(--color-brand-like));
+	border-radius: var(--fanfic-confetti-radius, 2px);
+	opacity: 0;
+	transform: translate(-50%, -50%) rotate(0deg) scale(0.7);
+	animation: fanfic-like-confetti-pop 980ms cubic-bezier(0.18, 0.84, 0.31, 1) forwards;
+	animation-delay: var(--fanfic-confetti-delay, 0ms);
+	will-change: transform, opacity;
+}
+
+@keyframes fanfic-like-confetti-pop {
+	0% {
+		opacity: 0;
+		transform: translate(-50%, -50%) rotate(0deg) scale(0.65);
+	}
+	12% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+		transform: translate(
+			calc(-50% + var(--fanfic-confetti-x, 0px)),
+			calc(-50% + var(--fanfic-confetti-y, -36px))
+		) rotate(var(--fanfic-confetti-rot, 220deg)) scale(1);
+	}
+}
+
+/* Dislike gloomy liquid drip */
+.fanfic-dislike-gloom-burst {
+	position: absolute;
+	left: var(--fanfic-origin-x, 50%);
+	top: var(--fanfic-origin-y, 50%);
+	width: 0;
+	height: 0;
+	pointer-events: none;
+	z-index: 4;
+}
+
+.fanfic-dislike-gloom-drop {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: var(--fanfic-drop-width, 6px);
+	height: var(--fanfic-drop-height, 18px);
+	opacity: 0;
+	border-radius: var(--fanfic-drop-radius, 999px 999px 66% 66%);
+	background:
+		radial-gradient(circle at 34% 20%, var(--fanfic-gloom-highlight, rgb(132 144 168 / 0.22)) 0%, transparent 40%),
+		linear-gradient(180deg, rgb(17 21 30 / 0.94) 0%, var(--fanfic-gloom-color, #2f3645) 56%, rgb(13 16 24 / 0.96) 100%);
+	box-shadow:
+		0 0 6px rgb(39 45 58 / 0.3),
+		0 0 11px rgb(63 74 96 / 0.2),
+		inset 0 -3px 4px rgb(0 0 0 / 0.24);
+	filter: blur(0.2px) saturate(0.74);
+	transform: translate(-50%, -50%) scaleX(0.84) scaleY(0.34);
+	animation: fanfic-dislike-gloom-drip var(--fanfic-drop-duration, 900ms) cubic-bezier(0.34, 0.08, 0.72, 1) forwards;
+	animation-delay: var(--fanfic-gloom-delay, 0ms);
+	will-change: transform, opacity, filter;
+}
+
+.fanfic-dislike-gloom-drop::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	top: -18%;
+	width: 22%;
+	height: 26%;
+	transform: translateX(-50%);
+	border-radius: 8px;
+	background: linear-gradient(180deg, rgb(174 183 204 / 0.22), rgb(40 47 63 / 0));
+}
+
+@keyframes fanfic-dislike-gloom-drip {
+	0% {
+		opacity: 0;
+		transform: translate(-50%, -50%) scaleX(0.72) scaleY(0.32);
+		filter: blur(0.6px);
+	}
+	16% {
+		opacity: 0.86;
+	}
+	42% {
+		opacity: 0.78;
+		transform: translate(
+			calc(-50% + var(--fanfic-gloom-mid-x, 0px)),
+			calc(-50% + var(--fanfic-gloom-mid-fall, 14px))
+		) rotate(var(--fanfic-gloom-mid-tilt, 0deg)) scaleX(0.92) scaleY(0.92);
+	}
+	72% {
+		opacity: 0.36;
+		filter: blur(1.05px);
+	}
+	100% {
+		opacity: 0;
+		transform: translate(
+			calc(-50% + var(--fanfic-gloom-x, 0px)),
+			calc(-50% + var(--fanfic-gloom-fall, 58px))
+		) rotate(var(--fanfic-gloom-tilt, 0deg)) scaleX(0.44) scaleY(1.24);
+		filter: blur(1.75px);
+	}
+}
+
+.fanfic-dislike-sigh-wisp {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 11px;
+	height: 5px;
+	border-top: 1px solid rgb(167 178 199 / 0.42);
+	border-radius: 999px;
+	opacity: 0;
+	transform: translate(-50%, -50%) translateY(0) translateX(0) scaleX(0.9);
+	animation: fanfic-dislike-sigh var(--fanfic-sigh-duration, 380ms) ease-out forwards;
+	will-change: transform, opacity;
+}
+
+@keyframes fanfic-dislike-sigh {
+	0% {
+		opacity: 0;
+		transform: translate(-50%, -50%) translateY(0) translateX(0) scaleX(0.88);
+	}
+	26% {
+		opacity: 0.5;
+	}
+	100% {
+		opacity: 0;
+		transform: translate(
+			calc(-50% + var(--fanfic-sigh-drift, 0px)),
+			calc(-50% - var(--fanfic-sigh-rise, 8px))
+		) scaleX(1.08);
+	}
+}
+
+.fanfic-dislike-icon-deflate {
+	animation: fanfic-dislike-icon-deflate 640ms cubic-bezier(0.22, 0.72, 0.3, 1) both;
+	transform-origin: center;
+	will-change: transform;
+}
+
+@keyframes fanfic-dislike-icon-deflate {
+	0% {
+		transform: scale(1) translateY(0);
+	}
+	22% {
+		transform: scale(0.92) translateY(1.5px);
+	}
+	40% {
+		transform: scale(1) translateY(0);
+	}
+	100% {
+		transform: scale(0.98) translateY(0.6px);
+	}
+}
+
 
 /* --- Segmented Like/Dislike (lightweight base) --- */
 .fanfic-action-btn {
@@ -1547,6 +1831,8 @@ input:disabled,
 	user-select: none;
 	font-size: 25px;
 	line-height: 1;
+	position: relative;
+	overflow: visible;
 }
 
 /* SVG star system */
@@ -1555,12 +1841,22 @@ input:disabled,
 	display: inline-block;
 	width: 1em;
 	height: 1em;
+	overflow: visible;
+	z-index: 1;
 }
 
 .fanfic-star-svg {
 	display: block;
 	width: 100%;
 	height: 100%;
+	position: relative;
+	z-index: 1;
+	overflow: visible;
+}
+
+/* Theme reset guard: many themes set svg:not(:root){overflow:hidden} */
+.fanfic-rating-widget .fanfic-star-svg:not(:root) {
+	overflow: visible !important;
 }
 
 /* Background path: outline only */
@@ -1588,6 +1884,67 @@ input:disabled,
 	display: block;
 }
 
+/* Subtle glow pulse for filled stars only (full/half) */
+.fanfic-rating-stars-half.fanfic-rating-glow-active .fanfic-star-wrap[data-state="full"] .fanfic-star-fg,
+.fanfic-rating-stars-half.fanfic-rating-glow-active .fanfic-star-wrap[data-state="half"] .fanfic-star-fg {
+	animation: fanfic-rating-filled-glow 620ms ease-out both;
+	transform-origin: center;
+}
+
+.fanfic-rating-stars-half.fanfic-rating-glow-active::after {
+	content: '';
+	position: absolute;
+	left: var(--fanfic-rating-ray-x, 50%);
+	top: 50%;
+	width: 1.32em;
+	height: 1.32em;
+	transform: translate(-50%, -50%) scale(0.36) rotate(0deg);
+	border-radius: 50%;
+	background: repeating-conic-gradient(
+		from 0deg,
+		rgb(255 224 113 / 0.96) 0deg 9deg,
+		transparent 9deg 40deg
+	);
+	opacity: 0;
+	filter: drop-shadow(0 0 3.4px rgb(255 232 146 / 0.62));
+	pointer-events: none;
+	z-index: 0;
+	animation: fanfic-rating-ray-burst 620ms cubic-bezier(0.2, 0.78, 0.3, 1) both;
+}
+
+@keyframes fanfic-rating-filled-glow {
+	0% {
+		filter: drop-shadow(0 0 0 rgb(255 236 164 / 0));
+		opacity: 0.95;
+	}
+	45% {
+		filter: drop-shadow(0 0 4.5px rgb(255 241 176 / 0.9)) drop-shadow(0 0 10.5px rgb(255 231 150 / 0.68)) drop-shadow(0 0 15.75px rgb(255 248 210 / 0.44));
+		opacity: 1;
+	}
+	100% {
+		filter: drop-shadow(0 0 0 rgb(255 236 164 / 0));
+		opacity: 1;
+	}
+}
+
+@keyframes fanfic-rating-ray-burst {
+	0% {
+		opacity: 0;
+		transform: translate(-50%, -50%) scale(0.3) rotate(-7deg);
+	}
+	28% {
+		opacity: 0.88;
+	}
+	65% {
+		opacity: 0.35;
+		transform: translate(-50%, -50%) scale(1.18) rotate(11deg);
+	}
+	100% {
+		opacity: 0;
+		transform: translate(-50%, -50%) scale(1.38) rotate(16deg);
+	}
+}
+
 /* Invisible hit buttons covering each star half */
 .fanfic-star-hit {
 	position: absolute;
@@ -1601,6 +1958,7 @@ input:disabled,
 	cursor: pointer;
 	font-size: 0;
 	outline: none;
+	z-index: 2;
 }
 
 .fanfic-star-hit-left {
@@ -1658,6 +2016,7 @@ input:disabled,
 	display: inline-flex;
 	align-items: center;
 	gap: var(--space-2);
+	overflow: visible;
 }
 
 .fanfic-rating-form {
@@ -3982,12 +4341,48 @@ cursor: default;         /* Removes the hand pointer */
 	text-decoration: underline;
 }
 
+.fanfic-stories-page .search-story-card-title .fanfic-featured-star,
+.fanfic-stories-page .search-story-card-title .fanfic-badge-following {
+	line-height: 1;
+	vertical-align: middle;
+}
+
+.fanfic-stories-page .search-story-card-title .fanfic-featured-star {
+	margin-right: 0.24em;
+}
+
+.fanfic-stories-page .search-story-card-title .fanfic-badge-following {
+	font-size: 1em;
+	top: 0;
+	margin-right: 0.24em;
+}
+
+.fanfic-stories-page .search-story-card-title .fanfic-featured-star .dashicons,
+.fanfic-stories-page .search-story-card-title .fanfic-badge-following .dashicons {
+	width: 1em;
+	height: 1em;
+	font-size: 1em;
+	line-height: 1;
+	vertical-align: middle;
+}
+
 .fanfic-stories-page .search-story-card-badges {
 	display: inline-flex;
 	align-items: center;
 	justify-content: flex-end;
 	flex-wrap: wrap;
 	gap: 0.4rem;
+}
+
+/* Inline author avatar (story card, story view, chapter view) */
+.fanfic-story-author-avatar {
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	object-fit: cover;
+	vertical-align: middle;
+	display: inline-block;
+	flex-shrink: 0;
 }
 
 .fanfic-stories-page .search-story-card-details-row {
@@ -4349,6 +4744,8 @@ body.fanfiction-page .entry-content::after {
 .fanfic-chapter-rating {
 	margin: 3rem 0;
 	padding: 2rem;
+	overflow: visible;
+	position: relative;
 }
 
 .fanfic-chapter-rating h3 {
@@ -5112,6 +5509,32 @@ body.fanfiction-page .entry-content::after {
     font-size: 1em;
     color: #b93030;
     vertical-align: middle;
+}
+
+/* Story title icon alignment + spacing (featured + followed) */
+.fanfic-story-title .fanfic-featured-star,
+.fanfic-story-title .fanfic-badge-following {
+	line-height: 1;
+	vertical-align: middle;
+}
+
+.fanfic-story-title .fanfic-featured-star {
+	margin-right: 0.28em;
+}
+
+.fanfic-story-title .fanfic-badge-following {
+	font-size: 1em;
+	top: 0;
+	margin-right: 0.28em;
+}
+
+.fanfic-story-title .fanfic-featured-star .dashicons,
+.fanfic-story-title .fanfic-badge-following .dashicons {
+	width: 1em;
+	height: 1em;
+	font-size: 1em;
+	line-height: 1;
+	vertical-align: middle;
 }
 
 /* Follow email modal description text */
@@ -7600,4 +8023,67 @@ input:checked + .fanfic-slider:before {
 .fanfic-taxonomy-not-searchable span {
 	pointer-events: none;
 	cursor: default;
+}
+
+/* Featured Stories - Star Badge */
+.fanfic-featured-star {
+	display: inline-flex;
+	align-items: center;
+	color: #f5a623;
+	margin-right: 4px;
+	vertical-align: middle;
+}
+
+.fanfic-featured-star .dashicons {
+	font-size: 1em;
+	width: 1em;
+	height: 1em;
+	line-height: 1;
+}
+
+.fanfic-story-card-title .fanfic-featured-star .dashicons {
+	font-size: 0.9em;
+	width: 0.9em;
+	height: 0.9em;
+}
+
+/* Star icon in the toggle button inherits button text color */
+.fanfic-feature-toggle-btn .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+/* Featured Stories - Toggle Button */
+.fanfic-feature-toggle-btn {
+	background: transparent;
+	border-color: currentColor;
+	color: inherit;
+	transition:
+		background 0.2s ease,
+		color 0.2s ease,
+		transform 0.15s ease;
+}
+
+.fanfic-feature-toggle-btn:hover {
+	background: rgba(245, 166, 35, 0.15);
+	color: inherit;
+	transform: translateY(-2px);
+}
+
+.fanfic-feature-toggle-btn.is-featured {
+	background: #f5a623;
+	border-color: #f5a623;
+	color: white;
+}
+
+.fanfic-feature-toggle-btn.is-featured:hover {
+	background: #d4870c;
+	border-color: #d4870c;
+	color: white;
+}
+
+.fanfic-feature-toggle-btn.fanfic-loading {
+	opacity: 0.6;
+	pointer-events: none;
 }

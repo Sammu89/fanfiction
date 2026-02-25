@@ -123,34 +123,54 @@ class Fanfic_Shortcodes_Chapter {
 		$is_story_view   = is_singular( 'fanfiction_story' );
 		$is_chapter_view = is_singular( 'fanfiction_chapter' );
 
+		$featured_badge = Fanfic_Featured_Stories::render_star_badge( $story_id );
+		$title_markup = $featured_badge . $badge . esc_html( $story_title );
+
 		if ( $is_story_view || $is_chapter_view ) {
 			$side_content = self::build_story_title_side_content( $story_id, $is_story_view, $is_chapter_view );
+
+			$author_id_for_avatar = (int) get_post_field( 'post_author', $story_id );
 
 			if ( $is_story_view ) {
 				$author_link      = trim( (string) do_shortcode( '[story-author-link]' ) );
 				$publication_date = trim( (string) do_shortcode( '[story-publication-date]' ) );
+				$avatar_html      = function_exists( 'fanfic_get_author_avatar_or_icon' )
+					? fanfic_get_author_avatar_or_icon( $author_id_for_avatar, 20 )
+					: '<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>';
 
 				$meta_content = '<div class="fanfic-story-meta">' .
-					'<span class="fanfic-story-author">' . esc_html__( 'by', 'fanfiction-manager' ) . ' ' . $author_link . '</span>' .
+					'<span class="fanfic-story-author">' . $avatar_html . ' ' . $author_link . '</span>' .
 					'<span class="fanfic-story-date">' . esc_html__( 'Created on', 'fanfiction-manager' ) . ' ' . $publication_date . '</span>' .
 				'</div>';
 
 				return '<div class="fanfic-story-title-row">' .
 					'<div class="fanfic-story-title-main">' .
-						'<h1 class="fanfic-title fanfic-story-title">' . esc_html( $story_title ) . $badge . '</h1>' .
+						'<h1 class="fanfic-title fanfic-story-title">' . $title_markup . '</h1>' .
 						$meta_content .
 					'</div>' .
 					$side_content .
 				'</div>';
 			}
 
+			$author_link_ch = trim( (string) do_shortcode( '[story-author-link]' ) );
+			$avatar_html_ch = function_exists( 'fanfic_get_author_avatar_or_icon' )
+				? fanfic_get_author_avatar_or_icon( $author_id_for_avatar, 20 )
+				: '<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>';
+
+			$chapter_author_meta = '<div class="fanfic-story-meta">' .
+				'<span class="fanfic-story-author">' . $avatar_html_ch . ' ' . $author_link_ch . '</span>' .
+			'</div>';
+
 			return '<div class="fanfic-story-title-row">' .
-				'<h1 class="fanfic-title fanfic-story-title">' . esc_html( $story_title ) . $badge . '</h1>' .
+				'<div class="fanfic-story-title-main">' .
+					'<h1 class="fanfic-title fanfic-story-title">' . $title_markup . '</h1>' .
+					$chapter_author_meta .
+				'</div>' .
 				$side_content .
 			'</div>';
 		}
 
-		return esc_html( $story_title ) . $badge;
+		return $title_markup;
 	}
 
 	/**
@@ -164,9 +184,22 @@ class Fanfic_Shortcodes_Chapter {
 	 */
 	private static function build_story_title_side_content( $story_id, $is_story_view, $is_chapter_view ) {
 		$actions = '';
-		$edit_story = trim( (string) do_shortcode( '[edit-story-button story_id="' . absint( $story_id ) . '"]' ) );
-		if ( '' !== $edit_story ) {
-			$actions .= $edit_story;
+
+		if ( $is_story_view ) {
+			$edit_story = trim( (string) do_shortcode( '[edit-story-button story_id="' . absint( $story_id ) . '"]' ) );
+			if ( '' !== $edit_story ) {
+				$actions .= $edit_story;
+			}
+
+			$add_chapter = trim( (string) do_shortcode( '[add-chapter-button story_id="' . absint( $story_id ) . '"]' ) );
+			if ( '' !== $add_chapter ) {
+				$actions .= $add_chapter;
+			}
+
+			$feature_button = Fanfic_Featured_Stories::render_feature_button( $story_id );
+			if ( '' !== $feature_button ) {
+				$actions .= $feature_button;
+			}
 		}
 
 		if ( $is_chapter_view ) {
@@ -176,6 +209,11 @@ class Fanfic_Shortcodes_Chapter {
 				if ( '' !== $edit_chapter ) {
 					$actions .= $edit_chapter;
 				}
+			}
+
+			$edit_story = trim( (string) do_shortcode( '[edit-story-button story_id="' . absint( $story_id ) . '"]' ) );
+			if ( '' !== $edit_story ) {
+				$actions .= $edit_story;
 			}
 		}
 

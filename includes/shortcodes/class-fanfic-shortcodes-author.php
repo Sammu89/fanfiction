@@ -739,7 +739,7 @@ class Fanfic_Shortcodes_Author {
 			'paged'          => $paged,
 			'meta_query'     => array(
 				array(
-					'key'     => 'fanfic_featured',
+					'key'     => 'fanfic_is_featured',
 					'value'   => '1',
 					'compare' => '=',
 				),

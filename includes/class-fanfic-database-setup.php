@@ -47,7 +47,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '2.0.0';
+	const DB_VERSION = '2.2.0';
 
 	/**
 	 * Option name for database version tracking
@@ -487,6 +487,7 @@ class Fanfic_Database_Setup {
 			trending_week double NOT NULL DEFAULT 0,
 			trending_month double NOT NULL DEFAULT 0,
 			follow_count bigint(20) NOT NULL DEFAULT 0,
+			comment_count bigint(20) NOT NULL DEFAULT 0,
 			fandom_slugs text,
 			language_slug varchar(50) DEFAULT '',
 			translation_group_id bigint(20) UNSIGNED DEFAULT 0,
@@ -503,6 +504,7 @@ class Fanfic_Database_Setup {
 			language_native_name varchar(120) DEFAULT '',
 			warning_names text,
 			fandom_names text,
+			custom_taxonomies_json longtext,
 			PRIMARY KEY  (story_id),
 			KEY idx_updated (updated_at),
 			KEY idx_author (author_id),
@@ -952,6 +954,37 @@ class Fanfic_Database_Setup {
 		// v1.9.0: New search index columns require full rebuild.
 		if ( version_compare( $current_version, '1.9.0', '<' ) ) {
 			set_transient( 'fanfic_index_rebuild_needed', '1', 0 );
+		}
+
+		// v2.2.0: Add comment_count column to story search index and backfill.
+		if ( version_compare( $current_version, '2.2.0', '<' ) ) {
+			global $wpdb;
+			$story_table = $wpdb->prefix . 'fanfic_story_search_index';
+			if ( self::verify_table_exists( $story_table ) ) {
+				// Add column if it doesn't exist.
+				$col_exists = $wpdb->get_results( "SHOW COLUMNS FROM {$story_table} LIKE 'comment_count'" );
+				if ( empty( $col_exists ) ) {
+					$wpdb->query( "ALTER TABLE {$story_table} ADD COLUMN comment_count bigint(20) NOT NULL DEFAULT 0 AFTER follow_count" );
+				}
+
+				// Backfill from wp_comments: count approved comments on stories + their chapters.
+				$posts_table    = $wpdb->posts;
+				$comments_table = $wpdb->comments;
+				$wpdb->query(
+					"UPDATE {$story_table} si
+					SET comment_count = (
+						SELECT COUNT(*)
+						FROM {$comments_table} c
+						INNER JOIN {$posts_table} p ON c.comment_post_ID = p.ID
+						WHERE c.comment_approved = '1'
+						AND (
+							(p.post_type = 'fanfiction_story' AND p.ID = si.story_id)
+							OR
+							(p.post_type = 'fanfiction_chapter' AND p.post_parent = si.story_id)
+						)
+					)"
+				);
+			}
 		}
 
 	}

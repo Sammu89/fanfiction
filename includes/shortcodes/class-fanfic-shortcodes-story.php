@@ -55,6 +55,24 @@ class Fanfic_Shortcodes_Story {
 	}
 
 	/**
+	 * Build a clean stories/search URL for one filter value.
+	 *
+	 * @since 1.5.5
+	 * @param string $facet Facet key (warning|fandom|language|custom|search|genre).
+	 * @param string $value Facet value.
+	 * @param string $custom_taxonomy_slug Custom taxonomy slug for custom facet.
+	 * @return string
+	 */
+	private static function get_story_filter_url( $facet, $value, $custom_taxonomy_slug = '' ) {
+		if ( function_exists( 'fanfic_story_card_build_clean_filter_url' ) ) {
+			return fanfic_story_card_build_clean_filter_url( $facet, $value, $custom_taxonomy_slug );
+		}
+
+		$base_url = function_exists( 'fanfic_get_search_url' ) ? fanfic_get_search_url() : home_url( '/' );
+		return $base_url;
+	}
+
+	/**
 	 * Custom Story Image shortcode
 	 *
 	 * [fanfic-story-image]
@@ -345,12 +363,27 @@ class Fanfic_Shortcodes_Story {
 			return '';
 		}
 
-		$labels = array();
+		$fandom_items = array();
 		foreach ( $fandoms as $fandom ) {
-			$labels[] = esc_html( $fandom['label'] );
+			$fandom_label = trim( sanitize_text_field( (string) ( $fandom['label'] ?? '' ) ) );
+			if ( '' === $fandom_label ) {
+				continue;
+			}
+
+			$fandom_slug = sanitize_title( (string) ( $fandom['slug'] ?? '' ) );
+			if ( '' !== $fandom_slug ) {
+				$fandom_url = self::get_story_filter_url( 'fandom', $fandom_slug );
+				$fandom_items[] = '<a href="' . esc_url( $fandom_url ) . '" class="story-fandom-link">' . esc_html( $fandom_label ) . '</a>';
+			} else {
+				$fandom_items[] = '<span class="story-fandom">' . esc_html( $fandom_label ) . '</span>';
+			}
 		}
 
-		return '<div class="fanfic-story-fandoms"><strong>' . esc_html__( 'Fandoms:', 'fanfiction-manager' ) . '</strong> <span class="story-fandoms" aria-label="' . esc_attr__( 'Story fandoms', 'fanfiction-manager' ) . '">' . implode( ', ', $labels ) . '</span></div>';
+		if ( empty( $fandom_items ) ) {
+			return '';
+		}
+
+		return '<div class="fanfic-story-fandoms"><strong>' . esc_html__( 'Fandoms:', 'fanfiction-manager' ) . '</strong> <span class="story-fandoms" aria-label="' . esc_attr__( 'Story fandoms', 'fanfiction-manager' ) . '">' . implode( ', ', $fandom_items ) . '</span></div>';
 	}
 
 	/**
@@ -380,9 +413,20 @@ class Fanfic_Shortcodes_Story {
 			return '';
 		}
 
-		$label = esc_html( $language['name'] );
-		if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
+		$language_name = trim( sanitize_text_field( (string) ( $language['name'] ?? '' ) ) );
+		if ( '' === $language_name ) {
+			return '';
+		}
+
+		$label = esc_html( $language_name );
+		if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language_name ) {
 			$label .= ' <span class="story-language-native">(' . esc_html( $language['native_name'] ) . ')</span>';
+		}
+
+		$language_slug = sanitize_title( (string) ( $language['slug'] ?? '' ) );
+		if ( '' !== $language_slug ) {
+			$language_url = self::get_story_filter_url( 'language', $language_slug );
+			$label = '<a href="' . esc_url( $language_url ) . '" class="story-language-link">' . $label . '</a>';
 		}
 
 		return '<div class="fanfic-story-language"><strong>' . esc_html__( 'Language:', 'fanfiction-manager' ) . '</strong> <span class="story-language" aria-label="' . esc_attr__( 'Story language', 'fanfiction-manager' ) . '">' . $label . '</span></div>';
@@ -655,6 +699,11 @@ class Fanfic_Shortcodes_Story {
 	 * @return string Likes count.
 	 */
 	public static function story_likes( $atts ) {
+		$enable_likes = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_likes', true ) : true;
+		if ( ! $enable_likes ) {
+			return '';
+		}
+
 		$story_id = Fanfic_Shortcodes::get_current_story_id();
 		if ( ! $story_id ) {
 			return '';
@@ -680,13 +729,12 @@ class Fanfic_Shortcodes_Story {
 			return '';
 		}
 
-		$is_featured = get_post_meta( $story_id, 'fanfic_is_featured', true );
-
-		if ( ! $is_featured ) {
+		if ( ! Fanfic_Featured_Stories::is_featured( $story_id ) ) {
 			return '';
 		}
 
-		return '<span class="story-featured-badge" aria-label="' . esc_attr__( 'Featured story', 'fanfiction-manager' ) . '">' . esc_html__( 'Featured', 'fanfiction-manager' ) . '</span>';
+		return Fanfic_Featured_Stories::render_star_badge( $story_id ) .
+			'<span class="story-featured-badge" aria-label="' . esc_attr__( 'Featured story', 'fanfiction-manager' ) . '">' . esc_html__( 'Featured', 'fanfiction-manager' ) . '</span>';
 	}
 
 	/**
@@ -707,7 +755,7 @@ class Fanfic_Shortcodes_Story {
 				'show_none'    => 'true',  // Show "None declared" if no warnings
 				'show_label'   => 'true',  // Show "Warnings:" label
 				'show_age'     => 'true',  // Show age badge next to each warning
-				'link'         => 'false', // Whether to link to archive (not implemented yet)
+				'link'         => 'true',  // Whether warning names are clickable filter links
 			),
 			$atts,
 			'story-warnings'
@@ -731,6 +779,7 @@ class Fanfic_Shortcodes_Story {
 		$show_label = filter_var( $atts['show_label'], FILTER_VALIDATE_BOOLEAN );
 		$show_none = filter_var( $atts['show_none'], FILTER_VALIDATE_BOOLEAN );
 		$show_age = filter_var( $atts['show_age'], FILTER_VALIDATE_BOOLEAN );
+		$link_warnings = filter_var( $atts['link'], FILTER_VALIDATE_BOOLEAN );
 
 		$output = '<div class="fanfic-story-warnings">';
 
@@ -745,8 +794,20 @@ class Fanfic_Shortcodes_Story {
 		} else {
 			$warning_items = array();
 			foreach ( $warnings as $warning ) {
+				$warning_name = trim( sanitize_text_field( (string) ( $warning['name'] ?? '' ) ) );
+				if ( '' === $warning_name ) {
+					continue;
+				}
+
+				$warning_name_html = esc_html( $warning_name );
+				$warning_slug = sanitize_title( (string) ( $warning['slug'] ?? '' ) );
+				if ( $link_warnings && '' !== $warning_slug ) {
+					$warning_url = self::get_story_filter_url( 'warning', $warning_slug );
+					$warning_name_html = '<a href="' . esc_url( $warning_url ) . '" class="story-warning-link">' . esc_html( $warning_name ) . '</a>';
+				}
+
 				$item = '<span class="story-warning-item">';
-				$item .= '<span class="story-warning-name">' . esc_html( $warning['name'] ) . '</span>';
+				$item .= '<span class="story-warning-name">' . $warning_name_html . '</span>';
 				if ( $show_age && ! empty( $warning['min_age'] ) ) {
 					$warning_age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $warning['min_age'], false ) : (string) $warning['min_age'];
 					if ( '' === $warning_age_label ) {
@@ -831,10 +892,17 @@ class Fanfic_Shortcodes_Story {
 
 		$tag_items = array();
 		foreach ( $tags as $tag ) {
+			$tag_label = trim( sanitize_text_field( (string) $tag ) );
+			if ( '' === $tag_label ) {
+				continue;
+			}
+
+			$tag_url = self::get_story_filter_url( 'search', $tag_label );
+			$tag_html = '<a href="' . esc_url( $tag_url ) . '" class="story-tag-item story-tag-link">' . esc_html( $tag_label ) . '</a>';
 			if ( 'pills' === $format ) {
-				$tag_items[] = '<span class="fanfic-botaozinho tags story-tag-item">' . esc_html( $tag ) . '</span>';
+				$tag_items[] = '<a href="' . esc_url( $tag_url ) . '" class="fanfic-botaozinho tags story-tag-item story-tag-link">' . esc_html( $tag_label ) . '</a>';
 			} else {
-				$tag_items[] = '<span class="story-tag-item">' . esc_html( $tag ) . '</span>';
+				$tag_items[] = $tag_html;
 			}
 		}
 

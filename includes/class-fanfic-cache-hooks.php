@@ -52,6 +52,14 @@ class Fanfic_Cache_Hooks {
 		add_action( 'edit_comment', array( __CLASS__, 'on_comment_edited' ), 10, 2 );
 		add_action( 'deleted_comment', array( __CLASS__, 'on_comment_deleted' ), 10, 2 );
 
+		// Comment status transition (approved ↔ unapproved)
+		add_action( 'transition_comment_status', array( __CLASS__, 'on_comment_status_transition' ), 10, 3 );
+
+		// Featured stories cache invalidation
+		add_action( 'updated_post_meta', array( __CLASS__, 'on_featured_meta_change' ), 10, 4 );
+		add_action( 'added_post_meta', array( __CLASS__, 'on_featured_meta_change' ), 10, 4 );
+		add_action( 'deleted_post_meta', array( __CLASS__, 'on_featured_meta_change' ), 10, 4 );
+
 		// Plugin-specific interaction hooks
 		add_action( 'fanfic_follow_added', array( __CLASS__, 'on_follow_add' ), 10, 2 );
 		add_action( 'fanfic_follow_removed', array( __CLASS__, 'on_follow_remove' ), 10, 2 );
@@ -299,6 +307,14 @@ class Fanfic_Cache_Hooks {
 			self::clear_comment_caches( $post->post_parent );
 			self::clear_story_caches( $post->post_parent );
 		}
+
+		// Update comment_count in search index (only for approved comments).
+		if ( '1' == $comment->comment_approved ) {
+			$story_id = ( 'fanfiction_chapter' === $post->post_type && $post->post_parent )
+				? $post->post_parent
+				: $post->ID;
+			self::apply_comment_count_change( $story_id, 1 );
+		}
 	}
 
 	/**
@@ -349,6 +365,14 @@ class Fanfic_Cache_Hooks {
 		if ( 'fanfiction_chapter' === $post->post_type && $post->post_parent ) {
 			self::clear_comment_caches( $post->post_parent );
 			self::clear_story_caches( $post->post_parent );
+		}
+
+		// Decrement comment_count in search index (only for approved comments).
+		if ( '1' == $comment->comment_approved ) {
+			$story_id = ( 'fanfiction_chapter' === $post->post_type && $post->post_parent )
+				? $post->post_parent
+				: $post->ID;
+			self::apply_comment_count_change( $story_id, -1 );
 		}
 	}
 
@@ -661,6 +685,107 @@ class Fanfic_Cache_Hooks {
 
 			default:
 				return false;
+		}
+	}
+
+	/**
+	 * Handle comment status transitions (approved <-> unapproved).
+	 *
+	 * @since 2.3.0
+	 * @param string     $new_status New comment status.
+	 * @param string     $old_status Old comment status.
+	 * @param WP_Comment $comment    Comment object.
+	 * @return void
+	 */
+	public static function on_comment_status_transition( $new_status, $old_status, $comment ) {
+		if ( ! $comment || $new_status === $old_status ) {
+			return;
+		}
+
+		$post = get_post( $comment->comment_post_ID );
+		if ( ! $post ) {
+			return;
+		}
+
+		if ( ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+			return;
+		}
+
+		$story_id = ( 'fanfiction_chapter' === $post->post_type && $post->post_parent )
+			? $post->post_parent
+			: $post->ID;
+
+		// approved -> unapproved/spam/trash: decrement
+		if ( 'approved' === $old_status && 'approved' !== $new_status ) {
+			self::apply_comment_count_change( $story_id, -1 );
+		}
+
+		// unapproved/spam/trash -> approved: increment
+		if ( 'approved' !== $old_status && 'approved' === $new_status ) {
+			self::apply_comment_count_change( $story_id, 1 );
+		}
+	}
+
+	/**
+	 * Handle featured meta changes - clear featured caches.
+	 *
+	 * @since 2.3.0
+	 * @param int    $meta_id    Meta ID.
+	 * @param int    $post_id    Post ID.
+	 * @param string $meta_key   Meta key.
+	 * @param mixed  $meta_value Meta value.
+	 * @return void
+	 */
+	public static function on_featured_meta_change( $meta_id, $post_id, $meta_key, $meta_value ) {
+		if ( 'fanfic_is_featured' !== $meta_key ) {
+			return;
+		}
+
+		if ( class_exists( 'Fanfic_Featured_Stories' ) ) {
+			Fanfic_Featured_Stories::clear_featured_cache();
+		}
+	}
+
+	/**
+	 * Apply comment count increment/decrement to story search index.
+	 *
+	 * Follows the same pattern as Fanfic_Interactions::apply_follow_increment().
+	 *
+	 * @since 2.3.0
+	 * @param int $story_id Story ID.
+	 * @param int $delta    +1 or -1.
+	 * @return void
+	 */
+	public static function apply_comment_count_change( $story_id, $delta ) {
+		global $wpdb;
+
+		$story_id = absint( $story_id );
+		$delta    = (int) $delta;
+		if ( ! $story_id || 0 === $delta ) {
+			return;
+		}
+
+		$table = $wpdb->prefix . 'fanfic_story_search_index';
+
+		if ( $delta > 0 ) {
+			$wpdb->query(
+				$wpdb->prepare(
+					"INSERT INTO {$table} (story_id, indexed_text, comment_count)
+					VALUES (%d, '', 1)
+					ON DUPLICATE KEY UPDATE
+						comment_count = comment_count + 1",
+					$story_id
+				)
+			);
+		} else {
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table}
+					SET comment_count = GREATEST(0, comment_count - 1)
+					WHERE story_id = %d",
+					$story_id
+				)
+			);
 		}
 	}
 }

@@ -60,17 +60,29 @@ class Fanfic_Shortcodes_Taxonomy {
 			$warnings = Fanfic_Warnings::get_story_warnings( $story_id );
 		}
 		if ( ! empty( $warnings ) ) {
-			$warning_names = array_map(
-				function( $warning ) {
-					return $warning['name'] ?? '';
-				},
-				$warnings
-			);
-			$warning_names = array_filter( array_map( 'trim', $warning_names ) );
-			if ( ! empty( $warning_names ) ) {
+			$warning_items = array();
+			foreach ( (array) $warnings as $warning ) {
+				$warning_name = trim( sanitize_text_field( (string) ( $warning['name'] ?? '' ) ) );
+				if ( '' === $warning_name ) {
+					continue;
+				}
+
+				$warning_slug = sanitize_title( (string) ( $warning['slug'] ?? '' ) );
+				$warning_url = '';
+				if ( '' !== $warning_slug && function_exists( 'fanfic_story_card_build_clean_filter_url' ) ) {
+					$warning_url = fanfic_story_card_build_clean_filter_url( 'warning', $warning_slug );
+				}
+
+				$warning_items[] = array(
+					'label' => $warning_name,
+					'url'   => $warning_url,
+				);
+			}
+
+			if ( ! empty( $warning_items ) ) {
 				$rows[] = array(
 					'label'  => __( 'Warnings', 'fanfiction-manager' ),
-					'values' => $warning_names,
+					'values' => $warning_items,
 				);
 			}
 		}
@@ -79,17 +91,29 @@ class Fanfic_Shortcodes_Taxonomy {
 		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
 			$fandoms = Fanfic_Fandoms::get_story_fandom_labels( $story_id );
 			if ( ! empty( $fandoms ) ) {
-				$fandom_names = array_map(
-					function( $row ) {
-						return $row['label'] ?? '';
-					},
-					$fandoms
-				);
-				$fandom_names = array_filter( array_map( 'trim', $fandom_names ) );
-				if ( ! empty( $fandom_names ) ) {
+				$fandom_items = array();
+				foreach ( (array) $fandoms as $fandom ) {
+					$fandom_name = trim( sanitize_text_field( (string) ( $fandom['label'] ?? '' ) ) );
+					if ( '' === $fandom_name ) {
+						continue;
+					}
+
+					$fandom_slug = sanitize_title( (string) ( $fandom['slug'] ?? '' ) );
+					$fandom_url = '';
+					if ( '' !== $fandom_slug && function_exists( 'fanfic_story_card_build_clean_filter_url' ) ) {
+						$fandom_url = fanfic_story_card_build_clean_filter_url( 'fandom', $fandom_slug );
+					}
+
+					$fandom_items[] = array(
+						'label' => $fandom_name,
+						'url'   => $fandom_url,
+					);
+				}
+
+				if ( ! empty( $fandom_items ) ) {
 					$rows[] = array(
 						'label'  => __( 'Fandoms', 'fanfiction-manager' ),
-						'values' => $fandom_names,
+						'values' => $fandom_items,
 					);
 				}
 			}
@@ -97,11 +121,27 @@ class Fanfic_Shortcodes_Taxonomy {
 
 		// Languages.
 		if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
-			$language = Fanfic_Languages::get_story_language_label( $story_id, true );
-			if ( '' !== $language ) {
+			$language = Fanfic_Languages::get_story_language( $story_id );
+			if ( ! empty( $language['name'] ) ) {
+				$language_label = trim( sanitize_text_field( (string) $language['name'] ) );
+				if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
+					$language_label .= ' (' . trim( sanitize_text_field( (string) $language['native_name'] ) ) . ')';
+				}
+
+				$language_slug = sanitize_title( (string) ( $language['slug'] ?? '' ) );
+				$language_url = '';
+				if ( '' !== $language_slug && function_exists( 'fanfic_story_card_build_clean_filter_url' ) ) {
+					$language_url = fanfic_story_card_build_clean_filter_url( 'language', $language_slug );
+				}
+
 				$rows[] = array(
 					'label'  => __( 'Language', 'fanfiction-manager' ),
-					'values' => array( $language ),
+					'values' => array(
+						array(
+							'label' => $language_label,
+							'url'   => $language_url,
+						),
+					),
 				);
 			}
 		}
@@ -124,9 +164,33 @@ class Fanfic_Shortcodes_Taxonomy {
 				if ( empty( $term_names ) ) {
 					continue;
 				}
+
+				$term_items = array();
+				foreach ( (array) $terms as $term ) {
+					$term_name = trim( sanitize_text_field( (string) ( $term['name'] ?? '' ) ) );
+					if ( '' === $term_name ) {
+						continue;
+					}
+
+					$term_slug = sanitize_title( (string) ( $term['slug'] ?? '' ) );
+					$term_url = '';
+					if ( ! empty( $taxonomy['is_searchable'] ) && '' !== $term_slug && function_exists( 'fanfic_story_card_build_clean_filter_url' ) ) {
+						$term_url = fanfic_story_card_build_clean_filter_url( 'custom', $term_slug, (string) $taxonomy['slug'] );
+					}
+
+					$term_items[] = array(
+						'label' => $term_name,
+						'url'   => $term_url,
+					);
+				}
+
+				if ( empty( $term_items ) ) {
+					continue;
+				}
+
 				$rows[] = array(
 					'label'         => $taxonomy['name'],
-					'values'        => $term_names,
+					'values'        => $term_items,
 					'is_searchable' => ! empty( $taxonomy['is_searchable'] ),
 				);
 			}
@@ -139,9 +203,28 @@ class Fanfic_Shortcodes_Taxonomy {
 		$output = '<div class="fanfic-story-taxonomies-group">';
 		foreach ( $rows as $row ) {
 			$searchable_class = isset( $row['is_searchable'] ) && ! $row['is_searchable'] ? ' fanfic-taxonomy-not-searchable' : '';
+			$value_markup = array();
+			foreach ( (array) ( $row['values'] ?? array() ) as $value_item ) {
+				$value_label = trim( sanitize_text_field( (string) ( $value_item['label'] ?? '' ) ) );
+				if ( '' === $value_label ) {
+					continue;
+				}
+
+				$value_url = trim( (string) ( $value_item['url'] ?? '' ) );
+				if ( '' !== $value_url ) {
+					$value_markup[] = '<a href="' . esc_url( $value_url ) . '" class="fanfic-story-taxonomy-link">' . esc_html( $value_label ) . '</a>';
+				} else {
+					$value_markup[] = '<span class="fanfic-story-taxonomy-value">' . esc_html( $value_label ) . '</span>';
+				}
+			}
+
+			if ( empty( $value_markup ) ) {
+				continue;
+			}
+
 			$output .= '<div class="fanfic-story-taxonomy-row' . $searchable_class . '">';
 			$output .= '<strong>' . esc_html( $row['label'] ) . ':</strong> ';
-			$output .= '<span>' . esc_html( implode( ', ', $row['values'] ) ) . '</span>';
+			$output .= '<span>' . implode( ', ', $value_markup ) . '</span>';
 			$output .= '</div>';
 		}
 		$output .= '</div>';

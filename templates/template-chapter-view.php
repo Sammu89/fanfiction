@@ -157,6 +157,12 @@ if ( empty( $template ) ) {
 	$template = fanfic_get_default_chapter_view_template();
 }
 
+$enable_comments = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_comments', true ) : true;
+if ( ! $enable_comments ) {
+	$template = preg_replace( '/<section[^>]*fanfic-chapter-comments[^>]*>.*?<\/section>/is', '', (string) $template );
+	$template = str_replace( '[chapter-comments]', '', (string) $template );
+}
+
 // Show a discreet warning if this chapter or its parent story is not published
 if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 	$warning_parts = array();

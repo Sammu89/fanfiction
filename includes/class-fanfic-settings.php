@@ -177,9 +177,6 @@ class Fanfic_Settings {
 	private static function get_default_settings() {
 		return array(
 			'featured_mode'                  => 'manual',
-			'featured_rating_min'            => 4,
-			'featured_votes_min'             => 10,
-			'featured_comments_min'          => 5,
 			'featured_max_count'             => 6,
 			'maintenance_mode'               => false,
 			'cron_hour'                      => 3,
@@ -191,6 +188,7 @@ class Fanfic_Settings {
 			'enable_warnings'                => true,
 			'enable_tags'                    => true,
 			'enable_comments'                => true,
+			'allow_anonymous_comments'       => true,
 			'enable_coauthors'               => false,
 			'allow_anonymous_reports'        => false,
 			'enable_fandom_classification'   => false,
@@ -259,22 +257,9 @@ class Fanfic_Settings {
 		$sanitized = array();
 
 		// Featured mode
-		$sanitized['featured_mode'] = isset( $settings['featured_mode'] ) && in_array( $settings['featured_mode'], array( 'manual', 'automatic' ), true )
+		$sanitized['featured_mode'] = isset( $settings['featured_mode'] ) && in_array( $settings['featured_mode'], array( 'manual', 'automatic', 'both' ), true )
 			? $settings['featured_mode']
 			: 'manual';
-
-		// Featured criteria (integers)
-		$sanitized['featured_rating_min'] = isset( $settings['featured_rating_min'] )
-			? absint( $settings['featured_rating_min'] )
-			: 4;
-
-		$sanitized['featured_votes_min'] = isset( $settings['featured_votes_min'] )
-			? absint( $settings['featured_votes_min'] )
-			: 10;
-
-		$sanitized['featured_comments_min'] = isset( $settings['featured_comments_min'] )
-			? absint( $settings['featured_comments_min'] )
-			: 5;
 
 		$sanitized['featured_max_count'] = isset( $settings['featured_max_count'] )
 			? absint( $settings['featured_max_count'] )
@@ -316,7 +301,25 @@ class Fanfic_Settings {
 		$sanitized['enable_coauthors'] = isset( $settings['enable_coauthors'] ) && $settings['enable_coauthors'];
 
 		// Anonymous user permissions
+		$sanitized['allow_anonymous_comments'] = isset( $settings['allow_anonymous_comments'] ) && $settings['allow_anonymous_comments'];
 		$sanitized['allow_anonymous_reports'] = isset( $settings['allow_anonymous_reports'] ) && $settings['allow_anonymous_reports'];
+
+		// Parent-child dependencies for action toggles.
+		if ( ! $sanitized['enable_comments'] ) {
+			$sanitized['allow_anonymous_comments'] = false;
+		}
+		if ( ! $sanitized['enable_likes'] ) {
+			$sanitized['enable_dislikes'] = false;
+		}
+		if ( ! $sanitized['enable_report'] ) {
+			$sanitized['allow_anonymous_reports'] = false;
+		}
+
+		$has_recaptcha = ! empty( get_option( 'fanfic_recaptcha_site_key', '' ) ) && ! empty( get_option( 'fanfic_recaptcha_secret_key', '' ) );
+		if ( ! $has_recaptcha ) {
+			$sanitized['allow_anonymous_comments'] = false;
+			$sanitized['allow_anonymous_reports'] = false;
+		}
 
 		// Content restrictions (NEW in 1.2.0)
 		$sanitized['allow_sexual_content']       = isset( $settings['allow_sexual_content'] ) && $settings['allow_sexual_content'];
@@ -428,35 +431,39 @@ class Fanfic_Settings {
 		);
 		$stats['total_authors'] = (int) $authors_count;
 
-		// Active Readers (total registered users)
-		$user_args = array(
-			'count_total' => true,
+		// Readers: users with fanfiction_reader role and without any other fanfiction role.
+		$capabilities_meta_key = $wpdb->prefix . 'capabilities';
+		$reader_where          = array(
+			$wpdb->prepare( 'um.meta_key = %s', $capabilities_meta_key ),
+			'um.meta_value LIKE \'%"fanfiction_reader"%\'',
+			'um.meta_value NOT LIKE \'%"fanfiction_author"%\'',
+			'um.meta_value NOT LIKE \'%"fanfiction_moderator"%\'',
+			'um.meta_value NOT LIKE \'%"fanfiction_admin"%\'',
+			'um.meta_value NOT LIKE \'%"fanfiction_banned_user"%\'',
 		);
 
 		if ( 'all-time' !== $period ) {
-			$date_created = '';
+			$date_limit = '';
 			switch ( $period ) {
 				case '30-days':
-					$date_created = date( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+					$date_limit = gmdate( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
 					break;
 				case '1-year':
-					$date_created = date( 'Y-m-d H:i:s', strtotime( '-1 year' ) );
+					$date_limit = gmdate( 'Y-m-d H:i:s', strtotime( '-1 year' ) );
 					break;
 			}
 
-			if ( $date_created ) {
-				$user_args['date_query'] = array(
-					array(
-						'after'     => $date_created,
-						'inclusive' => true,
-						'column'    => 'user_registered',
-					),
-				);
+			if ( '' !== $date_limit ) {
+				$reader_where[] = $wpdb->prepare( 'u.user_registered >= %s', $date_limit );
 			}
 		}
 
-		$user_query = new WP_User_Query( $user_args );
-		$stats['active_readers'] = $user_query->get_total();
+		$stats['active_readers'] = (int) $wpdb->get_var(
+			'SELECT COUNT(DISTINCT u.ID)
+			FROM ' . $wpdb->users . ' u
+			INNER JOIN ' . $wpdb->usermeta . ' um ON um.user_id = u.ID
+			WHERE ' . implode( ' AND ', $reader_where )
+		);
 
 		// Pending Reports (unreviewed reports count)
 		$reports_table = $wpdb->prefix . 'fanfic_reports';
@@ -478,9 +485,20 @@ class Fanfic_Settings {
 			}
 		}
 
-		$stats['pending_reports'] = (int) $wpdb->get_var(
-			"SELECT COUNT(*) FROM {$reports_table} WHERE {$pending_where}"
+		$reports_table_exists = $wpdb->get_var(
+			$wpdb->prepare(
+				'SHOW TABLES LIKE %s',
+				$wpdb->esc_like( $reports_table )
+			)
 		);
+
+		if ( $reports_table_exists === $reports_table ) {
+			$stats['pending_reports'] = (int) $wpdb->get_var(
+				"SELECT COUNT(*) FROM {$reports_table} WHERE {$pending_where}"
+			);
+		} else {
+			$stats['pending_reports'] = 0;
+		}
 
 		// Suspended Users (count)
 		$suspended_users_query = new WP_User_Query(
@@ -1056,65 +1074,69 @@ class Fanfic_Settings {
 	 * @return void
 	 */
 	public static function render_dashboard_tab() {
-		// Get selected period
-		$period = isset( $_GET['period'] ) ? sanitize_text_field( wp_unslash( $_GET['period'] ) ) : 'all-time';
-		$allowed_periods = array( 'all-time', '30-days', '1-year' );
-		$period = in_array( $period, $allowed_periods, true ) ? $period : 'all-time';
-
-		// Get statistics
-		$stats = self::get_statistics( $period );
-
 		?>
 		<div class="fanfiction-settings-tab fanfiction-dashboard-tab">
 
 			<?php self::render_system_status_box(); ?>
+		</div>
+		<?php
+	}
 
-			<h2><?php esc_html_e( 'Dashboard Statistics', 'fanfiction-manager' ); ?></h2>
-
-			<div class="fanfic-period-selector">
-				<label for="stats-period"><?php esc_html_e( 'Time Period:', 'fanfiction-manager' ); ?></label>
-				<select id="stats-period" onchange="window.location.href='?page=fanfiction-settings&tab=dashboard&period=' + this.value;">
-					<option value="all-time" <?php selected( $period, 'all-time' ); ?>><?php esc_html_e( 'All Time', 'fanfiction-manager' ); ?></option>
-					<option value="30-days" <?php selected( $period, '30-days' ); ?>><?php esc_html_e( 'Last 30 Days', 'fanfiction-manager' ); ?></option>
-					<option value="1-year" <?php selected( $period, '1-year' ); ?>><?php esc_html_e( 'Last Year', 'fanfiction-manager' ); ?></option>
-				</select>
-			</div>
-
-			<div class="fanfic-stats-grid">
-				<div class="fanfic-stat-box">
-					<h3><?php esc_html_e( 'Total Stories', 'fanfiction-manager' ); ?></h3>
-					<p><?php echo esc_html( number_format_i18n( $stats['total_stories'] ) ); ?></p>
+	/**
+	 * Render compact statistics cards in a classic WordPress admin style.
+	 *
+	 * @since 1.6.2
+	 * @return void
+	 */
+	private static function render_compact_statistics_cards() {
+		$stats = self::get_statistics( 'all-time' );
+		$cards = array(
+			array(
+				'label' => __( 'Stories', 'fanfiction-manager' ),
+				'value' => $stats['total_stories'],
+				'icon'  => 'dashicons-book',
+			),
+			array(
+				'label' => __( 'Chapters', 'fanfiction-manager' ),
+				'value' => $stats['total_chapters'],
+				'icon'  => 'dashicons-text',
+			),
+			array(
+				'label' => __( 'Authors', 'fanfiction-manager' ),
+				'value' => $stats['total_authors'],
+				'icon'  => 'dashicons-admin-users',
+			),
+			array(
+				'label' => __( 'Readers', 'fanfiction-manager' ),
+				'value' => $stats['active_readers'],
+				'icon'  => 'dashicons-groups',
+			),
+			array(
+				'label' => __( 'Pending Reports', 'fanfiction-manager' ),
+				'value' => $stats['pending_reports'],
+				'icon'  => 'dashicons-warning',
+			),
+			array(
+				'label' => __( 'Suspended Users', 'fanfiction-manager' ),
+				'value' => $stats['suspended_users'],
+				'icon'  => 'dashicons-dismiss',
+			),
+		);
+		?>
+		<div class="postbox" style="margin: 12px 0 20px;">
+			<h2 class="hndle" style="padding: 10px 12px;"><span><?php esc_html_e( 'Platform Snapshot', 'fanfiction-manager' ); ?></span></h2>
+			<div class="inside" style="margin: 0; padding: 10px 12px; overflow: hidden;">
+				<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; width: 100%;">
+					<?php foreach ( $cards as $card ) : ?>
+						<div class="card" style="max-width: none; min-width: 0; width: 100%; box-sizing: border-box; float: none; margin: 0; padding: 8px 10px;">
+							<div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; color:#646970;">
+								<span class="dashicons <?php echo esc_attr( $card['icon'] ); ?>" aria-hidden="true"></span>
+								<span style="font-size:12px; line-height:1.3;"><?php echo esc_html( $card['label'] ); ?></span>
+							</div>
+							<div style="font-size:20px; line-height:1.1; font-weight:600;"><?php echo esc_html( number_format_i18n( (int) $card['value'] ) ); ?></div>
+						</div>
+					<?php endforeach; ?>
 				</div>
-
-				<div class="fanfic-stat-box">
-					<h3><?php esc_html_e( 'Total Chapters', 'fanfiction-manager' ); ?></h3>
-					<p><?php echo esc_html( number_format_i18n( $stats['total_chapters'] ) ); ?></p>
-				</div>
-
-				<div class="fanfic-stat-box">
-					<h3><?php esc_html_e( 'Total Authors', 'fanfiction-manager' ); ?></h3>
-					<p><?php echo esc_html( number_format_i18n( $stats['total_authors'] ) ); ?></p>
-				</div>
-
-				<div class="fanfic-stat-box">
-					<h3><?php esc_html_e( 'Active Readers', 'fanfiction-manager' ); ?></h3>
-					<p><?php echo esc_html( number_format_i18n( $stats['active_readers'] ) ); ?></p>
-				</div>
-
-				<div class="fanfic-stat-box">
-					<h3><?php esc_html_e( 'Pending Reports', 'fanfiction-manager' ); ?></h3>
-					<p><?php echo esc_html( number_format_i18n( $stats['pending_reports'] ) ); ?></p>
-				</div>
-
-				<div class="fanfic-stat-box">
-					<h3><?php esc_html_e( 'Suspended Users', 'fanfiction-manager' ); ?></h3>
-					<p><?php echo esc_html( number_format_i18n( $stats['suspended_users'] ) ); ?></p>
-				</div>
-			</div>
-
-			<div class="fanfic-chart-placeholder">
-				<h3><?php esc_html_e( 'Activity Chart', 'fanfiction-manager' ); ?></h3>
-				<p><?php esc_html_e( 'Chart visualization will be implemented in a future version.', 'fanfiction-manager' ); ?></p>
 			</div>
 		</div>
 		<?php
@@ -1349,10 +1371,128 @@ class Fanfic_Settings {
 		?>
 		<div class="fanfiction-settings-tab">
 			<h2><?php esc_html_e( 'General Settings', 'fanfiction-manager' ); ?></h2>
+			<?php self::render_compact_statistics_cards(); ?>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="fanfic_save_general_settings">
 				<?php wp_nonce_field( 'fanfic_general_settings_nonce', 'fanfic_general_settings_nonce' ); ?>
+				<?php
+				$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
+				$recaptcha_secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
+				$has_recaptcha = ! empty( $recaptcha_site_key ) && ! empty( $recaptcha_secret_key );
+				?>
+
+				<!-- Content Actions Features Section -->
+				<h3><?php esc_html_e( 'Content Actions Features', 'fanfiction-manager' ); ?></h3>
+				<p class="description" style="margin-bottom: 15px;">
+					<?php esc_html_e( 'Enable or disable specific features for story and chapter interactions.', 'fanfiction-manager' ); ?>
+				</p>
+
+				<table class="form-table" role="presentation">
+					<tbody>
+						<tr>
+							<th scope="row">
+								<label for="enable_comments"><?php esc_html_e( 'Enable Comments', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_comments" name="fanfic_settings[enable_comments]" value="1" <?php checked( isset( $settings['enable_comments'] ) ? $settings['enable_comments'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow comments on stories and chapters.', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<tr id="allow_anonymous_comments_row" style="<?php echo ! empty( $settings['enable_comments'] ) ? '' : 'display:none;'; ?>">
+							<th scope="row"></th>
+							<td style="padding-left: 24px;">
+								<label for="allow_anonymous_comments">
+									<input type="checkbox" id="allow_anonymous_comments" name="fanfic_settings[allow_anonymous_comments]" value="1" <?php checked( isset( $settings['allow_anonymous_comments'] ) && $has_recaptcha ? $settings['allow_anonymous_comments'] : false, true ); ?> <?php disabled( ! $has_recaptcha ); ?>>
+									<?php esc_html_e( 'Enable guest comments (requires reCAPTCHA)', 'fanfiction-manager' ); ?>
+								</label>
+								<?php if ( ! $has_recaptcha ) : ?>
+									<p class="description" style="color: #d63638;">
+										<?php esc_html_e( 'Configure reCAPTCHA keys below to enable guest comments.', 'fanfiction-manager' ); ?>
+									</p>
+								<?php endif; ?>
+							</td>
+						</tr>
+
+						<tr>
+							<th scope="row">
+								<label for="enable_likes"><?php esc_html_e( 'Enable Likes', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_likes" name="fanfic_settings[enable_likes]" value="1" <?php checked( isset( $settings['enable_likes'] ) ? $settings['enable_likes'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow users to like stories and chapters.', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<tr id="enable_dislikes_row" style="<?php echo ! empty( $settings['enable_likes'] ) ? '' : 'display:none;'; ?>">
+							<th scope="row"></th>
+							<td style="padding-left: 24px;">
+								<label for="enable_dislikes">
+									<input type="checkbox" id="enable_dislikes" name="fanfic_settings[enable_dislikes]" value="1" <?php checked( isset( $settings['enable_dislikes'] ) ? $settings['enable_dislikes'] : false, true ); ?>>
+									<?php esc_html_e( 'Enable Dislikes', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<tr>
+							<th scope="row">
+								<label for="fanfic_enable_coauthors"><?php esc_html_e( 'Enable Co-Authors', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="fanfic_enable_coauthors" name="fanfic_settings[enable_coauthors]" value="1" <?php checked( isset( $settings['enable_coauthors'] ) ? $settings['enable_coauthors'] : false, true ); ?>>
+									<?php esc_html_e( 'Allow authors to invite co-authors.', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<tr>
+							<th scope="row">
+								<label for="enable_share"><?php esc_html_e( 'Enable Share Button', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_share" name="fanfic_settings[enable_share]" value="1" <?php checked( isset( $settings['enable_share'] ) ? $settings['enable_share'] : true, true ); ?>>
+									<?php esc_html_e( 'Show share button on stories, chapters, and profiles.', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<tr>
+							<th scope="row">
+								<label for="enable_report"><?php esc_html_e( 'Enable Content Reporting', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_report" name="fanfic_settings[enable_report]" value="1" <?php checked( isset( $settings['enable_report'] ) ? $settings['enable_report'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow users to report inappropriate content.', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<tr id="allow_anonymous_reports_row" style="<?php echo ! empty( $settings['enable_report'] ) ? '' : 'display:none;'; ?>">
+							<th scope="row"></th>
+							<td style="padding-left: 24px;">
+								<label for="allow_anonymous_reports">
+									<input type="checkbox" id="allow_anonymous_reports" name="fanfic_settings[allow_anonymous_reports]" value="1" <?php checked( isset( $settings['allow_anonymous_reports'] ) && $has_recaptcha ? $settings['allow_anonymous_reports'] : false, true ); ?> <?php disabled( ! $has_recaptcha ); ?>>
+									<?php esc_html_e( 'Allow guest reports (requires reCAPTCHA)', 'fanfiction-manager' ); ?>
+								</label>
+								<?php if ( ! $has_recaptcha ) : ?>
+									<p class="description" style="color: #d63638;">
+										<?php esc_html_e( 'Configure reCAPTCHA keys below to enable guest reports.', 'fanfiction-manager' ); ?>
+									</p>
+								<?php endif; ?>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<hr style="margin: 30px 0;">
 
 				<table class="form-table" role="presentation">
 					<tbody>
@@ -1365,38 +1505,21 @@ class Fanfic_Settings {
 								<fieldset>
 									<label>
 										<input type="radio" name="fanfic_settings[featured_mode]" value="manual" <?php checked( $settings['featured_mode'], 'manual' ); ?>>
-										<?php esc_html_e( 'Manual Selection', 'fanfiction-manager' ); ?>
-									</label><br>
+										<?php esc_html_e( 'Manual', 'fanfiction-manager' ); ?>
+									</label>
+									<p class="description" style="margin-left: 24px; margin-top: 2px;"><?php esc_html_e( 'Admins and moderators manually select featured stories via a button on the story page.', 'fanfiction-manager' ); ?></p>
+									<br>
 									<label>
 										<input type="radio" name="fanfic_settings[featured_mode]" value="automatic" <?php checked( $settings['featured_mode'], 'automatic' ); ?>>
-										<?php esc_html_e( 'Automatic Based on Criteria', 'fanfiction-manager' ); ?>
+										<?php esc_html_e( 'Automatic', 'fanfiction-manager' ); ?>
 									</label>
-								</fieldset>
-							</td>
-						</tr>
-
-						<!-- Featured Stories Criteria -->
-						<tr id="featured-criteria" style="<?php echo 'automatic' !== $settings['featured_mode'] ? 'display:none;' : ''; ?>">
-							<th scope="row">
-								<label><?php esc_html_e( 'Featured Stories Criteria', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<fieldset>
+									<p class="description" style="margin-left: 24px; margin-top: 2px;"><?php esc_html_e( 'A daily scoring formula selects top stories based on comments, ratings, likes, views, and follows. Disabled features are excluded from the formula.', 'fanfiction-manager' ); ?></p>
+									<br>
 									<label>
-										<?php esc_html_e( 'Minimum Rating:', 'fanfiction-manager' ); ?>
-										<input type="number" name="fanfic_settings[featured_rating_min]" value="<?php echo esc_attr( $settings['featured_rating_min'] ); ?>" min="1" max="5" style="width: 80px;">
-										<span class="description"><?php esc_html_e( '(1-5 stars)', 'fanfiction-manager' ); ?></span>
-									</label><br>
-
-									<label>
-										<?php esc_html_e( 'Minimum Votes:', 'fanfiction-manager' ); ?>
-										<input type="number" name="fanfic_settings[featured_votes_min]" value="<?php echo esc_attr( $settings['featured_votes_min'] ); ?>" min="0" style="width: 80px;">
-									</label><br>
-
-									<label>
-										<?php esc_html_e( 'Minimum Comments:', 'fanfiction-manager' ); ?>
-										<input type="number" name="fanfic_settings[featured_comments_min]" value="<?php echo esc_attr( $settings['featured_comments_min'] ); ?>" min="0" style="width: 80px;">
+										<input type="radio" name="fanfic_settings[featured_mode]" value="both" <?php checked( $settings['featured_mode'], 'both' ); ?>>
+										<?php esc_html_e( 'Both', 'fanfiction-manager' ); ?>
 									</label>
+									<p class="description" style="margin-left: 24px; margin-top: 2px;"><?php esc_html_e( 'Manual picks always stay. Automatic scoring fills remaining slots up to the cap (manual picks are excluded from the count).', 'fanfiction-manager' ); ?></p>
 								</fieldset>
 							</td>
 						</tr>
@@ -1407,8 +1530,8 @@ class Fanfic_Settings {
 								<label for="featured_max_count"><?php esc_html_e( 'Maximum Featured Stories', 'fanfiction-manager' ); ?></label>
 							</th>
 							<td>
-								<input type="number" id="featured_max_count" name="fanfic_settings[featured_max_count]" value="<?php echo esc_attr( $settings['featured_max_count'] ); ?>" min="1" max="20" style="width: 80px;">
-								<p class="description"><?php esc_html_e( 'Maximum number of stories to display as featured.', 'fanfiction-manager' ); ?></p>
+								<input type="number" id="featured_max_count" name="fanfic_settings[featured_max_count]" value="<?php echo esc_attr( $settings['featured_max_count'] ); ?>" min="1" max="50" style="width: 80px;">
+								<p class="description"><?php esc_html_e( 'Maximum number of auto-featured stories. Stories with tied scores at the cutoff will all be included. In Both mode, manual picks do not count toward this cap.', 'fanfiction-manager' ); ?></p>
 							</td>
 						</tr>
 
@@ -1572,141 +1695,10 @@ class Fanfic_Settings {
 					</tbody>
 				</table>
 
-				<hr style="margin: 30px 0;">
-
-				<!-- Content Actions Features Section -->
-				<h3><?php esc_html_e( 'Content Actions Features', 'fanfiction-manager' ); ?></h3>
-				<p class="description" style="margin-bottom: 15px;">
-					<?php esc_html_e( 'Enable or disable specific features for story and chapter interactions. All features are enabled by default.', 'fanfiction-manager' ); ?>
-				</p>
-
-				<table class="form-table" role="presentation">
-					<tbody>
-						<!-- Enable Comments -->
-						<tr>
-							<th scope="row">
-								<label for="enable_comments"><?php esc_html_e( 'Enable Comments', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<label>
-									<input type="checkbox" id="enable_comments" name="fanfic_settings[enable_comments]" value="1" <?php checked( isset( $settings['enable_comments'] ) ? $settings['enable_comments'] : true, true ); ?>>
-									<?php esc_html_e( 'Allow comments on stories and chapters. Authors can control this per-story.', 'fanfiction-manager' ); ?>
-								</label>
-							</td>
-						</tr>
-
-						<!-- Enable Likes -->
-						<tr>
-							<th scope="row">
-								<label for="enable_likes"><?php esc_html_e( 'Enable Likes', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<label>
-									<input type="checkbox" id="enable_likes" name="fanfic_settings[enable_likes]" value="1" <?php checked( isset( $settings['enable_likes'] ) ? $settings['enable_likes'] : true, true ); ?>>
-									<?php esc_html_e( 'Allow users to like stories and chapters (shows like count)', 'fanfiction-manager' ); ?>
-								</label>
-							</td>
-						</tr>
-
-						<!-- Enable Share -->
-						<tr>
-							<th scope="row">
-								<label for="enable_share"><?php esc_html_e( 'Enable Share Button', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<label>
-									<input type="checkbox" id="enable_share" name="fanfic_settings[enable_share]" value="1" <?php checked( isset( $settings['enable_share'] ) ? $settings['enable_share'] : true, true ); ?>>
-									<?php esc_html_e( 'Show share button on stories, chapters, and author profiles (available to all visitors)', 'fanfiction-manager' ); ?>
-								</label>
-							</td>
-						</tr>
-
-						<!-- Enable Report -->
-						<tr>
-							<th scope="row">
-								<label for="enable_report"><?php esc_html_e( 'Enable Content Reporting', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<label>
-									<input type="checkbox" id="enable_report" name="fanfic_settings[enable_report]" value="1" <?php checked( isset( $settings['enable_report'] ) ? $settings['enable_report'] : true, true ); ?>>
-									<?php esc_html_e( 'Allow logged-in users to report inappropriate content', 'fanfiction-manager' ); ?>
-								</label>
-							</td>
-						</tr>
-
-						<!-- Enable Dislikes -->
-						<tr>
-							<th scope="row">
-								<label for="enable_dislikes"><?php esc_html_e( 'Enable Dislikes', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<label>
-									<input type="checkbox" id="enable_dislikes" name="fanfic_settings[enable_dislikes]" value="1" <?php checked( isset( $settings['enable_dislikes'] ) ? $settings['enable_dislikes'] : false, true ); ?>>
-									<?php esc_html_e( 'Allow users to dislike chapters (mutually exclusive with likes)', 'fanfiction-manager' ); ?>
-								</label>
-							</td>
-						</tr>
-
-						<!-- Enable Co-Authors -->
-						<tr>
-							<th scope="row">
-								<label for="fanfic_enable_coauthors"><?php esc_html_e( 'Co-Authors', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<label>
-									<input type="checkbox" id="fanfic_enable_coauthors" name="fanfic_settings[enable_coauthors]" value="1" <?php checked( isset( $settings['enable_coauthors'] ) ? $settings['enable_coauthors'] : false, true ); ?>>
-									<?php esc_html_e( 'Enable co-author functionality', 'fanfiction-manager' ); ?>
-								</label>
-								<p class="description"><?php esc_html_e( 'Allow authors to invite co-authors to collaborate on stories.', 'fanfiction-manager' ); ?></p>
-							</td>
-						</tr>
-
-						<!-- Allow Anonymous Reports -->
-						<tr>
-							<th scope="row">
-								<label for="allow_anonymous_reports"><?php esc_html_e( 'Allow Anonymous Reports', 'fanfiction-manager' ); ?></label>
-							</th>
-							<td>
-								<?php
-								$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
-								$recaptcha_secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
-								$has_recaptcha = ! empty( $recaptcha_site_key ) && ! empty( $recaptcha_secret_key );
-								$anonymous_reports_disabled = ! $has_recaptcha;
-								?>
-								<label>
-									<input type="checkbox" id="allow_anonymous_reports" name="fanfic_settings[allow_anonymous_reports]" value="1" <?php checked( isset( $settings['allow_anonymous_reports'] ) && $has_recaptcha ? $settings['allow_anonymous_reports'] : false, true ); ?> <?php disabled( $anonymous_reports_disabled ); ?>>
-									<?php esc_html_e( 'Allow non-logged users to report content (requires reCAPTCHA)', 'fanfiction-manager' ); ?>
-								</label>
-								<?php if ( ! $has_recaptcha ) : ?>
-									<p class="description" style="color: #d63638; font-weight: 600;">
-										<span class="dashicons dashicons-warning" style="color: #d63638;"></span>
-										<?php esc_html_e( 'REQUIRED: You must configure reCAPTCHA keys above to enable anonymous reporting. This prevents spam and abuse.', 'fanfiction-manager' ); ?>
-									</p>
-								<?php else : ?>
-									<p class="description">
-										<span class="dashicons dashicons-yes-alt" style="color: #46b450;"></span>
-										<?php esc_html_e( 'reCAPTCHA is configured. Anonymous reports will be protected against spam.', 'fanfiction-manager' ); ?>
-									</p>
-								<?php endif; ?>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-
 				<p class="submit">
 					<?php submit_button( __( 'Save General Settings', 'fanfiction-manager' ), 'primary', 'submit', false ); ?>
 				</p>
 			</form>
-
-			<hr>
-
-			<!-- Cache Management Section -->
-			<?php
-			// Include cache admin class if not already loaded
-			if ( class_exists( 'Fanfic_Cache_Admin' ) ) {
-				Fanfic_Cache_Admin::render_cache_management();
-			}
-			?>
 
 			<hr>
 
@@ -1790,13 +1782,28 @@ class Fanfic_Settings {
 
 		<script type="text/javascript">
 		jQuery(document).ready(function($) {
-			$('input[name="fanfic_settings[featured_mode]"]').on('change', function() {
-				if ($(this).val() === 'automatic') {
-					$('#featured-criteria').show();
-				} else {
-					$('#featured-criteria').hide();
+			function syncActionChildRows() {
+				var commentsEnabled = $('#enable_comments').is(':checked');
+				var likesEnabled = $('#enable_likes').is(':checked');
+				var reportEnabled = $('#enable_report').is(':checked');
+
+				$('#allow_anonymous_comments_row').toggle(commentsEnabled);
+				$('#enable_dislikes_row').toggle(likesEnabled);
+				$('#allow_anonymous_reports_row').toggle(reportEnabled);
+
+				if (!commentsEnabled) {
+					$('#allow_anonymous_comments').prop('checked', false);
 				}
-			});
+				if (!likesEnabled) {
+					$('#enable_dislikes').prop('checked', false);
+				}
+				if (!reportEnabled) {
+					$('#allow_anonymous_reports').prop('checked', false);
+				}
+			}
+
+			$('#enable_comments, #enable_likes, #enable_report').on('change', syncActionChildRows);
+			syncActionChildRows();
 
 			var $coauthorCheckbox = $('#fanfic_enable_coauthors');
 			if ($coauthorCheckbox.length) {
@@ -2840,7 +2847,7 @@ class Fanfic_Settings {
 						<?php
 						printf(
 							/* translators: %s: URL to settings page */
-							esc_html__( 'Google reCAPTCHA is not configured. Report forms will work but without spam protection. Configure reCAPTCHA keys in %s to enable protection.', 'fanfiction-manager' ),
+							esc_html__( 'Google reCAPTCHA is not configured. Anonymous reports are disabled until keys are added in %s.', 'fanfiction-manager' ),
 							'<a href="' . esc_url( admin_url( 'admin.php?page=fanfiction-settings&tab=general' ) ) . '#fanfic_recaptcha_site_key">' . esc_html__( 'General Settings', 'fanfiction-manager' ) . '</a>'
 						);
 						?>
@@ -3571,7 +3578,7 @@ class Fanfic_Settings {
 					add_query_arg(
 						array(
 							'page'    => 'fanfiction-settings',
-							'tab'     => 'homepage-diagnostics',
+							'tab'     => 'stats-status',
 							'synced'  => '1',
 						),
 						admin_url( 'admin.php' )
@@ -3583,7 +3590,7 @@ class Fanfic_Settings {
 					add_query_arg(
 						array(
 							'page'        => 'fanfiction-settings',
-							'tab'         => 'homepage-diagnostics',
+							'tab'         => 'stats-status',
 							'sync_failed' => '1',
 						),
 						admin_url( 'admin.php' )
@@ -3596,7 +3603,7 @@ class Fanfic_Settings {
 				add_query_arg(
 					array(
 						'page'        => 'fanfiction-settings',
-						'tab'         => 'homepage-diagnostics',
+						'tab'         => 'stats-status',
 						'sync_failed' => '1',
 					),
 					admin_url( 'admin.php' )

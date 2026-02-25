@@ -41,6 +41,7 @@ class Fanfic_Rate_Limit {
 		'view'       => array( 'limit' => 100, 'window' => 60 ),     // 100 views per minute
 		'search'     => array( 'limit' => 30, 'window' => 60 ),      // 30 searches per minute
 		'ajax'       => array( 'limit' => 60, 'window' => 60 ),      // 60 AJAX calls per minute
+		'fanfic_record_interaction' => array( 'limit' => 120, 'window' => 60 ), // 120 interaction writes per minute
 	);
 
 	/**
@@ -209,6 +210,10 @@ class Fanfic_Rate_Limit {
 	 * @return bool True if suspicious, false otherwise.
 	 */
 	public static function is_suspicious_activity( $identifier, $action ) {
+		if ( ! self::should_track_suspicious_action( $action ) ) {
+			return false;
+		}
+
 		// Track rapid actions (10 second window)
 		$rapid_key = self::get_transient_key( $identifier, 'rapid_check' );
 		$rapid_count = get_transient( $rapid_key );
@@ -267,6 +272,48 @@ class Fanfic_Rate_Limit {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Determine whether an action should participate in suspicious-activity checks.
+	 *
+	 * Suspicious heuristics should focus on mutation/high-risk actions. Read-only
+	 * and background fetch actions are rate-limited separately, but excluded here
+	 * to avoid false positives during normal page activity.
+	 *
+	 * @since 2.2.1
+	 * @param string $action Action name.
+	 * @return bool
+	 */
+	private static function should_track_suspicious_action( $action ) {
+		$action = sanitize_key( $action );
+
+		$tracked_actions = array(
+			// Canonical short action names.
+			'rate',
+			'like',
+			'follow',
+			'subscribe',
+			'comment',
+			'ajax',
+
+			// AJAX endpoint names that mutate state.
+			'fanfic_toggle_follow',
+			'fanfic_record_interaction',
+			'fanfic_sync_interactions',
+			'fanfic_report_content',
+			'fanfic_mark_notification_read',
+			'fanfic_mark_all_notifications_read',
+			'fanfic_delete_notification',
+			'fanfic_clear_all_notifications',
+			'fanfic_toggle_featured',
+			'fanfic_ajax_image_upload',
+			'fanfic_bulk_change_author',
+			'fanfic_bulk_apply_genre',
+			'fanfic_bulk_change_status',
+		);
+
+		return in_array( $action, $tracked_actions, true );
 	}
 
 	/**

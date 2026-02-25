@@ -248,6 +248,8 @@ class Fanfic_Shortcodes_Navigation {
 			: array();
 
 		$date_format = get_option( 'date_format' );
+		$enable_likes = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_likes', true ) : true;
+		$enable_comments = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_comments', true ) : true;
 
 		$output  = '<div class="fanfic-chapters-table-wrap">';
 		$output .= '<table class="fanfic-chapters-table" role="table">';
@@ -256,8 +258,12 @@ class Fanfic_Shortcodes_Navigation {
 		$output .= '<th class="fanfic-col-stat fanfic-col-views" scope="col" title="' . esc_attr__( 'Views', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-visibility" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Views', 'fanfiction-manager' ) . '</span></th>';
 		$output .= '<th class="fanfic-col-stat fanfic-col-words" scope="col" title="' . esc_attr__( 'Words', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-edit" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Words', 'fanfiction-manager' ) . '</span></th>';
 		$output .= '<th class="fanfic-col-stat fanfic-col-rating" scope="col" title="' . esc_attr__( 'Rating', 'fanfiction-manager' ) . '">&#9733;<span class="screen-reader-text">' . esc_html__( 'Rating', 'fanfiction-manager' ) . '</span></th>';
-		$output .= '<th class="fanfic-col-stat fanfic-col-likes" scope="col" title="' . esc_attr__( 'Likes', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-thumbs-up" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Likes', 'fanfiction-manager' ) . '</span></th>';
-		$output .= '<th class="fanfic-col-stat fanfic-col-comments" scope="col" title="' . esc_attr__( 'Comments', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-admin-comments" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Comments', 'fanfiction-manager' ) . '</span></th>';
+		if ( $enable_likes ) {
+			$output .= '<th class="fanfic-col-stat fanfic-col-likes" scope="col" title="' . esc_attr__( 'Likes', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-thumbs-up" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Likes', 'fanfiction-manager' ) . '</span></th>';
+		}
+		if ( $enable_comments ) {
+			$output .= '<th class="fanfic-col-stat fanfic-col-comments" scope="col" title="' . esc_attr__( 'Comments', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-admin-comments" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Comments', 'fanfiction-manager' ) . '</span></th>';
+		}
 		$output .= '<th class="fanfic-col-date" scope="col">' . esc_html__( 'Updated', 'fanfiction-manager' ) . '</th>';
 		$output .= '</tr></thead>';
 		$output .= '<tbody>';
@@ -319,8 +325,14 @@ class Fanfic_Shortcodes_Navigation {
 			$output .= '<td class="fanfic-col-stat fanfic-col-views">'    . esc_html( Fanfic_Shortcodes::format_number( $stats['views'] ) ) . '</td>';
 			$output .= '<td class="fanfic-col-stat fanfic-col-words">'    . esc_html( Fanfic_Shortcodes::format_number( $word_count ) ) . '</td>';
 			$output .= '<td class="fanfic-col-stat fanfic-col-rating">'   . $rating_html . '</td>';
-			$output .= '<td class="fanfic-col-stat fanfic-col-likes">'    . esc_html( Fanfic_Shortcodes::format_number( $stats['likes'] ) ) . '</td>';
-			$output .= '<td class="fanfic-col-stat fanfic-col-comments">' . esc_html( Fanfic_Shortcodes::format_number( $comment_count ) ) . '</td>';
+			if ( $enable_likes ) {
+				$output .= '<td class="fanfic-col-stat fanfic-col-likes">' . esc_html( Fanfic_Shortcodes::format_number( $stats['likes'] ) ) . '</td>';
+			}
+			if ( $enable_comments ) {
+				$chapter_comments_open = comments_open( $chapter_id );
+				$comment_cell_value = $chapter_comments_open ? Fanfic_Shortcodes::format_number( $comment_count ) : '';
+				$output .= '<td class="fanfic-col-stat fanfic-col-comments">' . esc_html( $comment_cell_value ) . '</td>';
+			}
 
 			// Updated date.
 			$output .= sprintf(

@@ -1418,21 +1418,28 @@ if ( ! $is_edit_mode ) {
 				});
 			}
 
-			// Hide chapter confirmation
-			var unpublishButton = document.getElementById('hide-chapter-button');
-			var chapterForm = document.querySelector('form');
-			var unpublishConfirmed = false;
-
-			if (unpublishButton && chapterForm) {
-				unpublishButton.addEventListener('click', function(e) {
-					if (unpublishConfirmed) {
-						return; // Allow submission
+			// Hide chapter confirmation (delegated so it survives dynamic button state changes)
+			var chapterForm = document.getElementById('fanfic-chapter-form');
+			if (chapterForm) {
+				chapterForm.addEventListener('click', function(e) {
+					var unpublishButton = e.target.closest('#hide-chapter-button');
+					if (!unpublishButton) {
+						return;
 					}
 
-					e.preventDefault(); // Stop form submission
+					if (unpublishButton.getAttribute('data-unpublish-confirmed') === '1') {
+						unpublishButton.removeAttribute('data-unpublish-confirmed');
+						return; // Allow the actual submit click
+					}
 
-					var chapterId = this.getAttribute('data-chapter-id');
-					var storyId = this.getAttribute('data-story-id');
+					e.preventDefault(); // Intercept first click and run checks
+
+					var chapterId = unpublishButton.getAttribute('data-chapter-id');
+					if (!chapterId) {
+						unpublishButton.setAttribute('data-unpublish-confirmed', '1');
+						unpublishButton.click();
+						return;
+					}
 
 					// Check if this is the last published chapter via AJAX
 					var formData = new FormData();
@@ -1449,17 +1456,13 @@ if ( ! $is_edit_mode ) {
 						return response.json();
 					})
 					.then(function(data) {
+						var shouldProceed = true;
 						if (data.success && data.data.is_last_chapter) {
-							// This is the last chapter, show confirmation
-							var confirmed = confirm(FanficMessages.unpublishChapterLastWarning);
+							shouldProceed = confirm(FanficMessages.unpublishChapterLastWarning);
+						}
 
-							if (confirmed) {
-								unpublishConfirmed = true;
-								unpublishButton.click(); // Trigger the button click again
-							}
-						} else {
-							// Not the last chapter, proceed normally
-							unpublishConfirmed = true;
+						if (shouldProceed) {
+							unpublishButton.setAttribute('data-unpublish-confirmed', '1');
 							unpublishButton.click();
 						}
 					})
@@ -2203,6 +2206,7 @@ if ( ! $is_edit_mode ) {
 
 				var allSubmitButtons = chapterForm.querySelectorAll('button[type="submit"]');
 				var originalButtonLabel = submitter ? submitter.textContent : '';
+				var shouldRestoreSubmitterLabel = true;
 				allSubmitButtons.forEach(function(button) {
 					button.disabled = true;
 				});
@@ -2278,6 +2282,7 @@ if ( ! $is_edit_mode ) {
 						var storyId = storyIdInput ? storyIdInput.value : '';
 						syncChapterActionButtons(data.chapter_status, data.chapter_id || '', data.story_id || storyId, data.edit_url || data.redirect_url || '');
 					}
+					shouldRestoreSubmitterLabel = false;
 
 					if (data.edit_url) {
 						window.history.replaceState({}, '', data.edit_url);
@@ -2301,7 +2306,7 @@ if ( ! $is_edit_mode ) {
 					allSubmitButtons.forEach(function(button) {
 						button.disabled = false;
 					});
-					if (submitter) {
+					if (submitter && shouldRestoreSubmitterLabel) {
 						submitter.textContent = originalButtonLabel;
 					}
 					// Only re-disable the dirty-tracked Update button

@@ -382,7 +382,7 @@ jQuery(document).ready(function($) {
 	/**
 	 * Render Settings page
 	 *
-	 * Displays the settings page with tabs: General, URL Name, Stats and Status.
+	 * Displays the settings page with tabs: General, URL Name, Stats and Status, Cache.
 	 *
 	 * @since 1.0.0
 	 * @since 1.2.0 Reorganized tabs - moved Email Templates, Page Templates, Custom CSS to Layout page.
@@ -395,7 +395,7 @@ jQuery(document).ready(function($) {
 		}
 
 		// Get current tab with validation
-		$allowed_tabs = array( 'general', 'url-name', 'stats-status', 'homepage-diagnostics' );
+		$allowed_tabs = array( 'general', 'url-name', 'stats-status', 'cache' );
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general';
 		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'general';
 
@@ -416,8 +416,8 @@ jQuery(document).ready(function($) {
 				<a href="?page=fanfiction-settings&tab=stats-status" class="nav-tab <?php echo $current_tab === 'stats-status' ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Stats and Status', 'fanfiction-manager' ); ?>
 				</a>
-				<a href="?page=fanfiction-settings&tab=homepage-diagnostics" class="nav-tab <?php echo $current_tab === 'homepage-diagnostics' ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'Homepage Diagnostics', 'fanfiction-manager' ); ?>
+				<a href="?page=fanfiction-settings&tab=cache" class="nav-tab <?php echo $current_tab === 'cache' ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Cache', 'fanfiction-manager' ); ?>
 				</a>
 			</nav>
 
@@ -429,9 +429,12 @@ jQuery(document).ready(function($) {
 						break;
 					case 'stats-status':
 						Fanfic_Settings::render_dashboard_tab();
-						break;
-					case 'homepage-diagnostics':
 						Fanfic_Settings::render_homepage_diagnostics_tab();
+						break;
+					case 'cache':
+						if ( class_exists( 'Fanfic_Cache_Admin' ) ) {
+							Fanfic_Cache_Admin::render_cache_management();
+						}
 						break;
 					case 'general':
 					default:

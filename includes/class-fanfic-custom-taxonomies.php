@@ -407,6 +407,7 @@ class Fanfic_Custom_Taxonomies {
 		}
 
 		self::clear_cache();
+		do_action( 'fanfic_custom_taxonomy_updated', $id );
 
 		return true;
 	}
@@ -438,10 +439,13 @@ class Fanfic_Custom_Taxonomies {
 		$term_ids = $wpdb->get_col(
 			$wpdb->prepare( "SELECT id FROM {$table_terms} WHERE taxonomy_id = %d", $id )
 		);
+		$affected_story_ids = array();
 
 		// Delete story relations for these terms.
 		if ( ! empty( $term_ids ) ) {
 			$placeholders = implode( ',', array_fill( 0, count( $term_ids ), '%d' ) );
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$affected_story_ids = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT story_id FROM {$table_relations} WHERE term_id IN ({$placeholders})", $term_ids ) );
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$table_relations} WHERE term_id IN ({$placeholders})", $term_ids ) );
 		}
@@ -457,6 +461,7 @@ class Fanfic_Custom_Taxonomies {
 		}
 
 		self::clear_cache();
+		do_action( 'fanfic_custom_taxonomy_deleted', $id, array_values( array_unique( array_map( 'absint', (array) $affected_story_ids ) ) ) );
 
 		return true;
 	}
@@ -698,6 +703,11 @@ class Fanfic_Custom_Taxonomies {
 			return new WP_Error( 'invalid_id', __( 'Invalid term ID.', 'fanfiction-manager' ) );
 		}
 
+		$existing = self::get_term_by_id( $id );
+		if ( ! $existing ) {
+			return new WP_Error( 'not_found', __( 'Term not found.', 'fanfiction-manager' ) );
+		}
+
 		$update = array();
 		$format = array();
 
@@ -730,6 +740,7 @@ class Fanfic_Custom_Taxonomies {
 		}
 
 		self::clear_cache();
+		do_action( 'fanfic_custom_term_updated', $id, absint( $existing['taxonomy_id'] ?? 0 ) );
 
 		return true;
 	}
@@ -755,6 +766,14 @@ class Fanfic_Custom_Taxonomies {
 
 		$table_terms     = $wpdb->prefix . 'fanfic_custom_terms';
 		$table_relations = $wpdb->prefix . 'fanfic_story_custom_terms';
+		$term = self::get_term_by_id( $id );
+		$taxonomy_id = absint( $term['taxonomy_id'] ?? 0 );
+		$affected_story_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT story_id FROM {$table_relations} WHERE term_id = %d",
+				$id
+			)
+		);
 
 		// Delete story relations.
 		$wpdb->delete( $table_relations, array( 'term_id' => $id ), array( '%d' ) );
@@ -767,6 +786,7 @@ class Fanfic_Custom_Taxonomies {
 		}
 
 		self::clear_cache();
+		do_action( 'fanfic_custom_term_deleted', $id, $taxonomy_id, array_values( array_unique( array_map( 'absint', (array) $affected_story_ids ) ) ) );
 
 		return true;
 	}

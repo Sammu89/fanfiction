@@ -566,6 +566,33 @@ function fanfic_get_local_avatar_url( $url, $id_or_email, $args ) {
 add_filter( 'get_avatar_url', 'fanfic_get_local_avatar_url', 10, 3 );
 
 /**
+ * Return a round mini avatar img when the user has a custom profile picture,
+ * or the generic dashicons-admin-users icon span as fallback.
+ *
+ * Relies on the `_fanfic_avatar_url` user meta written by the profile handler.
+ *
+ * @param int $user_id WordPress user ID.
+ * @param int $size    Pixel size passed to get_avatar() (default 20).
+ * @return string HTML – either an <img> or a <span class="dashicons …">.
+ */
+function fanfic_get_author_avatar_or_icon( $user_id, $size = 20 ) {
+	$has_avatar = ! empty( get_user_meta( absint( $user_id ), '_fanfic_avatar_url', true ) );
+	if ( $has_avatar ) {
+		return get_avatar(
+			$user_id,
+			$size,
+			'',
+			'',
+			array(
+				'class'   => 'fanfic-story-author-avatar',
+				'loading' => 'lazy',
+			)
+		);
+	}
+	return '<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>';
+}
+
+/**
  * Get URL for the story archive (all stories)
  *
  * @return string The story archive URL.

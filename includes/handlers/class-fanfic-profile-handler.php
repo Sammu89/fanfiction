@@ -98,12 +98,21 @@ class Fanfic_Profile_Handler {
 		$user_email = isset( $_POST['user_email'] ) ? sanitize_email( trim( $_POST['user_email'] ) ) : '';
 		$user_url = isset( $_POST['user_url'] ) ? esc_url_raw( trim( $_POST['user_url'] ) ) : '';
 		$description = isset( $_POST['description'] ) ? sanitize_textarea_field( $_POST['description'] ) : '';
-		$avatar_url = isset( $_POST['fanfic_avatar_url'] ) ? esc_url_raw( trim( $_POST['fanfic_avatar_url'] ) ) : '';
+		$avatar_url           = isset( $_POST['fanfic_avatar_url'] ) ? esc_url_raw( trim( $_POST['fanfic_avatar_url'] ) ) : '';
+		$avatar_attachment_id = 0;
 
 		if ( function_exists( 'fanfic_handle_image_upload' ) ) {
 			$upload = fanfic_handle_image_upload( 'fanfic_avatar_file', __( 'Avatar image', 'fanfiction-manager' ), $errors );
 			if ( $upload && ! empty( $upload['url'] ) ) {
-				$avatar_url = $upload['url'];
+				$avatar_attachment_id = (int) ( $upload['attachment_id'] ?? 0 );
+				if ( $avatar_attachment_id ) {
+					// Use the dedicated 80×80 thumbnail so we never load a full-size image
+					// for a 20 px avatar slot. Falls back to full URL if the size wasn't generated.
+					$thumb_src  = wp_get_attachment_image_src( $avatar_attachment_id, 'fanfic_avatar_thumb' );
+					$avatar_url = $thumb_src ? $thumb_src[0] : $upload['url'];
+				} else {
+					$avatar_url = $upload['url'];
+				}
 			}
 		}
 
@@ -197,8 +206,12 @@ class Fanfic_Profile_Handler {
 		// Update custom avatar URL (non-native field)
 		if ( ! empty( $avatar_url ) ) {
 			update_user_meta( $current_user->ID, '_fanfic_avatar_url', $avatar_url );
+			if ( $avatar_attachment_id ) {
+				update_user_meta( $current_user->ID, '_fanfic_avatar_attachment_id', $avatar_attachment_id );
+			}
 		} else {
 			delete_user_meta( $current_user->ID, '_fanfic_avatar_url' );
+			delete_user_meta( $current_user->ID, '_fanfic_avatar_attachment_id' );
 		}
 
 		// Clear any cached user data
@@ -216,10 +229,15 @@ class Fanfic_Profile_Handler {
 				)
 			);
 		} else {
-			// Regular form submission - redirect
-            Fanfic_Flash_Messages::add_message( 'success', __( 'Profile updated successfully!', 'fanfiction-manager' ) );
-			$redirect_url = wp_get_referer() ? wp_get_referer() : home_url();
-			wp_safe_redirect( $redirect_url );
+			// Regular form submission - redirect to profile view page.
+			// Do NOT use wp_get_referer() here: the referer is the edit URL (?action=edit)
+			// and WordPress may not resolve the rewrite rules for that URL after a POST
+			// redirect, causing it to fall back to the native WP author archive.
+			Fanfic_Flash_Messages::add_message( 'success', __( 'Profile updated successfully!', 'fanfiction-manager' ) );
+			$profile_url  = function_exists( 'fanfic_get_user_profile_url' )
+				? fanfic_get_user_profile_url( $current_user->ID )
+				: home_url();
+			wp_safe_redirect( $profile_url );
 			exit;
 		}
 	}

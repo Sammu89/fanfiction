@@ -159,7 +159,7 @@ class Fanfic_AJAX_Security {
 
 		// 4. Check rate limiting
 		if ( $options['rate_limit'] ) {
-			$identifier = is_user_logged_in() ? get_current_user_id() : Fanfic_Rate_Limit::get_ip_address();
+			$identifier = self::get_rate_limit_identifier();
 
 			if ( Fanfic_Rate_Limit::is_rate_limited( $identifier, $action ) ) {
 				$wait_time = Fanfic_Rate_Limit::get_wait_time( $identifier, $action );
@@ -398,5 +398,32 @@ class Fanfic_AJAX_Security {
 	 */
 	public static function is_handler_registered( $action ) {
 		return isset( self::$handlers[ $action ] );
+	}
+
+	/**
+	 * Build a stable identifier for anonymous and authenticated requests.
+	 *
+	 * Uses user ID for authenticated users. For anonymous users, prefers the
+	 * client-provided anonymous UUID when present to avoid IP-level collisions.
+	 *
+	 * @since 2.2.1
+	 * @return string
+	 */
+	private static function get_rate_limit_identifier() {
+		if ( is_user_logged_in() ) {
+			return (string) get_current_user_id();
+		}
+
+		$anonymous_uuid = '';
+
+		if ( isset( $_POST['anonymous_uuid'] ) ) {
+			$anonymous_uuid = sanitize_text_field( wp_unslash( $_POST['anonymous_uuid'] ) );
+		}
+
+		if ( ! empty( $anonymous_uuid ) && preg_match( '/^[a-zA-Z0-9-]{16,128}$/', $anonymous_uuid ) ) {
+			return 'anon_' . md5( strtolower( $anonymous_uuid ) );
+		}
+
+		return Fanfic_Rate_Limit::get_ip_address();
 	}
 }

@@ -58,6 +58,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 				'language_native_name'  => '',
 				'warning_names'         => '',
 				'fandom_names'          => '',
+				'custom_taxonomies_json' => '',
 			);
 		}
 	}
@@ -112,6 +113,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 		'language_native_name',
 		'warning_names',
 		'fandom_names',
+		'custom_taxonomies_json',
 	);
 	$select_columns = array_values( array_intersect( $base_select_columns, (array) $available_columns ) );
 	if ( ! in_array( 'story_id', $select_columns, true ) ) {
@@ -169,6 +171,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 				'language_native_name'  => sanitize_text_field( (string) ( $row['language_native_name'] ?? '' ) ),
 				'warning_names'         => sanitize_text_field( (string) ( $row['warning_names'] ?? '' ) ),
 				'fandom_names'          => sanitize_text_field( (string) ( $row['fandom_names'] ?? '' ) ),
+				'custom_taxonomies_json' => isset( $row['custom_taxonomies_json'] ) ? (string) $row['custom_taxonomies_json'] : '',
 			);
 			if ( $cache[ $sid ]['translation_group_id'] > 0 ) {
 				$translation_group_ids[] = $cache[ $sid ]['translation_group_id'];
@@ -280,6 +283,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
  *   featured_image_id:int,
  *   author_display_name:string,
  *   author_login:string
+ *   custom_taxonomies_json:string
  * }
  */
 function fanfic_get_story_card_index_data( $story_id ) {
@@ -315,6 +319,7 @@ function fanfic_get_story_card_index_data( $story_id ) {
 		'language_native_name'  => '',
 		'warning_names'         => '',
 		'fandom_names'          => '',
+		'custom_taxonomies_json' => '',
 	);
 
 	if ( ! $story_id ) {
@@ -522,16 +527,34 @@ function fanfic_get_story_card_translation_siblings( $story_id, $translation_gro
  * Does not preserve existing search/filter state.
  *
  * @since 1.5.3
- * @param string $facet Filter facet (genre|warning|fandom).
- * @param string $value_slug Filter value slug.
+ * @param string $facet Filter facet (genre|warning|fandom|language|custom|search).
+ * @param string $value Filter value (slug for taxonomy facets, free text for search).
+ * @param string $custom_taxonomy_slug Custom taxonomy slug (required when $facet is custom).
  * @return string
  */
-function fanfic_story_card_build_clean_filter_url( $facet, $value_slug ) {
+function fanfic_story_card_build_clean_filter_url( $facet, $value, $custom_taxonomy_slug = '' ) {
 	$facet = sanitize_key( (string) $facet );
-	$value_slug = sanitize_title( (string) $value_slug );
-	$base_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' );
+	$value = (string) $value;
+	$value_slug = '';
+	$search_text = '';
+	if ( 'search' === $facet ) {
+		$search_text = trim( sanitize_text_field( $value ) );
+	} else {
+		$value_slug = sanitize_title( $value );
+	}
+	$custom_taxonomy_slug = sanitize_title( (string) $custom_taxonomy_slug );
+	$base_url = function_exists( 'fanfic_get_search_url' ) ? fanfic_get_search_url() : '';
+	if ( '' === $base_url && function_exists( 'fanfic_get_story_archive_url' ) ) {
+		$base_url = fanfic_get_story_archive_url();
+	}
+	if ( '' === $base_url ) {
+		$base_url = home_url( '/' );
+	}
 
-	if ( '' === $value_slug ) {
+	if ( 'search' === $facet && '' === $search_text ) {
+		return $base_url;
+	}
+	if ( 'search' !== $facet && '' === $value_slug ) {
 		return $base_url;
 	}
 
@@ -555,12 +578,22 @@ function fanfic_story_card_build_clean_filter_url( $facet, $value_slug ) {
 		$params['include_warnings'] = array( $value_slug );
 	} elseif ( 'fandom' === $facet ) {
 		$params['fandoms'] = array( $value_slug );
+	} elseif ( 'language' === $facet ) {
+		$params['languages'] = array( $value_slug );
+	} elseif ( 'custom' === $facet && '' !== $custom_taxonomy_slug ) {
+		$params['custom'][ $custom_taxonomy_slug ] = array( $value_slug );
+	} elseif ( 'search' === $facet ) {
+		$params['search'] = $search_text;
 	} else {
 		return $base_url;
 	}
 
 	if ( function_exists( 'fanfic_build_stories_url' ) ) {
 		return fanfic_build_stories_url( $base_url, $params, array( 'paged' => null ) );
+	}
+
+	if ( 'search' === $facet ) {
+		return add_query_arg( 'q', $search_text, $base_url );
 	}
 
 	return $base_url;
@@ -693,6 +726,47 @@ function fanfic_get_story_card_html( $story_id ) {
 			'url'   => fanfic_story_card_build_clean_filter_url( 'fandom', $fandom_slug ),
 		);
 	}
+
+	$custom_taxonomy_rows_raw = json_decode( (string) ( $card_index_data['custom_taxonomies_json'] ?? '' ), true );
+	$custom_taxonomy_rows = array();
+	if ( is_array( $custom_taxonomy_rows_raw ) ) {
+		foreach ( $custom_taxonomy_rows_raw as $custom_row ) {
+		$taxonomy_slug = sanitize_title( (string) ( $custom_row['slug'] ?? '' ) );
+		$taxonomy_label = trim( sanitize_text_field( (string) ( $custom_row['label'] ?? '' ) ) );
+		$is_searchable = ! empty( $custom_row['is_searchable'] );
+		$terms = array();
+
+		foreach ( (array) ( $custom_row['terms'] ?? array() ) as $term_row ) {
+			$term_slug = sanitize_title( (string) ( $term_row['slug'] ?? '' ) );
+			$term_label = trim( sanitize_text_field( (string) ( $term_row['label'] ?? '' ) ) );
+			if ( '' === $term_slug || '' === $term_label ) {
+				continue;
+			}
+
+			$term_url = '';
+			if ( $is_searchable && '' !== $taxonomy_slug ) {
+				$term_url = fanfic_story_card_build_clean_filter_url( 'custom', $term_slug, $taxonomy_slug );
+			}
+
+			$terms[] = array(
+				'slug'  => $term_slug,
+				'label' => $term_label,
+				'url'   => $term_url,
+			);
+		}
+
+		if ( '' === $taxonomy_slug || '' === $taxonomy_label || empty( $terms ) ) {
+			continue;
+		}
+
+		$custom_taxonomy_rows[] = array(
+			'slug'          => $taxonomy_slug,
+			'label'         => $taxonomy_label,
+			'is_searchable' => $is_searchable,
+			'terms'         => $terms,
+		);
+	}
+	}
 	$visible_tag_items = array();
 	$tags_enabled = ! class_exists( 'Fanfic_Settings' ) || Fanfic_Settings::get_setting( 'enable_tags', true );
 	if ( $tags_enabled ) {
@@ -774,7 +848,7 @@ function fanfic_get_story_card_html( $story_id ) {
 	}
 	$inline_translation_links = array_slice( $translation_links, 0, 3 );
 	$extra_translation_links = array_slice( $translation_links, 3 );
-	$taxonomy_has_values = ! empty( $genre_items ) || ! empty( $warning_items ) || ! empty( $fandom_items );
+	$taxonomy_has_values = ! empty( $genre_items ) || ! empty( $warning_items ) || ! empty( $fandom_items ) || ! empty( $custom_taxonomy_rows );
 
 	$author_login = sanitize_user( (string) $card_index_data['author_login'], true );
 	$author_profile_url = ( '' !== $author_login && '' !== $members_base_url )
@@ -826,12 +900,13 @@ function fanfic_get_story_card_html( $story_id ) {
 	<article id="story-<?php echo esc_attr( $story_id ); ?>" class="fanfic-story-card search-story-card" data-language="<?php echo esc_attr( $language_slug ); ?>" data-translation-group="<?php echo esc_attr( $translation_group_id ); ?>" data-views="<?php echo esc_attr( $story_views ); ?>">
 		<header class="search-story-card-title-row">
 			<h2 class="fanfic-story-card-title search-story-card-title">
-				<a href="<?php echo esc_url( $story_url ); ?>"><?php echo esc_html( $story_title ); ?></a>
-				<?php echo wp_kses_post( $age_badge ); ?>
+				<?php echo Fanfic_Featured_Stories::render_star_badge( $story_id ); ?>
 				<span class="fanfic-badge fanfic-badge-following" data-badge-story-id="<?php echo esc_attr( $story_id ); ?>" style="display:none;" aria-label="<?php esc_attr_e( 'Following', 'fanfiction-manager' ); ?>" title="<?php esc_attr_e( 'Following', 'fanfiction-manager' ); ?>">
 					<span class="dashicons dashicons-heart" aria-hidden="true"></span>
 					<span class="screen-reader-text"><?php esc_html_e( 'Following', 'fanfiction-manager' ); ?></span>
 				</span>
+				<a href="<?php echo esc_url( $story_url ); ?>"><?php echo esc_html( $story_title ); ?></a>
+				<?php echo wp_kses_post( $age_badge ); ?>
 			</h2>
 			<?php if ( '' !== $status ) : ?>
 				<span class="fanfic-botaozinho status status-<?php echo esc_attr( sanitize_title( $status ) ); ?>">
@@ -842,12 +917,12 @@ function fanfic_get_story_card_html( $story_id ) {
 
 			<div class="search-story-card-details-row">
 				<span>
-					<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>
+					<?php echo wp_kses_post( fanfic_get_author_avatar_or_icon( $author_id, 20 ) ); ?>
 					<a href="<?php echo esc_url( $author_profile_url ); ?>"><?php echo esc_html( $author_name ); ?></a><?php echo $coauthor_links_html; ?>
 				</span>
 				<span class="fanfic-byline-separator" aria-hidden="true"></span>
 				<span>
-					<span class="dashicons dashicons-text-page" aria-hidden="true"></span>
+					<span class="dashicons dashicons-text" aria-hidden="true"></span>
 					<?php echo esc_html( number_format_i18n( $chapters ) . ' ' . _n( 'chapter', 'chapters', $chapters, 'fanfiction-manager' ) ); ?>
 				</span>
 				<?php if ( ! empty( $genre_items ) ) : ?>
@@ -903,14 +978,15 @@ function fanfic_get_story_card_html( $story_id ) {
 							<span class="search-story-card-taxonomy-group">
 								<strong><?php esc_html_e( 'Tags:', 'fanfiction-manager' ); ?></strong>
 								<?php foreach ( $visible_tag_items as $visible_tag_item ) : ?>
-									<span class="fanfic-botaozinho tags"><?php echo esc_html( $visible_tag_item ); ?></span>
+									<?php $tag_filter_url = fanfic_story_card_build_clean_filter_url( 'search', $visible_tag_item ); ?>
+									<a href="<?php echo esc_url( $tag_filter_url ); ?>" class="fanfic-botaozinho tags search-story-card-filter-link search-story-card-filter-link-tag"><?php echo esc_html( $visible_tag_item ); ?></a>
 								<?php endforeach; ?>
 							</span>
 						</div>
 					<?php endif; ?>
 
 					<div class="search-story-card-details-grid">
-						<?php if ( ! empty( $warning_items ) || ! empty( $fandom_items ) ) : ?>
+						<?php if ( ! empty( $warning_items ) || ! empty( $fandom_items ) || ! empty( $custom_taxonomy_rows ) ) : ?>
 							<div class="search-story-card-taxonomies">
 								<?php if ( ! empty( $warning_items ) ) : ?>
 									<div class="search-story-card-taxonomy-row story-card-warnings-row">
@@ -942,13 +1018,39 @@ function fanfic_get_story_card_html( $story_id ) {
 										</span>
 									</div>
 								<?php endif; ?>
+								<?php if ( ! empty( $custom_taxonomy_rows ) ) : ?>
+									<?php foreach ( $custom_taxonomy_rows as $custom_taxonomy_row ) : ?>
+										<div class="search-story-card-taxonomy-row story-card-custom-taxonomy-row story-card-custom-taxonomy-<?php echo esc_attr( sanitize_html_class( $custom_taxonomy_row['slug'] ) ); ?>">
+											<span class="search-story-card-taxonomy-group<?php echo ! empty( $custom_taxonomy_row['is_searchable'] ) ? '' : ' fanfic-taxonomy-not-searchable'; ?>">
+												<strong><?php echo esc_html( $custom_taxonomy_row['label'] ); ?>:</strong>
+												<?php foreach ( $custom_taxonomy_row['terms'] as $index => $custom_term_item ) : ?>
+													<?php if ( $index > 0 ) : ?>
+														<span class="search-story-card-link-separator">, </span>
+													<?php endif; ?>
+													<?php if ( ! empty( $custom_taxonomy_row['is_searchable'] ) && ! empty( $custom_term_item['url'] ) ) : ?>
+														<a href="<?php echo esc_url( $custom_term_item['url'] ); ?>" class="search-story-card-filter-link search-story-card-filter-link-custom">
+															<?php echo esc_html( $custom_term_item['label'] ); ?>
+														</a>
+													<?php else : ?>
+														<span class="search-story-card-custom-term"><?php echo esc_html( $custom_term_item['label'] ); ?></span>
+													<?php endif; ?>
+												<?php endforeach; ?>
+											</span>
+										</div>
+									<?php endforeach; ?>
+								<?php endif; ?>
 							</div>
 						<?php endif; ?>
 
 						<?php $has_translations = ! empty( $translation_links ) || ( $translation_group_id && $translation_count > 0 ); ?>
+						<?php $language_filter_url = '' !== $language_slug ? fanfic_story_card_build_clean_filter_url( 'language', $language_slug ) : ''; ?>
 						<div class="story-card-language-row"<?php echo $has_translations ? '' : ' style="grid-area:translations"'; ?>>
 							<strong><?php esc_html_e( 'Language:', 'fanfiction-manager' ); ?></strong>
-							<span><?php echo esc_html( '' !== $language_label ? $language_label : __( 'Unknown', 'fanfiction-manager' ) ); ?></span>
+							<?php if ( '' !== $language_filter_url && '' !== $language_slug ) : ?>
+								<a href="<?php echo esc_url( $language_filter_url ); ?>" class="search-story-card-filter-link search-story-card-filter-link-language"><?php echo esc_html( '' !== $language_label ? $language_label : __( 'Unknown', 'fanfiction-manager' ) ); ?></a>
+							<?php else : ?>
+								<span><?php echo esc_html( '' !== $language_label ? $language_label : __( 'Unknown', 'fanfiction-manager' ) ); ?></span>
+							<?php endif; ?>
 						</div>
 
 						<div class="search-story-card-metrics" aria-label="<?php esc_attr_e( 'Story metrics', 'fanfiction-manager' ); ?>">

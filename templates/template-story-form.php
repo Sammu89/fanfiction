@@ -257,9 +257,6 @@ do_action( 'fanfic_story_form_messages', $story_id, $is_edit_mode );
 </div>
 <?php
 $fanfic_story_messages_markup = ob_get_clean();
-if ( ! $is_edit_mode ) {
-	echo $fanfic_story_messages_markup;
-}
 ?>
 
 <?php
@@ -415,16 +412,6 @@ if ( $is_edit_mode ) {
 	<div class="fanfic-content-primary">
 		<section class="fanfic-content-section" class="fanfic-form-section" aria-labelledby="form-heading">
 			<h2 id="form-heading" class="screen-reader-text"><?php echo $is_edit_mode ? esc_html__( 'Story Edit Form', 'fanfiction-manager' ) : esc_html__( 'Story Creation Form', 'fanfiction-manager' ); ?></h2>
-
-			<?php if ( ! $is_edit_mode ) : ?>
-				<!-- Info Box -->
-				<div class="fanfic-message fanfic-message-info" role="region" aria-label="<?php esc_attr_e( 'Information', 'fanfiction-manager' ); ?>">
-					<span class="fanfic-message-icon" aria-hidden="true">&#8505;</span>
-					<span class="fanfic-message-content">
-						<?php esc_html_e( 'All fields marked with an asterisk (*) are required. Your story will be saved as a draft until you add at least one chapter.', 'fanfiction-manager' ); ?>
-					</span>
-				</div>
-			<?php endif; ?>
 
 			<!-- Story Form -->
 			<div class="fanfic-form-wrapper fanfic-story-form-<?php echo esc_attr( $form_mode ); ?>">
@@ -1173,9 +1160,7 @@ if ( $is_edit_mode ) {
 						<?php endif; ?>
 					</div>
 				</form>
-				<?php if ( $is_edit_mode ) : ?>
-					<?php echo $fanfic_story_messages_markup; ?>
-				<?php endif; ?>
+				<?php echo $fanfic_story_messages_markup; ?>
 			</div>
 		</section>
 	</div><!-- /.fanfic-content-primary -->
@@ -1814,14 +1799,14 @@ fanfic_render_breadcrumb( 'edit-story', array(
 			addUnique(orderedFields, coauthorsField);
 			addUnique(orderedFields, featuredImageField);
 			addUnique(orderedFields, genresField);
+			customTaxonomyFields.forEach(function(field) {
+				addUnique(orderedFields, field);
+			});
 			addUnique(orderedFields, originalWorkField);
 			addUnique(orderedFields, fandomsField);
 			addUnique(orderedFields, warningsField);
 			addUnique(orderedFields, visibleTagsField);
 			addUnique(orderedFields, hiddenTagsField);
-			customTaxonomyFields.forEach(function(field) {
-				addUnique(orderedFields, field);
-			});
 			addUnique(orderedFields, publicationDateField);
 
 			Array.prototype.forEach.call(formContent.children, function(child) {
@@ -2761,6 +2746,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 				var allSubmitButtons = storyForm.querySelectorAll('button[type="submit"]');
 				var originalButtonLabel = submitter ? submitter.textContent : '';
+				var shouldRestoreSubmitterLabel = true;
 				allSubmitButtons.forEach(function(button) {
 					button.disabled = true;
 				});
@@ -2832,6 +2818,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					if (data.post_status) {
 						syncStoryActionButtons(data.post_status, data.edit_url || data.redirect_url || '');
 					}
+					shouldRestoreSubmitterLabel = false;
 
 					updateStoryOriginalState();
 
@@ -2852,7 +2839,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					allSubmitButtons.forEach(function(button) {
 						button.disabled = false;
 					});
-					if (submitter) {
+					if (submitter && shouldRestoreSubmitterLabel) {
 						submitter.textContent = originalButtonLabel;
 					}
 					// Only re-disable the dirty-tracked Update button

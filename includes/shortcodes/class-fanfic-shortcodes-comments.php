@@ -331,6 +331,11 @@ class Fanfic_Shortcodes_Comments {
 	 * @return string Story comments section HTML.
 	 */
 	public static function story_comments( $atts ) {
+		$enable_comments = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_comments', true ) : true;
+		if ( ! $enable_comments ) {
+			return '';
+		}
+
 		$atts = Fanfic_Shortcodes::sanitize_atts(
 			$atts,
 			array(
@@ -464,6 +469,11 @@ class Fanfic_Shortcodes_Comments {
 	 * @return string Chapter comments section HTML.
 	 */
 	public static function chapter_comments( $atts ) {
+		$enable_comments = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_comments', true ) : true;
+		if ( ! $enable_comments ) {
+			return '';
+		}
+
 		$atts = Fanfic_Shortcodes::sanitize_atts(
 			$atts,
 			array(

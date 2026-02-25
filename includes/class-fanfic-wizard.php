@@ -483,18 +483,6 @@ class Fanfic_Wizard {
 					<button type="button" class="button button-primary fanfic-wizard-next">
 						<?php esc_html_e( 'Next', 'fanfiction-manager' ); ?>
 					</button>
-
-					<?php if ( $this->current_step === 3 ) : // Add skip button for user roles step ?>
-						<?php
-						$skip_url = admin_url( 'admin.php?page=fanfic-setup-wizard&step=' . ( $this->current_step + 1 ) );
-						if ( $force_run ) {
-							$skip_url .= '&force=true';
-						}
-						?>
-						<a href="<?php echo esc_url( $skip_url ); ?>" class="button button-secondary fanfic-wizard-skip" style="margin-left: 10px;">
-							<?php esc_html_e( 'Skip (Optional)', 'fanfiction-manager' ); ?>
-						</a>
-					<?php endif; ?>
 				<?php endif; ?>
 
 				<?php if ( $this->current_step === $this->total_steps ) : ?>

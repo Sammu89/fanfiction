@@ -91,36 +91,7 @@ class Fanfic_Interactions {
 	 * @return array|WP_Error
 	 */
 	public static function record_like( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
-		$chapter_id = absint( $chapter_id );
-		$story_id   = self::get_story_id_from_chapter( $chapter_id );
-		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
-		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
-			return new WP_Error( 'invalid_like_payload', __( 'Invalid chapter or identity for like interaction.', 'fanfiction-manager' ) );
-		}
-
-		$inserted_like = self::insert_interaction_if_missing( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
-		if ( false === $inserted_like ) {
-			return new WP_Error( 'like_write_failed', __( 'Could not save like interaction.', 'fanfiction-manager' ) );
-		}
-		if ( $inserted_like > 0 ) {
-			self::apply_like_increment( $chapter_id, $story_id, 1 );
-		}
-
-		$removed_dislike = self::delete_interaction_count( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
-		if ( false === $removed_dislike ) {
-			return new WP_Error( 'dislike_delete_failed', __( 'Could not remove opposite dislike interaction.', 'fanfiction-manager' ) );
-		}
-		if ( $removed_dislike > 0 ) {
-			self::apply_dislike_increment( $chapter_id, $story_id, -1 );
-		}
-
-		self::delete_stats_cache( $chapter_id, $story_id );
-
-		return array(
-			'success' => true,
-			'changed' => ( $inserted_like > 0 || $removed_dislike > 0 ),
-			'stats'   => self::get_chapter_stats( $chapter_id ),
-		);
+		return self::set_reaction_state( $chapter_id, $user_id, $anonymous_uuid, 'like' );
 	}
 
 	/**
@@ -133,34 +104,7 @@ class Fanfic_Interactions {
 	 * @return array|WP_Error
 	 */
 	public static function remove_like( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
-		$chapter_id = absint( $chapter_id );
-		$story_id   = self::get_story_id_from_chapter( $chapter_id );
-		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
-		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
-			return new WP_Error( 'invalid_like_remove_payload', __( 'Invalid chapter or identity for like removal.', 'fanfiction-manager' ) );
-		}
-
-		$removed_like = self::delete_interaction_count( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
-		if ( false === $removed_like ) {
-			return new WP_Error( 'like_remove_failed', __( 'Could not remove like interaction.', 'fanfiction-manager' ) );
-		}
-
-		if ( $removed_like < 1 ) {
-			return array(
-				'success' => true,
-				'changed' => false,
-				'stats'   => self::get_chapter_stats( $chapter_id ),
-			);
-		}
-
-		self::apply_like_increment( $chapter_id, $story_id, -1 );
-		self::delete_stats_cache( $chapter_id, $story_id );
-
-		return array(
-			'success' => true,
-			'changed' => true,
-			'stats'   => self::get_chapter_stats( $chapter_id ),
-		);
+		return self::set_reaction_state( $chapter_id, $user_id, $anonymous_uuid, 'remove_like' );
 	}
 
 	/**
@@ -173,36 +117,7 @@ class Fanfic_Interactions {
 	 * @return array|WP_Error
 	 */
 	public static function record_dislike( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
-		$chapter_id = absint( $chapter_id );
-		$story_id   = self::get_story_id_from_chapter( $chapter_id );
-		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
-		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
-			return new WP_Error( 'invalid_dislike_payload', __( 'Invalid chapter or identity for dislike interaction.', 'fanfiction-manager' ) );
-		}
-
-		$inserted_dislike = self::insert_interaction_if_missing( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
-		if ( false === $inserted_dislike ) {
-			return new WP_Error( 'dislike_write_failed', __( 'Could not save dislike interaction.', 'fanfiction-manager' ) );
-		}
-		if ( $inserted_dislike > 0 ) {
-			self::apply_dislike_increment( $chapter_id, $story_id, 1 );
-		}
-
-		$removed_like = self::delete_interaction_count( $actor['user_id'], $chapter_id, 'like', $actor['anonymous_hash'] );
-		if ( false === $removed_like ) {
-			return new WP_Error( 'like_delete_failed', __( 'Could not remove opposite like interaction.', 'fanfiction-manager' ) );
-		}
-		if ( $removed_like > 0 ) {
-			self::apply_like_increment( $chapter_id, $story_id, -1 );
-		}
-
-		self::delete_stats_cache( $chapter_id, $story_id );
-
-		return array(
-			'success' => true,
-			'changed' => ( $inserted_dislike > 0 || $removed_like > 0 ),
-			'stats'   => self::get_chapter_stats( $chapter_id ),
-		);
+		return self::set_reaction_state( $chapter_id, $user_id, $anonymous_uuid, 'dislike' );
 	}
 
 	/**
@@ -215,34 +130,389 @@ class Fanfic_Interactions {
 	 * @return array|WP_Error
 	 */
 	public static function remove_dislike( $chapter_id, $user_id = 0, $anonymous_uuid = '' ) {
+		return self::set_reaction_state( $chapter_id, $user_id, $anonymous_uuid, 'remove_dislike' );
+	}
+
+	/**
+	 * Set chapter reaction state in an atomic flow.
+	 *
+	 * Handles all like/dislike transitions:
+	 * - like
+	 * - dislike
+	 * - remove_like
+	 * - remove_dislike
+	 *
+	 * @since 2.1.0
+	 * @param int         $chapter_id      Chapter ID.
+	 * @param int         $user_id         User ID.
+	 * @param string|null $anonymous_uuid  Anonymous UUID.
+	 * @param string      $intent          Reaction intent.
+	 * @return array|WP_Error
+	 */
+	private static function set_reaction_state( $chapter_id, $user_id, $anonymous_uuid, $intent ) {
 		$chapter_id = absint( $chapter_id );
 		$story_id   = self::get_story_id_from_chapter( $chapter_id );
 		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
 		if ( ! $chapter_id || ! $story_id || empty( $actor ) ) {
-			return new WP_Error( 'invalid_dislike_remove_payload', __( 'Invalid chapter or identity for dislike removal.', 'fanfiction-manager' ) );
+			return new WP_Error( 'invalid_reaction_payload', __( 'Invalid chapter or identity for reaction interaction.', 'fanfiction-manager' ) );
 		}
 
-		$removed_dislike = self::delete_interaction_count( $actor['user_id'], $chapter_id, 'dislike', $actor['anonymous_hash'] );
-		if ( false === $removed_dislike ) {
-			return new WP_Error( 'dislike_remove_failed', __( 'Could not remove dislike interaction.', 'fanfiction-manager' ) );
+		$intent = sanitize_key( $intent );
+		if ( ! in_array( $intent, array( 'like', 'dislike', 'remove_like', 'remove_dislike' ), true ) ) {
+			return new WP_Error( 'invalid_reaction_intent', __( 'Invalid reaction operation.', 'fanfiction-manager' ) );
 		}
 
-		if ( $removed_dislike < 1 ) {
+		$lock_name = self::build_reaction_lock_name( $actor, $chapter_id );
+		if ( ! self::acquire_db_lock( $lock_name, 5 ) ) {
+			return new WP_Error( 'reaction_lock_timeout', __( 'Could not acquire reaction lock. Please try again.', 'fanfiction-manager' ) );
+		}
+
+		global $wpdb;
+		$in_transaction = false;
+
+		try {
+			$table = $wpdb->prefix . 'fanfic_interactions';
+			if ( ! self::table_exists( $table ) ) {
+				return new WP_Error( 'reaction_table_missing', __( 'Reaction storage is unavailable.', 'fanfiction-manager' ) );
+			}
+
+			$started = $wpdb->query( 'START TRANSACTION' );
+			if ( false === $started ) {
+				return new WP_Error( 'reaction_txn_start_failed', __( 'Could not start reaction transaction.', 'fanfiction-manager' ) );
+			}
+			$in_transaction = true;
+
+			$old_reaction = self::get_current_reaction_for_update( $table, $actor, $chapter_id );
+			if ( is_wp_error( $old_reaction ) ) {
+				return $old_reaction;
+			}
+
+			$new_reaction = self::resolve_reaction_target( $old_reaction, $intent );
+			if ( false === $new_reaction ) {
+				return new WP_Error( 'invalid_reaction_target', __( 'Could not resolve reaction target.', 'fanfiction-manager' ) );
+			}
+
+			if ( $old_reaction === $new_reaction ) {
+				$committed = $wpdb->query( 'COMMIT' );
+				$in_transaction = false;
+				if ( false === $committed ) {
+					return new WP_Error( 'reaction_commit_nochange_failed', __( 'Could not finalize reaction transaction.', 'fanfiction-manager' ) );
+				}
+
+				return array(
+					'success' => true,
+					'changed' => false,
+					'stats'   => self::get_chapter_stats( $chapter_id ),
+				);
+			}
+
+			$state_updated = self::apply_reaction_row_state( $actor, $chapter_id, $new_reaction );
+			if ( ! $state_updated ) {
+				return new WP_Error( 'reaction_write_failed', __( 'Could not persist reaction state.', 'fanfiction-manager' ) );
+			}
+
+			self::apply_reaction_transition_counters( $chapter_id, $story_id, $old_reaction, $new_reaction );
+			self::delete_stats_cache( $chapter_id, $story_id );
+
+			$committed = $wpdb->query( 'COMMIT' );
+			$in_transaction = false;
+			if ( false === $committed ) {
+				return new WP_Error( 'reaction_commit_failed', __( 'Could not commit reaction changes.', 'fanfiction-manager' ) );
+			}
+
 			return array(
 				'success' => true,
-				'changed' => false,
+				'changed' => true,
 				'stats'   => self::get_chapter_stats( $chapter_id ),
+			);
+		} finally {
+			if ( $in_transaction ) {
+				$wpdb->query( 'ROLLBACK' );
+			}
+			self::release_db_lock( $lock_name );
+		}
+	}
+
+	/**
+	 * Build a short DB lock name for actor+chapter reaction writes.
+	 *
+	 * @since 2.1.0
+	 * @param array $actor      Actor payload.
+	 * @param int   $chapter_id Chapter ID.
+	 * @return string
+	 */
+	private static function build_reaction_lock_name( $actor, $chapter_id ) {
+		$chapter_id = absint( $chapter_id );
+		$actor_key  = '';
+
+		if ( ! empty( $actor['user_id'] ) ) {
+			$actor_key = 'u:' . absint( $actor['user_id'] );
+		} else {
+			$actor_key = 'a:' . bin2hex( (string) ( $actor['anonymous_hash'] ?? '' ) );
+		}
+
+		return 'fanfic_rxn_' . md5( $actor_key . ':' . $chapter_id );
+	}
+
+	/**
+	 * Acquire MySQL advisory lock.
+	 *
+	 * @since 2.1.0
+	 * @param string $lock_name Lock name.
+	 * @param int    $timeout   Timeout in seconds.
+	 * @return bool
+	 */
+	private static function acquire_db_lock( $lock_name, $timeout = 5 ) {
+		global $wpdb;
+
+		$lock_name = sanitize_key( (string) $lock_name );
+		$timeout   = max( 1, absint( $timeout ) );
+		if ( '' === $lock_name ) {
+			return false;
+		}
+
+		$result = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT GET_LOCK(%s, %d)',
+				$lock_name,
+				$timeout
+			)
+		);
+
+		return '1' === (string) $result;
+	}
+
+	/**
+	 * Release MySQL advisory lock.
+	 *
+	 * @since 2.1.0
+	 * @param string $lock_name Lock name.
+	 * @return void
+	 */
+	private static function release_db_lock( $lock_name ) {
+		global $wpdb;
+
+		$lock_name = sanitize_key( (string) $lock_name );
+		if ( '' === $lock_name ) {
+			return;
+		}
+
+		$wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT RELEASE_LOCK(%s)',
+				$lock_name
+			)
+		);
+	}
+
+	/**
+	 * Load current like/dislike reaction for actor with row lock.
+	 *
+	 * @since 2.1.0
+	 * @param string $table      Interactions table.
+	 * @param array  $actor      Actor payload.
+	 * @param int    $chapter_id Chapter ID.
+	 * @return string|WP_Error
+	 */
+	private static function get_current_reaction_for_update( $table, $actor, $chapter_id ) {
+		global $wpdb;
+
+		$chapter_id = absint( $chapter_id );
+		if ( ! $chapter_id ) {
+			return new WP_Error( 'invalid_reaction_chapter', __( 'Invalid chapter for reaction lookup.', 'fanfiction-manager' ) );
+		}
+
+		if ( ! empty( $actor['user_id'] ) ) {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT interaction_type, updated_at, id
+					FROM {$table}
+					WHERE user_id = %d
+					  AND chapter_id = %d
+					  AND interaction_type IN ('like','dislike')
+					ORDER BY updated_at DESC, id DESC
+					FOR UPDATE",
+					absint( $actor['user_id'] ),
+					$chapter_id
+				),
+				ARRAY_A
+			);
+		} else {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT interaction_type, updated_at, id
+					FROM {$table}
+					WHERE anon_hash = %s
+					  AND user_id IS NULL
+					  AND chapter_id = %d
+					  AND interaction_type IN ('like','dislike')
+					ORDER BY updated_at DESC, id DESC
+					FOR UPDATE",
+					(string) ( $actor['anonymous_hash'] ?? '' ),
+					$chapter_id
+				),
+				ARRAY_A
 			);
 		}
 
-		self::apply_dislike_increment( $chapter_id, $story_id, -1 );
-		self::delete_stats_cache( $chapter_id, $story_id );
+		if ( null === $rows && ! empty( $wpdb->last_error ) ) {
+			return new WP_Error( 'reaction_state_read_failed', __( 'Could not read current reaction state.', 'fanfiction-manager' ) );
+		}
 
-		return array(
-			'success' => true,
-			'changed' => true,
-			'stats'   => self::get_chapter_stats( $chapter_id ),
+		$has_like    = false;
+		$has_dislike = false;
+		foreach ( (array) $rows as $row ) {
+			$type = sanitize_key( $row['interaction_type'] ?? '' );
+			if ( 'like' === $type ) {
+				$has_like = true;
+			} elseif ( 'dislike' === $type ) {
+				$has_dislike = true;
+			}
+		}
+
+		if ( $has_like && ! $has_dislike ) {
+			return 'like';
+		}
+		if ( $has_dislike && ! $has_like ) {
+			return 'dislike';
+		}
+		if ( $has_like && $has_dislike ) {
+			$latest_type = sanitize_key( $rows[0]['interaction_type'] ?? '' );
+			return in_array( $latest_type, array( 'like', 'dislike' ), true ) ? $latest_type : 'like';
+		}
+
+		return 'none';
+	}
+
+	/**
+	 * Resolve desired reaction from current state + intent.
+	 *
+	 * @since 2.1.0
+	 * @param string $old_reaction Current reaction.
+	 * @param string $intent       Intent action.
+	 * @return string|false
+	 */
+	private static function resolve_reaction_target( $old_reaction, $intent ) {
+		$old_reaction = sanitize_key( (string) $old_reaction );
+		$intent       = sanitize_key( (string) $intent );
+
+		if ( ! in_array( $old_reaction, array( 'none', 'like', 'dislike' ), true ) ) {
+			return false;
+		}
+
+		switch ( $intent ) {
+			case 'like':
+				return 'like';
+			case 'dislike':
+				return 'dislike';
+			case 'remove_like':
+				return ( 'like' === $old_reaction ) ? 'none' : $old_reaction;
+			case 'remove_dislike':
+				return ( 'dislike' === $old_reaction ) ? 'none' : $old_reaction;
+			default:
+				return false;
+		}
+	}
+
+	/**
+	 * Persist target reaction rows for actor/chapter.
+	 *
+	 * @since 2.1.0
+	 * @param array  $actor      Actor payload.
+	 * @param int    $chapter_id Chapter ID.
+	 * @param string $target     Target reaction.
+	 * @return bool
+	 */
+	private static function apply_reaction_row_state( $actor, $chapter_id, $target ) {
+		$chapter_id = absint( $chapter_id );
+		$target     = sanitize_key( $target );
+		if ( ! $chapter_id || ! in_array( $target, array( 'none', 'like', 'dislike' ), true ) ) {
+			return false;
+		}
+
+		if ( 'none' === $target ) {
+			global $wpdb;
+			$table = $wpdb->prefix . 'fanfic_interactions';
+			if ( ! self::table_exists( $table ) ) {
+				return false;
+			}
+
+			if ( ! empty( $actor['user_id'] ) ) {
+				$deleted = $wpdb->query(
+					$wpdb->prepare(
+						"DELETE FROM {$table}
+						WHERE user_id = %d
+						  AND chapter_id = %d
+						  AND interaction_type IN ('like','dislike')",
+						absint( $actor['user_id'] ),
+						$chapter_id
+					)
+				);
+			} else {
+				$deleted = $wpdb->query(
+					$wpdb->prepare(
+						"DELETE FROM {$table}
+						WHERE anon_hash = %s
+						  AND user_id IS NULL
+						  AND chapter_id = %d
+						  AND interaction_type IN ('like','dislike')",
+						(string) ( $actor['anonymous_hash'] ?? '' ),
+						$chapter_id
+					)
+				);
+			}
+
+			return false !== $deleted;
+		}
+
+		$saved = self::upsert_interaction(
+			absint( $actor['user_id'] ?? 0 ),
+			$chapter_id,
+			$target,
+			null,
+			(string) ( $actor['anonymous_hash'] ?? '' )
 		);
+		if ( ! $saved ) {
+			return false;
+		}
+
+		$opposite = ( 'like' === $target ) ? 'dislike' : 'like';
+		$removed  = self::delete_interaction_count(
+			absint( $actor['user_id'] ?? 0 ),
+			$chapter_id,
+			$opposite,
+			(string) ( $actor['anonymous_hash'] ?? '' )
+		);
+
+		return false !== $removed;
+	}
+
+	/**
+	 * Apply rollup counter deltas based on reaction transition.
+	 *
+	 * @since 2.1.0
+	 * @param int    $chapter_id    Chapter ID.
+	 * @param int    $story_id      Story ID.
+	 * @param string $old_reaction  Previous reaction.
+	 * @param string $new_reaction  New reaction.
+	 * @return void
+	 */
+	private static function apply_reaction_transition_counters( $chapter_id, $story_id, $old_reaction, $new_reaction ) {
+		$old_reaction = sanitize_key( (string) $old_reaction );
+		$new_reaction = sanitize_key( (string) $new_reaction );
+		if ( $old_reaction === $new_reaction ) {
+			return;
+		}
+
+		$like_delta = ( 'like' === $new_reaction ? 1 : 0 ) - ( 'like' === $old_reaction ? 1 : 0 );
+		if ( 0 !== $like_delta ) {
+			self::apply_like_increment( $chapter_id, $story_id, $like_delta );
+		}
+
+		$dislike_delta = ( 'dislike' === $new_reaction ? 1 : 0 ) - ( 'dislike' === $old_reaction ? 1 : 0 );
+		if ( 0 !== $dislike_delta ) {
+			self::apply_dislike_increment( $chapter_id, $story_id, $dislike_delta );
+		}
 	}
 
 	/**

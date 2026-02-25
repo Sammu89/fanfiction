@@ -57,6 +57,10 @@ class Fanfic_Search_Index {
 		// Fandom/warning renames (admin actions fire these custom hooks).
 		add_action( 'fanfic_fandom_updated', array( __CLASS__, 'on_fandom_updated' ), 10, 1 );
 		add_action( 'fanfic_warning_updated', array( __CLASS__, 'on_warning_updated' ), 10, 1 );
+		add_action( 'fanfic_custom_taxonomy_updated', array( __CLASS__, 'on_custom_taxonomy_updated' ), 10, 1 );
+		add_action( 'fanfic_custom_taxonomy_deleted', array( __CLASS__, 'on_custom_taxonomy_deleted' ), 10, 2 );
+		add_action( 'fanfic_custom_term_updated', array( __CLASS__, 'on_custom_term_updated' ), 10, 2 );
+		add_action( 'fanfic_custom_term_deleted', array( __CLASS__, 'on_custom_term_deleted' ), 10, 3 );
 
 	}
 
@@ -891,6 +895,68 @@ class Fanfic_Search_Index {
 	}
 
 	/**
+	 * Get custom taxonomy rows as JSON for story cards/search index consumers.
+	 *
+	 * @since 2.1.0
+	 * @param int $story_id Story post ID.
+	 * @return string JSON payload or empty string.
+	 */
+	private static function get_custom_taxonomies_json( $story_id ) {
+		if ( ! class_exists( 'Fanfic_Custom_Taxonomies' ) || ! Fanfic_Custom_Taxonomies::tables_ready() ) {
+			return '';
+		}
+
+		$rows = array();
+		$custom_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
+		foreach ( (array) $custom_taxonomies as $taxonomy ) {
+			$taxonomy_id = absint( $taxonomy['id'] ?? 0 );
+			$taxonomy_slug = sanitize_title( (string) ( $taxonomy['slug'] ?? '' ) );
+			$taxonomy_name = sanitize_text_field( (string) ( $taxonomy['name'] ?? '' ) );
+			$is_searchable = ! empty( $taxonomy['is_searchable'] ) ? 1 : 0;
+
+			if ( ! $taxonomy_id || '' === $taxonomy_slug || '' === $taxonomy_name ) {
+				continue;
+			}
+
+			$terms = Fanfic_Custom_Taxonomies::get_story_terms( $story_id, $taxonomy_id );
+			if ( empty( $terms ) ) {
+				continue;
+			}
+
+			$term_rows = array();
+			foreach ( (array) $terms as $term ) {
+				$term_slug = sanitize_title( (string) ( $term['slug'] ?? '' ) );
+				$term_name = sanitize_text_field( (string) ( $term['name'] ?? '' ) );
+				if ( '' === $term_slug || '' === $term_name ) {
+					continue;
+				}
+				$term_rows[] = array(
+					'slug'  => $term_slug,
+					'label' => $term_name,
+				);
+			}
+
+			if ( empty( $term_rows ) ) {
+				continue;
+			}
+
+			$rows[] = array(
+				'slug'          => $taxonomy_slug,
+				'label'         => $taxonomy_name,
+				'is_searchable' => $is_searchable,
+				'terms'         => $term_rows,
+			);
+		}
+
+		if ( empty( $rows ) ) {
+			return '';
+		}
+
+		$json = wp_json_encode( $rows );
+		return is_string( $json ) ? $json : '';
+	}
+
+	/**
 	 * Update search index for a story
 	 *
 	 * @since 1.2.0
@@ -1029,6 +1095,7 @@ class Fanfic_Search_Index {
 			'language_native_name'  => self::get_language_native_name( $story_id ),
 			'fandom_names'          => self::get_fandom_names( $story_id ),
 			'warning_names'         => self::get_warning_names( $story_id ),
+			'custom_taxonomies_json' => self::get_custom_taxonomies_json( $story_id ),
 		);
 
 		if ( ! empty( $existing_columns ) ) {
@@ -1461,6 +1528,109 @@ class Fanfic_Search_Index {
 			$index_table = $wpdb->prefix . 'fanfic_story_search_index';
 			$story_ids = $wpdb->get_col( "SELECT story_id FROM {$index_table} WHERE warning_slugs != '' AND warning_slugs IS NOT NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		}
+		foreach ( (array) $story_ids as $story_id ) {
+			self::update_index( absint( $story_id ) );
+		}
+	}
+
+	/**
+	 * Handle custom taxonomy update (name/searchability/etc.) by reindexing linked stories.
+	 *
+	 * @since 2.1.0
+	 * @param int $taxonomy_id Custom taxonomy ID.
+	 * @return void
+	 */
+	public static function on_custom_taxonomy_updated( $taxonomy_id ) {
+		global $wpdb;
+
+		$taxonomy_id = absint( $taxonomy_id );
+		if ( ! $taxonomy_id ) {
+			return;
+		}
+
+		$table_terms = $wpdb->prefix . 'fanfic_custom_terms';
+		$table_relations = $wpdb->prefix . 'fanfic_story_custom_terms';
+		$relations_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_relations ) );
+		$terms_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_terms ) );
+		if ( $relations_exists !== $table_relations || $terms_exists !== $table_terms ) {
+			return;
+		}
+
+		$story_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT r.story_id
+				FROM {$table_relations} r
+				INNER JOIN {$table_terms} t ON t.id = r.term_id
+				WHERE t.taxonomy_id = %d",
+				$taxonomy_id
+			)
+		);
+
+		foreach ( (array) $story_ids as $story_id ) {
+			self::update_index( absint( $story_id ) );
+		}
+	}
+
+	/**
+	 * Handle custom taxonomy deletion using provided affected story IDs.
+	 *
+	 * @since 2.1.0
+	 * @param int   $taxonomy_id Custom taxonomy ID.
+	 * @param array $story_ids   Affected story IDs.
+	 * @return void
+	 */
+	public static function on_custom_taxonomy_deleted( $taxonomy_id, $story_ids ) {
+		foreach ( (array) $story_ids as $story_id ) {
+			self::update_index( absint( $story_id ) );
+		}
+	}
+
+	/**
+	 * Handle custom term update by reindexing linked stories.
+	 *
+	 * @since 2.1.0
+	 * @param int $term_id     Custom term ID.
+	 * @param int $taxonomy_id Custom taxonomy ID.
+	 * @return void
+	 */
+	public static function on_custom_term_updated( $term_id, $taxonomy_id ) {
+		global $wpdb;
+
+		$term_id = absint( $term_id );
+		if ( ! $term_id ) {
+			return;
+		}
+
+		$table_relations = $wpdb->prefix . 'fanfic_story_custom_terms';
+		$relations_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_relations ) );
+		if ( $relations_exists !== $table_relations ) {
+			return;
+		}
+
+		$story_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT story_id
+				FROM {$table_relations}
+				WHERE term_id = %d",
+				$term_id
+			)
+		);
+
+		foreach ( (array) $story_ids as $story_id ) {
+			self::update_index( absint( $story_id ) );
+		}
+	}
+
+	/**
+	 * Handle custom term deletion using provided affected story IDs.
+	 *
+	 * @since 2.1.0
+	 * @param int   $term_id     Custom term ID.
+	 * @param int   $taxonomy_id Custom taxonomy ID.
+	 * @param array $story_ids   Affected story IDs.
+	 * @return void
+	 */
+	public static function on_custom_term_deleted( $term_id, $taxonomy_id, $story_ids ) {
 		foreach ( (array) $story_ids as $story_id ) {
 			self::update_index( absint( $story_id ) );
 		}

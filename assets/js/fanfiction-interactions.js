@@ -53,7 +53,9 @@
 			ajaxUrl: fanficAjax.ajaxUrl || '/wp-admin/admin-ajax.php',
 			nonce: fanficAjax.nonce || '',
 			debug: fanficAjax.debug || false,
-			isLoggedIn: !!fanficAjax.isLoggedIn
+			isLoggedIn: !!fanficAjax.isLoggedIn,
+			allowAnonymousReports: !!fanficAjax.allowAnonymousReports,
+			reportRecaptchaSiteKey: fanficAjax.reportRecaptchaSiteKey || ''
 		},
 
 		/**
@@ -71,8 +73,17 @@
 			rateLimited: 'Too many requests. Please wait a moment.',
 			loginRequired: 'You must be logged in to do that.',
 			copiedLink: 'Copied link.',
-			copyThisLinkPrompt: 'Copy this link:'
+			copyThisLinkPrompt: 'Copy this link:',
+			anonymousReportsDisabled: 'Anonymous reports are disabled. Please log in to report content.',
+			recaptchaLoadFailed: 'Could not load reCAPTCHA. Please refresh and try again.',
+			recaptchaRequired: 'Please complete the reCAPTCHA verification and try again.'
 		},
+
+		reportRecaptchaWidgetId: null,
+		reportRecaptchaPendingCallback: null,
+		reportRecaptchaPendingErrorCallback: null,
+		reportRecaptchaScriptLoading: false,
+		reportRecaptchaScriptQueue: [],
 
 		/**
 		 * Initialize all interaction handlers
@@ -210,7 +221,7 @@
 				}
 
 				// Optimistic UI update
-				self.updateFollowDisplay($button, isNowFollowed);
+				self.updateFollowDisplay($button, isNowFollowed, { animate: true });
 				self.updateBadges();
 
 				// Optimistic follow count update
@@ -461,7 +472,7 @@
 				self.log('Mark as read clicked:', { storyId, chapterNumber, isCurrentlyRead });
 
 				// Optimistic UI update (toggle)
-				self.updateReadDisplay($button, !isCurrentlyRead);
+				self.updateReadDisplay($button, !isCurrentlyRead, { animate: true });
 
 				// Persist optimistic local state and manual override:
 				// - unread manually chosen => suppress future auto-read for this chapter
@@ -984,22 +995,80 @@
 		},
 
 	/**
-	 * Submit report to server
+	 * Submit report to server.
 	 */
 	submitReport: function(contentId, reportType, reason, $button) {
 		const self = this;
+		const postType = this.mapReportTypeToPostType(reportType);
+		const details = (reason || '').toString().trim();
+
+		if (!postType) {
+			self.showError($button, self.strings.error);
+			return;
+		}
 
 		$button.addClass('loading');
+
+		if (!this.config.isLoggedIn) {
+			if (!this.config.allowAnonymousReports) {
+				self.showError($button, self.strings.anonymousReportsDisabled || self.strings.loginRequired);
+				$button.removeClass('loading');
+				return;
+			}
+
+			if (!this.config.reportRecaptchaSiteKey) {
+				self.showError($button, self.strings.recaptchaRequired || self.strings.error);
+				$button.removeClass('loading');
+				return;
+			}
+
+			this.getReportRecaptchaToken(
+				function(token) {
+					if (!token) {
+						self.showError($button, self.strings.recaptchaRequired || self.strings.error);
+						$button.removeClass('loading');
+						return;
+					}
+					self.submitReportRequest(contentId, postType, details, token, $button);
+				},
+				function(message) {
+					self.showError($button, message || self.strings.recaptchaLoadFailed || self.strings.error);
+					$button.removeClass('loading');
+				}
+			);
+			return;
+		}
+
+		this.submitReportRequest(contentId, postType, details, '', $button);
+	},
+
+	mapReportTypeToPostType: function(reportType) {
+		switch ((reportType || '').toString()) {
+			case 'story':
+				return 'fanfiction_story';
+			case 'chapter':
+				return 'fanfiction_chapter';
+			case 'comment':
+				return 'comment';
+			default:
+				return '';
+		}
+	},
+
+	submitReportRequest: function(contentId, postType, details, recaptchaToken, $button) {
+		const self = this;
 
 		$.ajax({
 			url: this.config.ajaxUrl,
 			type: 'POST',
 			data: {
-				action: 'fanfic_submit_report',
+				action: 'fanfic_report_content',
 				nonce: this.config.nonce,
-				content_id: contentId,
-				report_type: reportType,
-				reason: reason
+				post_id: contentId,
+				post_type: postType,
+				reason: 'other',
+				details: details,
+				recaptcha_token: recaptchaToken
 			},
 			success: function(response) {
 				self.log('Report response:', response);
@@ -1018,6 +1087,111 @@
 				$button.removeClass('loading');
 			}
 		});
+	},
+
+	ensureReportRecaptchaScript: function(onReady, onError) {
+		const self = this;
+
+		if (typeof window.grecaptcha !== 'undefined' && typeof window.grecaptcha.render === 'function') {
+			onReady();
+			return;
+		}
+
+		this.reportRecaptchaScriptQueue.push({
+			onReady: onReady,
+			onError: onError
+		});
+
+		if (this.reportRecaptchaScriptLoading) {
+			return;
+		}
+
+		this.reportRecaptchaScriptLoading = true;
+		window.fanficReportRecaptchaOnLoad = function() {
+			self.reportRecaptchaScriptLoading = false;
+			const queue = self.reportRecaptchaScriptQueue.slice(0);
+			self.reportRecaptchaScriptQueue = [];
+			for (let i = 0; i < queue.length; i++) {
+				queue[i].onReady();
+			}
+		};
+
+		const script = document.createElement('script');
+		script.src = 'https://www.google.com/recaptcha/api.js?onload=fanficReportRecaptchaOnLoad&render=explicit';
+		script.async = true;
+		script.defer = true;
+		script.onerror = function() {
+			self.reportRecaptchaScriptLoading = false;
+			const queue = self.reportRecaptchaScriptQueue.slice(0);
+			self.reportRecaptchaScriptQueue = [];
+			for (let i = 0; i < queue.length; i++) {
+				if (typeof queue[i].onError === 'function') {
+					queue[i].onError(self.strings.recaptchaLoadFailed || self.strings.error);
+				}
+			}
+		};
+		document.head.appendChild(script);
+	},
+
+	getReportRecaptchaToken: function(onToken, onError) {
+		const self = this;
+
+		this.ensureReportRecaptchaScript(
+			function() {
+				if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.render !== 'function') {
+					if (typeof onError === 'function') {
+						onError(self.strings.recaptchaLoadFailed || self.strings.error);
+					}
+					return;
+				}
+
+				if (null === self.reportRecaptchaWidgetId) {
+					let $container = $('#fanfic-report-recaptcha-container');
+					if (!$container.length) {
+						$container = $('<div id="fanfic-report-recaptcha-container" style="position:absolute;left:-9999px;top:-9999px;"></div>');
+						$('body').append($container);
+					}
+
+					self.reportRecaptchaWidgetId = window.grecaptcha.render($container[0], {
+						sitekey: self.config.reportRecaptchaSiteKey,
+						size: 'invisible',
+						callback: function(token) {
+							if (typeof self.reportRecaptchaPendingCallback === 'function') {
+								const callback = self.reportRecaptchaPendingCallback;
+								self.reportRecaptchaPendingCallback = null;
+								self.reportRecaptchaPendingErrorCallback = null;
+								callback(token);
+							}
+						},
+						'error-callback': function() {
+							if (typeof self.reportRecaptchaPendingErrorCallback === 'function') {
+								const errorCallback = self.reportRecaptchaPendingErrorCallback;
+								self.reportRecaptchaPendingCallback = null;
+								self.reportRecaptchaPendingErrorCallback = null;
+								errorCallback(self.strings.recaptchaLoadFailed || self.strings.error);
+							}
+						},
+						'expired-callback': function() {
+							if (typeof self.reportRecaptchaPendingErrorCallback === 'function') {
+								const errorCallback = self.reportRecaptchaPendingErrorCallback;
+								self.reportRecaptchaPendingCallback = null;
+								self.reportRecaptchaPendingErrorCallback = null;
+								errorCallback(self.strings.recaptchaRequired || self.strings.error);
+							}
+						}
+					});
+				}
+
+				self.reportRecaptchaPendingCallback = onToken;
+				self.reportRecaptchaPendingErrorCallback = onError;
+				window.grecaptcha.execute(self.reportRecaptchaWidgetId);
+			},
+			function(message) {
+				if (typeof onError === 'function') {
+					onError(message || self.strings.recaptchaLoadFailed || self.strings.error);
+				}
+			}
+		);
 	},
 
 		/**
@@ -1047,7 +1221,11 @@
 		/**
 		 * Update follow display (optimistic)
 		 */
-		updateFollowDisplay: function($button, isFollowed) {
+		updateFollowDisplay: function($button, isFollowed, options) {
+			var settings = options || {};
+			var shouldAnimate = !!settings.animate;
+			var wasFollowed = $button.hasClass('fanfic-button-followed');
+
 			if (isFollowed) {
 				$button.addClass('fanfic-button-followed');
 				$button.find('.follow-text').text($button.data('followed-text') || 'Followed');
@@ -1055,20 +1233,93 @@
 				$button.removeClass('fanfic-button-followed');
 				$button.find('.follow-text').text($button.data('follow-text') || 'Follow');
 			}
+
+			if (shouldAnimate && !wasFollowed && isFollowed) {
+				this.animateBookmarkHeart($button);
+			}
+		},
+
+		/**
+		 * Play a heartbeat animation when a follow/bookmark is activated.
+		 */
+		animateBookmarkHeart: function($button) {
+			var $hearts = $button.find('.fanfic-button-icon .dashicons-heart, .fanfic-icon .dashicons-heart');
+			// Fallback for templates that use a non-dashicon symbol (for example, legacy star icons).
+			var $targets = $hearts.length ? $hearts : $button.find('.fanfic-button-icon, .fanfic-icon').first();
+			if (!$targets.length) {
+				return;
+			}
+
+			$targets.each(function() {
+				var icon = this;
+				icon.classList.remove('fanfic-heart-beat');
+				void icon.offsetWidth;
+				icon.classList.add('fanfic-heart-beat');
+			});
 		},
 
 		/**
 		 * Update read display (toggle)
 		 */
-		updateReadDisplay: function($button, isRead) {
+		getReadIconHtml: function() {
+			return '<span class="fanfic-read-check" aria-hidden="true">&#10003;</span>';
+		},
+
+		updateReadDisplay: function($button, isRead, options) {
+			var settings = options || {};
+			var shouldAnimate = !!settings.animate;
+			var wasRead = $button.hasClass('fanfic-button-marked-read') ||
+				$button.hasClass('fanfic-button-mark-readed') ||
+				$button.hasClass('marked-read') ||
+				$button.hasClass('is-markredd') ||
+				$button.hasClass('read');
+			var $icon = $button.find('.fanfic-button-icon, .fanfic-icon').first();
+			var hasCheckIcon = $icon.find('.fanfic-read-check').length > 0;
+
 			if (isRead) {
 				$button.addClass('fanfic-button-marked-read marked-read is-markredd read');
 				$button.removeClass('fanfic-button-mark-readed');
 				$button.find('.read-text').text($button.data('read-text') || 'Read');
+				if (!hasCheckIcon) {
+					$icon.html(this.getReadIconHtml());
+				}
 			} else {
 				$button.removeClass('fanfic-button-marked-read fanfic-button-mark-readed marked-read is-markredd read');
 				$button.find('.read-text').text($button.data('unread-text') || 'Mark as Read');
+				if (hasCheckIcon || $icon.contents().length) {
+					$icon.html('');
+				}
 			}
+
+			if (shouldAnimate && !wasRead && isRead) {
+				this.animateReadConfirm($button);
+			}
+		},
+
+		animateReadConfirm: function($button) {
+			if (!$button || !$button.length) {
+				return;
+			}
+
+			if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				return;
+			}
+
+			var $icon = $button.find('.fanfic-button-icon, .fanfic-icon').first();
+			if (!$icon.length) {
+				return;
+			}
+
+			$button.removeClass('fanfic-read-confirm');
+			$icon.find('.fanfic-read-check').removeClass('fanfic-read-check-enter');
+			void $button.get(0).offsetWidth;
+			$button.addClass('fanfic-read-confirm');
+			$icon.find('.fanfic-read-check').addClass('fanfic-read-check-enter');
+
+			window.setTimeout(function() {
+				$button.removeClass('fanfic-read-confirm');
+				$icon.find('.fanfic-read-check').removeClass('fanfic-read-check-enter');
+			}, 900);
 		},
 
 		/**
@@ -1440,19 +1691,22 @@
 				debug: !!fanficAjax.debug,
 				isLoggedIn: !!fanficAjax.isLoggedIn,
 				needsSync: !!fanficAjax.needsSync,
-				enableDislikes: !!fanficAjax.enableDislikes
+				enableDislikes: !!fanficAjax.enableDislikes,
+				readTracking: fanficAjax.readTracking || {}
 			};
 			this.interactionLocks = {};
 			this.likeDislikeLockMinMs = 700;
 			this.likeDislikeLockMaxMs = 5000;
 			this._readDebugLastHiddenLogAt = 0;
 			this.context = this.detectChapterContext();
+			this.readTiming = this.getReadTimingConfig();
 			this.activeReadSeconds = 0;
 			this.readTimer = null;
 			this.anonymousUuid = FanficLocalStore.getAnonymousUuid();
 			this.debugRead('Unified interactions init', {
 				context: this.context,
-				isLoggedIn: this.config.isLoggedIn
+				isLoggedIn: this.config.isLoggedIn,
+				readTiming: this.readTiming
 			});
 
 			if (!this.context) {
@@ -1490,6 +1744,73 @@
 				return null;
 			}
 			return { storyId, chapterId };
+		},
+
+		/**
+		 * Count words from plain text.
+		 *
+		 * @param {string} text Input text.
+		 * @return {number} Approximate word count.
+		 */
+		countWordsFromText: function(text) {
+			if (typeof text !== 'string') {
+				return 0;
+			}
+			const normalized = text.replace(/\s+/g, ' ').trim();
+			if (!normalized) {
+				return 0;
+			}
+			return normalized.split(' ').filter(Boolean).length;
+		},
+
+		/**
+		 * Build chapter read-timer settings from localized config and chapter content.
+		 *
+		 * @return {{chapterWordCount:number, wordsPerMinute:number, completionPercent:number, minSeconds:number, maxSeconds:number, estimatedReadSeconds:number, thresholdSeconds:number}}
+		 */
+		getReadTimingConfig: function() {
+			const cfg = (this.config && this.config.readTracking && typeof this.config.readTracking === 'object')
+				? this.config.readTracking
+				: {};
+			const parseNumber = function(value, fallback) {
+				const parsed = Number(value);
+				return Number.isFinite(parsed) ? parsed : fallback;
+			};
+			const clamp = function(value, min, max) {
+				return Math.min(max, Math.max(min, value));
+			};
+
+			const wordsPerMinute = clamp(Math.round(parseNumber(cfg.wordsPerMinute, 220)), 100, 600);
+			const completionPercent = clamp(parseNumber(cfg.completionPercent, 0.5), 0.05, 1);
+			const minSeconds = clamp(Math.round(parseNumber(cfg.minSeconds, 20)), 5, 600);
+			const maxSeconds = clamp(Math.round(parseNumber(cfg.maxSeconds, 480)), minSeconds, 1800);
+
+			let chapterWordCount = Math.max(0, Math.round(parseNumber(cfg.chapterWordCount, 0)));
+			if (chapterWordCount <= 0) {
+				const $content = $('.fanfic-chapter-content[itemprop="text"], .fanfic-chapter-content').first();
+				if ($content.length) {
+					chapterWordCount = this.countWordsFromText($content.text());
+				}
+			}
+
+			const estimatedReadSeconds = chapterWordCount > 0
+				? Math.ceil((chapterWordCount / wordsPerMinute) * 60)
+				: 120;
+			const thresholdSeconds = clamp(
+				Math.ceil(estimatedReadSeconds * completionPercent),
+				minSeconds,
+				maxSeconds
+			);
+
+			return {
+				chapterWordCount: chapterWordCount,
+				wordsPerMinute: wordsPerMinute,
+				completionPercent: completionPercent,
+				minSeconds: minSeconds,
+				maxSeconds: maxSeconds,
+				estimatedReadSeconds: estimatedReadSeconds,
+				thresholdSeconds: thresholdSeconds
+			};
 		},
 
 		initViewTracking: function() {
@@ -1545,6 +1866,9 @@
 				this.debugRead('Read tracking skipped: chapter already read in local storage');
 				return;
 			}
+			const readTiming = this.readTiming || this.getReadTimingConfig();
+			const thresholdSeconds = Math.max(1, parseInt(readTiming.thresholdSeconds, 10) || 120);
+			this.debugRead('Read tracking timer configuration', readTiming);
 			const self = this;
 			this.readTimer = window.setInterval(function() {
 				if (document.hidden) {
@@ -1556,14 +1880,17 @@
 					return;
 				}
 				self.activeReadSeconds += 1;
-				if (self.activeReadSeconds === 1 || self.activeReadSeconds % 10 === 0 || self.activeReadSeconds >= 115) {
+				if (self.activeReadSeconds === 1 || self.activeReadSeconds % 10 === 0 || self.activeReadSeconds >= Math.max(1, thresholdSeconds - 5)) {
 					self.debugRead('Active read timer tick', { activeReadSeconds: self.activeReadSeconds });
 				}
-				if (self.activeReadSeconds < 120) {
+				if (self.activeReadSeconds < thresholdSeconds) {
 					return;
 				}
 				self.debugRead('Read threshold reached; applying read state', {
 					activeReadSeconds: self.activeReadSeconds,
+					thresholdSeconds: thresholdSeconds,
+					chapterWordCount: readTiming.chapterWordCount,
+					estimatedReadSeconds: readTiming.estimatedReadSeconds,
 					storyId: self.context.storyId,
 					chapterId: self.context.chapterId
 				});
@@ -1585,6 +1912,7 @@
 			const self = this;
 			$(document).on('click', '.fanfic-like-button[data-story-id][data-chapter-id], .fanfic-button-like[data-story-id][data-chapter-id]', function(e) {
 				e.preventDefault();
+				const $clickedButton = $(this);
 				const storyId = parseInt($(this).data('story-id'), 10);
 				const chapterId = parseInt($(this).data('chapter-id'), 10);
 				if (!storyId || !chapterId) {
@@ -1597,17 +1925,33 @@
 				const lockStartedAt = Date.now();
 				self.lockChapterInteraction(lockKey, storyId, chapterId);
 
-				const wasLiked = FanficLocalStore.getChapter(storyId, chapterId);
-				const hadLike = !!(wasLiked && wasLiked.like);
+				const beforeEntry = self.cloneInteractionEntry(FanficLocalStore.getChapter(storyId, chapterId) || {});
+				const beforeReaction = self.getReactionFromEntry(beforeEntry);
 				const entry = FanficLocalStore.toggleLike(storyId, chapterId);
+				const afterReaction = self.getReactionFromEntry(entry);
 				self.applyUiFromLocal();
+				self.applyReactionCountTransition(beforeReaction, afterReaction);
 
-				// Optimistic like count update
-				self.adjustCount('.like-count', hadLike ? -1 : 1, function(count) {
-					return count > 0 ? '(' + count + ')' : '';
-				});
+				if ('like' !== beforeReaction && 'like' === afterReaction) {
+					try {
+						self.playLikeConfetti($clickedButton);
+					} catch (err) {
+						self.log('Like confetti effect failed:', err);
+					}
+				}
 
-				const request = self.postInteraction(entry.like ? 'like' : 'remove_like', null, chapterId);
+				const request = self.postInteraction(
+					entry.like ? 'like' : 'remove_like',
+					null,
+					chapterId,
+					{
+						storyId: storyId,
+						chapterId: chapterId,
+						beforeEntry: beforeEntry,
+						beforeReaction: beforeReaction,
+						afterReaction: afterReaction
+					}
+				);
 				const releaseLock = function() {
 					const elapsed = Date.now() - lockStartedAt;
 					const waitMs = Math.max(0, self.likeDislikeLockMinMs - elapsed);
@@ -1628,6 +1972,7 @@
 				if (!self.config.enableDislikes) {
 					return;
 				}
+				const $clickedButton = $(this);
 				const storyId = parseInt($(this).data('story-id'), 10);
 				const chapterId = parseInt($(this).data('chapter-id'), 10);
 				if (!storyId || !chapterId) {
@@ -1640,17 +1985,33 @@
 				const lockStartedAt = Date.now();
 				self.lockChapterInteraction(lockKey, storyId, chapterId);
 
-				const wasDisliked = FanficLocalStore.getChapter(storyId, chapterId);
-				const hadDislike = !!(wasDisliked && wasDisliked.dislike);
+				const beforeEntry = self.cloneInteractionEntry(FanficLocalStore.getChapter(storyId, chapterId) || {});
+				const beforeReaction = self.getReactionFromEntry(beforeEntry);
 				const entry = FanficLocalStore.toggleDislike(storyId, chapterId);
+				const afterReaction = self.getReactionFromEntry(entry);
 				self.applyUiFromLocal();
+				self.applyReactionCountTransition(beforeReaction, afterReaction);
 
-				// Optimistic dislike count update
-				self.adjustCount('.dislike-count', hadDislike ? -1 : 1, function(count) {
-					return count > 0 ? '(' + count + ')' : '';
-				});
+				if ('dislike' !== beforeReaction && 'dislike' === afterReaction) {
+					try {
+						self.playDislikeGloom($clickedButton);
+					} catch (err) {
+						self.log('Dislike gloom effect failed:', err);
+					}
+				}
 
-				const request = self.postInteraction(entry.dislike ? 'dislike' : 'remove_dislike', null, chapterId);
+				const request = self.postInteraction(
+					entry.dislike ? 'dislike' : 'remove_dislike',
+					null,
+					chapterId,
+					{
+						storyId: storyId,
+						chapterId: chapterId,
+						beforeEntry: beforeEntry,
+						beforeReaction: beforeReaction,
+						afterReaction: afterReaction
+					}
+				);
 				const releaseLock = function() {
 					const elapsed = Date.now() - lockStartedAt;
 					const waitMs = Math.max(0, self.likeDislikeLockMinMs - elapsed);
@@ -1665,6 +2026,210 @@
 					releaseLock();
 				}
 			});
+		},
+
+		/**
+		 * Lightweight confetti burst for like actions.
+		 */
+		playLikeConfetti: function($button) {
+			if (!$button || !$button.length) {
+				return;
+			}
+
+			if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				return;
+			}
+
+			var anchor = this.getButtonEffectAnchor($button);
+			if (!anchor) {
+				return;
+			}
+			var $host = anchor.$host;
+			$host.find('.fanfic-like-confetti-burst').remove();
+
+			var palette = ['#ff4d6d', '#ffb703', '#3ec1d3', '#7bd389', '#9b5de5', '#f15bb5', '#00bbf9'];
+			var pieceCount = 18;
+			var $burst = $('<span class="fanfic-like-confetti-burst" aria-hidden="true"></span>');
+			$burst.css({
+				'--fanfic-origin-x': anchor.x.toFixed(1) + 'px',
+				'--fanfic-origin-y': anchor.y.toFixed(1) + 'px'
+			});
+
+			for (var i = 0; i < pieceCount; i++) {
+				var angle = (Math.PI * 2 * i) / pieceCount + ((Math.random() - 0.5) * 0.35);
+				var distance = 30 + Math.random() * 26;
+				var x = Math.cos(angle) * distance;
+				var y = (Math.sin(angle) * distance) - (18 + Math.random() * 24);
+				var rotation = (-260 + Math.random() * 520).toFixed(0) + 'deg';
+				var delay = (Math.random() * 120).toFixed(0) + 'ms';
+				var size = (5 + Math.random() * 5).toFixed(1) + 'px';
+				var color = palette[Math.floor(Math.random() * palette.length)];
+				var shape = Math.random() < 0.25 ? '50%' : '2px';
+
+				var $piece = $('<span class="fanfic-like-confetti-piece"></span>');
+				$piece.css({
+					'--fanfic-confetti-x': x.toFixed(1) + 'px',
+					'--fanfic-confetti-y': y.toFixed(1) + 'px',
+					'--fanfic-confetti-rot': rotation,
+					'--fanfic-confetti-delay': delay,
+					'--fanfic-confetti-size': size,
+					'--fanfic-confetti-color': color,
+					'--fanfic-confetti-radius': shape
+				});
+
+				$burst.append($piece);
+			}
+
+			$host.append($burst);
+
+			window.setTimeout(function() {
+				$burst.remove();
+			}, 1400);
+		},
+
+		animateDislikeDeflate: function($iconTarget) {
+			if (!$iconTarget || !$iconTarget.length) {
+				return;
+			}
+
+			$iconTarget.removeClass('fanfic-dislike-icon-deflate');
+			void $iconTarget.get(0).offsetWidth;
+			$iconTarget.addClass('fanfic-dislike-icon-deflate');
+
+			window.setTimeout(function() {
+				$iconTarget.removeClass('fanfic-dislike-icon-deflate');
+			}, 640);
+		},
+
+		/**
+		 * Dark gloomy drip effect for dislike actions.
+		 */
+		playDislikeGloom: function($button) {
+			if (!$button || !$button.length) {
+				return;
+			}
+
+			if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				return;
+			}
+
+			var anchor = this.getButtonEffectAnchor($button);
+			if (!anchor) {
+				return;
+			}
+			var $host = anchor.$host;
+			this.animateDislikeDeflate(anchor.$icon || $host);
+			$host.find('.fanfic-dislike-gloom-burst').remove();
+
+			var palette = ['#1b1f2a', '#232834', '#2b3140', '#343b49', '#3d4452', '#4a5260'];
+			var dropCount = 9;
+			var $burst = $('<span class="fanfic-dislike-gloom-burst" aria-hidden="true"></span>');
+			$burst.css({
+				'--fanfic-origin-x': anchor.x.toFixed(1) + 'px',
+				'--fanfic-origin-y': anchor.y.toFixed(1) + 'px'
+			});
+
+			for (var i = 0; i < dropCount; i++) {
+				var driftXValue = (Math.random() * 14) - 7;
+				var fallYValue = 38 + (Math.random() * 28);
+				var driftX = driftXValue.toFixed(1) + 'px';
+				var fallY = fallYValue.toFixed(1) + 'px';
+				var midX = (driftXValue * 0.28).toFixed(1) + 'px';
+				var midY = (fallYValue * 0.34).toFixed(1) + 'px';
+				var tilt = ((Math.random() * 26) - 13).toFixed(1) + 'deg';
+				var midTilt = (parseFloat(tilt) * 0.7).toFixed(1) + 'deg';
+				var delay = (Math.random() * 140).toFixed(0) + 'ms';
+				var width = (3.2 + Math.random() * 2.4).toFixed(1) + 'px';
+				var height = (9 + Math.random() * 6).toFixed(1) + 'px';
+				var duration = (760 + Math.random() * 220).toFixed(0) + 'ms';
+				var color = palette[Math.floor(Math.random() * palette.length)];
+				var dropRadius = Math.random() < 0.7 ? '999px 999px 66% 66%' : '4px 4px 58% 58%';
+
+				var $drop = $('<span class="fanfic-dislike-gloom-drop"></span>');
+				$drop.css({
+					'--fanfic-gloom-x': driftX,
+					'--fanfic-gloom-mid-x': midX,
+					'--fanfic-gloom-mid-fall': midY,
+					'--fanfic-gloom-mid-tilt': midTilt,
+					'--fanfic-gloom-fall': fallY,
+					'--fanfic-gloom-tilt': tilt,
+					'--fanfic-gloom-delay': delay,
+					'--fanfic-drop-width': width,
+					'--fanfic-drop-height': height,
+					'--fanfic-drop-duration': duration,
+					'--fanfic-drop-radius': dropRadius,
+					'--fanfic-gloom-color': color,
+					'--fanfic-gloom-highlight': 'rgb(132 144 168 / 0.22)'
+				});
+
+				$burst.append($drop);
+			}
+
+			var wispRise = (6 + Math.random() * 4).toFixed(1) + 'px';
+			var wispDrift = ((Math.random() * 6) - 3).toFixed(1) + 'px';
+			var wispDuration = (320 + Math.random() * 130).toFixed(0) + 'ms';
+			var $wisp = $('<span class="fanfic-dislike-sigh-wisp" aria-hidden="true"></span>');
+			$wisp.css({
+				'--fanfic-sigh-rise': wispRise,
+				'--fanfic-sigh-drift': wispDrift,
+				'--fanfic-sigh-duration': wispDuration
+			});
+			$burst.append($wisp);
+
+			$host.append($burst);
+
+			window.setTimeout(function() {
+				$burst.remove();
+			}, 980);
+		},
+
+		/**
+		 * Resolve effect origin from the clicked button icon.
+		 */
+		getButtonEffectAnchor: function($button) {
+			if (!$button || !$button.length) {
+				return null;
+			}
+
+			var $host = $button;
+			var $icon = $button.find(
+				'.fanfic-button-icon .fanfic-thumb-svg,' +
+				'.fanfic-button-icon .dashicons,' +
+				'.fanfic-button-icon svg,' +
+				'.fanfic-button-icon,' +
+				'.fanfic-icon .fanfic-thumb-svg,' +
+				'.fanfic-icon .dashicons,' +
+				'.fanfic-icon svg,' +
+				'.fanfic-icon'
+			).first();
+
+			var hostNode = $host.get(0);
+			if (!hostNode || typeof hostNode.getBoundingClientRect !== 'function') {
+				return null;
+			}
+
+			$host.addClass('fanfic-button-effect-host');
+			var hostRect = hostNode.getBoundingClientRect();
+
+			var x = hostRect.width / 2;
+			var y = hostRect.height / 2;
+			var viewportX = hostRect.left + (hostRect.width / 2);
+			var viewportY = hostRect.top + (hostRect.height / 2);
+
+			if ($icon.length && typeof $icon.get(0).getBoundingClientRect === 'function') {
+				var iconRect = $icon.get(0).getBoundingClientRect();
+				x = (iconRect.left - hostRect.left) + (iconRect.width / 2);
+				y = (iconRect.top - hostRect.top) + (iconRect.height / 2);
+				viewportX = iconRect.left + (iconRect.width / 2);
+				viewportY = iconRect.top + (iconRect.height / 2);
+			}
+
+			var $iconTarget = $button.find('.fanfic-button-icon, .fanfic-icon').first();
+			if (!$iconTarget.length) {
+				$iconTarget = $icon.length ? $icon : $host;
+			}
+
+			return { $host: $host, $icon: $iconTarget, x: x, y: y, viewportX: viewportX, viewportY: viewportY };
 		},
 
 		getChapterInteractionLockKey: function(storyId, chapterId) {
@@ -1726,6 +2291,131 @@
 			$buttons.attr('aria-disabled', disabled ? 'true' : 'false');
 		},
 
+		cloneInteractionEntry: function(entry) {
+			if (!entry || typeof entry !== 'object') {
+				return {};
+			}
+			try {
+				return JSON.parse(JSON.stringify(entry));
+			} catch (err) {
+				return $.extend({}, entry);
+			}
+		},
+
+		getReactionFromEntry: function(entry) {
+			if (entry && entry.like) {
+				return 'like';
+			}
+			if (entry && entry.dislike) {
+				return 'dislike';
+			}
+			return 'none';
+		},
+
+		applyReactionCountTransition: function(fromReaction, toReaction) {
+			if (fromReaction === toReaction) {
+				return;
+			}
+
+			var likeDelta = (toReaction === 'like' ? 1 : 0) - (fromReaction === 'like' ? 1 : 0);
+			if (likeDelta !== 0) {
+				this.adjustCount('.like-count', likeDelta, function(count) {
+					return count > 0 ? '(' + count + ')' : '';
+				});
+			}
+
+			var dislikeDelta = (toReaction === 'dislike' ? 1 : 0) - (fromReaction === 'dislike' ? 1 : 0);
+			if (dislikeDelta !== 0) {
+				this.adjustCount('.dislike-count', dislikeDelta, function(count) {
+					return count > 0 ? '(' + count + ')' : '';
+				});
+			}
+		},
+
+		restoreReactionContext: function(context) {
+			if (!context || !context.storyId || !context.chapterId) {
+				return;
+			}
+
+			FanficLocalStore.setChapter(
+				context.storyId,
+				context.chapterId,
+				this.cloneInteractionEntry(context.beforeEntry || {})
+			);
+			this.applyUiFromLocal();
+
+			if (context.afterReaction && context.beforeReaction) {
+				this.applyReactionCountTransition(context.afterReaction, context.beforeReaction);
+			}
+
+			this.refreshChapterStats(context.chapterId);
+		},
+
+		refreshChapterStats: function(chapterId) {
+			const self = this;
+			const finalChapterId = parseInt(chapterId, 10) || 0;
+			if (!finalChapterId) {
+				return;
+			}
+
+			$.post(this.config.ajaxUrl, {
+				action: 'fanfic_get_chapter_stats',
+				nonce: this.config.nonce,
+				chapter_ids: [finalChapterId]
+			}).done(function(response) {
+				if (!response || !response.success || !response.data || !response.data.data || !response.data.data.stats) {
+					return;
+				}
+
+				var statsMap = response.data.data.stats;
+				var stats = statsMap[finalChapterId] || statsMap[String(finalChapterId)] || null;
+				if (stats) {
+					self.applyStatsToCountElements(stats);
+				}
+			});
+		},
+
+		handleReactionRequestFailure: function(context, xhr) {
+			this.restoreReactionContext(context);
+
+			if (!xhr) {
+				return;
+			}
+			if (!context || !context.storyId || !context.chapterId) {
+				return;
+			}
+
+			var $target = $(
+				'.fanfic-like-button[data-story-id="' + context.storyId + '"][data-chapter-id="' + context.chapterId + '"], ' +
+				'.fanfic-button-like[data-story-id="' + context.storyId + '"][data-chapter-id="' + context.chapterId + '"], ' +
+				'.fanfic-dislike-button[data-story-id="' + context.storyId + '"][data-chapter-id="' + context.chapterId + '"], ' +
+				'.fanfic-button-dislike[data-story-id="' + context.storyId + '"][data-chapter-id="' + context.chapterId + '"]'
+			).first();
+
+			if ($target.length) {
+				this.handleAjaxError(xhr, $target);
+			}
+		},
+
+		setRatingGlowOrigin: function($starsEl, $starWrap) {
+			if (!$starsEl || !$starsEl.length || !$starWrap || !$starWrap.length) {
+				return;
+			}
+
+			var starsOffset = $starsEl.offset();
+			var starOffset = $starWrap.offset();
+			var starsWidth = $starsEl.outerWidth();
+			var starWidth = $starWrap.outerWidth();
+			if (!starsOffset || !starOffset || !starsWidth || !starWidth) {
+				return;
+			}
+
+			var centerX = (starOffset.left - starsOffset.left) + (starWidth / 2);
+			var percent = (centerX / starsWidth) * 100;
+			percent = Math.max(0, Math.min(100, percent));
+			$starsEl.css('--fanfic-rating-ray-x', percent.toFixed(2) + '%');
+		},
+
 		bindRating: function() {
 			const self = this;
 
@@ -1748,12 +2438,16 @@
 			$(document).on('click', '.fanfic-rating-stars-half .fanfic-star-hit', function(e) {
 				e.preventDefault();
 				const $hit = $(this);
+				const $starsEl = $hit.closest('.fanfic-rating-stars-half');
+				const $starWrap = $hit.closest('.fanfic-star-wrap');
 				const $root = $hit.closest('[data-story-id][data-chapter-id]');
 				const storyId = parseInt($root.data('story-id'), 10);
 				const chapterId = parseInt($root.data('chapter-id'), 10);
 				if (!storyId || !chapterId) {
 					return;
 				}
+
+				self.setRatingGlowOrigin($starsEl, $starWrap);
 
 				// Left half of star 1 = remove rating
 				const isRemoveHit = $hit.hasClass('fanfic-star-hit-left') &&
@@ -1765,6 +2459,7 @@
 				if (isRemoveHit) {
 					FanficLocalStore.setRating(storyId, chapterId, null);
 					self.applyUiFromLocal();
+					self.animateRatingGlow(storyId, chapterId);
 					self.optimisticRatingUpdate(oldRating, 0);
 					self.postInteraction('remove_rating', null, chapterId);
 					return;
@@ -1777,12 +2472,44 @@
 
 				FanficLocalStore.setRating(storyId, chapterId, value);
 				self.applyUiFromLocal();
+				self.animateRatingGlow(storyId, chapterId);
 				self.optimisticRatingUpdate(oldRating, value);
 				self.postInteraction('rating', value, chapterId);
 			});
 		},
 
-		postInteraction: function(type, value, chapterId) {
+		/**
+		 * Trigger a subtle glow animation for filled rating stars only.
+		 */
+		animateRatingGlow: function(storyId, chapterId) {
+			if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				return;
+			}
+
+			var selector = '.fanfic-rating-widget[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"] .fanfic-rating-stars-half';
+			var $stars = $(selector);
+			if (!$stars.length) {
+				return;
+			}
+
+			$stars.each(function() {
+				var $starsEl = $(this);
+				var hasFilledStars = $starsEl.find('.fanfic-star-wrap[data-state="full"], .fanfic-star-wrap[data-state="half"]').length > 0;
+				if (!hasFilledStars) {
+					return;
+				}
+
+				$starsEl.removeClass('fanfic-rating-glow-active');
+				void $starsEl.get(0).offsetWidth;
+				$starsEl.addClass('fanfic-rating-glow-active');
+
+				window.setTimeout(function() {
+					$starsEl.removeClass('fanfic-rating-glow-active');
+				}, 700);
+			});
+		},
+
+		postInteraction: function(type, value, chapterId, reactionContext) {
 			const self = this;
 			const finalChapterId = chapterId || (this.context ? this.context.chapterId : 0);
 			if (!finalChapterId) {
@@ -1800,12 +2527,21 @@
 			if (value !== undefined && value !== null) {
 				payload.value = value;
 			}
-			return $.post(this.config.ajaxUrl, payload).done(function(response) {
-				// Correct counts from server response
-				if (response && response.data && response.data.data && response.data.data.stats) {
-					self.applyStatsToCountElements(response.data.data.stats);
-				}
-			});
+			return $.post(this.config.ajaxUrl, payload)
+				.done(function(response) {
+					if (!response || !response.success) {
+						self.handleReactionRequestFailure(reactionContext || null, null);
+						return;
+					}
+
+					// Correct counts from server response
+					if (response.data && response.data.data && response.data.data.stats) {
+						self.applyStatsToCountElements(response.data.data.stats);
+					}
+				})
+				.fail(function(xhr) {
+					self.handleReactionRequestFailure(reactionContext || null, xhr);
+				});
 		},
 
 		initSyncOnLogin: function() {
@@ -1982,6 +2718,8 @@
 			const storyId = this.context.storyId;
 			const chapterId = this.context.chapterId;
 			const entry = FanficLocalStore.getChapter(storyId, chapterId) || {};
+			const hasLocalRead = Object.prototype.hasOwnProperty.call(entry, 'read');
+			const hasLocalReadSuppressed = !!entry.read_auto_suppressed;
 			this.debugRead('Applying UI from local state', {
 				storyId,
 				chapterId,
@@ -1990,21 +2728,40 @@
 
 			$('.fanfic-like-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], .fanfic-button-like[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').toggleClass('fanfic-button-liked', !!entry.like);
 			$('.fanfic-dislike-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], .fanfic-button-dislike[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').toggleClass('fanfic-button-disliked', !!entry.dislike);
-			$('.fanfic-read-indicator[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').toggleClass('fanfic-read-indicator-read', !!entry.read);
 
 			const $readButtons = $('.fanfic-mark-read-button[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"], .fanfic-button-mark-read[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]');
 			this.debugRead('Read button sync target count', { count: $readButtons.length });
 			$readButtons.each(function(index) {
 				const $btn = $(this);
-				const isRead = !!entry.read;
+				const serverRead = $btn.hasClass('fanfic-button-marked-read') ||
+					$btn.hasClass('fanfic-button-mark-readed') ||
+					$btn.hasClass('marked-read') ||
+					$btn.hasClass('is-markredd') ||
+					$btn.hasClass('read');
+				let isRead = false;
+				if (hasLocalRead) {
+					isRead = !!entry.read;
+				} else if (hasLocalReadSuppressed) {
+					isRead = false;
+				} else {
+					isRead = serverRead;
+				}
+				const $icon = $btn.find('.fanfic-button-icon, .fanfic-icon').first();
+				const hasCheckIcon = $icon.find('.fanfic-read-check').length > 0;
 
 				if (isRead) {
 					$btn.addClass('fanfic-button-marked-read marked-read is-markredd read');
 					$btn.removeClass('fanfic-button-mark-readed');
 					$btn.find('.read-text').text($btn.data('read-text') || 'Read');
+					if (!hasCheckIcon) {
+						$icon.html('<span class="fanfic-read-check" aria-hidden="true">&#10003;</span>');
+					}
 				} else {
 					$btn.removeClass('fanfic-button-marked-read fanfic-button-mark-readed marked-read is-markredd read');
 					$btn.find('.read-text').text($btn.data('unread-text') || 'Mark as Read');
+					if (hasCheckIcon || $icon.contents().length) {
+						$icon.html('');
+					}
 				}
 
 				if (index === 0) {
@@ -2014,6 +2771,8 @@
 					});
 				}
 			});
+			const effectiveReadState = (hasLocalRead ? !!entry.read : (!hasLocalReadSuppressed && $readButtons.first().hasClass('fanfic-button-marked-read')));
+			$('.fanfic-read-indicator[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"]').toggleClass('fanfic-read-indicator-read', effectiveReadState);
 
 			const rating = entry.rating ? parseFloat(entry.rating) : 0;
 			$('.fanfic-rating-widget[data-story-id="' + storyId + '"][data-chapter-id="' + chapterId + '"] .fanfic-rating-stars-half').each(function() {
@@ -2063,11 +2822,81 @@
 	};
 
 	/**
+	 * Featured Stories Toggle
+	 */
+	var FanficFeaturedToggle = {
+		init: function() {
+			if ( ! fanficAjax.canFeatureStories ) {
+				return;
+			}
+			$(document).on('click', '.fanfic-feature-toggle-btn', this.onToggle.bind(this));
+		},
+
+		onToggle: function(e) {
+			e.preventDefault();
+			var $btn = $(e.currentTarget);
+			if ( $btn.hasClass('fanfic-loading') ) {
+				return;
+			}
+
+			var storyId = $btn.data('story-id');
+			if ( ! storyId ) {
+				return;
+			}
+
+			$btn.addClass('fanfic-loading');
+
+			$.ajax({
+				url: fanficAjax.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_toggle_featured',
+					nonce: fanficAjax.nonce,
+					story_id: storyId
+				},
+				success: function(response) {
+					$btn.removeClass('fanfic-loading');
+					if ( response.success ) {
+						var isFeatured = response.data.featured;
+						$btn.toggleClass('is-featured', isFeatured);
+
+						// Update button label
+						var label = isFeatured
+							? ( fanficAjax.strings.unfeatureStory || 'Unfeature' )
+							: ( fanficAjax.strings.featureStory || 'Feature' );
+						$btn.find('.fanfic-button-text').text(label);
+						$btn.attr('aria-label', isFeatured ? 'Unfeature story' : 'Feature story');
+						$btn.attr('title', isFeatured ? 'Unfeature story' : 'Feature story');
+
+						// Update star badge in the title
+						var $title = $btn.closest('.fanfic-story-title-row').find('.fanfic-story-title');
+						if ( isFeatured ) {
+							if ( ! $title.find('.fanfic-featured-star').length ) {
+								$title.prepend('<span class="fanfic-featured-star" aria-label="Featured story" title="Featured"><span class="dashicons dashicons-star-filled" aria-hidden="true"></span></span>');
+							}
+						} else {
+							$title.find('.fanfic-featured-star').remove();
+						}
+					} else {
+						var msg = response.data && response.data.message ? response.data.message : (fanficAjax.strings.error || 'An error occurred.');
+						FanficInteractions.showBalloon($btn, msg, 'error');
+					}
+				},
+				error: function() {
+					$btn.removeClass('fanfic-loading');
+					FanficInteractions.showBalloon($btn, fanficAjax.strings.error || 'An error occurred.', 'error');
+				}
+			});
+		}
+	};
+
+	/**
 	 * Initialize on document ready
 	 */
 	$(document).ready(function() {
 		FanficInteractions.init();
 		FanficUnifiedInteractions.init();
+		FanficFeaturedToggle.init();
 	});
 
 	// Expose to global scope

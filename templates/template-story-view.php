@@ -25,6 +25,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return string Default template HTML
  */
 function fanfic_get_default_story_view_template() {
+	$enable_likes = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_likes', true ) : true;
+	$enable_comments = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_comments', true ) : true;
 	ob_start();
 	?>
 <div class="fanfic-story-single">
@@ -45,7 +47,7 @@ function fanfic_get_default_story_view_template() {
 				<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
 			</div>
 			<div class="fanfic-story-metric fanfic-story-metric-chapters">
-				<span class="dashicons dashicons-text-page" aria-hidden="true"></span>
+				<span class="dashicons dashicons-text" aria-hidden="true"></span>
 				<span class="fanfic-story-metric-value">[story-chapters]</span>
 				<span class="fanfic-story-metric-label"><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></span>
 			</div>
@@ -54,10 +56,12 @@ function fanfic_get_default_story_view_template() {
 				<span class="fanfic-story-metric-value">[story-word-count-estimate]</span>
 				<span class="fanfic-story-metric-label"><?php esc_html_e( 'Words', 'fanfiction-manager' ); ?></span>
 			</div>
-			<div class="fanfic-story-metric fanfic-story-metric-likes">
-				<span class="fanfic-story-metric-value">[story-likes]</span>
-				<span class="dashicons dashicons-thumbs-up" aria-hidden="true"></span>
-			</div>
+			<?php if ( $enable_likes ) : ?>
+				<div class="fanfic-story-metric fanfic-story-metric-likes">
+					<span class="fanfic-story-metric-value">[story-likes]</span>
+					<span class="dashicons dashicons-thumbs-up" aria-hidden="true"></span>
+				</div>
+			<?php endif; ?>
 			<div class="fanfic-story-metric fanfic-story-metric-rating">
 				[story-rating-display]
 			</div>
@@ -85,9 +89,11 @@ function fanfic_get_default_story_view_template() {
 		[fanfiction-action-buttons]
 	</div>
 
-	<section class="fanfic-story-comments" aria-labelledby="comments-heading">
-		[story-comments]
-	</section>
+	<?php if ( $enable_comments ) : ?>
+		<section class="fanfic-story-comments" aria-labelledby="comments-heading">
+			[story-comments]
+		</section>
+	<?php endif; ?>
 </div>
 <?php
 	return ob_get_clean();
@@ -111,6 +117,19 @@ $template = get_option( 'fanfic_shortcode_story_view', '' );
 
 if ( empty( $template ) ) {
 	$template = fanfic_get_default_story_view_template();
+}
+
+$enable_likes = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_likes', true ) : true;
+$enable_comments = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_comments', true ) : true;
+
+if ( ! $enable_likes ) {
+	$template = preg_replace( '/<div[^>]*fanfic-story-metric-likes[^>]*>.*?<\/div>/is', '', (string) $template );
+	$template = str_replace( '[story-likes]', '', (string) $template );
+}
+
+if ( ! $enable_comments ) {
+	$template = preg_replace( '/<section[^>]*fanfic-story-comments[^>]*>.*?<\/section>/is', '', (string) $template );
+	$template = str_replace( '[story-comments]', '', (string) $template );
 }
 
 // Show a discreet warning if this story is not published

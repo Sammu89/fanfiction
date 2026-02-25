@@ -32,6 +32,7 @@ class Fanfic_Shortcodes_Utility {
 	public static function register() {
 		add_shortcode( 'edit-story-button', array( __CLASS__, 'edit_story_button' ) );
 		add_shortcode( 'edit-chapter-button', array( __CLASS__, 'edit_chapter_button' ) );
+		add_shortcode( 'add-chapter-button', array( __CLASS__, 'add_chapter_button' ) );
 		add_shortcode( 'fanfic-story-status', array( __CLASS__, 'story_status' ) );
 		add_shortcode( 'fanfic-chapter-status', array( __CLASS__, 'chapter_status' ) );
 		add_shortcode( 'edit-author-button', array( __CLASS__, 'edit_author_button' ) );
@@ -83,7 +84,10 @@ class Fanfic_Shortcodes_Utility {
 
 		// Return button HTML
 		return sprintf(
-			'<a href="%s" class="fanfic-button fanfic-edit-button">%s</a>',
+			'<a href="%1$s" class="fanfic-button fanfic-edit-button">' .
+				'<span class="dashicons dashicons-edit" aria-hidden="true"></span>' .
+				'<span class="fanfic-button-text">%2$s</span>' .
+			'</a>',
 			esc_url( $edit_url ),
 			esc_html__( 'Edit Story', 'fanfiction-manager' )
 		);
@@ -130,9 +134,61 @@ class Fanfic_Shortcodes_Utility {
 		}
 
 		return sprintf(
-			'<a href="%s" class="fanfic-button fanfic-edit-button">%s</a>',
+			'<a href="%1$s" class="fanfic-button fanfic-edit-button">' .
+				'<span class="dashicons dashicons-edit" aria-hidden="true"></span>' .
+				'<span class="fanfic-button-text">%2$s</span>' .
+			'</a>',
 			esc_url( $edit_url ),
 			esc_html__( 'Edit Chapter', 'fanfiction-manager' )
+		);
+	}
+
+	/**
+	 * Add chapter button shortcode
+	 *
+	 * [add-chapter-button story_id="123"]
+	 *
+	 * Displays an add chapter button for a story if the current user can edit it.
+	 * Only shows if user can edit the parent story. Returns empty string otherwise.
+	 *
+	 * @since 1.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Add chapter button HTML or empty string.
+	 */
+	public static function add_chapter_button( $atts ) {
+		$atts = Fanfic_Shortcodes::sanitize_atts(
+			$atts,
+			array(
+				'story_id' => 0,
+			),
+			'add-chapter-button'
+		);
+
+		$story_id = absint( $atts['story_id'] );
+		if ( empty( $story_id ) ) {
+			$story_id = Fanfic_Shortcodes::get_current_story_id();
+		}
+
+		if ( empty( $story_id ) ) {
+			return '';
+		}
+
+		if ( ! fanfic_current_user_can_edit( 'story', $story_id ) ) {
+			return '';
+		}
+
+		$add_chapter_url = fanfic_get_edit_chapter_url( 0, $story_id );
+		if ( empty( $add_chapter_url ) ) {
+			return '';
+		}
+
+		return sprintf(
+			'<a href="%1$s" class="fanfic-button fanfic-edit-button fanfic-add-chapter-button">' .
+				'<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>' .
+				'<span class="fanfic-button-text">%2$s</span>' .
+			'</a>',
+			esc_url( $add_chapter_url ),
+			esc_html__( 'Add Chapter', 'fanfiction-manager' )
 		);
 	}
 
@@ -186,7 +242,10 @@ class Fanfic_Shortcodes_Utility {
 
 		// Return button HTML
 		return sprintf(
-			'<a href="%s" class="fanfic-button fanfic-edit-button">%s</a>',
+			'<a href="%1$s" class="fanfic-button fanfic-edit-button">' .
+				'<span class="dashicons dashicons-edit" aria-hidden="true"></span>' .
+				'<span class="fanfic-button-text">%2$s</span>' .
+			'</a>',
 			esc_url( $edit_url ),
 			esc_html__( 'Edit Profile', 'fanfiction-manager' )
 		);

@@ -58,35 +58,8 @@ class Fanfic_Widget_Featured_Stories extends WP_Widget {
 		// Sanitize count
 		$count = Fanfic_Widgets::sanitize_count( $count, 5, 20, 5 );
 
-		// Try to get from cache
-		$cache_key = "fanfic_widget_featured_stories_{$count}";
-		$stories = get_transient( $cache_key );
-
-		// If not cached, query stories
-		if ( false === $stories ) {
-			// Get featured story IDs from settings
-			$settings = get_option( 'fanfic_settings', array() );
-			$featured_ids = isset( $settings['featured_stories'] ) ? $settings['featured_stories'] : array();
-
-			if ( ! empty( $featured_ids ) && is_array( $featured_ids ) ) {
-				// Limit to requested count
-				$featured_ids = array_slice( $featured_ids, 0, $count );
-
-				$stories = get_posts( array(
-					'post_type'      => 'fanfiction_story',
-					'post_status'    => 'publish',
-					'post__in'       => $featured_ids,
-					'orderby'        => 'post__in',
-					'posts_per_page' => $count,
-					'no_found_rows'  => true,
-				) );
-			} else {
-				$stories = array();
-			}
-
-			// Cache for 30 minutes
-			set_transient( $cache_key, $stories, Fanfic_Widgets::CACHE_FEATURED_STORIES );
-		}
+		// Query featured stories via centralized method.
+		$stories = Fanfic_Featured_Stories::get_featured_stories( $count );
 
 		// Output widget
 		echo $args['before_widget'];
@@ -229,7 +202,7 @@ class Fanfic_Widget_Featured_Stories extends WP_Widget {
 		</p>
 
 		<p class="description">
-			<?php esc_html_e( 'Note: Featured stories are configured in the plugin settings.', 'fanfiction-manager' ); ?>
+			<?php esc_html_e( 'Note: Featured stories are determined by the featured mode configured in the plugin settings (manual, automatic, or both).', 'fanfiction-manager' ); ?>
 		</p>
 		<?php
 	}

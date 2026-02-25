@@ -215,7 +215,9 @@ class Fanfic_Import {
 
 		// Set featured flag if provided
 		if ( isset( $data['Featured'] ) && 'Yes' === $data['Featured'] ) {
-			update_post_meta( $story_id, '_fanfic_featured', 1 );
+			update_post_meta( $story_id, 'fanfic_is_featured', 1 );
+			update_post_meta( $story_id, 'fanfic_featured_type', 'manual' );
+			update_post_meta( $story_id, 'fanfic_featured_at', current_time( 'mysql' ) );
 		}
 
 		// Note: Story will remain draft until chapters are added and validation passes

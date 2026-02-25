@@ -42,6 +42,7 @@ class Fanfic_Comments {
 	public static function init() {
 		// Enable comments on fanfiction post types
 		add_filter( 'comments_open', array( __CLASS__, 'enable_comments' ), 10, 2 );
+		add_filter( 'option_comment_registration', array( __CLASS__, 'filter_comment_registration_for_fanfic' ), 10, 2 );
 
 		// Set comment threading depth
 		add_filter( 'thread_comments_depth', array( __CLASS__, 'set_thread_depth' ) );
@@ -64,6 +65,98 @@ class Fanfic_Comments {
 
 		// Block banned users from posting comments.
 		add_filter( 'preprocess_comment', array( __CLASS__, 'block_banned_user_comment_submission' ) );
+		add_filter( 'preprocess_comment', array( __CLASS__, 'validate_guest_comment_recaptcha' ) );
+	}
+
+	/**
+	 * Determine whether a post is a fanfiction story/chapter.
+	 *
+	 * @since 1.0.0
+	 * @param int $post_id Post ID.
+	 * @return bool
+	 */
+	private static function is_fanfiction_comment_post( $post_id ) {
+		$post_id = absint( $post_id );
+		if ( ! $post_id ) {
+			return false;
+		}
+
+		$post = get_post( $post_id );
+		return $post && in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true );
+	}
+
+	/**
+	 * Check whether reCAPTCHA keys are configured.
+	 *
+	 * @since 1.0.0
+	 * @return bool
+	 */
+	private static function has_recaptcha_keys() {
+		$site_key = get_option( 'fanfic_recaptcha_site_key', '' );
+		$secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
+		return ! empty( $site_key ) && ! empty( $secret_key );
+	}
+
+	/**
+	 * Check whether guest comments are enabled in plugin settings.
+	 *
+	 * @since 1.0.0
+	 * @return bool
+	 */
+	private static function guest_comments_enabled() {
+		return class_exists( 'Fanfic_Settings' )
+			? (bool) Fanfic_Settings::get_setting( 'allow_anonymous_comments', true )
+			: true;
+	}
+
+	/**
+	 * Resolve the target post ID for comment registration checks.
+	 *
+	 * @since 1.0.0
+	 * @return int
+	 */
+	private static function get_comment_target_post_id() {
+		if ( isset( $_POST['comment_post_ID'] ) ) {
+			return absint( wp_unslash( $_POST['comment_post_ID'] ) );
+		}
+
+		if ( is_singular( array( 'fanfiction_story', 'fanfiction_chapter' ) ) ) {
+			return absint( get_queried_object_id() );
+		}
+
+		global $post;
+		if ( $post instanceof WP_Post ) {
+			return absint( $post->ID );
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Override WordPress comment registration requirement for fanfiction posts.
+	 *
+	 * Guests may comment only when reCAPTCHA keys are configured.
+	 *
+	 * @since 1.0.0
+	 * @param mixed  $value  Current option value.
+	 * @param string $option Option name.
+	 * @return mixed
+	 */
+	public static function filter_comment_registration_for_fanfic( $value, $option = '' ) {
+		if ( is_user_logged_in() ) {
+			return $value;
+		}
+
+		$post_id = self::get_comment_target_post_id();
+		if ( ! self::is_fanfiction_comment_post( $post_id ) ) {
+			return $value;
+		}
+
+		if ( ! self::guest_comments_enabled() ) {
+			return 1;
+		}
+
+		return self::has_recaptcha_keys() ? 0 : 1;
 	}
 
 	/**
@@ -378,6 +471,17 @@ class Fanfic_Comments {
 				'cancelLabel'   => __( 'Cancel', 'fanfiction-manager' ),
 			)
 		);
+
+		// Guest comments require reCAPTCHA on fanfiction posts.
+		if ( ! is_user_logged_in() && self::guest_comments_enabled() && self::has_recaptcha_keys() ) {
+			wp_enqueue_script(
+				'google-recaptcha',
+				'https://www.google.com/recaptcha/api.js',
+				array(),
+				null,
+				true
+			);
+		}
 	}
 
 	/**
@@ -410,6 +514,9 @@ class Fanfic_Comments {
 		$defaults['cancel_reply_link']    = __( 'Cancel Reply', 'fanfiction-manager' );
 		$defaults['label_submit']         = __( 'Post Comment', 'fanfiction-manager' );
 		$defaults['comment_field']        = '<p class="comment-form-comment"><label for="comment">' . __( 'Comment', 'fanfiction-manager' ) . ' <span class="required">*</span></label><textarea id="comment" name="comment" cols="45" rows="8" maxlength="65525" required="required" aria-required="true"></textarea></p>';
+		if ( ! is_user_logged_in() && self::guest_comments_enabled() && self::has_recaptcha_keys() ) {
+			$defaults['comment_field'] .= '<div class="fanfic-comment-recaptcha"><div class="g-recaptcha" data-sitekey="' . esc_attr( get_option( 'fanfic_recaptcha_site_key', '' ) ) . '"></div></div>';
+		}
 		$defaults['must_log_in']          = '<p class="must-log-in">' . sprintf(
 			/* translators: %s: Login URL */
 			__( 'You must be <a href="%s">logged in</a> to post a comment.', 'fanfiction-manager' ),
@@ -556,6 +663,82 @@ class Fanfic_Comments {
 			esc_html__( 'Commenting Disabled', 'fanfiction-manager' ),
 			array( 'response' => 403 )
 		);
+	}
+
+	/**
+	 * Validate guest comment reCAPTCHA for fanfiction posts.
+	 *
+	 * @since 1.0.0
+	 * @param array $commentdata Raw comment payload.
+	 * @return array
+	 */
+	public static function validate_guest_comment_recaptcha( $commentdata ) {
+		if ( is_user_logged_in() ) {
+			return $commentdata;
+		}
+
+		$post_id = isset( $commentdata['comment_post_ID'] ) ? absint( $commentdata['comment_post_ID'] ) : 0;
+		if ( ! self::is_fanfiction_comment_post( $post_id ) ) {
+			return $commentdata;
+		}
+
+		if ( ! self::guest_comments_enabled() ) {
+			wp_die(
+				esc_html__( 'Guest comments are disabled for this site.', 'fanfiction-manager' ),
+				esc_html__( 'Commenting Disabled', 'fanfiction-manager' ),
+				array( 'response' => 403 )
+			);
+		}
+
+		$site_key = get_option( 'fanfic_recaptcha_site_key', '' );
+		$secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
+		if ( empty( $site_key ) || empty( $secret_key ) ) {
+			wp_die(
+				esc_html__( 'Guest comments are unavailable because reCAPTCHA is not configured.', 'fanfiction-manager' ),
+				esc_html__( 'Commenting Disabled', 'fanfiction-manager' ),
+				array( 'response' => 403 )
+			);
+		}
+
+		$recaptcha_response = isset( $_POST['g-recaptcha-response'] ) ? sanitize_text_field( wp_unslash( $_POST['g-recaptcha-response'] ) ) : '';
+		if ( empty( $recaptcha_response ) ) {
+			wp_die(
+				esc_html__( 'Please complete the reCAPTCHA verification.', 'fanfiction-manager' ),
+				esc_html__( 'Verification Required', 'fanfiction-manager' ),
+				array( 'response' => 403 )
+			);
+		}
+
+		$verify_response = wp_remote_post(
+			'https://www.google.com/recaptcha/api/siteverify',
+			array(
+				'timeout' => 10,
+				'body'    => array(
+					'secret'   => $secret_key,
+					'response' => $recaptcha_response,
+					'remoteip' => Fanfic_Rate_Limit::get_ip_address(),
+				),
+			)
+		);
+
+		if ( is_wp_error( $verify_response ) ) {
+			wp_die(
+				esc_html__( 'reCAPTCHA verification failed. Please try again.', 'fanfiction-manager' ),
+				esc_html__( 'Verification Failed', 'fanfiction-manager' ),
+				array( 'response' => 403 )
+			);
+		}
+
+		$response_body = json_decode( wp_remote_retrieve_body( $verify_response ), true );
+		if ( empty( $response_body['success'] ) ) {
+			wp_die(
+				esc_html__( 'reCAPTCHA verification failed. Please try again.', 'fanfiction-manager' ),
+				esc_html__( 'Verification Failed', 'fanfiction-manager' ),
+				array( 'response' => 403 )
+			);
+		}
+
+		return $commentdata;
 	}
 
 	/**

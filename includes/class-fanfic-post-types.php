@@ -38,6 +38,8 @@ class Fanfic_Post_Types {
 	private static function register_image_sizes() {
 		// Story-card cover image constrained to 220px width.
 		add_image_size( 'fanfic_story_card_220', 220, 0, false );
+		// Author avatar thumbnail: 80×80 hard-cropped (4× retina-ready for 20 px display).
+		add_image_size( 'fanfic_avatar_thumb', 80, 80, true );
 	}
 
 	/**

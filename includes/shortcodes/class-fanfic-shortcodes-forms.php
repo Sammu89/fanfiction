@@ -751,6 +751,11 @@ class Fanfic_Shortcodes_Forms {
 				'</div>';
 		}
 
+		$settings = get_option( 'fanfic_settings', array() );
+		$allow_anonymous_reports = ! empty( $settings['allow_anonymous_reports'] );
+		$recaptcha_require_logged_in = ! empty( $settings['recaptcha_require_logged_in'] );
+		$is_logged_in = is_user_logged_in();
+
 		// Get content details for display
 		$content_title = '';
 		$content_link = '';
@@ -797,17 +802,27 @@ class Fanfic_Shortcodes_Forms {
 		}
 		delete_transient( 'fanfic_report_errors_' . get_current_user_id() );
 
+		// Respect anonymous report setting.
+		if ( ! $is_logged_in && ! $allow_anonymous_reports ) {
+			return '<div class="fanfic-info-box fanfic-error">' .
+				esc_html__( 'Anonymous reports are disabled. Please log in to report content.', 'fanfiction-manager' ) .
+				'</div>';
+		}
+
 		// Get reCAPTCHA configuration
 		$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
 		$recaptcha_secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
-		$recaptcha_require_logged_in = get_option( 'fanfic_settings', array() );
-		$recaptcha_require_logged_in = isset( $recaptcha_require_logged_in['recaptcha_require_logged_in'] ) ? $recaptcha_require_logged_in['recaptcha_require_logged_in'] : false;
+		$has_recaptcha_keys = ! empty( $recaptcha_site_key ) && ! empty( $recaptcha_secret_key );
+
+		// Anonymous reports require reCAPTCHA keys.
+		if ( ! $is_logged_in && ! $has_recaptcha_keys ) {
+			return '<div class="fanfic-info-box fanfic-error">' .
+				esc_html__( 'Anonymous reporting is unavailable because reCAPTCHA is not configured.', 'fanfiction-manager' ) .
+				'</div>';
+		}
 
 		// Determine if reCAPTCHA should be shown
-		$show_recaptcha = ! empty( $recaptcha_site_key ) && ! empty( $recaptcha_secret_key );
-		if ( ! $recaptcha_require_logged_in && is_user_logged_in() ) {
-			$show_recaptcha = false;
-		}
+		$show_recaptcha = $has_recaptcha_keys && ( ! $is_logged_in || $recaptcha_require_logged_in );
 
 		// Enqueue reCAPTCHA script if needed
 		if ( $show_recaptcha ) {
@@ -835,13 +850,13 @@ class Fanfic_Shortcodes_Forms {
 				</div>
 			<?php endif; ?>
 
-			<?php if ( empty( $recaptcha_site_key ) || empty( $recaptcha_secret_key ) ) : ?>
+			<?php if ( ! $has_recaptcha_keys ) : ?>
 				<div class="fanfic-info-box fanfic-info" role="alert">
 					<?php
 					if ( current_user_can( 'manage_options' ) ) {
 						printf(
 							/* translators: %s: URL to settings page */
-							esc_html__( 'Note: reCAPTCHA is not configured. Please configure it in %s to protect this form from spam.', 'fanfiction-manager' ),
+							esc_html__( 'Note: reCAPTCHA is not configured. Anonymous reports are disabled until keys are added in %s.', 'fanfiction-manager' ),
 							'<a href="' . esc_url( admin_url( 'admin.php?page=fanfiction-settings&tab=general' ) ) . '">' . esc_html__( 'Settings', 'fanfiction-manager' ) . '</a>'
 						);
 					}
@@ -977,6 +992,13 @@ class Fanfic_Shortcodes_Forms {
 			$errors[] = __( 'Invalid content type.', 'fanfiction-manager' );
 		}
 
+		$settings = get_option( 'fanfic_settings', array() );
+		$allow_anonymous_reports = ! empty( $settings['allow_anonymous_reports'] );
+		$is_logged_in = is_user_logged_in();
+		if ( ! $is_logged_in && ! $allow_anonymous_reports ) {
+			$errors[] = __( 'Anonymous reports are disabled. Please log in to report content.', 'fanfiction-manager' );
+		}
+
 		// Validate reason
 		$valid_reasons = array( 'spam', 'inappropriate', 'copyright', 'harassment', 'other' );
 		if ( empty( $reason ) || ! in_array( $reason, $valid_reasons, true ) ) {
@@ -1009,15 +1031,15 @@ class Fanfic_Shortcodes_Forms {
 		// Verify reCAPTCHA if configured
 		$recaptcha_secret_key = get_option( 'fanfic_recaptcha_secret_key', '' );
 		$recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
-		$recaptcha_settings = get_option( 'fanfic_settings', array() );
-		$recaptcha_require_logged_in = isset( $recaptcha_settings['recaptcha_require_logged_in'] ) ? $recaptcha_settings['recaptcha_require_logged_in'] : false;
+		$has_recaptcha = ! empty( $recaptcha_secret_key ) && ! empty( $recaptcha_site_key );
+		$recaptcha_require_logged_in = ! empty( $settings['recaptcha_require_logged_in'] );
 
-		$should_verify_recaptcha = ! empty( $recaptcha_secret_key ) && ! empty( $recaptcha_site_key );
-		if ( ! $recaptcha_require_logged_in && is_user_logged_in() ) {
-			$should_verify_recaptcha = false;
+		$should_verify_recaptcha = ( ! $is_logged_in || $recaptcha_require_logged_in );
+		if ( $should_verify_recaptcha && ! $has_recaptcha ) {
+			$errors[] = __( 'reCAPTCHA is not configured. Please contact the site administrator.', 'fanfiction-manager' );
 		}
 
-		if ( $should_verify_recaptcha ) {
+		if ( $should_verify_recaptcha && $has_recaptcha ) {
 			$recaptcha_response = isset( $_POST['g-recaptcha-response'] ) ? sanitize_text_field( $_POST['g-recaptcha-response'] ) : '';
 
 			if ( empty( $recaptcha_response ) ) {
@@ -1064,6 +1086,7 @@ class Fanfic_Shortcodes_Forms {
 		// Get reporter info
 		$reporter_id = is_user_logged_in() ? get_current_user_id() : 0;
 		$reporter_ip = self::get_user_ip();
+		$reported_item_type = 'story' === $content_type ? 'fanfiction_story' : ( 'chapter' === $content_type ? 'fanfiction_chapter' : 'comment' );
 
 		// Check for duplicate reports within 24 hours
 		$time_24h_ago = gmdate( 'Y-m-d H:i:s', strtotime( '-24 hours' ) );
@@ -1072,12 +1095,12 @@ class Fanfic_Shortcodes_Forms {
 			// Check for logged-in user
 			$duplicate = $wpdb->get_var( $wpdb->prepare(
 				"SELECT id FROM {$reports_table}
-				WHERE content_id = %d
-				AND content_type = %s
+				WHERE reported_item_id = %d
+				AND reported_item_type = %s
 				AND reporter_id = %d
 				AND created_at > %s",
 				$content_id,
-				$content_type,
+				$reported_item_type,
 				$reporter_id,
 				$time_24h_ago
 			) );
@@ -1085,12 +1108,12 @@ class Fanfic_Shortcodes_Forms {
 			// Check for anonymous user by IP
 			$duplicate = $wpdb->get_var( $wpdb->prepare(
 				"SELECT id FROM {$reports_table}
-				WHERE content_id = %d
-				AND content_type = %s
+				WHERE reported_item_id = %d
+				AND reported_item_type = %s
 				AND reporter_ip = %s
 				AND created_at > %s",
 				$content_id,
-				$content_type,
+				$reported_item_type,
 				$reporter_ip,
 				$time_24h_ago
 			) );
@@ -1113,14 +1136,14 @@ class Fanfic_Shortcodes_Forms {
 		$inserted = $wpdb->insert(
 			$reports_table,
 			array(
-				'content_id'   => $content_id,
-				'content_type' => $content_type,
-				'reporter_id'  => $reporter_id,
-				'reporter_ip'  => $reporter_ip,
-				'reason'       => $full_reason,
-				'details'      => $details,
-				'status'       => 'pending',
-				'created_at'   => current_time( 'mysql' ),
+				'reported_item_id'   => $content_id,
+				'reported_item_type' => $reported_item_type,
+				'reporter_id'        => $reporter_id,
+				'reporter_ip'        => $reporter_ip,
+				'reason'             => $full_reason,
+				'details'            => $details,
+				'status'             => 'pending',
+				'created_at'         => current_time( 'mysql' ),
 			),
 			array( '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
 		);

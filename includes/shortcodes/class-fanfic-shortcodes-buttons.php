@@ -603,8 +603,8 @@ class Fanfic_Shortcodes_Buttons {
 
 		$icons = array(
 			'follow' => array(
-				'inactive' => '&#128278;', // Follow outline
-				'active'   => '&#128278;', // Follow filled
+				'inactive' => '<span class="dashicons dashicons-heart" aria-hidden="true"></span>',
+				'active'   => '<span class="dashicons dashicons-heart" aria-hidden="true"></span>',
 			),
 			'like' => array(
 				'inactive' => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_up_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_up_path ) . '"/></svg>',
@@ -615,16 +615,16 @@ class Fanfic_Shortcodes_Buttons {
 				'active'   => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_down_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_down_path ) . '"/></svg>',
 			),
 			'mark-read' => array(
-				'inactive' => '&#128214;', // Book
-				'active'   => '&#10003;', // Check
+				'inactive' => '',
+				'active'   => '<span class="fanfic-read-check" aria-hidden="true">&#10003;</span>', // Same checkmark used by read badge
 			),
 			'share' => array(
-				'inactive' => '&#128279;', // Link/share
-				'active'   => '&#128279;', // Link/share
+				'inactive' => '<span class="dashicons dashicons-share" aria-hidden="true"></span>',
+				'active'   => '<span class="dashicons dashicons-share" aria-hidden="true"></span>',
 			),
 			'report' => array(
-				'inactive' => '&#9888;', // Warning
-				'active'   => '&#9888;', // Warning
+				'inactive' => '<span class="dashicons dashicons-flag" aria-hidden="true"></span>',
+				'active'   => '<span class="dashicons dashicons-flag" aria-hidden="true"></span>',
 			),
 			'edit' => array(
 				'inactive' => '&#9998;', // Pencil
@@ -801,11 +801,24 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		$label = __( 'Edit', 'fanfiction-manager' );
-		$icon = '&#9998;'; // Pencil icon
+		$aria_object = $context;
+
+		if ( 'story' === $content_type ) {
+			$label = __( 'Edit Story', 'fanfiction-manager' );
+			$aria_object = 'story';
+		} elseif ( 'chapter' === $content_type ) {
+			$label = __( 'Edit Chapter', 'fanfiction-manager' );
+			$aria_object = 'chapter';
+		} elseif ( 'profile' === $content_type ) {
+			$label = __( 'Edit Profile', 'fanfiction-manager' );
+			$aria_object = 'profile';
+		}
+
+		$icon = '<span class="dashicons dashicons-edit" aria-hidden="true"></span>';
 
 		// Render as link (not button) since it navigates to a different page
 		// Uses same structure and classes as other action buttons for visual consistency
-		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $context ) ) . '" role="button">';
+		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $aria_object ) ) . '" role="button">';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
 		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
 		$output .= '</a>';
@@ -843,7 +856,7 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		$label = __( 'Report', 'fanfiction-manager' );
-		$icon = '&#9888;'; // Warning icon
+		$icon = '<span class="dashicons dashicons-flag" aria-hidden="true"></span>';
 
 		$output = '<button type="button" class="fanfic-button fanfic-report-button" ';
 		$output .= 'data-content-id="' . absint( $content_id ) . '" ';

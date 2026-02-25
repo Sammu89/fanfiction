@@ -242,6 +242,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-email-queue.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-author-demotion.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-story-status-automation.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-featured-stories.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-export.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-import.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-widgets.php';
@@ -420,6 +421,7 @@ class Fanfic_Core {
 		// Initialize author demotion
 		Fanfic_Author_Demotion::init();
 		Fanfic_Story_Status_Automation::init();
+		Fanfic_Featured_Stories::init();
 
 		// Initialize cache hooks (automatic cache invalidation)
 		Fanfic_Cache_Hooks::init();
@@ -1239,6 +1241,9 @@ class Fanfic_Core {
 		$interactions_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfiction-interactions.js';
 		if ( file_exists( $interactions_js_file ) ) {
 			$interactions_js_version = (string) filemtime( $interactions_js_file );
+			$read_tracking_config = $this->get_read_tracking_config();
+			$allow_anonymous_reports = (bool) Fanfic_Settings::get_setting( 'allow_anonymous_reports', false );
+			$report_recaptcha_site_key = get_option( 'fanfic_recaptcha_site_key', '' );
 			wp_enqueue_script(
 				'fanfiction-interactions',
 				FANFIC_PLUGIN_URL . 'assets/js/fanfiction-interactions.js',
@@ -1256,8 +1261,12 @@ class Fanfic_Core {
 					'nonce'   => wp_create_nonce( 'fanfic_ajax_nonce' ),
 					'debug'   => defined( 'WP_DEBUG' ) && WP_DEBUG,
 					'isLoggedIn' => is_user_logged_in(),
+					'allowAnonymousReports' => $allow_anonymous_reports,
+					'reportRecaptchaSiteKey' => $report_recaptcha_site_key,
 					'needsSync'  => is_user_logged_in() ? (bool) get_transient( 'fanfic_needs_sync_' . get_current_user_id() ) : false,
 					'enableDislikes' => (bool) Fanfic_Settings::get_setting( 'enable_dislikes', false ),
+				'canFeatureStories' => Fanfic_Featured_Stories::can_user_feature(),
+					'readTracking' => $read_tracking_config,
 					'strings' => array(
 						'ratingSubmitted'   => __( 'Rating submitted!', 'fanfiction-manager' ),
 						'ratingUpdated'     => __( 'Rating updated!', 'fanfiction-manager' ),
@@ -1272,6 +1281,11 @@ class Fanfic_Core {
 						'loginRequired'     => __( 'You must be logged in to do that.', 'fanfiction-manager' ),
 						'copiedLink'        => __( 'Copied link.', 'fanfiction-manager' ),
 						'copyThisLinkPrompt' => __( 'Copy this link:', 'fanfiction-manager' ),
+						'anonymousReportsDisabled' => __( 'Anonymous reports are disabled. Please log in to report content.', 'fanfiction-manager' ),
+						'recaptchaLoadFailed' => __( 'Could not load reCAPTCHA. Please refresh and try again.', 'fanfiction-manager' ),
+						'recaptchaRequired'  => __( 'Please complete the reCAPTCHA verification and try again.', 'fanfiction-manager' ),
+					'featureStory'       => __( 'Feature', 'fanfiction-manager' ),
+					'unfeatureStory'     => __( 'Unfeature', 'fanfiction-manager' ),
 					),
 				)
 			);
@@ -1465,6 +1479,70 @@ class Fanfic_Core {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Build read-tracking configuration for frontend auto-read behavior.
+	 *
+	 * @since 1.6.2
+	 * @return array{
+	 *   wordsPerMinute:int,
+	 *   completionPercent:float,
+	 *   minSeconds:int,
+	 *   maxSeconds:int,
+	 *   chapterWordCount:int
+	 * }
+	 */
+	private function get_read_tracking_config() {
+		$config = array(
+			'wordsPerMinute'    => 220,
+			'completionPercent' => 0.5,
+			'minSeconds'        => 20,
+			'maxSeconds'        => 480,
+			'chapterWordCount'  => 0,
+		);
+
+		if ( is_singular( 'fanfiction_chapter' ) ) {
+			$chapter_post = get_queried_object();
+			if ( $chapter_post instanceof WP_Post && 'fanfiction_chapter' === $chapter_post->post_type ) {
+				$chapter_text = trim( wp_strip_all_tags( (string) $chapter_post->post_content ) );
+				if ( '' !== $chapter_text ) {
+					$word_count = str_word_count( $chapter_text );
+					if ( $word_count <= 0 ) {
+						$split_words = preg_split( '/\s+/u', $chapter_text, -1, PREG_SPLIT_NO_EMPTY );
+						$word_count = is_array( $split_words ) ? count( $split_words ) : 0;
+					}
+					$config['chapterWordCount'] = absint( $word_count );
+				}
+			}
+		}
+
+		/**
+		 * Filter frontend read-tracking configuration.
+		 *
+		 * @since 1.6.2
+		 * @param array $config Read-tracking config.
+		 */
+		$config = apply_filters( 'fanfic_read_tracking_config', $config );
+
+		$words_per_minute   = isset( $config['wordsPerMinute'] ) ? absint( $config['wordsPerMinute'] ) : 220;
+		$min_seconds        = isset( $config['minSeconds'] ) ? absint( $config['minSeconds'] ) : 20;
+		$max_seconds        = isset( $config['maxSeconds'] ) ? absint( $config['maxSeconds'] ) : 480;
+		$chapter_word_count = isset( $config['chapterWordCount'] ) ? absint( $config['chapterWordCount'] ) : 0;
+		$completion_percent = isset( $config['completionPercent'] ) ? (float) $config['completionPercent'] : 0.5;
+
+		$words_per_minute   = min( 600, max( 100, $words_per_minute ) );
+		$min_seconds        = min( 600, max( 5, $min_seconds ) );
+		$max_seconds        = min( 1800, max( $min_seconds, $max_seconds ) );
+		$completion_percent = min( 1, max( 0.05, $completion_percent ) );
+
+		return array(
+			'wordsPerMinute'    => $words_per_minute,
+			'completionPercent' => $completion_percent,
+			'minSeconds'        => $min_seconds,
+			'maxSeconds'        => $max_seconds,
+			'chapterWordCount'  => $chapter_word_count,
+		);
 	}
 
 	/**
