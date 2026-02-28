@@ -1490,6 +1490,15 @@ class Fanfic_Stories_Table extends WP_List_Table {
 				if ( $genre_id ) {
 					foreach ( $story_ids as $story_id ) {
 						wp_set_post_terms( $story_id, array( $genre_id ), 'fanfiction_genre', true );
+						if ( class_exists( 'Fanfic_Translations' ) && Fanfic_Translations::is_enabled() ) {
+							Fanfic_Translations::sync_story_classification( $story_id );
+						}
+						if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+							Fanfic_Search_Index::update_index( $story_id );
+						}
+						if ( class_exists( 'Fanfic_Cache' ) && method_exists( 'Fanfic_Cache', 'invalidate_story' ) ) {
+							Fanfic_Cache::invalidate_story( $story_id );
+						}
 					}
 					$this->add_notice(
 						sprintf(
@@ -1509,6 +1518,12 @@ class Fanfic_Stories_Table extends WP_List_Table {
 				if ( $status_id ) {
 					foreach ( $story_ids as $story_id ) {
 						wp_set_post_terms( $story_id, array( $status_id ), 'fanfiction_status', false );
+						if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+							Fanfic_Search_Index::update_index( $story_id );
+						}
+						if ( class_exists( 'Fanfic_Cache' ) && method_exists( 'Fanfic_Cache', 'invalidate_story' ) ) {
+							Fanfic_Cache::invalidate_story( $story_id );
+						}
 					}
 					$this->add_notice(
 						sprintf(

@@ -29,7 +29,7 @@ class Fanfic_Validation {
 	 * @since 1.0.0
 	 */
 	public static function init() {
-		// Handle chapter deletion/unpublish to auto-draft story if it becomes invalid
+		// Handle chapter deletion/hide to auto-draft story if it becomes invalid
 		add_action( 'before_delete_post', array( __CLASS__, 'handle_chapter_deletion' ), 10, 1 );
 		add_action( 'transition_post_status', array( __CLASS__, 'handle_chapter_status_change' ), 10, 3 );
 	}
@@ -398,9 +398,9 @@ class Fanfic_Validation {
 	}
 
 	/**
-	 * Handle chapter status changes (e.g., unpublishing a chapter).
+	 * Handle chapter status changes (e.g., hideing a chapter).
 	 *
-	 * When a chapter is unpublished, check if the story becomes invalid and auto-draft it.
+	 * When a chapter is hideed, check if the story becomes invalid and auto-draft it.
 	 *
 	 * @since 1.0.0
 	 * @param string  $new_status The new post status.
@@ -413,7 +413,7 @@ class Fanfic_Validation {
 			return;
 		}
 
-		// Only care if a chapter is being unpublished
+		// Only care if a chapter is being hideed
 		if ( 'publish' === $old_status && 'publish' !== $new_status ) {
 			$story_id = $post->post_parent;
 			$story = get_post( $story_id );
@@ -443,13 +443,13 @@ class Fanfic_Validation {
 				);
 
 				/**
-				 * Fires when a story is auto-drafted due to chapter unpublishing.
+				 * Fires when a story is auto-drafted due to chapter hideing.
 				 *
 				 * @since 1.0.0
 				 * @param int $story_id The story post ID.
-				 * @param int $chapter_id The chapter post ID being unpublished.
+				 * @param int $chapter_id The chapter post ID being hideed.
 				 */
-				do_action( 'fanfic_story_auto_drafted_on_chapter_unpublish', $story_id, $post->ID );
+				do_action( 'fanfic_story_auto_drafted_on_chapter_hide', $story_id, $post->ID );
 			}
 		}
 	}
@@ -490,7 +490,7 @@ class Fanfic_Validation {
 	/**
 	 * Check if removing a specific chapter will cause the story to auto-draft.
 	 *
-	 * This centralizes the logic for determining whether deleting or unpublishing
+	 * This centralizes the logic for determining whether deleting or hideing
 	 * a chapter will trigger auto-drafting of its parent story.
 	 *
 	 * @since 1.0.8

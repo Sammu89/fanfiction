@@ -429,10 +429,14 @@ class Fanfic_Follows {
 		$follows = self::get_user_follows( $user_id, $type, $limit, $offset );
 
 		if ( empty( $follows ) ) {
-			return '<div class="fanfic-user-follows-list"><p>' . esc_html__( 'No follows found.', 'fanfiction-manager' ) . '</p></div>';
+			return '<p class="fanfic-user-follows-empty">' . esc_html__( 'No follows found.', 'fanfiction-manager' ) . '</p>';
 		}
 
-		$output = '<div class="fanfic-user-follows-list">';
+		if ( 'story' === $type ) {
+			self::preload_story_card_data_for_follows( $follows );
+		}
+
+		$output = '';
 
 		foreach ( $follows as $follow ) {
 			if ( 'chapter' === $type ) {
@@ -441,8 +445,6 @@ class Fanfic_Follows {
 				$output .= self::render_story_follow_item( $follow );
 			}
 		}
-
-		$output .= '</div>';
 
 		return $output;
 	}
@@ -464,50 +466,26 @@ class Fanfic_Follows {
 			return '';
 		}
 
-		$author      = get_userdata( $story->post_author );
-		$author_name = $author ? $author->display_name : __( 'Unknown Author', 'fanfiction-manager' );
-
-		$formatted_date = wp_date( get_option( 'date_format' ), strtotime( $story->post_date ) );
-
-		$latest_chapter = self::get_latest_story_chapter_helper( $story->ID );
-		$is_read        = false;
-
-		if ( $latest_chapter ) {
-			$latest_chapter_number = get_post_meta( $latest_chapter->ID, '_fanfic_chapter_number', true );
-			$latest_chapter_label  = self::get_chapter_label_helper( $latest_chapter->ID );
-
-			$post_date     = strtotime( $latest_chapter->post_date );
-			$post_modified = strtotime( $latest_chapter->post_modified );
-			$display_date  = ( $post_modified > $post_date ) ? $latest_chapter->post_modified : $latest_chapter->post_date;
-			$latest_chapter_date = wp_date( get_option( 'date_format' ), strtotime( $display_date ) );
-
-			$current_user_id = get_current_user_id();
-			if ( $current_user_id && class_exists( 'Fanfic_Reading_Progress' ) ) {
-				$read_chapters = self::get_cached_read_chapters_helper( $current_user_id, $story->ID );
-				$is_read       = in_array( absint( $latest_chapter_number ), $read_chapters, true );
-			}
+		if ( ! function_exists( 'fanfic_get_story_card_html' ) ) {
+			return '';
 		}
 
-		$output  = '<div class="fanfic-follow-item fanfic-follow-story">';
-		$output .= '<h4><a href="' . esc_url( get_permalink( $story->ID ) ) . '">' . esc_html( $story->post_title ) . '</a></h4>';
-		$output .= '<p class="fanfic-follow-meta">';
-		$output .= esc_html__( 'by', 'fanfiction-manager' ) . ' ' . esc_html( $author_name ) . ', ';
-		$output .= esc_html__( 'published on', 'fanfiction-manager' ) . ' ' . esc_html( $formatted_date );
-		$output .= '</p>';
-
-		if ( $latest_chapter ) {
-			$output .= '<p class="fanfic-follow-last-chapter">';
-			$output .= esc_html__( 'Last chapter:', 'fanfiction-manager' ) . ' ';
-			$output .= '<a href="' . esc_url( get_permalink( $latest_chapter->ID ) ) . '">' . esc_html( $latest_chapter_label ) . '</a>, ';
-			$output .= esc_html( $latest_chapter_date );
-			$output .= '</p>';
+		$output = fanfic_get_story_card_html( $story->ID );
+		if ( '' === $output ) {
+			return '';
 		}
 
-		if ( $is_read ) {
-			$output .= '<span class="fanfic-badge read">' . esc_html__( '✓ Read', 'fanfiction-manager' ) . '</span>';
-		}
+		$output = preg_replace(
+			'/class="([^"]*\bfanfic-story-card\b[^"]*)"/',
+			'class="$1 fanfic-follow-story-card"',
+			$output,
+			1
+		);
 
-		$output .= '</div>';
+		$latest_update_html = self::build_story_follow_latest_update_html( $story->ID );
+		if ( '' !== $latest_update_html ) {
+			$output = preg_replace( '/<\/article>\s*$/', $latest_update_html . '</article>', $output, 1 );
+		}
 
 		return $output;
 	}
@@ -596,6 +574,67 @@ class Fanfic_Follows {
 		// Reset in-request follow rendering caches.
 		self::$read_chapters_cache = array();
 		self::$latest_chapter_cache = array();
+	}
+
+	/**
+	 * Preload story card metadata for a follow set.
+	 *
+	 * @since 1.8.0
+	 * @param array $follows Follow rows.
+	 * @return void
+	 */
+	private static function preload_story_card_data_for_follows( $follows ) {
+		if ( ! function_exists( 'fanfic_preload_story_card_index_data' ) ) {
+			return;
+		}
+
+		$story_ids = array();
+		foreach ( (array) $follows as $follow ) {
+			$story_id = isset( $follow['post_id'] ) ? absint( $follow['post_id'] ) : 0;
+			if ( $story_id ) {
+				$story_ids[] = $story_id;
+			}
+		}
+
+		if ( empty( $story_ids ) ) {
+			return;
+		}
+
+		fanfic_preload_story_card_index_data( array_values( array_unique( $story_ids ) ) );
+	}
+
+	/**
+	 * Build the latest chapter footer displayed on followed story cards.
+	 *
+	 * @since 1.8.0
+	 * @param int $story_id Story ID.
+	 * @return string
+	 */
+	private static function build_story_follow_latest_update_html( $story_id ) {
+		$latest_chapter = self::get_latest_story_chapter_helper( $story_id );
+		if ( ! $latest_chapter ) {
+			return '';
+		}
+
+		$latest_chapter_label = self::get_chapter_label_helper( $latest_chapter->ID );
+		$post_date            = strtotime( $latest_chapter->post_date );
+		$post_modified        = strtotime( $latest_chapter->post_modified );
+		$display_date         = ( $post_modified > $post_date ) ? $latest_chapter->post_modified : $latest_chapter->post_date;
+		$latest_chapter_date  = wp_date( get_option( 'date_format' ), strtotime( $display_date ) );
+
+		return sprintf(
+			'<p class="fanfic-follow-story-latest-update">%1$s <a href="%2$s">%3$s</a> %4$s</p>',
+			esc_html__( 'Latest update:', 'fanfiction-manager' ),
+			esc_url( get_permalink( $latest_chapter->ID ) ),
+			esc_html( $latest_chapter_label ),
+			esc_html(
+				sprintf(
+					/* translators: %s: chapter date */
+					__( 'on %s', 'fanfiction-manager' ),
+					$latest_chapter_date
+				)
+			)
+		);
 	}
 
 	/**

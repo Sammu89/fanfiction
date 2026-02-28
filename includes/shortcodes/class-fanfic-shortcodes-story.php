@@ -686,7 +686,11 @@ class Fanfic_Shortcodes_Story {
 			Fanfic_Cache::SHORT
 		);
 
-		return '<span class="story-views">' . Fanfic_Shortcodes::format_number( $total_views ) . '</span>';
+		return sprintf(
+			'<span class="story-views" title="%1$s" aria-label="%1$s">%2$s</span>',
+			esc_attr( Fanfic_Shortcodes::format_number( $total_views ) ),
+			esc_html( Fanfic_Shortcodes::format_engagement_number( $total_views ) )
+		);
 	}
 
 	/**
@@ -710,7 +714,11 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		$total_likes = class_exists( 'Fanfic_Interactions' ) ? absint( Fanfic_Interactions::get_story_likes( $story_id ) ) : 0;
-		return '<span class="story-likes">' . Fanfic_Shortcodes::format_number( $total_likes ) . '</span>';
+		return sprintf(
+			'<span class="story-likes" title="%1$s" aria-label="%1$s">%2$s</span>',
+			esc_attr( Fanfic_Shortcodes::format_number( $total_likes ) ),
+			esc_html( Fanfic_Shortcodes::format_engagement_number( $total_likes ) )
+		);
 	}
 
 	/**

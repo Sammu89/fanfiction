@@ -74,18 +74,6 @@
 			});
 		}
 
-		function setSelectValue(selector, value) {
-			if (!storyForm) {
-				return;
-			}
-
-			var field = storyForm.querySelector(selector);
-			if (!field) {
-				return;
-			}
-			field.value = value ? String(value) : '';
-		}
-
 		function renderFandomSelection(items) {
 			if (!storyForm) {
 				return;
@@ -130,33 +118,12 @@
 			});
 		}
 
-		function applyCustomTaxonomies(customTaxonomies) {
-			if (!storyForm || !Array.isArray(customTaxonomies)) {
-				return;
-			}
-
-			customTaxonomies.forEach(function(taxonomy) {
-				if (!taxonomy || !taxonomy.slug) {
-					return;
-				}
-
-				var slug = String(taxonomy.slug);
-				var termIds = normalizeIdList(taxonomy.term_ids || []);
-				if (taxonomy.selection_type === 'single') {
-					setSelectValue('select[name="fanfic_custom_' + slug + '"]', termIds.length ? termIds[0] : '');
-					return;
-				}
-				setCheckboxValues('fanfic_custom_' + slug + '[]', termIds);
-			});
-		}
-
 		function applyInheritanceData(data) {
 			if (!storyForm || !data || typeof data !== 'object') {
 				return;
 			}
 
 			setCheckboxValues('fanfic_story_genres[]', data.genre_ids || []);
-			setSelectValue('#fanfic_story_status', data.status_id || '');
 			setCheckboxValues('fanfic_story_warnings[]', data.warning_ids || []);
 
 			var originalCheckbox = storyForm.querySelector('input[name="fanfic_is_original_work"]');
@@ -172,7 +139,6 @@
 			}
 
 			document.dispatchEvent(new CustomEvent('fanfic-fandoms-changed'));
-			applyCustomTaxonomies(data.custom_taxonomies || []);
 
 			if (typeof storyForm.dispatchEvent === 'function') {
 				storyForm.dispatchEvent(new Event('input', { bubbles: true }));

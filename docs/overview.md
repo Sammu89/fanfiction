@@ -42,6 +42,14 @@ Enable independent fanfiction communities to operate on WordPress without relyin
 - **Modularity:** The plugin is organized into focused, single-responsibility classes that can be maintained and tested independently.
 - **Extensibility:** Theme developers and plugin developers can extend the plugin through standard WordPress hooks and by overriding templates.
 
+## Documentation Map
+
+### Backend Documents
+- [Backend Documents](backend/README.md)
+- [Translated Stories](backend/translated-stories.md)
+- [Status System](backend/status-system.md)
+- [Shortcodes](backend/shortcodes.md)
+
 ## Summary
 This architecture specification provides a comprehensive blueprint for implementing the Fanfiction Manager plugin. It covers all core functionality, user roles, content management, moderation, performance, and accessibility considerations.
 

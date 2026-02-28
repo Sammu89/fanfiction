@@ -247,7 +247,11 @@ class Fanfic_Shortcodes_Comments {
 		$count = get_comments_number( $post_id );
 
 		if ( 'number' === $atts['format'] ) {
-			return esc_html( number_format_i18n( $count ) );
+			return sprintf(
+				'<span class="fanfic-comment-count" title="%1$s" aria-label="%1$s">%2$s</span>',
+				esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
+				esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) )
+			);
 		}
 
 		// Text format
@@ -257,9 +261,13 @@ class Fanfic_Shortcodes_Comments {
 			return esc_html__( '1 comment', 'fanfiction-manager' );
 		} else {
 			return sprintf(
-				/* translators: %s: Number of comments */
-				esc_html__( '%s comments', 'fanfiction-manager' ),
-				esc_html( number_format_i18n( $count ) )
+				'<span class="fanfic-comment-count" title="%1$s" aria-label="%1$s">%2$s</span>',
+				esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
+				sprintf(
+					/* translators: %s: Number of comments */
+					esc_html__( '%s comments', 'fanfiction-manager' ),
+					esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) )
+				)
 			);
 		}
 	}
@@ -639,7 +647,11 @@ class Fanfic_Shortcodes_Comments {
 		$count = get_comments_number( $story_id );
 
 		if ( 'number' === $atts['format'] ) {
-			return esc_html( number_format_i18n( $count ) );
+			return sprintf(
+				'<span class="fanfic-story-comment-count" title="%1$s" aria-label="%1$s">%2$s</span>',
+				esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
+				esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) )
+			);
 		}
 
 		// Text format
@@ -649,9 +661,13 @@ class Fanfic_Shortcodes_Comments {
 			return esc_html__( '1 story comment', 'fanfiction-manager' );
 		} else {
 			return sprintf(
-				/* translators: %s: Number of story comments */
-				esc_html__( '%s story comments', 'fanfiction-manager' ),
-				esc_html( number_format_i18n( $count ) )
+				'<span class="fanfic-story-comment-count" title="%1$s" aria-label="%1$s">%2$s</span>',
+				esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
+				sprintf(
+					/* translators: %s: Number of story comments */
+					esc_html__( '%s story comments', 'fanfiction-manager' ),
+					esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) )
+				)
 			);
 		}
 	}
@@ -699,7 +715,11 @@ class Fanfic_Shortcodes_Comments {
 		$count = get_comments_number( $chapter_id );
 
 		if ( 'number' === $atts['format'] ) {
-			return esc_html( number_format_i18n( $count ) );
+			return sprintf(
+				'<span class="fanfic-chapter-comment-count" title="%1$s" aria-label="%1$s">%2$s</span>',
+				esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
+				esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) )
+			);
 		}
 
 		// Text format
@@ -709,9 +729,13 @@ class Fanfic_Shortcodes_Comments {
 			return esc_html__( '1 chapter comment', 'fanfiction-manager' );
 		} else {
 			return sprintf(
-				/* translators: %s: Number of chapter comments */
-				esc_html__( '%s chapter comments', 'fanfiction-manager' ),
-				esc_html( number_format_i18n( $count ) )
+				'<span class="fanfic-chapter-comment-count" title="%1$s" aria-label="%1$s">%2$s</span>',
+				esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
+				sprintf(
+					/* translators: %s: Number of chapter comments */
+					esc_html__( '%s chapter comments', 'fanfiction-manager' ),
+					esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) )
+				)
 			);
 		}
 	}

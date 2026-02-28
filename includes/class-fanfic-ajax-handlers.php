@@ -392,6 +392,15 @@ class Fanfic_AJAX_Handlers {
 		foreach ( $story_ids as $story_id ) {
 			// true for append
 			wp_set_post_terms( $story_id, $genre_ids, 'fanfiction_genre', true );
+			if ( class_exists( 'Fanfic_Translations' ) && Fanfic_Translations::is_enabled() ) {
+				Fanfic_Translations::sync_story_classification( $story_id );
+			}
+			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+				Fanfic_Search_Index::update_index( $story_id );
+			}
+			if ( class_exists( 'Fanfic_Cache' ) && method_exists( 'Fanfic_Cache', 'invalidate_story' ) ) {
+				Fanfic_Cache::invalidate_story( $story_id );
+			}
 			$updated_count++;
 		}
 
@@ -447,6 +456,12 @@ class Fanfic_AJAX_Handlers {
 		foreach ( $story_ids as $story_id ) {
 			// false for append, to overwrite existing status
 			wp_set_post_terms( $story_id, $status_id, 'fanfiction_status', false );
+			if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+				Fanfic_Search_Index::update_index( $story_id );
+			}
+			if ( class_exists( 'Fanfic_Cache' ) && method_exists( 'Fanfic_Cache', 'invalidate_story' ) ) {
+				Fanfic_Cache::invalidate_story( $story_id );
+			}
 			$updated_count++;
 		}
 
@@ -1202,6 +1217,20 @@ class Fanfic_AJAX_Handlers {
 
 		// Get total count for has_more calculation
 		$total_count = Fanfic_Follows::get_follows_count( $user_id, $follow_type );
+
+		if ( 'story' === $follow_type && function_exists( 'fanfic_preload_story_card_index_data' ) ) {
+			$preload_ids = array();
+			foreach ( $follows as $follow ) {
+				$story_id = isset( $follow['post_id'] ) ? absint( $follow['post_id'] ) : 0;
+				if ( $story_id ) {
+					$preload_ids[] = $story_id;
+				}
+			}
+
+			if ( ! empty( $preload_ids ) ) {
+				fanfic_preload_story_card_index_data( array_values( array_unique( $preload_ids ) ) );
+			}
+		}
 
 		// Build HTML for each follow
 		$html_output = '';

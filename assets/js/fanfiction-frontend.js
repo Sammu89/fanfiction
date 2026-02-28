@@ -550,104 +550,6 @@
 	};
 
 	/**
-	 * Form Submission Handler
-	 */
-	const FormSubmitter = {
-		init: function() {
-			// Story form
-			$(document).on('submit', '.fanfic-author-form', (e) => {
-				e.preventDefault();
-				const $form = $(e.currentTarget);
-
-				// All forms use AJAX now, including profile form
-				if (FormValidator.validateForm($form)) {
-					this.submitForm($form);
-				}
-			});
-		},
-
-		submitForm: function($form) {
-			const $submitBtn = $form.find('button[type="submit"]');
-			const originalText = $submitBtn.text();
-
-			// Disable button and show loading state
-			$submitBtn.prop('disabled', true).text('Saving...');
-
-			// Use serialize() for reliable form data capture
-			const formData = $form.serialize();
-
-			// Determine the AJAX action based on form submit button
-			let ajaxAction = '';
-			if ($form.find('[name="fanfic_create_story_submit"]').length) {
-				ajaxAction = 'fanfic_create_story';
-			} else if ($form.find('[name="fanfic_edit_story_submit"]').length) {
-				ajaxAction = 'fanfic_edit_story';
-			} else if ($form.find('[name="fanfic_create_chapter_submit"]').length) {
-				ajaxAction = 'fanfic_create_chapter';
-			} else if ($form.find('[name="fanfic_edit_chapter_submit"]').length) {
-				ajaxAction = 'fanfic_edit_chapter';
-			} else if ($form.find('[name="fanfic_edit_profile_submit"]').length) {
-				ajaxAction = 'fanfic_edit_profile';
-			}
-
-			// Add action parameter to form data
-			const formDataWithAction = formData + '&action=' + ajaxAction;
-
-			// Use fanficAjax.ajaxUrl if available
-			const ajaxUrl = (typeof fanficAjax !== 'undefined' && fanficAjax.ajaxUrl) ? fanficAjax.ajaxUrl : '/wp-admin/admin-ajax.php';
-
-			console.log('Submitting form to:', ajaxUrl);
-			console.log('Action:', ajaxAction);
-			console.log('Form data:', formDataWithAction);
-
-			$.ajax({
-				url: ajaxUrl,
-				type: 'POST',
-				data: formDataWithAction,
-				dataType: 'json',
-				success: (response) => {
-					console.log('AJAX Success:', response);
-					if (response.success) {
-						// Show success notification
-						Notice.show('success', response.message || 'Saved successfully!');
-
-						// For profile form, don't redirect - just show success
-						if ($form.hasClass('fanfic-edit-profile-form')) {
-							// Scroll to top to see notification
-							$('html, body').animate({ scrollTop: 0 }, 300);
-						} else if (response.data && response.data.redirect_url) {
-							// For other forms, redirect after showing message
-							setTimeout(() => {
-								window.location.href = response.data.redirect_url;
-							}, 1500);
-						}
-					} else {
-						Notice.show('error', response.message || 'An error occurred.');
-					}
-				},
-				error: (xhr, status, error) => {
-					console.error('AJAX Error:', status, error);
-					console.error('Response:', xhr.responseText);
-					console.error('Status Code:', xhr.status);
-
-					// Try to parse error message from response
-					let errorMsg = 'An error occurred. Please try again.';
-					if (xhr.responseJSON && xhr.responseJSON.message) {
-						errorMsg = xhr.responseJSON.message;
-					} else if (xhr.responseText) {
-						errorMsg = 'Server error. Please check the console for details.';
-					}
-
-					Notice.show('error', errorMsg);
-				},
-				complete: () => {
-					$submitBtn.prop('disabled', false).text(originalText);
-				}
-			});
-		}
-	};
-
-	/**
 	 * Delete Confirmation
 	 */
 	const DeleteConfirm = {
@@ -924,7 +826,6 @@
 		ThemeBreadcrumbCleanup.init();
 		Notice.registerExisting();
 		CharCounter.init();
-		FormSubmitter.init();
 		DeleteConfirm.init();
 		ModalClose.init();
 		RatingHandler.init();
@@ -2267,6 +2168,24 @@
 		initializeFollowsPagination();
 	});
 
+	function stripDashboardStoryCardDates(context) {
+		var $scope = context ? $(context) : $(document);
+		$scope.find('.search-story-card .search-story-card-date').each(function() {
+			var $date = $(this);
+			var $storyCard = $date.closest('.search-story-card');
+			if (!$storyCard.length || !$storyCard.closest('.fanfic-user-follows.fanfic-stories-page').length) {
+				return;
+			}
+
+			var $separator = $date.prev('.fanfic-byline-separator');
+			if ($separator.length) {
+				$separator.remove();
+			}
+
+			$date.remove();
+		});
+	}
+
 	function initializeFollowsPagination() {
 		// Find follows container
 		var $followsContainer = $('.fanfic-user-follows');
@@ -2274,8 +2193,10 @@
 			return;
 		}
 
+		stripDashboardStoryCardDates($followsContainer);
+
 		// Show "Show More" button only if there are follows
-		if ($('.fanfic-follow-item', $followsContainer).length > 0) {
+		if ($('.fanfic-follow-item, .fanfic-follow-story-card', $followsContainer).length > 0) {
 			var $loadMoreBtn = $('.fanfic-load-more-follows', $followsContainer);
 			$loadMoreBtn.show();
 		}
@@ -2314,6 +2235,7 @@
 				if (response.success && response.data.html) {
 					// APPEND new follows to list (not replace)
 					$followsList.append(response.data.html);
+					stripDashboardStoryCardDates($followsList);
 
 					// Update offset for next load
 					var nextOffset = offset + 20;

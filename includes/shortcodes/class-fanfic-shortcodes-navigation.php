@@ -259,7 +259,7 @@ class Fanfic_Shortcodes_Navigation {
 		$output .= '<th class="fanfic-col-stat fanfic-col-words" scope="col" title="' . esc_attr__( 'Words', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-edit" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Words', 'fanfiction-manager' ) . '</span></th>';
 		$output .= '<th class="fanfic-col-stat fanfic-col-rating" scope="col" title="' . esc_attr__( 'Rating', 'fanfiction-manager' ) . '">&#9733;<span class="screen-reader-text">' . esc_html__( 'Rating', 'fanfiction-manager' ) . '</span></th>';
 		if ( $enable_likes ) {
-			$output .= '<th class="fanfic-col-stat fanfic-col-likes" scope="col" title="' . esc_attr__( 'Likes', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-thumbs-up" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Likes', 'fanfiction-manager' ) . '</span></th>';
+			$output .= '<th class="fanfic-col-stat fanfic-col-likes" scope="col" title="' . esc_attr__( 'Likes', 'fanfiction-manager' ) . '"><svg class="fanfic-metric-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M19.017 31.992c-9.088 0-9.158-0.377-10.284-1.224-0.597-0.449-1.723-0.76-5.838-1.028-0.298-0.020-0.583-0.134-0.773-0.365-0.087-0.107-2.143-3.105-2.143-7.907 0-4.732 1.472-6.89 1.534-6.99 0.182-0.293 0.503-0.47 0.847-0.47 3.378 0 8.062-4.313 11.21-11.841 0.544-1.302 0.657-2.159 2.657-2.159 1.137 0 2.413 0.815 3.042 1.86 1.291 2.135 0.636 6.721 0.029 9.171 2.063-0.017 5.796-0.045 7.572-0.045 2.471 0 4.107 1.473 4.156 3.627 0.017 0.711-0.077 1.619-0.282 2.089 0.544 0.543 1.245 1.36 1.276 2.414 0.038 1.36-0.852 2.395-1.421 2.989 0.131 0.395 0.391 0.92 0.366 1.547-0.063 1.542-1.253 2.535-1.994 3.054 0.061 0.422 0.11 1.218-0.026 1.834-0.535 2.457-4.137 3.443-9.928 3.443z"/></svg><span class="screen-reader-text">' . esc_html__( 'Likes', 'fanfiction-manager' ) . '</span></th>';
 		}
 		if ( $enable_comments ) {
 			$output .= '<th class="fanfic-col-stat fanfic-col-comments" scope="col" title="' . esc_attr__( 'Comments', 'fanfiction-manager' ) . '"><span class="dashicons dashicons-admin-comments" aria-hidden="true"></span><span class="screen-reader-text">' . esc_html__( 'Comments', 'fanfiction-manager' ) . '</span></th>';
@@ -322,16 +322,19 @@ class Fanfic_Shortcodes_Navigation {
 			$output .= '</div></td>';
 
 			// Stats columns.
-			$output .= '<td class="fanfic-col-stat fanfic-col-views">'    . esc_html( Fanfic_Shortcodes::format_number( $stats['views'] ) ) . '</td>';
+			$output .= '<td class="fanfic-col-stat fanfic-col-views"><span title="' . esc_attr( Fanfic_Shortcodes::format_number( $stats['views'] ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $stats['views'] ) ) . '">' . esc_html( Fanfic_Shortcodes::format_engagement_number( $stats['views'] ) ) . '</span></td>';
 			$output .= '<td class="fanfic-col-stat fanfic-col-words">'    . esc_html( Fanfic_Shortcodes::format_number( $word_count ) ) . '</td>';
 			$output .= '<td class="fanfic-col-stat fanfic-col-rating">'   . $rating_html . '</td>';
 			if ( $enable_likes ) {
-				$output .= '<td class="fanfic-col-stat fanfic-col-likes">' . esc_html( Fanfic_Shortcodes::format_number( $stats['likes'] ) ) . '</td>';
+				$output .= '<td class="fanfic-col-stat fanfic-col-likes"><span title="' . esc_attr( Fanfic_Shortcodes::format_number( $stats['likes'] ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $stats['likes'] ) ) . '">' . esc_html( Fanfic_Shortcodes::format_engagement_number( $stats['likes'] ) ) . '</span></td>';
 			}
 			if ( $enable_comments ) {
 				$chapter_comments_open = comments_open( $chapter_id );
-				$comment_cell_value = $chapter_comments_open ? Fanfic_Shortcodes::format_number( $comment_count ) : '';
-				$output .= '<td class="fanfic-col-stat fanfic-col-comments">' . esc_html( $comment_cell_value ) . '</td>';
+				$comment_cell_value = '';
+				if ( $chapter_comments_open ) {
+					$comment_cell_value = '<span title="' . esc_attr( Fanfic_Shortcodes::format_number( $comment_count ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $comment_count ) ) . '">' . esc_html( Fanfic_Shortcodes::format_engagement_number( $comment_count ) ) . '</span>';
+				}
+				$output .= '<td class="fanfic-col-stat fanfic-col-comments">' . $comment_cell_value . '</td>';
 			}
 
 			// Updated date.

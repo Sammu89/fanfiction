@@ -124,6 +124,128 @@
 		return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 	}
 
+	function normalizeKeyPart(value) {
+		return String(value || '').trim().toLowerCase();
+	}
+
+	function getHourBucket(timestamp) {
+		var d = new Date(timestamp);
+		d.setMinutes(0, 0, 0);
+		return d.getTime();
+	}
+
+	function normalizeEntry(entry) {
+		if (!entry || typeof entry !== 'object') {
+			return null;
+		}
+
+		var normalized = {
+			id: entry.id ? String(entry.id) : generateId(),
+			type: entry.type ? String(entry.type) : '',
+			data: (entry.data && typeof entry.data === 'object') ? entry.data : {},
+			timestamp: parseInt(entry.timestamp, 10) || Date.now()
+		};
+
+		if (!normalized.type || normalized.type === 'login') {
+			return null;
+		}
+
+		return normalized;
+	}
+
+	function getCleanElementText(selector, removeSelectors) {
+		var el = document.querySelector(selector);
+		if (!el) {
+			return '';
+		}
+
+		var clone = el.cloneNode(true);
+		(removeSelectors || []).forEach(function(removeSelector) {
+			var matches = clone.querySelectorAll(removeSelector);
+			for (var i = 0; i < matches.length; i++) {
+				matches[i].remove();
+			}
+		});
+
+		return String(clone.textContent || '').replace(/\s+/g, ' ').trim();
+	}
+
+	function getTargetKey(entry) {
+		var d = (entry && entry.data) || {};
+		var storyKey = normalizeKeyPart(d.storyUrl) || normalizeKeyPart(d.storyTitle);
+		var chapterKey = normalizeKeyPart(d.chapterUrl) || normalizeKeyPart(d.chapterTitle);
+
+		if (chapterKey) {
+			return 'chapter:' + chapterKey + '|story:' + storyKey;
+		}
+
+		if (storyKey) {
+			return 'story:' + storyKey;
+		}
+
+		return '';
+	}
+
+	function getMergeKey(entry) {
+		var targetKey = getTargetKey(entry);
+
+		switch (entry.type) {
+			case 'read':
+			case 'browse':
+				return targetKey ? entry.type + ':' + targetKey + ':hour:' + getHourBucket(entry.timestamp) : '';
+			case 'like':
+			case 'dislike':
+				return targetKey ? 'reaction:' + targetKey : '';
+			case 'rate':
+				return targetKey ? 'rating:' + targetKey : '';
+			default:
+				return '';
+		}
+	}
+
+	function compactEntries(entries) {
+		var normalizedEntries = Array.isArray(entries) ? entries.map(normalizeEntry).filter(Boolean) : [];
+		var mergedEntries = [];
+		var mergedIndexByKey = {};
+		var seenIds = {};
+
+		for (var i = 0; i < normalizedEntries.length; i++) {
+			var entry = normalizedEntries[i];
+
+			if (seenIds[entry.id]) {
+				continue;
+			}
+			seenIds[entry.id] = true;
+
+			var mergeKey = getMergeKey(entry);
+			if (!mergeKey) {
+				mergedEntries.push(entry);
+				continue;
+			}
+
+			if (typeof mergedIndexByKey[mergeKey] === 'undefined') {
+				mergedIndexByKey[mergeKey] = mergedEntries.length;
+				mergedEntries.push(entry);
+				continue;
+			}
+
+			var existingIndex = mergedIndexByKey[mergeKey];
+			if (entry.timestamp >= mergedEntries[existingIndex].timestamp) {
+				mergedEntries[existingIndex] = entry;
+			}
+		}
+
+		mergedEntries.sort(function(a, b) {
+			return b.timestamp - a.timestamp;
+		});
+
+		if (mergedEntries.length > MAX_ENTRIES) {
+			mergedEntries = mergedEntries.slice(0, MAX_ENTRIES);
+		}
+
+		return mergedEntries;
+	}
+
 	/**
 	 * Safely read the activity array from localStorage.
 	 */
@@ -132,7 +254,11 @@
 			var raw = window.localStorage.getItem(STORAGE_KEY);
 			if (!raw) { return []; }
 			var parsed = JSON.parse(raw);
-			return Array.isArray(parsed) ? parsed : [];
+			var compacted = compactEntries(Array.isArray(parsed) ? parsed : []);
+			if (JSON.stringify(compacted) !== JSON.stringify(parsed)) {
+				writeStore(compacted);
+			}
+			return compacted;
 		} catch (e) {
 			return [];
 		}
@@ -143,7 +269,7 @@
 	 */
 	function writeStore(entries) {
 		try {
-			window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+			window.localStorage.setItem(STORAGE_KEY, JSON.stringify(compactEntries(entries)));
 		} catch (e) {
 			// Storage full or unavailable - silently fail
 		}
@@ -462,11 +588,15 @@
 			// Detect if we're on a chapter page (chapterId > 0) vs story page
 			if (ctx.chapterId > 0) {
 				// Chapter page
-				ctx.chapterTitle = ctx.shareTitle || document.title;
+				ctx.chapterTitle = getCleanElementText('.fanfic-chapter-title', [
+					'.fanfic-badge',
+					'.fanfic-read-indicator',
+					'.screen-reader-text'
+				]) || (ctx.shareTitle || document.title || '').replace(/\s*[|\-–]\s.+$/, '');
 				ctx.chapterUrl = ctx.shareUrl || window.location.href;
 
 				// Try to find the story title from the story title element
-				var storyTitleEl = document.querySelector('.fanfic-story-title a, .fanfic-story-title');
+				var storyTitleEl = document.querySelector('.fanfic-chapter-story-context a, .fanfic-story-title-link, .fanfic-chapter-story-context');
 				if (storyTitleEl) {
 					ctx.storyTitle = storyTitleEl.textContent.trim();
 					if (storyTitleEl.tagName === 'A') {
@@ -475,7 +605,7 @@
 				}
 			} else if (ctx.storyId > 0) {
 				// Story page
-				ctx.storyTitle = ctx.shareTitle || document.title;
+				ctx.storyTitle = (ctx.shareTitle || document.title || '').replace(/\s*[|\-–]\s.+$/, '');
 				ctx.storyUrl = ctx.shareUrl || window.location.href;
 			}
 
@@ -513,10 +643,14 @@
 		}
 
 		if (ctx.chapterId > 0) {
-			ctx.chapterTitle = (ctx.shareTitle || document.title || '').replace(/\s*[-|]\s*$/, '');
+			ctx.chapterTitle = getCleanElementText('.fanfic-chapter-title', [
+				'.fanfic-badge',
+				'.fanfic-read-indicator',
+				'.screen-reader-text'
+			]) || (ctx.shareTitle || document.title || '').replace(/\s*[|\-–]\s.+$/, '');
 			ctx.chapterUrl = ctx.shareUrl || window.location.href;
 
-			var storyTitleEl = document.querySelector('.fanfic-story-title a, .fanfic-story-title');
+			var storyTitleEl = document.querySelector('.fanfic-chapter-story-context a, .fanfic-story-title-link, .fanfic-chapter-story-context');
 			if (storyTitleEl) {
 				ctx.storyTitle = storyTitleEl.textContent.trim();
 				if (storyTitleEl.tagName === 'A') {
@@ -524,7 +658,7 @@
 				}
 			}
 		} else if (ctx.storyId > 0) {
-			ctx.storyTitle = (ctx.shareTitle || document.title || '').replace(/\s*[-|]\s*$/, '');
+			ctx.storyTitle = (ctx.shareTitle || document.title || '').replace(/\s*[|\-–]\s.+$/, '');
 			ctx.storyUrl = ctx.shareUrl || window.location.href;
 		}
 
@@ -546,6 +680,7 @@
 	}
 
 	document.addEventListener('DOMContentLoaded', function() {
+		writeStore(readStore());
 
 		// ----- Dashboard widget -----
 		var widgetContainer = document.getElementById('fanfic-recent-activity-list');
@@ -696,18 +831,6 @@
 			});
 		}
 
-		// ----- Login tracking -----
-		// On pages where user just logged in, detect via fanficAjax.isLoggedIn
-		// and a sessionStorage flag to avoid duplicate logs.
-		if (typeof fanficAjax !== 'undefined' && fanficAjax.isLoggedIn) {
-			try {
-				if (!window.sessionStorage.getItem('fanfic_login_logged')) {
-					window.sessionStorage.setItem('fanfic_login_logged', '1');
-					FanficRecentActivity.log('login', {});
-				}
-			} catch (e) {}
-		}
-
 		// ----- Logout tracking -----
 		// Intercept clicks on WordPress logout links.
 		document.addEventListener('click', function(e) {
@@ -717,10 +840,6 @@
 			}
 			if (link) {
 				FanficRecentActivity.log('logout', {});
-				// Clear login session flag so next login is tracked
-				try {
-					window.sessionStorage.removeItem('fanfic_login_logged');
-				} catch (ex) {}
 			}
 		}, true);
 	});

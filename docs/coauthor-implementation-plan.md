@@ -650,7 +650,7 @@ Add co-author check alongside post_author check (same pattern as chapter handler
 **Leave as-is** — existing check correctly prevents non-authors from deleting. Co-authors are not `post_author`.
 
 ### Co-author form processing
-In `handle_create_story_submission()` — after story is created (after `wp_insert_post` succeeds), process co-authors:
+In `handle_unified_story_form()` create flow — after story is created (after `wp_insert_post` succeeds), process co-authors:
 ```php
 if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled()
      && ! empty( $_POST['fanfic_story_coauthors'] ) ) {
@@ -661,7 +661,7 @@ if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled()
 }
 ```
 
-In `handle_edit_story_submission()` — diff current vs submitted:
+In `handle_unified_story_form()` edit flow — diff current vs submitted:
 ```php
 if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
     $submitted_ids = ! empty( $_POST['fanfic_story_coauthors'] )

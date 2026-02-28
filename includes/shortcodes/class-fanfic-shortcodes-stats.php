@@ -434,10 +434,11 @@ class Fanfic_Shortcodes_Stats {
 		$count = Fanfic_Interactions::get_story_views( $story_id );
 
 		return sprintf(
-			'<span class="fanfic-view-count" data-story-id="%d" data-count="%d">%s %s</span>',
+			'<span class="fanfic-view-count" data-story-id="%1$d" data-count="%2$d" title="%3$s" aria-label="%3$s">%4$s %5$s</span>',
 			$story_id,
 			$count,
-			esc_html( number_format_i18n( $count ) ),
+			esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
+			esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) ),
 			esc_html( _n( 'view', 'views', $count, 'fanfiction-manager' ) )
 		);
 	}
@@ -473,10 +474,11 @@ class Fanfic_Shortcodes_Stats {
 		$count = Fanfic_Interactions::get_chapter_views( $chapter_id );
 
 		return sprintf(
-			'<span class="fanfic-view-count" data-chapter-id="%d" data-count="%d">%s %s</span>',
+			'<span class="fanfic-view-count" data-chapter-id="%1$d" data-count="%2$d" title="%3$s" aria-label="%3$s">%4$s %5$s</span>',
 			$chapter_id,
 			$count,
-			esc_html( number_format_i18n( $count ) ),
+			esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
+			esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) ),
 			esc_html( _n( 'view', 'views', $count, 'fanfiction-manager' ) )
 		);
 	}
@@ -679,7 +681,7 @@ class Fanfic_Shortcodes_Stats {
 		$output .= '</div>';
 
 		$output .= '<div class="fanfic-stat-item">';
-		$output .= '<span class="fanfic-stat-value">' . esc_html( number_format_i18n( $total_views ) ) . '</span>';
+		$output .= '<span class="fanfic-stat-value" title="' . esc_attr( Fanfic_Shortcodes::format_number( $total_views ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $total_views ) ) . '">' . esc_html( Fanfic_Shortcodes::format_engagement_number( $total_views ) ) . '</span>';
 		$output .= '<span class="fanfic-stat-label">' . esc_html( _n( 'View', 'Views', $total_views, 'fanfiction-manager' ) ) . '</span>';
 		$output .= '</div>';
 
@@ -727,7 +729,7 @@ class Fanfic_Shortcodes_Stats {
 		}
 
 		if ( null !== $views ) {
-			$output .= '<span class="fanfic-meta-item">&#128065; ' . esc_html( number_format_i18n( $views ) ) . ' ' . esc_html( _n( 'view', 'views', $views, 'fanfiction-manager' ) ) . '</span>';
+			$output .= '<span class="fanfic-meta-item" title="' . esc_attr( Fanfic_Shortcodes::format_number( $views ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $views ) ) . '">&#128065; ' . esc_html( Fanfic_Shortcodes::format_engagement_number( $views ) ) . ' ' . esc_html( _n( 'view', 'views', $views, 'fanfiction-manager' ) ) . '</span>';
 		}
 
 		$output .= '</div>';
@@ -782,7 +784,7 @@ class Fanfic_Shortcodes_Stats {
 		}
 
 		if ( null !== $views ) {
-			$output .= '<span class="fanfic-meta-item">&#128065; ' . esc_html( number_format_i18n( $views ) ) . ' ' . esc_html( _n( 'view', 'views', $views, 'fanfiction-manager' ) ) . '</span>';
+			$output .= '<span class="fanfic-meta-item" title="' . esc_attr( Fanfic_Shortcodes::format_number( $views ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $views ) ) . '">&#128065; ' . esc_html( Fanfic_Shortcodes::format_engagement_number( $views ) ) . ' ' . esc_html( _n( 'view', 'views', $views, 'fanfiction-manager' ) ) . '</span>';
 		}
 
 		$output .= '</div>';
@@ -898,12 +900,13 @@ class Fanfic_Shortcodes_Stats {
 
 		// Use _n() for proper translation (singular/plural)
 		return sprintf(
-			'<span class="fanfic-like-count" data-story-id="%d" data-count="%d">%s</span>',
+			'<span class="fanfic-like-count" data-story-id="%1$d" data-count="%2$d" title="%3$s" aria-label="%3$s">%4$s</span>',
 			$story_id,
 			$count,
+			esc_attr( Fanfic_Shortcodes::format_number( $count ) ),
 			sprintf(
 				esc_html( _n( '%d like', '%d likes', $count, 'fanfiction-manager' ) ),
-				number_format_i18n( $count )
+				esc_html( Fanfic_Shortcodes::format_engagement_number( $count ) )
 			)
 		);
 	}

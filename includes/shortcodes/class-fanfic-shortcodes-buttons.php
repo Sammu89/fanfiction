@@ -32,6 +32,7 @@ class Fanfic_Shortcodes_Buttons {
 	 */
 	public static function register() {
 		add_shortcode( 'fanfiction-action-buttons', array( __CLASS__, 'action_buttons' ) );
+		add_shortcode( 'fanfic-like-dislike', array( __CLASS__, 'like_dislike_buttons' ) );
 	}
 
 	/**
@@ -104,6 +105,51 @@ class Fanfic_Shortcodes_Buttons {
 	}
 
 	/**
+	 * Standalone like/dislike segmented buttons shortcode
+	 *
+	 * [fanfic-like-dislike]
+	 *
+	 * @since 2.0.0
+	 * @param array $atts Shortcode attributes.
+	 * @return string Like/dislike buttons HTML.
+	 */
+	public static function like_dislike_buttons( $atts ) {
+		$context = self::detect_context();
+
+		if ( 'chapter' !== $context ) {
+			return '';
+		}
+
+		$context_ids = self::get_context_ids( $context );
+		if ( ! $context_ids ) {
+			return '';
+		}
+
+		$enable_likes    = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_likes', true ) : true;
+		$enable_dislikes = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_dislikes', false ) : false;
+
+		if ( ! $enable_likes && ! $enable_dislikes ) {
+			return '';
+		}
+
+		$nonce  = wp_create_nonce( 'fanfic_ajax_nonce' );
+		$output = '';
+
+		if ( $enable_likes && $enable_dislikes ) {
+			$output .= '<div class="fanfic-segmented-like-dislike">';
+			$output .= self::render_button( 'like', $context, $context_ids, $nonce, 'segmented-start' );
+			$output .= self::render_button( 'dislike', $context, $context_ids, $nonce, 'segmented-end' );
+			$output .= '</div>';
+		} elseif ( $enable_likes ) {
+			$output .= self::render_button( 'like', $context, $context_ids, $nonce );
+		} elseif ( $enable_dislikes ) {
+			$output .= self::render_button( 'dislike', $context, $context_ids, $nonce );
+		}
+
+		return $output;
+	}
+
+	/**
 	 * Auto-detect context from current post
 	 *
 	 * @since 2.0.0
@@ -153,7 +199,7 @@ class Fanfic_Shortcodes_Buttons {
 				break;
 
 			case 'chapter':
-				$actions = array( 'like', 'dislike', 'follow', 'mark-read', 'share', 'report', 'edit' );
+				$actions = array( 'follow', 'mark-read', 'share', 'report', 'edit' );
 				break;
 
 			case 'author':
@@ -370,14 +416,14 @@ class Fanfic_Shortcodes_Buttons {
 		// Add count display for like/dislike buttons.
 		if ( 'like' === $action && isset( $context_ids['chapter_id'] ) ) {
 			$like_count = Fanfic_Interactions::get_chapter_likes( $context_ids['chapter_id'] );
-			$count_text = absint( $like_count ) > 0 ? '(' . absint( $like_count ) . ')' : '';
-			$output .= '<span class="fanfic-button-count like-count" data-count="' . absint( $like_count ) . '">' . $count_text . '</span>';
+			$count_text = absint( $like_count ) > 0 ? '(' . Fanfic_Shortcodes::format_engagement_number( $like_count ) . ')' : '';
+			$output .= '<span class="fanfic-button-count like-count" data-count="' . absint( $like_count ) . '" title="' . esc_attr( Fanfic_Shortcodes::format_number( $like_count ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $like_count ) ) . '">' . esc_html( $count_text ) . '</span>';
 		}
 		if ( 'dislike' === $action && isset( $context_ids['chapter_id'] ) ) {
 			$stats         = Fanfic_Interactions::get_chapter_stats( $context_ids['chapter_id'] );
 			$dislike_count = absint( $stats['dislikes'] ?? 0 );
-			$count_text    = $dislike_count > 0 ? '(' . $dislike_count . ')' : '';
-			$output .= '<span class="fanfic-button-count dislike-count" data-count="' . $dislike_count . '">' . $count_text . '</span>';
+			$count_text    = $dislike_count > 0 ? '(' . Fanfic_Shortcodes::format_engagement_number( $dislike_count ) . ')' : '';
+			$output .= '<span class="fanfic-button-count dislike-count" data-count="' . $dislike_count . '" title="' . esc_attr( Fanfic_Shortcodes::format_number( $dislike_count ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $dislike_count ) ) . '">' . esc_html( $count_text ) . '</span>';
 		}
 
 		$output .= '</button>';
@@ -597,9 +643,13 @@ class Fanfic_Shortcodes_Buttons {
 	 * @return string Icon HTML/entity.
 	 */
 	private static function get_button_icon( $action, $current_state ) {
-		// SVG thumbs-up/down paths (outline style, viewBox 0 0 24 24).
-		$thumb_up_path   = 'M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z';
-		$thumb_down_path = 'M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z';
+		// SVG thumbs-up/down paths (viewBox 0 0 32 32).
+		// Outline paths (two sub-paths: outer contour + inner cutout).
+		$thumb_up_outline   = 'M19.017 31.992c-9.088 0-9.158-0.377-10.284-1.224-0.597-0.449-1.723-0.76-5.838-1.028-0.298-0.020-0.583-0.134-0.773-0.365-0.087-0.107-2.143-3.105-2.143-7.907 0-4.732 1.472-6.89 1.534-6.99 0.182-0.293 0.503-0.47 0.847-0.47 3.378 0 8.062-4.313 11.21-11.841 0.544-1.302 0.657-2.159 2.657-2.159 1.137 0 2.413 0.815 3.042 1.86 1.291 2.135 0.636 6.721 0.029 9.171 2.063-0.017 5.796-0.045 7.572-0.045 2.471 0 4.107 1.473 4.156 3.627 0.017 0.711-0.077 1.619-0.282 2.089 0.544 0.543 1.245 1.36 1.276 2.414 0.038 1.36-0.852 2.395-1.421 2.989 0.131 0.395 0.391 0.92 0.366 1.547-0.063 1.542-1.253 2.535-1.994 3.054 0.061 0.422 0.11 1.218-0.026 1.834-0.535 2.457-4.137 3.443-9.928 3.443zM3.426 27.712c3.584 0.297 5.5 0.698 6.51 1.459 0.782 0.589 0.662 0.822 9.081 0.822 2.568 0 7.59-0.107 7.976-1.87 0.153-0.705-0.59-1.398-0.593-1.403-0.203-0.501 0.023-1.089 0.518-1.305 0.008-0.004 2.005-0.719 2.050-1.835 0.030-0.713-0.46-1.142-0.471-1.16-0.291-0.452-0.185-1.072 0.257-1.38 0.005-0.004 1.299-0.788 1.267-1.857-0.024-0.849-1.143-1.447-1.177-1.466-0.25-0.143-0.432-0.39-0.489-0.674-0.056-0.282 0.007-0.579 0.183-0.808 0 0 0.509-0.808 0.49-1.566-0.037-1.623-1.782-1.674-2.156-1.674-2.523 0-9.001 0.025-9.001 0.025-0.349 0.002-0.652-0.164-0.84-0.443s-0.201-0.627-0.092-0.944c0.977-2.813 1.523-7.228 0.616-8.736-0.267-0.445-0.328-0.889-1.328-0.889-0.139 0-0.468 0.11-0.812 0.929-3.341 7.995-8.332 12.62-12.421 13.037-0.353 0.804-1.016 2.47-1.016 5.493 0 3.085 0.977 5.473 1.447 6.245z';
+		$thumb_down_outline = 'M12.982 0.007c9.088 0 9.159 0.377 10.284 1.225 0.597 0.449 1.723 0.76 5.838 1.028 0.299 0.019 0.583 0.134 0.773 0.365 0.087 0.107 2.143 3.105 2.143 7.907 0 4.732-1.471 6.89-1.534 6.991-0.183 0.292-0.503 0.469-0.848 0.469-3.378 0-8.062 4.313-11.211 11.841-0.544 1.302-0.657 2.158-2.657 2.158-1.137 0-2.412-0.814-3.043-1.86-1.291-2.135-0.636-6.721-0.028-9.171-2.063 0.017-5.796 0.045-7.572 0.045-2.471 0-4.106-1.474-4.157-3.628-0.016-0.711 0.077-1.62 0.283-2.088-0.543-0.543-1.245-1.361-1.276-2.415-0.038-1.36 0.852-2.395 1.42-2.989-0.13-0.396-0.391-0.92-0.366-1.547 0.063-1.542 1.253-2.536 1.995-3.054-0.061-0.42-0.109-1.217 0.026-1.832 0.535-2.457 4.138-3.445 9.928-3.445zM28.575 4.289c-3.584-0.296-5.5-0.698-6.51-1.459-0.782-0.588-0.661-0.822-9.082-0.822-2.568 0-7.59 0.107-7.976 1.869-0.154 0.705 0.59 1.398 0.593 1.403 0.203 0.502-0.024 1.089-0.518 1.305-0.008 0.004-2.004 0.72-2.050 1.836-0.030 0.713 0.46 1.142 0.471 1.159 0.291 0.452 0.184 1.072-0.257 1.38-0.005 0.004-1.299 0.788-1.267 1.857 0.025 0.848 1.143 1.447 1.177 1.466 0.25 0.143 0.432 0.39 0.489 0.674 0.057 0.282-0.007 0.579-0.182 0.807 0 0-0.509 0.808-0.49 1.566 0.037 1.623 1.782 1.674 2.156 1.674 2.522 0 9.001-0.026 9.001-0.026 0.35-0.001 0.652 0.164 0.839 0.444s0.202 0.627 0.091 0.945c-0.976 2.814-1.522 7.227-0.616 8.735 0.267 0.445 0.328 0.889 1.328 0.889 0.139 0 0.468-0.11 0.812-0.93 3.343-7.994 8.334-12.619 12.423-13.036 0.352-0.804 1.015-2.47 1.015-5.493-0.001-3.085-0.979-5.472-1.449-6.245z';
+		// Filled paths (outer contour only).
+		$thumb_up_filled   = 'M19.017 31.992c-9.088 0-9.158-0.377-10.284-1.224-0.597-0.449-1.723-0.76-5.838-1.028-0.298-0.020-0.583-0.134-0.773-0.365-0.087-0.107-2.143-3.105-2.143-7.907 0-4.732 1.472-6.89 1.534-6.99 0.182-0.293 0.503-0.47 0.847-0.47 3.378 0 8.062-4.313 11.21-11.841 0.544-1.302 0.657-2.159 2.657-2.159 1.137 0 2.413 0.815 3.042 1.86 1.291 2.135 0.636 6.721 0.029 9.171 2.063-0.017 5.796-0.045 7.572-0.045 2.471 0 4.107 1.473 4.156 3.627 0.017 0.711-0.077 1.619-0.282 2.089 0.544 0.543 1.245 1.36 1.276 2.414 0.038 1.36-0.852 2.395-1.421 2.989 0.131 0.395 0.391 0.92 0.366 1.547-0.063 1.542-1.253 2.535-1.994 3.054 0.061 0.422 0.11 1.218-0.026 1.834-0.535 2.457-4.137 3.443-9.928 3.443z';
+		$thumb_down_filled = 'M12.982 0.007c9.088 0 9.159 0.377 10.284 1.225 0.597 0.449 1.723 0.76 5.838 1.028 0.299 0.019 0.583 0.134 0.773 0.365 0.087 0.107 2.143 3.105 2.143 7.907 0 4.732-1.471 6.89-1.534 6.991-0.183 0.292-0.503 0.469-0.848 0.469-3.378 0-8.062 4.313-11.211 11.841-0.544 1.302-0.657 2.158-2.657 2.158-1.137 0-2.412-0.814-3.043-1.86-1.291-2.135-0.636-6.721-0.028-9.171-2.063 0.017-5.796 0.045-7.572 0.045-2.471 0-4.106-1.474-4.157-3.628-0.016-0.711 0.077-1.62 0.283-2.088-0.543-0.543-1.245-1.361-1.276-2.415-0.038-1.36 0.852-2.395 1.42-2.989-0.13-0.396-0.391-0.92-0.366-1.547 0.063-1.542 1.253-2.536 1.995-3.054-0.061-0.42-0.109-1.217 0.026-1.832 0.535-2.457 4.138-3.445 9.928-3.445z';
 
 		$icons = array(
 			'follow' => array(
@@ -607,12 +657,12 @@ class Fanfic_Shortcodes_Buttons {
 				'active'   => '<span class="dashicons dashicons-heart" aria-hidden="true"></span>',
 			),
 			'like' => array(
-				'inactive' => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_up_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_up_path ) . '"/></svg>',
-				'active'   => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_up_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_up_path ) . '"/></svg>',
+				'inactive' => '<svg class="fanfic-thumb-svg" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_up_outline ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_up_filled ) . '"/></svg>',
+				'active'   => '<svg class="fanfic-thumb-svg" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_up_outline ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_up_filled ) . '"/></svg>',
 			),
 			'dislike' => array(
-				'inactive' => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_down_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_down_path ) . '"/></svg>',
-				'active'   => '<svg class="fanfic-thumb-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_down_path ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_down_path ) . '"/></svg>',
+				'inactive' => '<svg class="fanfic-thumb-svg" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_down_outline ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_down_filled ) . '"/></svg>',
+				'active'   => '<svg class="fanfic-thumb-svg" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path class="fanfic-thumb-bg" d="' . esc_attr( $thumb_down_outline ) . '"/><path class="fanfic-thumb-fg" d="' . esc_attr( $thumb_down_filled ) . '"/></svg>',
 			),
 			'mark-read' => array(
 				'inactive' => '',

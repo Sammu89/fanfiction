@@ -46,9 +46,6 @@ class Fanfic_Profile_Handler {
 
 		// Register form submission handlers
 		add_action( 'template_redirect', array( __CLASS__, 'handle_edit_profile_submission' ) );
-
-		// Register AJAX handlers for logged-in users
-		add_action( 'wp_ajax_fanfic_edit_profile', array( __CLASS__, 'handle_edit_profile_submission' ) );
 	}
 
 	/**
@@ -240,69 +237,6 @@ class Fanfic_Profile_Handler {
 			wp_safe_redirect( $profile_url );
 			exit;
 		}
-	}
-
-	/**
-	 * AJAX handler for editing user profile
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public static function ajax_edit_profile() {
-		// Verify nonce
-		if ( ! isset( $_POST['fanfic_edit_profile_nonce'] ) || ! wp_verify_nonce( $_POST['fanfic_edit_profile_nonce'], 'fanfic_edit_profile_action' ) ) {
-			wp_send_json_error( array(
-				'message' => __( 'Security check failed. Please refresh and try again.', 'fanfiction-manager' )
-			) );
-		}
-
-		// Check if user is logged in
-		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array(
-				'message' => __( 'You must be logged in to edit your profile.', 'fanfiction-manager' )
-			) );
-		}
-
-		$current_user = wp_get_current_user();
-		$errors = array();
-
-		// Get and sanitize form data
-		$display_name = isset( $_POST['fanfic_display_name'] ) ? sanitize_text_field( $_POST['fanfic_display_name'] ) : '';
-		$bio = isset( $_POST['fanfic_bio'] ) ? wp_kses_post( $_POST['fanfic_bio'] ) : '';
-		$website = isset( $_POST['fanfic_website'] ) ? esc_url_raw( $_POST['fanfic_website'] ) : '';
-
-		// Validate
-		if ( empty( $display_name ) ) {
-			$errors[] = __( 'Display name is required.', 'fanfiction-manager' );
-		}
-
-		// If errors, return error response
-		if ( ! empty( $errors ) ) {
-			wp_send_json_error( array(
-				'message' => implode( ' ', $errors )
-			) );
-		}
-
-		// Update user
-		$updated = wp_update_user( array(
-			'ID'           => $current_user->ID,
-			'display_name' => $display_name,
-			'user_url'     => $website,
-		) );
-
-		if ( is_wp_error( $updated ) ) {
-			wp_send_json_error( array(
-				'message' => $updated->get_error_message()
-			) );
-		}
-
-		// Update bio
-		update_user_meta( $current_user->ID, 'description', $bio );
-
-		// Return success response (no redirect for profile edit)
-		wp_send_json_success( array(
-			'message' => __( 'Profile updated successfully!', 'fanfiction-manager' )
-		) );
 	}
 
 }

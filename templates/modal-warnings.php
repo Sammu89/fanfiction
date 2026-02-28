@@ -142,7 +142,7 @@ function fanfic_get_validation_error_heading( $type = 'story' ) {
 <?php
 /**
  * Story Form Auto-Draft Warning
- * Shows when a story is auto-drafted from unpublishing a chapter on the story edit form
+ * Shows when a story is auto-drafted from hideing a chapter on the story edit form
  */
 ?>
 <div id="fanfic-story-auto-draft-warning" class="fanfic-auto-draft-warning-container">
@@ -168,7 +168,7 @@ function fanfic_get_validation_error_heading( $type = 'story' ) {
 <?php
 /**
  * Chapter Form Auto-Draft Warning
- * Shows when a story is auto-drafted from unpublishing a chapter on the chapter edit form
+ * Shows when a story is auto-drafted from hideing a chapter on the chapter edit form
  */
 ?>
 <div id="fanfic-chapter-auto-draft-warning" class="fanfic-auto-draft-warning-container">
@@ -227,10 +227,10 @@ var FanficMessages = {
 	deleteChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last chapter/prologue. Deleting it will automatically set your story to DRAFT status, making it invisible to readers.', 'fanfiction-manager' ) ); ?>',
 	deleteStory: '<?php echo esc_js( __( 'Once you delete a story, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ) ); ?>',
 
-	// Unpublish Confirmations
-	unpublishChapter: '<?php echo esc_js( __( 'Are you sure you want to unpublish', 'fanfiction-manager' ) ); ?>',
-	unpublishChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last published chapter/prologue. Unpublishing it will automatically draft your story.', 'fanfiction-manager' ) ); ?>',
-	unpublishChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter unpublished. Your story has been set to draft because it no longer has any published chapters or prologues.', 'fanfiction-manager' ) ); ?>',
+	// Hide Confirmations
+	hideChapter: '<?php echo esc_js( __( 'Are you sure you want to hide', 'fanfiction-manager' ) ); ?>',
+	hideChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last published chapter/prologue. Hideing it will automatically draft your story.', 'fanfiction-manager' ) ); ?>',
+	hideChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter hideed. Your story has been set to draft because it no longer has any published chapters or prologues.', 'fanfiction-manager' ) ); ?>',
 
 	// Delete Success Alerts
 	deleteChapterSuccess: '<?php echo esc_js( __( 'Chapter deleted successfully.', 'fanfiction-manager' ) ); ?>',
@@ -240,19 +240,19 @@ var FanficMessages = {
 	errorCheckingLastChapter: '<?php echo esc_js( __( 'Error checking if this is the last chapter. Please try again.', 'fanfiction-manager' ) ); ?>',
 	errorDeletingChapter: '<?php echo esc_js( __( 'An error occurred while deleting the chapter.', 'fanfiction-manager' ) ); ?>',
 	errorDeletingStory: '<?php echo esc_js( __( 'An error occurred while deleting the story.', 'fanfiction-manager' ) ); ?>',
-	errorUnpublishingChapter: '<?php echo esc_js( __( 'An error occurred while unpublishing the chapter.', 'fanfiction-manager' ) ); ?>',
+	errorHideingChapter: '<?php echo esc_js( __( 'An error occurred while hideing the chapter.', 'fanfiction-manager' ) ); ?>',
 	errorPublishingChapter: '<?php echo esc_js( __( 'An error occurred while publishing the chapter.', 'fanfiction-manager' ) ); ?>',
 	errorUpdatingChapter: '<?php echo esc_js( __( 'An error occurred while updating the chapter.', 'fanfiction-manager' ) ); ?>',
 
 	// Loading States
 	deleting: '<?php echo esc_js( __( 'Deleting...', 'fanfiction-manager' ) ); ?>',
-	unpublishing: '<?php echo esc_js( __( 'Unpublishing...', 'fanfiction-manager' ) ); ?>',
+	hideing: '<?php echo esc_js( __( 'Hideing...', 'fanfiction-manager' ) ); ?>',
 	publishing: '<?php echo esc_js( __( 'Publishing...', 'fanfiction-manager' ) ); ?>',
 	updating: '<?php echo esc_js( __( 'Updating...', 'fanfiction-manager' ) ); ?>',
 
 	// Button Labels
 	delete: '<?php echo esc_js( __( 'Delete', 'fanfiction-manager' ) ); ?>',
-	unpublish: '<?php echo esc_js( __( 'Unpublish', 'fanfiction-manager' ) ); ?>',
+	hide: '<?php echo esc_js( __( 'Hide', 'fanfiction-manager' ) ); ?>',
 	publish: '<?php echo esc_js( __( 'Publish', 'fanfiction-manager' ) ); ?>',
 
 	// Publish Story Prompts

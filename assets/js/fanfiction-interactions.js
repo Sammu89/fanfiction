@@ -42,6 +42,71 @@
 		});
 	}
 
+	function fanficFormatExactMetricCount(count) {
+		var value = Math.max(0, parseInt(count, 10) || 0);
+		if (typeof Intl !== 'undefined' && typeof Intl.NumberFormat === 'function') {
+			return new Intl.NumberFormat().format(value);
+		}
+		return value.toLocaleString();
+	}
+
+	function fanficFormatCompactMetricCount(count) {
+		var value = Math.max(0, parseInt(count, 10) || 0);
+		if (value < 10000) {
+			return fanficFormatExactMetricCount(value);
+		}
+
+		var units = [
+			{ min: 1000000000, divisor: 1000000000, suffix: 'B' },
+			{ min: 1000000, divisor: 1000000, suffix: 'M' },
+			{ min: 10000, divisor: 1000, suffix: 'K' }
+		];
+		var selectedIndex = units.length - 1;
+
+		for (var i = 0; i < units.length; i++) {
+			if (value >= units[i].min) {
+				selectedIndex = i;
+				break;
+			}
+		}
+
+		var selected = units[selectedIndex];
+		var scaled = Math.round((value / selected.divisor) * 10) / 10;
+		if (scaled >= 1000 && selectedIndex > 0) {
+			selectedIndex -= 1;
+			selected = units[selectedIndex];
+			scaled = Math.round((value / selected.divisor) * 10) / 10;
+		}
+
+		if (typeof Intl !== 'undefined' && typeof Intl.NumberFormat === 'function') {
+			return new Intl.NumberFormat(undefined, {
+				minimumFractionDigits: 0,
+				maximumFractionDigits: 1
+			}).format(scaled) + selected.suffix;
+		}
+
+		return scaled.toFixed(scaled % 1 === 0 ? 0 : 1) + selected.suffix;
+	}
+
+	function fanficSetMetricCountDisplay($el, count, text) {
+		var value = Math.max(0, parseInt(count, 10) || 0);
+		var exact = fanficFormatExactMetricCount(value);
+
+		$el.data('count', value);
+		$el.attr('data-count', value);
+		$el.attr('title', exact);
+		$el.attr('aria-label', exact);
+		$el.text(text);
+	}
+
+	function fanficFormatViewCountText(count) {
+		return fanficFormatCompactMetricCount(count) + ' ' + (count === 1 ? 'view' : 'views');
+	}
+
+	function fanficFormatBracketedMetricCount(count) {
+		return count > 0 ? '(' + fanficFormatCompactMetricCount(count) + ')' : '';
+	}
+
 	/**
 	 * Main interactions object
 	 */
@@ -1360,8 +1425,7 @@
 				var $el = $(this);
 				var current = parseInt($el.data('count'), 10) || 0;
 				var updated = Math.max(0, current + delta);
-				$el.data('count', updated);
-				$el.text(formatter(updated));
+				fanficSetMetricCountDisplay($el, updated, formatter(updated));
 			});
 		},
 
@@ -1827,8 +1891,7 @@
 
 			// Optimistic view count update (+1)
 			this.adjustCount('.fanfic-view-count', 1, function(count) {
-				if (count === 1) { return '1 view'; }
-				return count + ' views';
+				return fanficFormatViewCountText(count);
 			});
 
 			$.post(this.config.ajaxUrl, {
@@ -2320,14 +2383,14 @@
 			var likeDelta = (toReaction === 'like' ? 1 : 0) - (fromReaction === 'like' ? 1 : 0);
 			if (likeDelta !== 0) {
 				this.adjustCount('.like-count', likeDelta, function(count) {
-					return count > 0 ? '(' + count + ')' : '';
+					return fanficFormatBracketedMetricCount(count);
 				});
 			}
 
 			var dislikeDelta = (toReaction === 'dislike' ? 1 : 0) - (fromReaction === 'dislike' ? 1 : 0);
 			if (dislikeDelta !== 0) {
 				this.adjustCount('.dislike-count', dislikeDelta, function(count) {
-					return count > 0 ? '(' + count + ')' : '';
+					return fanficFormatBracketedMetricCount(count);
 				});
 			}
 		},
@@ -2591,8 +2654,7 @@
 				var $el = $(this);
 				var current = parseInt($el.data('count'), 10) || 0;
 				var updated = Math.max(0, current + delta);
-				$el.data('count', updated);
-				$el.text(formatter(updated));
+				fanficSetMetricCountDisplay($el, updated, formatter(updated));
 			});
 		},
 
@@ -2659,8 +2721,7 @@
 				$('.fanfic-view-count').each(function() {
 					var $el = $(this);
 					var count = parseInt(stats.views, 10);
-					$el.data('count', count);
-					$el.text(count + (count === 1 ? ' view' : ' views'));
+					fanficSetMetricCountDisplay($el, count, fanficFormatViewCountText(count));
 				});
 			}
 
@@ -2668,8 +2729,7 @@
 				$('.like-count').each(function() {
 					var $el = $(this);
 					var count = parseInt(stats.likes, 10);
-					$el.data('count', count);
-					$el.text('(' + count + ')');
+					fanficSetMetricCountDisplay($el, count, fanficFormatBracketedMetricCount(count));
 				});
 			}
 
@@ -2677,8 +2737,7 @@
 				$('.dislike-count').each(function() {
 					var $el = $(this);
 					var count = parseInt(stats.dislikes, 10);
-					$el.data('count', count);
-					$el.text('(' + count + ')');
+					fanficSetMetricCountDisplay($el, count, fanficFormatBracketedMetricCount(count));
 				});
 			}
 

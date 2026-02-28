@@ -211,6 +211,68 @@ class Fanfic_Shortcodes {
 	}
 
 	/**
+	 * Helper: Format engagement metrics using compact notation.
+	 *
+	 * Uses K / M / B suffixes for large values while keeping the exact full
+	 * number available for tooltips and accessibility.
+	 *
+	 * @since 2.2.0
+	 * @param int|string $number The number to format.
+	 * @return string Formatted metric value.
+	 */
+	public static function format_engagement_number( $number ) {
+		$number = absint( $number );
+		if ( $number < 10000 ) {
+			return self::format_number( $number );
+		}
+
+		$divisors = array(
+			array(
+				'min'    => 1000000000,
+				'divisor' => 1000000000,
+				'suffix' => 'B',
+			),
+			array(
+				'min'    => 1000000,
+				'divisor' => 1000000,
+				'suffix' => 'M',
+			),
+			array(
+				'min'    => 10000,
+				'divisor' => 1000,
+				'suffix' => 'K',
+			),
+		);
+
+		$selected_index = count( $divisors ) - 1;
+		foreach ( $divisors as $index => $config ) {
+			if ( $number >= $config['min'] ) {
+				$selected_index = $index;
+				break;
+			}
+		}
+
+		$config = $divisors[ $selected_index ];
+		$value  = round( $number / $config['divisor'], 1 );
+
+		if ( $value >= 1000 && isset( $divisors[ $selected_index - 1 ] ) ) {
+			$config = $divisors[ $selected_index - 1 ];
+			$value  = round( $number / $config['divisor'], 1 );
+		}
+
+		$formatted = number_format_i18n( $value, 1 );
+		$sample    = number_format_i18n( 1.1, 1 );
+		$decimal_separator = preg_replace( '/[0-9]/', '', $sample );
+		$decimal_separator = is_string( $decimal_separator ) ? $decimal_separator : '';
+
+		if ( '' !== $decimal_separator ) {
+			$formatted = preg_replace( '/' . preg_quote( $decimal_separator, '/' ) . '0$/', '', $formatted );
+		}
+
+		return $formatted . $config['suffix'];
+	}
+
+	/**
 	 * Helper: Sanitize shortcode attributes
 	 *
 	 * Sanitizes and validates shortcode attributes.

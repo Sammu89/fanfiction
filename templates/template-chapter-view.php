@@ -29,11 +29,11 @@ function fanfic_get_default_chapter_view_template() {
 	?>
 <!-- Chapter header with hierarchical titles -->
 <header class="fanfic-chapter-header">
-	<!-- Story title as primary heading (parent context) -->
-	[fanfic-story-title with-badge]
+	<!-- Chapter title as primary heading with bookmark + read badges -->
+	<h1 class="fanfic-chapter-title">[fanfic-chapter-title with-badge]</h1>
 
-	<!-- Chapter title as secondary heading -->
-	<h2 class="fanfic-chapter-title">[fanfic-chapter-title with-badge]</h2>
+	<!-- Story context: title link + author (secondary) -->
+	[fanfic-story-title]
 
 	<!-- Chapter Cover Image -->
 [fanfic-chapter-image]
@@ -73,10 +73,13 @@ function fanfic_get_default_chapter_view_template() {
 <!-- Visual separator -->
 <hr class="fanfic-content-separator" aria-hidden="true">
 
-<!-- Rating section -->
+<!-- Rating & Like/Dislike section -->
 <section class="fanfic-chapter-rating" aria-labelledby="rating-heading">
 	<h3 id="rating-heading"><?php esc_html_e( 'Rate this chapter', 'fanfiction-manager' ); ?></h3>
-	[chapter-rating-form]
+	<div class="fanfic-rating-row">
+		<div class="fanfic-rating-left">[chapter-rating-form]</div>
+		<div class="fanfic-rating-right">[fanfic-like-dislike]</div>
+	</div>
 </section>
 
 <!-- Action buttons (like, follow, mark-read, share, report, edit) -->
@@ -200,27 +203,6 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 			<span class="fanfic-message-content"><?php echo $text; ?></span>
 		</div>
 		<?php
-	}
-}
-
-// Badge placeholders for JS-driven follow/bookmark indicators (hidden by default, shown via localStorage).
-if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
-	$badge_story_id   = $chapter_post->post_parent ? absint( $chapter_post->post_parent ) : 0;
-	$badge_chapter_id = absint( $chapter_post->ID );
-
-	if ( $badge_story_id ) {
-		printf(
-			'<div class="fanfic-chapter-badges">' .
-			'<span class="fanfic-badge fanfic-badge-following" data-badge-story-id="%1$d" style="display:none;" aria-label="%2$s" title="%2$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%3$s</span></span>' .
-			'<span class="fanfic-badge fanfic-badge-bookmarked" data-badge-story-id="%1$d" data-badge-chapter-id="%4$d" style="display:none;" aria-label="%5$s" title="%5$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%6$s</span></span>' .
-			'</div>',
-			$badge_story_id,
-			esc_attr__( 'Following', 'fanfiction-manager' ),
-			esc_html__( 'Following', 'fanfiction-manager' ),
-			$badge_chapter_id,
-			esc_attr__( 'Bookmarked', 'fanfiction-manager' ),
-			esc_html__( 'Bookmarked', 'fanfiction-manager' )
-		);
 	}
 }
 

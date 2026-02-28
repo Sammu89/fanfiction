@@ -63,4 +63,12 @@ fanfiction-manager/
 ├── languages/
 │   └── fanfiction-manager.pot (Translation strings)
 │
+├── docs/
+│   ├── overview.md (High-level architecture and documentation entry point)
+│   └── backend/
+│       ├── README.md (Backend documents index)
+│       ├── translated-stories.md (Translation groups and synchronization rules)
+│       ├── status-system.md (Built-in story status behavior)
+│       └── shortcodes.md (Backend shortcode reference)
+│
 └── README.md (Plugin documentation)

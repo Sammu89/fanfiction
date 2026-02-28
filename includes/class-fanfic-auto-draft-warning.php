@@ -4,7 +4,7 @@
  *
  * Handles displaying warnings to users when their story is automatically drafted
  * due to having no visible chapters. Warning is shown only on chapter form pages
- * after unpublish/delete actions.
+ * after hide/delete actions.
  *
  * @package FanfictionManager
  * @since 1.0.8
@@ -31,25 +31,25 @@ class Fanfic_Auto_Draft_Warning {
 	 */
 	public static function init() {
 		// Register AJAX handlers for chapter status changes
-		add_action( 'wp_ajax_fanfic_unpublish_chapter', array( __CLASS__, 'ajax_unpublish_chapter' ) );
+		add_action( 'wp_ajax_fanfic_hide_chapter', array( __CLASS__, 'ajax_hide_chapter' ) );
 		add_action( 'wp_ajax_fanfic_publish_chapter', array( __CLASS__, 'ajax_publish_chapter' ) );
 		add_action( 'wp_ajax_fanfic_update_chapter', array( __CLASS__, 'ajax_update_chapter' ) );
 	}
 
 	/**
-	 * AJAX handler for unpublishing a chapter
+	 * AJAX handler for hideing a chapter
 	 *
 	 * @since 1.0.8
 	 */
-	public static function ajax_unpublish_chapter() {
+	public static function ajax_hide_chapter() {
 		// Verify nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_unpublish_chapter' ) ) {
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'fanfic_hide_chapter' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'You must be logged in to unpublish chapters.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'You must be logged in to hide chapters.', 'fanfiction-manager' ) ) );
 		}
 
 		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
@@ -74,15 +74,15 @@ class Fanfic_Auto_Draft_Warning {
 
 		// Check permissions - must be author or have edit_others_posts capability
 		if ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'You do not have permission to unpublish this chapter.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to hide this chapter.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if chapter is published
 		if ( 'publish' !== $chapter->post_status ) {
-			wp_send_json_error( array( 'message' => __( 'Only published chapters can be unpublished.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Only published chapters can be hideed.', 'fanfiction-manager' ) ) );
 		}
 
-		// Check if story will auto-draft BEFORE unpublishing
+		// Check if story will auto-draft BEFORE hideing
 		$story_will_auto_draft = Fanfic_Validation::will_story_auto_draft_if_chapter_removed( $chapter_id );
 
 		// Update chapter status to draft
@@ -92,11 +92,11 @@ class Fanfic_Auto_Draft_Warning {
 		) );
 
 		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => __( 'Failed to unpublish chapter.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Failed to hide chapter.', 'fanfiction-manager' ) ) );
 		}
 
 		wp_send_json_success( array(
-			'message'               => __( 'Chapter unpublished.', 'fanfiction-manager' ),
+			'message'               => __( 'Chapter hideed.', 'fanfiction-manager' ),
 			'story_auto_drafted'    => $story_will_auto_draft,
 			'story_id'              => $story->ID,
 			'story_title'           => $story->post_title,

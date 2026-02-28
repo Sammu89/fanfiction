@@ -487,14 +487,33 @@ class Fanfic_Search_Index {
 	 * @return string|null Content updated date
 	 */
 	private static function get_updated_date( $story_id ) {
-		// Use custom content update date if available
+		// Use custom content update date if available.
 		$content_updated = get_post_meta( $story_id, '_fanfic_content_updated_date', true );
 
 		if ( $content_updated ) {
 			return $content_updated;
 		}
 
-		// Fallback to publication date for legacy stories without content update meta.
+		// Fallback: find the most recent published chapter date (created or modified).
+		global $wpdb;
+		$latest_chapter_date = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT GREATEST( MAX( post_date ), MAX( post_modified ) )
+				 FROM {$wpdb->posts}
+				 WHERE post_parent = %d
+				   AND post_type = 'fanfiction_chapter'
+				   AND post_status = 'publish'",
+				$story_id
+			)
+		);
+
+		if ( $latest_chapter_date ) {
+			// Backfill the meta so future lookups are fast.
+			update_post_meta( $story_id, '_fanfic_content_updated_date', $latest_chapter_date );
+			return $latest_chapter_date;
+		}
+
+		// No chapters yet — fall back to story publication date.
 		$post = get_post( $story_id );
 		return $post ? $post->post_date : null;
 	}

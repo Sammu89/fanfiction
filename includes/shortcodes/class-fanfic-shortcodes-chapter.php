@@ -152,7 +152,10 @@ class Fanfic_Shortcodes_Chapter {
 				'</div>';
 			}
 
-			$author_link_ch = trim( (string) do_shortcode( '[story-author-link]' ) );
+			// In chapter view: render story title as a secondary element (no h1, no badges).
+		// Story title becomes a clickable link back to the story page.
+		$story_url      = get_permalink( $story_id );
+		$author_link_ch = trim( (string) do_shortcode( '[story-author-link]' ) );
 			$avatar_html_ch = function_exists( 'fanfic_get_author_avatar_or_icon' )
 				? fanfic_get_author_avatar_or_icon( $author_id_for_avatar, 20 )
 				: '<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>';
@@ -161,9 +164,11 @@ class Fanfic_Shortcodes_Chapter {
 				'<span class="fanfic-story-author">' . $avatar_html_ch . ' ' . $author_link_ch . '</span>' .
 			'</div>';
 
+			$story_title_link = '<a href="' . esc_url( $story_url ) . '" class="fanfic-story-title-link">' . esc_html( $story_title ) . '</a>';
+
 			return '<div class="fanfic-story-title-row">' .
 				'<div class="fanfic-story-title-main">' .
-					'<h1 class="fanfic-title fanfic-story-title">' . $title_markup . '</h1>' .
+					'<p class="fanfic-chapter-story-context">' . $story_title_link . '</p>' .
 					$chapter_author_meta .
 				'</div>' .
 				$side_content .
@@ -267,16 +272,24 @@ class Fanfic_Shortcodes_Chapter {
 		$raw = (array) $atts;
 		$show_badge = isset( $raw['with-badge'] ) || in_array( 'with-badge', $raw, true );
 
-		$badge = '';
+		$badges = '';
 		if ( $show_badge ) {
 			$story_id = Fanfic_Shortcodes::get_current_story_id();
 			if ( $story_id ) {
-				$badge = sprintf(
+				// Bookmark badge — hidden by default, shown via JS localStorage
+				$badges .= sprintf(
 					'<span class="fanfic-badge fanfic-badge-bookmarked" data-badge-story-id="%1$d" data-badge-chapter-id="%2$d" style="display:none;" aria-label="%3$s" title="%3$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%4$s</span></span>',
 					absint( $story_id ),
 					absint( $chapter_id ),
 					esc_attr__( 'Bookmarked', 'fanfiction-manager' ),
 					esc_html__( 'Bookmarked', 'fanfiction-manager' )
+				);
+				// Read indicator — same as chapter nav, opacity 0 until JS marks it read
+				$badges .= sprintf(
+					'<span class="fanfic-read-indicator" data-story-id="%1$d" data-chapter-id="%2$d" aria-label="%3$s" title="%3$s"></span>',
+					absint( $story_id ),
+					absint( $chapter_id ),
+					esc_attr__( 'Read', 'fanfiction-manager' )
 				);
 			}
 		}
@@ -289,15 +302,15 @@ class Fanfic_Shortcodes_Chapter {
 			$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
 
 			if ( 'prologue' === $chapter_type ) {
-				return esc_html__( 'Prologue', 'fanfiction-manager' ) . $badge;
+				return $badges . esc_html__( 'Prologue', 'fanfiction-manager' );
 			} elseif ( 'epilogue' === $chapter_type ) {
-				return esc_html__( 'Epilogue', 'fanfiction-manager' ) . $badge;
+				return $badges . esc_html__( 'Epilogue', 'fanfiction-manager' );
 			} else {
-				return esc_html( sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number ) ) . $badge;
+				return $badges . esc_html( sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number ) );
 			}
 		}
 
-		return esc_html( $chapter_title ) . $badge;
+		return $badges . esc_html( $chapter_title );
 	}
 
 	/**
@@ -318,7 +331,7 @@ class Fanfic_Shortcodes_Chapter {
 			return '';
 		}
 
-		$published_date = get_the_date( 'F j, Y', $chapter_id );
+		$published_date = get_the_date( get_option( 'date_format' ), $chapter_id );
 		$published_datetime = get_the_date( 'Y-m-d', $chapter_id );
 
 		return sprintf(
@@ -354,7 +367,7 @@ class Fanfic_Shortcodes_Chapter {
 			return '';
 		}
 
-		$modified_date = get_the_modified_date( 'F j, Y', $chapter_id );
+		$modified_date = get_the_modified_date( get_option( 'date_format' ), $chapter_id );
 		$modified_datetime = get_the_modified_date( 'Y-m-d', $chapter_id );
 
 		return sprintf(

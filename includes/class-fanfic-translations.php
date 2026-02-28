@@ -287,13 +287,6 @@ class Fanfic_Translations {
 		}
 		$genre_ids = array_values( array_unique( array_filter( array_map( 'absint', (array) $genre_ids ) ) ) );
 
-		$status_ids = wp_get_object_terms( $source_story_id, 'fanfiction_status', array( 'fields' => 'ids' ) );
-		if ( is_wp_error( $status_ids ) ) {
-			$status_ids = array();
-		}
-		$status_ids = array_values( array_unique( array_filter( array_map( 'absint', (array) $status_ids ) ) ) );
-		$status_id  = ! empty( $status_ids ) ? $status_ids[0] : 0;
-
 		$is_original_work = false;
 		$fandom_ids       = array();
 		$fandoms          = array();
@@ -320,41 +313,14 @@ class Fanfic_Translations {
 			$warning_ids = array_values( array_unique( array_filter( array_map( 'absint', (array) $warning_ids ) ) ) );
 		}
 
-		$custom_taxonomies = array();
-		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
-			$active_taxonomies = Fanfic_Custom_Taxonomies::get_active_taxonomies();
-			foreach ( (array) $active_taxonomies as $taxonomy ) {
-				$taxonomy_id = absint( $taxonomy['id'] ?? 0 );
-				$slug        = sanitize_key( (string) ( $taxonomy['slug'] ?? '' ) );
-				if ( ! $taxonomy_id || '' === $slug ) {
-					continue;
-				}
-
-				$term_ids = Fanfic_Custom_Taxonomies::get_story_term_ids( $source_story_id, $taxonomy_id );
-				$term_ids = array_values( array_unique( array_filter( array_map( 'absint', (array) $term_ids ) ) ) );
-
-				$selection_type = ( isset( $taxonomy['selection_type'] ) && 'single' === $taxonomy['selection_type'] ) ? 'single' : 'multi';
-
-				$custom_taxonomies[] = array(
-					'id'             => $taxonomy_id,
-					'slug'           => $slug,
-					'selection_type' => $selection_type,
-					'term_ids'       => $term_ids,
-				);
-			}
-		}
-
 		return rest_ensure_response(
 			array(
 				'story_id'         => $source_story_id,
 				'genre_ids'        => $genre_ids,
-				'status_id'        => absint( $status_id ),
-				'status_ids'       => $status_ids,
 				'is_original_work' => $is_original_work ? 1 : 0,
 				'fandom_ids'       => $fandom_ids,
 				'fandoms'          => $fandoms,
 				'warning_ids'      => $warning_ids,
-				'custom_taxonomies'=> $custom_taxonomies,
 			)
 		);
 	}
@@ -424,12 +390,14 @@ class Fanfic_Translations {
 	 * Get translation sibling stories (all other stories in the same group)
 	 *
 	 * Returns rich data for each sibling: story_id, title, permalink, language info.
+	 * Hidden siblings can be included for author-facing editing flows.
 	 *
 	 * @since 1.5.0
-	 * @param int $story_id Story ID.
+	 * @param int  $story_id Story ID.
+	 * @param bool $published_only Whether to keep only published siblings.
 	 * @return array Array of sibling data arrays.
 	 */
-	public static function get_translation_siblings( $story_id ) {
+	public static function get_translation_siblings( $story_id, $published_only = true ) {
 		$story_id = absint( $story_id );
 		if ( ! $story_id ) {
 			return array();
@@ -449,7 +417,7 @@ class Fanfic_Translations {
 			}
 
 			$sibling_post = get_post( $sibling_id );
-			if ( ! $sibling_post || 'publish' !== $sibling_post->post_status ) {
+			if ( ! $sibling_post || ( $published_only && 'publish' !== $sibling_post->post_status ) ) {
 				continue;
 			}
 
@@ -468,6 +436,7 @@ class Fanfic_Translations {
 				'story_id'       => $sibling_id,
 				'title'          => get_the_title( $sibling_id ),
 				'permalink'      => get_permalink( $sibling_id ),
+				'post_status'    => (string) $sibling_post->post_status,
 				'language_label' => $lang_label,
 				'language_slug'  => $lang_slug,
 				'language_name'  => $lang ? $lang['name'] : '',
@@ -618,7 +587,7 @@ class Fanfic_Translations {
 		$group_id_before = self::get_group_id( $story_id );
 
 		// Get current siblings
-		$current_siblings = self::get_translation_siblings( $story_id );
+		$current_siblings = self::get_translation_siblings( $story_id, false );
 		$current_sibling_ids = wp_list_pluck( $current_siblings, 'story_id' );
 		$current_sibling_ids = array_map( 'absint', $current_sibling_ids );
 
@@ -650,6 +619,56 @@ class Fanfic_Translations {
 		do_action( 'fanfic_translations_updated', $story_id, absint( $group_id_after ) );
 
 		return true;
+	}
+
+	/**
+	 * Synchronize translated-story classification across one group.
+	 *
+	 * Source story remains authoritative for:
+	 * - Genres
+	 * - Warnings
+	 * - Fandom/original-work classification
+	 *
+	 * Status, tags, search tags, language, and custom taxonomies are not synced.
+	 *
+	 * @since 1.5.4
+	 * @param int $source_story_id Source story ID.
+	 * @return int[] Refreshed story IDs.
+	 */
+	public static function sync_story_classification( $source_story_id ) {
+		$source_story_id = absint( $source_story_id );
+		if ( ! $source_story_id || ! self::is_enabled() ) {
+			return array();
+		}
+
+		$group_id = self::get_group_id( $source_story_id );
+		if ( ! $group_id ) {
+			return array();
+		}
+
+		$group_story_ids = array_values( array_unique( array_filter( array_map( 'absint', self::get_group_stories( $group_id ) ) ) ) );
+		if ( count( $group_story_ids ) < 2 ) {
+			return array();
+		}
+
+		$payload = self::get_story_classification_payload( $source_story_id );
+		$refreshed_story_ids = array( $source_story_id );
+
+		foreach ( $group_story_ids as $target_story_id ) {
+			if ( $target_story_id === $source_story_id ) {
+				continue;
+			}
+
+			self::apply_story_classification_payload( $target_story_id, $payload );
+			$refreshed_story_ids[] = $target_story_id;
+		}
+
+		$refreshed_story_ids = array_values( array_unique( array_filter( array_map( 'absint', $refreshed_story_ids ) ) ) );
+		foreach ( $refreshed_story_ids as $story_id ) {
+			self::refresh_story_after_classification_sync( $story_id );
+		}
+
+		return $refreshed_story_ids;
 	}
 
 	/**
@@ -907,6 +926,98 @@ class Fanfic_Translations {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Build the classification payload that should be synchronized.
+	 *
+	 * @since 1.5.4
+	 * @param int $story_id Source story ID.
+	 * @return array
+	 */
+	private static function get_story_classification_payload( $story_id ) {
+		$story_id = absint( $story_id );
+
+		$genre_ids = wp_get_object_terms( $story_id, 'fanfiction_genre', array( 'fields' => 'ids' ) );
+		if ( is_wp_error( $genre_ids ) ) {
+			$genre_ids = array();
+		}
+
+		$warning_ids = array();
+		$warnings_enabled = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_warnings', true ) : true;
+		if ( $warnings_enabled && class_exists( 'Fanfic_Warnings' ) && method_exists( 'Fanfic_Warnings', 'get_story_warning_ids' ) ) {
+			$warning_ids = Fanfic_Warnings::get_story_warning_ids( $story_id );
+		}
+
+		$fandom_ids       = array();
+		$is_original_work = false;
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			$fandom_ids       = Fanfic_Fandoms::get_story_fandom_ids( $story_id );
+			$is_original_work = (bool) get_post_meta( $story_id, Fanfic_Fandoms::META_ORIGINAL, true );
+		}
+
+		return array(
+			'genre_ids'        => array_values( array_unique( array_filter( array_map( 'absint', (array) $genre_ids ) ) ) ),
+			'warning_ids'      => array_values( array_unique( array_filter( array_map( 'absint', (array) $warning_ids ) ) ) ),
+			'fandom_ids'       => array_values( array_unique( array_filter( array_map( 'absint', (array) $fandom_ids ) ) ) ),
+			'is_original_work' => $is_original_work,
+		);
+	}
+
+	/**
+	 * Apply synchronized classification to one translated story.
+	 *
+	 * @since 1.5.4
+	 * @param int   $story_id Story ID to update.
+	 * @param array $payload Source-story classification payload.
+	 * @return void
+	 */
+	private static function apply_story_classification_payload( $story_id, $payload ) {
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return;
+		}
+
+		wp_set_post_terms( $story_id, $payload['genre_ids'], 'fanfiction_genre', false );
+
+		if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) {
+			Fanfic_Fandoms::save_story_fandoms(
+				$story_id,
+				$payload['fandom_ids'],
+				! empty( $payload['is_original_work'] )
+			);
+		}
+
+		$warnings_enabled = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_warnings', true ) : true;
+		if ( $warnings_enabled && class_exists( 'Fanfic_Warnings' ) && method_exists( 'Fanfic_Warnings', 'save_story_warnings' ) ) {
+			Fanfic_Warnings::save_story_warnings( $story_id, $payload['warning_ids'] );
+		}
+	}
+
+	/**
+	 * Refresh caches and indexes after translated-story sync.
+	 *
+	 * @since 1.5.4
+	 * @param int $story_id Story ID.
+	 * @return void
+	 */
+	private static function refresh_story_after_classification_sync( $story_id ) {
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return;
+		}
+
+		clean_post_cache( $story_id );
+		wp_cache_delete( $story_id, 'posts' );
+		wp_cache_delete( $story_id, 'post_meta' );
+
+		if ( class_exists( 'Fanfic_Search_Index' ) && method_exists( 'Fanfic_Search_Index', 'update_index' ) ) {
+			Fanfic_Search_Index::update_index( $story_id );
+		}
+
+		if ( class_exists( 'Fanfic_Cache' ) && method_exists( 'Fanfic_Cache', 'invalidate_story' ) ) {
+			Fanfic_Cache::invalidate_story( $story_id );
+		}
 	}
 
 	/**

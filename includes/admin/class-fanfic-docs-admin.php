@@ -58,6 +58,14 @@ class Fanfic_Docs_Admin {
 				'label' => __( 'Status Classification System', 'fanfiction-manager' ),
 			),
 			array(
+				'id'    => 'coauthors',
+				'label' => __( 'Co-Authors', 'fanfiction-manager' ),
+			),
+			array(
+				'id'    => 'translated-stories',
+				'label' => __( 'Translated Stories', 'fanfiction-manager' ),
+			),
+			array(
 				'id'    => 'shortcode',
 				'label' => __( 'Shortcode', 'fanfiction-manager' ),
 			),
@@ -209,8 +217,10 @@ class Fanfic_Docs_Admin {
 	private static function get_docs_map() {
 		if ( null === self::$docs_map ) {
 			self::$docs_map = array(
-				'status-system' => FANFIC_PLUGIN_DIR . 'docs/backend/status-system.md',
-				'shortcode'     => FANFIC_PLUGIN_DIR . 'docs/backend/shortcodes.md',
+				'status-system'      => FANFIC_PLUGIN_DIR . 'docs/backend/status-system.md',
+				'coauthors'          => FANFIC_PLUGIN_DIR . 'docs/backend/coauthors.md',
+				'translated-stories' => FANFIC_PLUGIN_DIR . 'docs/backend/translated-stories.md',
+				'shortcode'          => FANFIC_PLUGIN_DIR . 'docs/backend/shortcodes.md',
 			);
 		}
 		return self::$docs_map;

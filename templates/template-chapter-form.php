@@ -3,10 +3,9 @@
  * Template: Unified Chapter Form (Create & Edit)
  * Description: Handles both creating and editing fanfiction chapters
  *
- * This template handles:
- * - Creating new chapters (when on story page with ?action=add-chapter)
- * - Editing existing chapters (when on chapter page with ?action=edit)
- * - Form submission logic for both modes
+ * This template renders:
+ * - New chapter forms (when on story page with ?action=add-chapter)
+ * - Edit chapter forms (when on chapter page with ?action=edit)
  * - Chapter type selection (Prologue/Chapter/Epilogue)
  * - Chapter number auto-suggestion
  * - Publish story prompt modal (after first chapter)
@@ -114,300 +113,6 @@ function fanfic_template_get_available_chapter_numbers( $story_id, $exclude_chap
 	}
 
 	return $available_numbers;
-}
-
-// ============================================================================
-// FORM SUBMISSION HANDLERS
-// ============================================================================
-
-/**
- * Handle chapter create submission
- */
-if ( isset( $_POST['fanfic_create_chapter_submit'] ) ) {
-	$story_id = isset( $_POST['fanfic_story_id'] ) ? absint( $_POST['fanfic_story_id'] ) : 0;
-
-	// Verify nonce
-	if ( isset( $_POST['fanfic_create_chapter_nonce'] ) && wp_verify_nonce( $_POST['fanfic_create_chapter_nonce'], 'fanfic_create_chapter_action_' . $story_id ) ) {
-		if ( is_user_logged_in() ) {
-			$current_user = wp_get_current_user();
-			$story = get_post( $story_id );
-
-			// Check permissions
-			if ( $story && ( $story->post_author == $current_user->ID || current_user_can( 'edit_others_posts' ) ) ) {
-				$errors = array();
-
-				// Get and sanitize form data
-				$chapter_action = isset( $_POST['fanfic_chapter_action'] ) ? sanitize_text_field( $_POST['fanfic_chapter_action'] ) : 'publish';
-				$chapter_status = ( 'draft' === $chapter_action ) ? 'draft' : 'publish';
-				$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
-				$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
-				$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
-
-				// Validate chapter type restrictions
-				if ( 'prologue' === $chapter_type && fanfic_template_story_has_prologue( $story_id ) ) {
-					$errors[] = __( 'This story already has a prologue. Only one prologue is allowed per story.', 'fanfiction-manager' );
-				}
-
-				if ( 'epilogue' === $chapter_type && fanfic_template_story_has_epilogue( $story_id ) ) {
-					$errors[] = __( 'This story already has an epilogue. Only one epilogue is allowed per story.', 'fanfiction-manager' );
-				}
-
-				// Auto-calculate chapter number based on type
-				$chapter_number = 0;
-				if ( 'prologue' === $chapter_type ) {
-					$chapter_number = 0; // Prologue is always 0
-				} elseif ( 'epilogue' === $chapter_type ) {
-					$chapter_number = 1000; // Epilogue starts at 1000
-				} else {
-					// For regular chapters, get from form input
-					$chapter_number = isset( $_POST['fanfic_chapter_number'] ) ? absint( $_POST['fanfic_chapter_number'] ) : 0;
-				}
-
-				// Validate
-				if ( 'chapter' === $chapter_type && ! $chapter_number ) {
-					$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
-				}
-
-				if ( empty( $content ) ) {
-					$errors[] = __( 'Chapter content is required.', 'fanfiction-manager' );
-				}
-
-				// If errors, store and redirect back
-				if ( ! empty( $errors ) ) {
-					set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
-					wp_redirect( wp_get_referer() );
-					exit;
-				}
-
-				// Create chapter
-				$chapter_id = wp_insert_post( array(
-					'post_type'    => 'fanfiction_chapter',
-					'post_title'   => $title,
-					'post_content' => $content,
-					'post_status'  => $chapter_status,
-					'post_author'  => $current_user->ID,
-					'post_parent'  => $story_id,
-				) );
-
-				if ( ! is_wp_error( $chapter_id ) ) {
-					// Set chapter metadata
-					update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
-					update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
-					$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
-					$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
-					$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
-					update_post_meta( $chapter_id, '_fanfic_author_notes_enabled', $notes_enabled );
-					update_post_meta( $chapter_id, '_fanfic_author_notes_position', $notes_position );
-					update_post_meta( $chapter_id, '_fanfic_author_notes', $notes_content );
-
-					// Save chapter image URL if provided
-					if ( isset( $_POST['fanfic_chapter_image_url'] ) ) {
-						update_post_meta( $chapter_id, '_fanfic_chapter_image_url', esc_url_raw( $_POST['fanfic_chapter_image_url'] ) );
-					}
-
-					// Check if this is the first published chapter and story is a draft
-					$is_first_published_chapter = false;
-					if ( 'publish' === $chapter_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-						// Count published chapters (excluding the one we just created)
-						$published_chapters = get_posts( array(
-							'post_type'      => 'fanfiction_chapter',
-							'post_parent'    => $story_id,
-							'post_status'    => 'publish',
-							'posts_per_page' => -1,
-							'fields'         => 'ids',
-							'post__not_in'   => array( $chapter_id ),
-						) );
-
-						// If there are no other published chapters, this is the first
-						if ( empty( $published_chapters ) ) {
-							$is_first_published_chapter = true;
-						}
-					}
-
-					// Redirect to chapter edit page
-					$chapter_url = get_permalink( $chapter_id );
-					$edit_url = add_query_arg( 'action', 'edit', $chapter_url );
-
-					// Add parameter to show publication prompt if this is first chapter
-					if ( $is_first_published_chapter ) {
-						// The prompt is now handled by Flash Messages, no need for URL parameter
-					}
-
-					wp_redirect( $edit_url );
-					exit;
-				} else {
-					$errors[] = $chapter_id->get_error_message();
-					set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
-					wp_redirect( wp_get_referer() );
-					exit;
-				}
-			}
-		}
-	}
-}
-
-/**
- * Handle chapter edit submission
- */
-if ( isset( $_POST['fanfic_edit_chapter_submit'] ) ) {
-	$chapter_id = isset( $_POST['fanfic_chapter_id'] ) ? absint( $_POST['fanfic_chapter_id'] ) : 0;
-
-	// Verify nonce
-	if ( isset( $_POST['fanfic_edit_chapter_nonce'] ) && wp_verify_nonce( $_POST['fanfic_edit_chapter_nonce'], 'fanfic_edit_chapter_action_' . $chapter_id ) ) {
-		if ( is_user_logged_in() ) {
-			$current_user = wp_get_current_user();
-			$chapter = get_post( $chapter_id );
-
-			// Check permissions
-			if ( $chapter && ( $chapter->post_author == $current_user->ID || current_user_can( 'edit_others_posts' ) ) ) {
-				$errors = array();
-
-				// Get and sanitize form data
-				$chapter_action = isset( $_POST['fanfic_chapter_action'] ) ? sanitize_text_field( $_POST['fanfic_chapter_action'] ) : 'publish';
-
-				// Determine chapter status based on action
-				$current_chapter_status = get_post_status( $chapter_id );
-				if ( 'draft' === $chapter_action ) {
-					$chapter_status = 'draft';
-				} elseif ( 'publish' === $chapter_action ) {
-					$chapter_status = 'publish';
-				} else {
-					// 'update' action - keep current status
-					$chapter_status = $current_chapter_status;
-				}
-
-				$chapter_type = isset( $_POST['fanfic_chapter_type'] ) ? sanitize_text_field( $_POST['fanfic_chapter_type'] ) : 'chapter';
-				$title = isset( $_POST['fanfic_chapter_title'] ) ? sanitize_text_field( $_POST['fanfic_chapter_title'] ) : '';
-				$content = isset( $_POST['fanfic_chapter_content'] ) ? wp_kses_post( $_POST['fanfic_chapter_content'] ) : '';
-
-				// Get story ID from chapter
-				$story_id = $chapter->post_parent;
-
-				// Get current chapter type
-				$old_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
-				if ( empty( $old_type ) ) {
-					$old_type = 'chapter';
-				}
-
-				// Validate chapter type restrictions when changing type
-				if ( 'prologue' === $chapter_type && 'prologue' !== $old_type && fanfic_template_story_has_prologue( $story_id, $chapter_id ) ) {
-					$errors[] = __( 'This story already has a prologue. Only one prologue is allowed per story.', 'fanfiction-manager' );
-				}
-
-				if ( 'epilogue' === $chapter_type && 'epilogue' !== $old_type && fanfic_template_story_has_epilogue( $story_id, $chapter_id ) ) {
-					$errors[] = __( 'This story already has an epilogue. Only one epilogue is allowed per story.', 'fanfiction-manager' );
-				}
-
-				// Auto-calculate chapter number based on type
-				$chapter_number = 0;
-				if ( 'prologue' === $chapter_type ) {
-					// Preserve existing prologue number
-					if ( 'prologue' === $old_type ) {
-						$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
-					} else {
-						$chapter_number = 0;
-					}
-				} elseif ( 'epilogue' === $chapter_type ) {
-					// Preserve existing epilogue number
-					if ( 'epilogue' === $old_type ) {
-						$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
-					} else {
-						$chapter_number = 1000;
-					}
-				} else {
-					// For regular chapters, get from form input
-					$chapter_number = isset( $_POST['fanfic_chapter_number'] ) ? absint( $_POST['fanfic_chapter_number'] ) : 0;
-				}
-
-				// Validate
-				if ( 'chapter' === $chapter_type && ! $chapter_number ) {
-					$errors[] = __( 'Chapter number is required.', 'fanfiction-manager' );
-				}
-
-				if ( empty( $content ) ) {
-					$errors[] = __( 'Chapter content is required.', 'fanfiction-manager' );
-				}
-
-				// If errors, store and redirect back
-				if ( ! empty( $errors ) ) {
-					set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
-					wp_redirect( wp_get_referer() );
-					exit;
-				}
-
-				// Update chapter
-				$result = wp_update_post( array(
-					'ID'           => $chapter_id,
-					'post_title'   => $title,
-					'post_content' => $content,
-					'post_status'  => $chapter_status,
-				) );
-
-				if ( ! is_wp_error( $result ) ) {
-					// Update chapter metadata
-					update_post_meta( $chapter_id, '_fanfic_chapter_number', $chapter_number );
-					update_post_meta( $chapter_id, '_fanfic_chapter_type', $chapter_type );
-					$notes_enabled  = isset( $_POST['fanfic_author_notes_enabled'] ) ? '1' : '0';
-					$notes_position = ( isset( $_POST['fanfic_author_notes_position'] ) && 'above' === $_POST['fanfic_author_notes_position'] ) ? 'above' : 'below';
-					$notes_content  = isset( $_POST['fanfic_author_notes'] ) ? wp_kses_post( wp_unslash( $_POST['fanfic_author_notes'] ) ) : '';
-					update_post_meta( $chapter_id, '_fanfic_author_notes_enabled', $notes_enabled );
-					update_post_meta( $chapter_id, '_fanfic_author_notes_position', $notes_position );
-					update_post_meta( $chapter_id, '_fanfic_author_notes', $notes_content );
-
-					// Update chapter image URL
-					if ( ! empty( $_POST['fanfic_chapter_image_url'] ) ) {
-						update_post_meta( $chapter_id, '_fanfic_chapter_image_url', esc_url_raw( $_POST['fanfic_chapter_image_url'] ) );
-					} else {
-						delete_post_meta( $chapter_id, '_fanfic_chapter_image_url' );
-					}
-
-					// Check if this is the first published chapter and story is a draft
-					$is_first_published_chapter = false;
-					$story = get_post( $story_id );
-
-					// Only check if we're publishing a chapter (not just updating) and story is draft
-					if ( 'publish' === $chapter_status && $current_chapter_status !== 'publish' && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-						// Count published chapters (excluding the one we just published)
-						$published_chapters = get_posts( array(
-							'post_type'      => 'fanfiction_chapter',
-							'post_parent'    => $story_id,
-							'post_status'    => 'publish',
-							'posts_per_page' => -1,
-							'fields'         => 'ids',
-							'post__not_in'   => array( $chapter_id ),
-						) );
-
-						// If there are no other published chapters, this is the first
-						if ( empty( $published_chapters ) ) {
-							$is_first_published_chapter = true;
-						}
-					}
-
-					// Redirect back with success message
-					$redirect_url = add_query_arg(
-						array(
-							'chapter_id' => $chapter_id,
-							'updated'    => 'success',
-						),
-						wp_get_referer()
-					);
-
-					// Add parameter to show publication prompt if this is first chapter
-					if ( $is_first_published_chapter ) {
-						// The prompt is now handled by Flash Messages, no need for URL parameter
-					}
-
-					wp_redirect( $redirect_url );
-					exit;
-				} else {
-					$errors[] = $result->get_error_message();
-					set_transient( 'fanfic_chapter_errors_' . $current_user->ID, $errors, 60 );
-					wp_redirect( wp_get_referer() );
-					exit;
-				}
-			}
-		}
-	}
 }
 
 // ============================================================================
@@ -1422,22 +1127,22 @@ if ( ! $is_edit_mode ) {
 			var chapterForm = document.getElementById('fanfic-chapter-form');
 			if (chapterForm) {
 				chapterForm.addEventListener('click', function(e) {
-					var unpublishButton = e.target.closest('#hide-chapter-button');
-					if (!unpublishButton) {
+					var hideButton = e.target.closest('#hide-chapter-button');
+					if (!hideButton) {
 						return;
 					}
 
-					if (unpublishButton.getAttribute('data-unpublish-confirmed') === '1') {
-						unpublishButton.removeAttribute('data-unpublish-confirmed');
+					if (hideButton.getAttribute('data-hide-confirmed') === '1') {
+						hideButton.removeAttribute('data-hide-confirmed');
 						return; // Allow the actual submit click
 					}
 
 					e.preventDefault(); // Intercept first click and run checks
 
-					var chapterId = unpublishButton.getAttribute('data-chapter-id');
+					var chapterId = hideButton.getAttribute('data-chapter-id');
 					if (!chapterId) {
-						unpublishButton.setAttribute('data-unpublish-confirmed', '1');
-						unpublishButton.click();
+						hideButton.setAttribute('data-hide-confirmed', '1');
+						hideButton.click();
 						return;
 					}
 
@@ -1458,12 +1163,12 @@ if ( ! $is_edit_mode ) {
 					.then(function(data) {
 						var shouldProceed = true;
 						if (data.success && data.data.is_last_chapter) {
-							shouldProceed = confirm(FanficMessages.unpublishChapterLastWarning);
+							shouldProceed = confirm(FanficMessages.hideChapterLastWarning);
 						}
 
 						if (shouldProceed) {
-							unpublishButton.setAttribute('data-unpublish-confirmed', '1');
-							unpublishButton.click();
+							hideButton.setAttribute('data-hide-confirmed', '1');
+							hideButton.click();
 						}
 					})
 					.catch(function(error) {

@@ -144,7 +144,8 @@ if ( isset( $_GET['error'] ) ) {
 			</div>
 			<div class="fanfic-stat-content">
 				<h3 class="fanfic-stat-label"><?php esc_html_e( 'Total Views', 'fanfiction-manager' ); ?></h3>
-				<p class="fanfic-stat-value"><?php echo Fanfic_Shortcodes_Author::get_total_views(); ?></p>
+				<?php $total_views = (int) Fanfic_Shortcodes_Author::get_total_views(); ?>
+				<p class="fanfic-stat-value" title="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $total_views ) ); ?>" aria-label="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $total_views ) ); ?>"><?php echo esc_html( Fanfic_Shortcodes::format_engagement_number( $total_views ) ); ?></p>
 			</div>
 		</div>
 
@@ -328,7 +329,7 @@ if ( isset( $_GET['error'] ) ) {
 										</td>
 										<td><?php echo esc_html( $is_blocked ? __( 'Blocked', 'fanfiction-manager' ) : $status_name ); ?></td>
 										<td><?php echo esc_html( $chapter_count ); ?></td>
-										<td><?php echo esc_html( Fanfic_Shortcodes::format_number( $views ) ); ?></td>
+										<td><span title="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $views ) ); ?>" aria-label="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $views ) ); ?>"><?php echo esc_html( Fanfic_Shortcodes::format_engagement_number( $views ) ); ?></span></td>
 										<td>
 											<time datetime="<?php echo esc_attr( get_the_modified_time( 'c' ) ); ?>">
 												<?php echo esc_html( get_the_modified_time( get_option( 'date_format' ) ) ); ?>
@@ -520,8 +521,8 @@ if ( isset( $_GET['error'] ) ) {
 		<!-- Followed Stories -->
 		<section class="fanfic-dashboard-widget" aria-labelledby="follows-stories-heading">
 			<h3 id="follows-stories-heading"><?php esc_html_e( 'Followed Stories', 'fanfiction-manager' ); ?></h3>
-			<div class="fanfic-user-follows" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-follow-type="story" data-current-offset="0">
-				<div class="fanfic-follows-list">
+			<div class="fanfic-user-follows fanfic-stories-page" data-user-id="<?php echo absint( get_current_user_id() ); ?>" data-follow-type="story" data-current-offset="0">
+				<div class="fanfic-follows-list fanfic-story-grid fanfic-followed-stories-grid">
 					<?php
 					echo Fanfic_Follows::render_user_follows_dashboard(
 						get_current_user_id(),
