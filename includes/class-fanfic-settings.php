@@ -186,6 +186,8 @@ class Fanfic_Settings {
 			'enable_share'                   => true,
 			'enable_report'                  => true,
 			'enable_warnings'                => true,
+			'enable_story_age_confirmation'  => false,
+			'story_age_confirmation_minimum' => 18,
 			'enable_tags'                    => true,
 			'enable_comments'                => true,
 			'allow_anonymous_comments'       => true,
@@ -193,6 +195,7 @@ class Fanfic_Settings {
 			'allow_anonymous_reports'        => false,
 			'enable_fandom_classification'   => false,
 			'enable_language_classification' => false,
+			'enable_licence'                 => false,
 			'enable_image_uploads'           => false,
 			'image_upload_max_value'         => 1,
 			'image_upload_max_unit'          => 'mb',
@@ -296,9 +299,13 @@ class Fanfic_Settings {
 		$sanitized['enable_share']     = isset( $settings['enable_share'] ) && $settings['enable_share'];
 		$sanitized['enable_report']    = isset( $settings['enable_report'] ) && $settings['enable_report'];
 		$sanitized['enable_warnings']  = isset( $settings['enable_warnings'] ) && $settings['enable_warnings'];
+		$sanitized['enable_story_age_confirmation'] = isset( $settings['enable_story_age_confirmation'] ) && $settings['enable_story_age_confirmation'];
 		$sanitized['enable_tags']      = isset( $settings['enable_tags'] ) && $settings['enable_tags'];
 		$sanitized['enable_comments']  = isset( $settings['enable_comments'] ) && $settings['enable_comments'];
 		$sanitized['enable_coauthors'] = isset( $settings['enable_coauthors'] ) && $settings['enable_coauthors'];
+		$sanitized['enable_licence']   = isset( $settings['enable_licence'] ) && $settings['enable_licence'];
+		$story_age_confirmation_minimum = isset( $settings['story_age_confirmation_minimum'] ) ? absint( $settings['story_age_confirmation_minimum'] ) : 18;
+		$sanitized['story_age_confirmation_minimum'] = min( 18, max( 1, $story_age_confirmation_minimum ) );
 
 		// Anonymous user permissions
 		$sanitized['allow_anonymous_comments'] = isset( $settings['allow_anonymous_comments'] ) && $settings['allow_anonymous_comments'];
@@ -313,6 +320,9 @@ class Fanfic_Settings {
 		}
 		if ( ! $sanitized['enable_report'] ) {
 			$sanitized['allow_anonymous_reports'] = false;
+		}
+		if ( ! $sanitized['enable_warnings'] ) {
+			$sanitized['enable_story_age_confirmation'] = false;
 		}
 
 		$has_recaptcha = ! empty( get_option( 'fanfic_recaptcha_site_key', '' ) ) && ! empty( get_option( 'fanfic_recaptcha_secret_key', '' ) );
@@ -1453,6 +1463,30 @@ class Fanfic_Settings {
 
 						<tr>
 							<th scope="row">
+								<label for="fanfic_enable_licence"><?php esc_html_e( 'Enable Licence', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="fanfic_enable_licence" name="fanfic_settings[enable_licence]" value="1" <?php checked( isset( $settings['enable_licence'] ) ? $settings['enable_licence'] : false, true ); ?>>
+									<?php esc_html_e( 'Allow authors to set a licence for their stories.', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<tr>
+							<th scope="row">
+								<label for="enable_tags"><?php esc_html_e( 'Enable Tags', 'fanfiction-manager' ); ?></label>
+							</th>
+							<td>
+								<label>
+									<input type="checkbox" id="enable_tags" name="fanfic_settings[enable_tags]" value="1" <?php checked( isset( $settings['enable_tags'] ) ? $settings['enable_tags'] : true, true ); ?>>
+									<?php esc_html_e( 'Allow authors to add visible and invisible tags to their stories.', 'fanfiction-manager' ); ?>
+								</label>
+							</td>
+						</tr>
+
+						<tr>
+							<th scope="row">
 								<label for="enable_share"><?php esc_html_e( 'Enable Share Button', 'fanfiction-manager' ); ?></label>
 							</th>
 							<td>
@@ -1487,6 +1521,35 @@ class Fanfic_Settings {
 										<?php esc_html_e( 'Configure reCAPTCHA keys below to enable guest reports.', 'fanfiction-manager' ); ?>
 									</p>
 								<?php endif; ?>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<hr style="margin: 30px 0;">
+
+				<!-- Taxonomy Management Section -->
+				<h3><?php esc_html_e( 'Taxonomy Management', 'fanfiction-manager' ); ?></h3>
+				<p class="description" style="margin-bottom: 15px;">
+					<?php esc_html_e( 'Warnings & Age Classification, Language, Fandoms, and other taxonomy systems are managed from the Taxonomies submenu.', 'fanfiction-manager' ); ?>
+				</p>
+
+				<table class="form-table" role="presentation">
+					<tbody>
+						<tr>
+							<th scope="row">
+								<?php esc_html_e( 'Manage Taxonomies', 'fanfiction-manager' ); ?>
+							</th>
+							<td>
+								<p class="description">
+									<?php
+									printf(
+										/* translators: %s: admin page link */
+										esc_html__( 'Custom taxonomies such as Warnings & Age Classification, Language, and Fandoms can be managed in %s.', 'fanfiction-manager' ),
+										'<a href="' . esc_url( admin_url( 'admin.php?page=fanfiction-taxonomies&tab=general' ) ) . '">' . esc_html__( 'Fanfiction > Taxonomies', 'fanfiction-manager' ) . '</a>'
+									);
+									?>
+								</p>
 							</td>
 						</tr>
 					</tbody>
@@ -2409,7 +2472,8 @@ class Fanfic_Settings {
 
 		// Get and sanitize settings
 		$settings = isset( $_POST['fanfic_settings'] ) ? wp_unslash( $_POST['fanfic_settings'] ) : array();
-		$sanitized_settings = self::sanitize_settings( $settings );
+		$prepared_settings = self::prepare_general_settings_submission( $settings, $old_settings );
+		$sanitized_settings = self::sanitize_settings( $prepared_settings );
 
 		// Update settings
 		update_option( self::OPTION_NAME, $sanitized_settings );
@@ -2459,6 +2523,57 @@ class Fanfic_Settings {
 		} elseif ( ! $was_enabled && $is_enabled ) {
 			Fanfic_Coauthors::notify_feature_enabled();
 		}
+	}
+
+	/**
+	 * Prepare submitted General-tab settings while preserving settings owned elsewhere.
+	 *
+	 * @since 1.0.0
+	 * @param array $submitted_settings Submitted settings from the General tab.
+	 * @param array $existing_settings  Existing saved settings.
+	 * @return array
+	 */
+	private static function prepare_general_settings_submission( $submitted_settings, $existing_settings ) {
+		$submitted_settings = is_array( $submitted_settings ) ? $submitted_settings : array();
+		$prepared_settings  = is_array( $existing_settings ) ? $existing_settings : self::get_default_settings();
+
+		$checkbox_fields = array(
+			'maintenance_mode',
+			'recaptcha_require_logged_in',
+			'enable_image_uploads',
+			'enable_comments',
+			'allow_anonymous_comments',
+			'enable_likes',
+			'enable_dislikes',
+			'enable_share',
+			'enable_report',
+			'allow_anonymous_reports',
+			'enable_coauthors',
+			'enable_licence',
+			'enable_tags',
+		);
+
+		foreach ( $checkbox_fields as $field ) {
+			$prepared_settings[ $field ] = isset( $submitted_settings[ $field ] ) ? $submitted_settings[ $field ] : false;
+		}
+
+		$value_fields = array(
+			'featured_mode',
+			'featured_max_count',
+			'cron_hour',
+			'hiatus_threshold_value',
+			'hiatus_threshold_unit',
+			'abandoned_threshold_value',
+			'abandoned_threshold_unit',
+		);
+
+		foreach ( $value_fields as $field ) {
+			if ( isset( $submitted_settings[ $field ] ) ) {
+				$prepared_settings[ $field ] = $submitted_settings[ $field ];
+			}
+		}
+
+		return $prepared_settings;
 	}
 
 	/**

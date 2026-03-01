@@ -963,7 +963,9 @@ class Fanfic_AJAX_Handlers {
 		$paged = isset( $params['paged'] ) ? absint( $params['paged'] ) : 1;
 		$per_page = (int) get_option( 'posts_per_page', 10 );
 
-		$query_args = fanfic_build_stories_query_args( $normalized, $paged, $per_page );
+		$query_result  = fanfic_build_stories_query_args( $normalized, $paged, $per_page );
+		$query_args    = is_array( $query_result ) && isset( $query_result['args'] ) ? $query_result['args'] : $query_result;
+		$found_posts   = is_array( $query_result ) && isset( $query_result['found_posts'] ) ? (int) $query_result['found_posts'] : -1;
 		$stories_query = new WP_Query( $query_args );
 
 		// Preload story-card search-index metadata to avoid per-card queries.
@@ -988,14 +990,19 @@ class Fanfic_AJAX_Handlers {
 			$base_url = function_exists( 'fanfic_get_story_archive_url' ) ? fanfic_get_story_archive_url() : home_url( '/' );
 		}
 
+		$total_found = $found_posts >= 0 ? $found_posts : (int) $stories_query->found_posts;
+		$total_pages = $found_posts >= 0
+			? (int) ceil( $total_found / max( 1, $per_page ) )
+			: (int) $stories_query->max_num_pages;
+
 		$pagination_html = '';
-		if ( $stories_query->max_num_pages > 1 ) {
+		if ( $total_pages > 1 ) {
 			$pagination_base = fanfic_build_stories_url( $base_url, $normalized, array( 'paged' => null ) );
 			$pagination_html = paginate_links( array(
 				'base'      => add_query_arg( 'paged', '%#%', $pagination_base ),
 				'format'    => '',
 				'current'   => max( 1, $paged ),
-				'total'     => (int) $stories_query->max_num_pages,
+				'total'     => $total_pages,
 				'prev_text' => esc_html__( '&laquo; Previous', 'fanfiction-manager' ),
 				'next_text' => esc_html__( 'Next &raquo;', 'fanfiction-manager' ),
 			) );
@@ -1033,11 +1040,11 @@ class Fanfic_AJAX_Handlers {
 				_n(
 					'Found %d story',
 					'Found %d stories',
-					$stories_query->found_posts,
+					$total_found,
 					'fanfiction-manager'
 				)
 			),
-			absint( $stories_query->found_posts )
+			absint( $total_found )
 		);
 
 		Fanfic_AJAX_Security::send_success_response(
@@ -1045,9 +1052,9 @@ class Fanfic_AJAX_Handlers {
 				'html'           => $html,
 				'pagination'     => $pagination_html,
 				'active_filters' => $active_html,
-				'found'          => absint( $stories_query->found_posts ),
+				'found'          => absint( $total_found ),
 				'count_label'    => $count_label,
-				'total_pages'    => absint( $stories_query->max_num_pages ),
+				'total_pages'    => absint( $total_pages ),
 				'current_page'   => max( 1, $paged ),
 			),
 			__( 'Results loaded.', 'fanfiction-manager' )
@@ -1418,7 +1425,7 @@ class Fanfic_AJAX_Handlers {
 		// Get and validate parameters
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
 			array( 'post_id', 'post_type' ),
-			array( 'reason', 'details', 'recaptcha_token' )
+			array( 'reason', 'details', 'recaptcha_token', 'anonymous_uuid' )
 		);
 
 		if ( is_wp_error( $params ) ) {
@@ -1458,6 +1465,13 @@ class Fanfic_AJAX_Handlers {
 				400
 			);
 		}
+		if ( 'other' === $reason && '' === trim( $details ) ) {
+			Fanfic_AJAX_Security::send_error_response(
+				'missing_details',
+				__( 'Please provide details when selecting Other.', 'fanfiction-manager' ),
+				400
+			);
+		}
 
 		// Validate content exists and matches expected type.
 		if ( 'comment' === $post_type ) {
@@ -1482,6 +1496,7 @@ class Fanfic_AJAX_Handlers {
 
 		$reporter_id = is_user_logged_in() ? get_current_user_id() : 0;
 		$reporter_ip = Fanfic_Rate_Limit::get_ip_address();
+		$anonymous_uuid = isset( $params['anonymous_uuid'] ) ? sanitize_text_field( $params['anonymous_uuid'] ) : '';
 		$is_anonymous = ( 0 === $reporter_id );
 
 		$allow_anonymous_reports = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'allow_anonymous_reports', false ) : false;
@@ -1519,11 +1534,21 @@ class Fanfic_AJAX_Handlers {
 			}
 		}
 
+		if ( class_exists( 'Fanfic_Database_Setup' ) ) {
+			$table_result = Fanfic_Database_Setup::ensure_reports_table();
+			if ( is_wp_error( $table_result ) ) {
+				Fanfic_AJAX_Security::send_error_response(
+					'report_failed',
+					__( 'Failed to submit report. Please try again.', 'fanfiction-manager' ),
+					500
+				);
+			}
+		}
+
 		global $wpdb;
 		$table_name = $wpdb->prefix . 'fanfic_reports';
+		$content_revision = fanfic_get_report_revision_token( $post_id, $post_type );
 
-		// Duplicate protection in a rolling 24-hour window.
-		$time_24h_ago = gmdate( 'Y-m-d H:i:s', strtotime( '-24 hours' ) );
 		if ( $reporter_id > 0 ) {
 			$duplicate = $wpdb->get_var(
 				$wpdb->prepare(
@@ -1531,42 +1556,46 @@ class Fanfic_AJAX_Handlers {
 					WHERE reported_item_id = %d
 					AND reported_item_type = %s
 					AND reporter_id = %d
-					AND created_at > %s",
+					AND content_revision = %s",
 					$post_id,
 					$post_type,
 					$reporter_id,
-					$time_24h_ago
+					$content_revision
 				)
 			);
 		} else {
+			$duplicate_sql = "SELECT id FROM {$table_name}
+				WHERE reported_item_id = %d
+				AND reported_item_type = %s
+				AND content_revision = %s";
+			$duplicate_values = array(
+				$post_id,
+				$post_type,
+				$content_revision,
+			);
+
+			if ( '' !== $anonymous_uuid ) {
+				$duplicate_sql .= ' AND anonymous_uuid = %s';
+				$duplicate_values[] = $anonymous_uuid;
+			} else {
+				$duplicate_sql .= ' AND reporter_ip = %s';
+				$duplicate_values[] = $reporter_ip;
+			}
+
 			$duplicate = $wpdb->get_var(
-				$wpdb->prepare(
-					"SELECT id FROM {$table_name}
-					WHERE reported_item_id = %d
-					AND reported_item_type = %s
-					AND reporter_ip = %s
-					AND created_at > %s",
-					$post_id,
-					$post_type,
-					$reporter_ip,
-					$time_24h_ago
-				)
+				$wpdb->prepare( $duplicate_sql, $duplicate_values )
 			);
 		}
 
 		if ( $duplicate ) {
 			Fanfic_AJAX_Security::send_error_response(
 				'duplicate_report',
-				__( 'You have already reported this content recently.', 'fanfiction-manager' ),
+				__( 'You have already reported this version of the content. You can report it again after it receives a qualifying update.', 'fanfiction-manager' ),
 				409
 			);
 		}
 
 		$reason_label = self::get_report_reason_label( $reason );
-		$stored_reason = $reason_label;
-		if ( '' !== $details ) {
-			$stored_reason = sprintf( '[%1$s] %2$s', $reason_label, $details );
-		}
 
 		$result = $wpdb->insert(
 			$table_name,
@@ -1574,13 +1603,15 @@ class Fanfic_AJAX_Handlers {
 				'reported_item_id'   => $post_id,
 				'reported_item_type' => $post_type,
 				'reporter_id'        => $reporter_id,
+				'anonymous_uuid'     => $anonymous_uuid,
 				'reporter_ip'        => $reporter_ip,
-				'reason'             => $stored_reason,
+				'content_revision'   => $content_revision,
+				'reason'             => $reason_label,
 				'details'            => $details,
 				'status'             => 'pending',
 				'created_at'         => current_time( 'mysql' ),
 			),
-			array( '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
+			array( '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 
 		if ( false === $result ) {

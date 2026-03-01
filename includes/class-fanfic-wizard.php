@@ -738,6 +738,9 @@ class Fanfic_Wizard {
 		$enable_coauthors = array_key_exists( 'enable_coauthors', $step_4 )
 			? (bool) $step_4['enable_coauthors']
 			: true;
+		$enable_licence = array_key_exists( 'enable_licence', $step_4 )
+			? (bool) $step_4['enable_licence']
+			: ( isset( $settings['enable_licence'] ) ? (bool) $settings['enable_licence'] : false );
 		$enable_dislikes = array_key_exists( 'enable_dislikes', $step_4 )
 			? (bool) $step_4['enable_dislikes']
 			: ( isset( $settings['enable_dislikes'] ) ? (bool) $settings['enable_dislikes'] : false );
@@ -839,6 +842,18 @@ class Fanfic_Wizard {
 							<?php esc_html_e( 'Enable co-author functionality', 'fanfiction-manager' ); ?>
 						</label>
 						<p class="description"><?php esc_html_e( 'Allow authors to invite co-authors to collaborate on stories.', 'fanfiction-manager' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="fanfic_wizard_enable_licence"><?php esc_html_e( 'Licence System', 'fanfiction-manager' ); ?></label>
+					</th>
+					<td>
+						<label>
+							<input type="checkbox" id="fanfic_wizard_enable_licence" name="fanfic_enable_licence" value="1" <?php checked( $enable_licence, true ); ?>>
+							<?php esc_html_e( 'Enable licence selection', 'fanfiction-manager' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Lets authors set a licence (All Rights Reserved, Creative Commons, or Public Domain) for their stories.', 'fanfiction-manager' ); ?></p>
 					</td>
 				</tr>
 				<tr>
@@ -1090,6 +1105,16 @@ class Fanfic_Wizard {
 						<td>
 							<?php
 							echo isset( $step_4['enable_coauthors'] ) && $step_4['enable_coauthors']
+								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
+								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
+							?>
+						</td>
+					</tr>
+					<tr>
+						<td><?php esc_html_e( 'Licence System', 'fanfiction-manager' ); ?></td>
+						<td>
+							<?php
+							echo isset( $step_4['enable_licence'] ) && $step_4['enable_licence']
 								? '<span style="color: #46b450;">&#10004; ' . esc_html__( 'Enabled', 'fanfiction-manager' ) . '</span>'
 								: '<span style="color: #999;">&#10006; ' . esc_html__( 'Disabled', 'fanfiction-manager' ) . '</span>';
 							?>
@@ -1488,6 +1513,7 @@ class Fanfic_Wizard {
 		$step_data['enable_languages'] = isset( $_POST['fanfic_enable_language_classification'] ) && '1' === $_POST['fanfic_enable_language_classification'];
 		$step_data['enable_coauthors'] = isset( $_POST['fanfic_enable_coauthors'] ) && '1' === $_POST['fanfic_enable_coauthors'];
 		$step_data['enable_dislikes'] = isset( $_POST['fanfic_enable_dislikes'] ) && '1' === $_POST['fanfic_enable_dislikes'];
+		$step_data['enable_licence'] = isset( $_POST['fanfic_enable_licence'] ) && '1' === $_POST['fanfic_enable_licence'];
 		$step_data['allow_sexual'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_sexual_content'] ) && '1' === $_POST['fanfic_allow_sexual_content'];
 		$step_data['allow_pornographic'] = $step_data['enable_warnings'] && isset( $_POST['fanfic_allow_pornographic_content'] ) && '1' === $_POST['fanfic_allow_pornographic_content'];
 
@@ -2104,6 +2130,14 @@ class Fanfic_Wizard {
 				error_log( sprintf(
 					'[Fanfic Wizard Commit] enable_dislikes → %s',
 					$step_4['enable_dislikes'] ? 'true' : 'false'
+				) );
+			}
+
+			if ( isset( $step_4['enable_licence'] ) ) {
+				Fanfic_Settings::update_setting( 'enable_licence', $step_4['enable_licence'] );
+				error_log( sprintf(
+					'[Fanfic Wizard Commit] enable_licence → %s',
+					$step_4['enable_licence'] ? 'true' : 'false'
 				) );
 			}
 
@@ -2896,6 +2930,11 @@ class Fanfic_Wizard {
 						error_log( '[Fanfic Wizard Samples] Failed linking Story 2 and Story 3 translations: ' . $link_result->get_error_message() );
 					} else {
 						error_log( '[Fanfic Wizard Samples] Story 2 and Story 3 linked as translations.' );
+
+						if ( method_exists( 'Fanfic_Translations', 'sync_story_classification' ) ) {
+							Fanfic_Translations::sync_story_classification( $story2_id );
+							error_log( '[Fanfic Wizard Samples] Synced shared genres, warnings, and fandoms across the sample translation group.' );
+						}
 					}
 				}
 

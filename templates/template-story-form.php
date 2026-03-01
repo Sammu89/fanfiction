@@ -32,6 +32,22 @@ if ( ! is_user_logged_in() ) {
 	return;
 }
 
+$fanfic_story_form_user = wp_get_current_user();
+if ( in_array( 'fanfiction_banned_user', (array) $fanfic_story_form_user->roles, true ) ) {
+	?>
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
+		<span class="fanfic-message-content">
+			<?php esc_html_e( 'Your account is suspended. You can view your stories, but you cannot create or edit them.', 'fanfiction-manager' ); ?>
+			<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button">
+				<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
+			</a>
+		</span>
+	</div>
+	<?php
+	return;
+}
+
 // ========================================================================
 // MODE DETECTION: Create vs Edit
 // ========================================================================
@@ -80,7 +96,7 @@ if ( $is_edit_mode ) {
 	$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
 	if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
 		// Get block reason for display
-		$block_reason = get_post_meta( $story_id, '_fanfic_story_blocked_reason', true );
+		$block_reason = get_post_meta( $story_id, '_fanfic_block_reason', true );
 		$block_info = function_exists( 'fanfic_get_block_info' ) ? fanfic_get_block_info( $story_id ) : null;
 
 		// Map reason codes to user-friendly labels
@@ -276,6 +292,7 @@ $story_introduction = '';
 $default_create_status = 0;
 $can_edit_publish_date = function_exists( 'fanfic_can_edit_publish_date' ) ? fanfic_can_edit_publish_date( get_current_user_id() ) : false;
 $story_publish_date = current_time( 'Y-m-d' );
+$story_licence = 'all-rights-reserved';
 
 if ( $is_edit_mode ) {
 	// Pre-populate variables for edit mode
@@ -305,9 +322,15 @@ if ( $is_edit_mode ) {
 	$featured_image = get_post_meta( $story->ID, '_fanfic_featured_image', true );
 	$story_introduction = $story->post_excerpt;
 	$story_publish_date = mysql2date( 'Y-m-d', $story->post_date, false );
+	if ( class_exists( 'Fanfic_Licence' ) && Fanfic_Licence::is_enabled() ) {
+		$story_licence = Fanfic_Licence::get_story_licence( $story->ID );
+	}
 }
 if ( isset( $_POST['fanfic_story_publish_date'] ) ) {
 	$story_publish_date = sanitize_text_field( wp_unslash( $_POST['fanfic_story_publish_date'] ) );
+}
+if ( isset( $_POST['fanfic_story_licence'] ) ) {
+	$story_licence = sanitize_text_field( wp_unslash( $_POST['fanfic_story_licence'] ) );
 }
 if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() && isset( $_POST['fanfic_story_coauthors'] ) ) {
 	$posted_coauthor_ids = array_values( array_unique( array_filter( array_map( 'absint', (array) $_POST['fanfic_story_coauthors'] ) ) ) );
@@ -511,7 +534,98 @@ if ( $is_edit_mode ) {
 						</div>
 					</div>
 
+					<?php
+					$is_cc = in_array( $story_licence, array( 'cc-by', 'cc-by-sa', 'cc-by-nc', 'cc-by-nc-sa', 'cc-by-nd', 'cc-by-nc-nd' ), true );
+					?>
 					<div class="fanfic-form-content fanfic-auto-columns">
+						<?php if ( class_exists( 'Fanfic_Licence' ) && Fanfic_Licence::is_enabled() ) : ?>
+							<div class="fanfic-form-field fanfic-licence-field">
+								<label><?php esc_html_e( 'Licence', 'fanfiction-manager' ); ?></label>
+
+								<div class="fanfic-licence-options">
+									<label class="fanfic-licence-radio-label">
+										<input type="radio" name="fanfic_story_licence_type" value="all-rights-reserved" <?php checked( ! $is_cc && 'public-domain' !== $story_licence ); ?>>
+										<span class="fanfic-licence-radio-text">
+											<strong><?php esc_html_e( "All Rights Reserved", 'fanfiction-manager' ); ?></strong>
+											<span class="fanfic-licence-radio-hint"><?php esc_html_e( "Don't reuse my story", 'fanfiction-manager' ); ?></span>
+										</span>
+									</label>
+									<p class="description fanfic-licence-explanation"><?php esc_html_e( 'People can read it here, but they can\'t repost, translate, adapt, or sell it without asking you.', 'fanfiction-manager' ); ?></p>
+
+									<label class="fanfic-licence-radio-label">
+										<input type="radio" name="fanfic_story_licence_type" value="creative-commons" <?php checked( $is_cc ); ?>>
+										<span class="fanfic-licence-radio-text">
+											<strong><?php esc_html_e( 'Creative Commons', 'fanfiction-manager' ); ?></strong>
+											<span class="fanfic-licence-radio-hint"><?php esc_html_e( 'Allow reuse (with rules)', 'fanfiction-manager' ); ?></span>
+										</span>
+									</label>
+									<p class="description fanfic-licence-explanation"><?php esc_html_e( 'You choose what others are allowed to do with your text (share it, remix it, etc.).', 'fanfiction-manager' ); ?></p>
+
+									<div id="fanfic-cc-toggles" class="fanfic-cc-toggles" style="display: <?php echo $is_cc ? 'block' : 'none'; ?>;">
+										<div class="fanfic-cc-toggle-row">
+											<span class="fanfic-cc-toggle-label">
+												<?php esc_html_e( 'Allow reposting / sharing (with credit)', 'fanfiction-manager' ); ?>
+											</span>
+											<span class="fanfic-cc-toggle-value fanfic-cc-always-on"><?php esc_html_e( 'Always on', 'fanfiction-manager' ); ?></span>
+										</div>
+
+										<div class="fanfic-cc-toggle-row">
+											<label for="fanfic_cc_commercial">
+												<?php esc_html_e( 'Allow commercial use?', 'fanfiction-manager' ); ?>
+												<span class="fanfic-tooltip" title="<?php esc_attr_e( 'Commercial = someone can make money from it. For example: selling it, putting it behind a paywall, printing it, or monetizing videos/audiobooks with ads/sponsors.', 'fanfiction-manager' ); ?>">(?)</span>
+											</label>
+											<select id="fanfic_cc_commercial" class="fanfic-select fanfic-select-inline">
+												<option value="yes"><?php esc_html_e( 'Yes', 'fanfiction-manager' ); ?></option>
+												<option value="no"><?php esc_html_e( 'No', 'fanfiction-manager' ); ?></option>
+											</select>
+										</div>
+
+										<div class="fanfic-cc-toggle-row">
+											<label for="fanfic_cc_modifications">
+												<?php esc_html_e( 'Allow modifications?', 'fanfiction-manager' ); ?>
+												<span class="fanfic-tooltip" title="<?php esc_attr_e( 'This includes translating, rewriting, making an audio version, or using it as a base.', 'fanfiction-manager' ); ?>">(?)</span>
+											</label>
+											<select id="fanfic_cc_modifications" class="fanfic-select fanfic-select-inline">
+												<option value="yes"><?php esc_html_e( 'Yes', 'fanfiction-manager' ); ?></option>
+												<option value="no"><?php esc_html_e( 'No', 'fanfiction-manager' ); ?></option>
+											</select>
+										</div>
+
+										<div class="fanfic-cc-toggle-row" id="fanfic-cc-sharealike-row">
+											<label for="fanfic_cc_sharealike">
+												<?php esc_html_e( 'Require ShareAlike?', 'fanfiction-manager' ); ?>
+												<span class="fanfic-tooltip" title="<?php esc_attr_e( 'If someone adapts your work, they must share it under the same rules.', 'fanfiction-manager' ); ?>">(?)</span>
+											</label>
+											<select id="fanfic_cc_sharealike" class="fanfic-select fanfic-select-inline">
+												<option value="no"><?php esc_html_e( 'No', 'fanfiction-manager' ); ?></option>
+												<option value="yes"><?php esc_html_e( 'Yes', 'fanfiction-manager' ); ?></option>
+											</select>
+										</div>
+
+										<p class="description fanfic-cc-result">
+											<?php esc_html_e( 'Selected licence:', 'fanfiction-manager' ); ?>
+											<strong id="fanfic-cc-result-label">CC BY</strong>
+										</p>
+									</div>
+
+									<label class="fanfic-licence-radio-label">
+										<input type="radio" name="fanfic_story_licence_type" value="public-domain" <?php checked( $story_licence, 'public-domain' ); ?>>
+										<span class="fanfic-licence-radio-text">
+											<strong><?php esc_html_e( 'Public Domain / CC0', 'fanfiction-manager' ); ?></strong>
+											<span class="fanfic-licence-radio-hint"><?php esc_html_e( 'No restrictions (anyone can use it)', 'fanfiction-manager' ); ?></span>
+										</span>
+									</label>
+									<p class="description fanfic-licence-explanation"><?php esc_html_e( 'Anyone can copy, remix, repost, translate, and even sell it — no permission needed.', 'fanfiction-manager' ); ?></p>
+									<p class="description fanfic-licence-warning"><?php esc_html_e( 'Only choose this if you truly don\'t care how it\'s used.', 'fanfiction-manager' ); ?></p>
+								</div>
+
+								<input type="hidden" id="fanfic_story_licence" name="fanfic_story_licence" value="<?php echo esc_attr( $story_licence ); ?>">
+
+								<p class="description fanfic-licence-footer"><?php esc_html_e( 'This controls rights over your original text. It doesn\'t give anyone rights over the original fandom/characters.', 'fanfiction-manager' ); ?></p>
+								<p class="description fanfic-licence-hint"><?php esc_html_e( 'Not sure? Pick All Rights Reserved.', 'fanfiction-manager' ); ?></p>
+							</div>
+						<?php endif; ?>
+
 						<?php if ( $can_edit_publish_date ) : ?>
 							<div class="fanfic-form-field">
 								<label for="fanfic_story_publish_date"><?php esc_html_e( 'Publication Date', 'fanfiction-manager' ); ?></label>
@@ -1339,7 +1453,7 @@ if ( $is_edit_mode ) {
 					<tr>
 						<th scope="col"><?php esc_html_e( 'Chapter #', 'fanfiction-manager' ); ?></th>
 						<th scope="col"><?php esc_html_e( 'Title', 'fanfiction-manager' ); ?></th>
-						<th scope="col"><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Visibility', 'fanfiction-manager' ); ?></th>
 						<th scope="col"><?php esc_html_e( 'Word Count', 'fanfiction-manager' ); ?></th>
 						<th scope="col"><?php esc_html_e( 'Actions', 'fanfiction-manager' ); ?></th>
 					</tr>
@@ -1366,12 +1480,23 @@ if ( $is_edit_mode ) {
 
 						// Get status
 						$status = $chapter->post_status;
+						$is_chapter_blocked = fanfic_is_chapter_blocked( $chapter_id );
+						$can_moderate_chapter = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
+						$chapter_block_toggle_url = add_query_arg(
+							array(
+								'action'     => 'fanfic_toggle_chapter_block',
+								'chapter_id' => $chapter_id,
+								'_wpnonce'   => wp_create_nonce( 'fanfic_toggle_chapter_block_' . $chapter_id ),
+							),
+							admin_url( 'admin-post.php' )
+						);
 						$status_labels = array(
-							'publish' => __( 'Published', 'fanfiction-manager' ),
-							'draft'   => __( 'Draft', 'fanfiction-manager' ),
+							'publish' => __( 'Visible', 'fanfiction-manager' ),
+							'draft'   => __( 'Hidden', 'fanfiction-manager' ),
 							'pending' => __( 'Pending', 'fanfiction-manager' ),
 						);
-						$status_label = isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : $status;
+						$status_label = $is_chapter_blocked ? __( 'Blocked', 'fanfiction-manager' ) : ( isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : $status );
+						$status_class = $is_chapter_blocked ? 'blocked' : $status;
 						?>
 						<tr>
 							<td data-label="<?php esc_attr_e( 'Chapter #', 'fanfiction-manager' ); ?>">
@@ -1380,8 +1505,8 @@ if ( $is_edit_mode ) {
 							<td data-label="<?php esc_attr_e( 'Title', 'fanfiction-manager' ); ?>">
 								<?php echo esc_html( $chapter->post_title ); ?>
 							</td>
-							<td data-label="<?php esc_attr_e( 'Status', 'fanfiction-manager' ); ?>">
-								<span class="fanfic-status-badge fanfic-status-<?php echo esc_attr( $status ); ?>">
+							<td data-label="<?php esc_attr_e( 'Visibility', 'fanfiction-manager' ); ?>">
+								<span class="fanfic-status-badge fanfic-status-<?php echo esc_attr( $status_class ); ?>">
 									<?php echo esc_html( $status_label ); ?>
 								</span>
 							</td>
@@ -1390,24 +1515,45 @@ if ( $is_edit_mode ) {
 							</td>
 							<td data-label="<?php esc_attr_e( 'Actions', 'fanfiction-manager' ); ?>">
 								<div class="fanfic-actions-buttons">
-									<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( $chapter_id ) ); ?>" class="fanfic-button small" aria-label="<?php esc_attr_e( 'Edit chapter', 'fanfiction-manager' ); ?>">
-										<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
-									</a>
-								<?php if ( 'publish' === $status ) : ?>
-									<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button small" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
-										<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
-									</a>
-									<button type="button" class="fanfic-button small fanfic-button-warning fanfic-hide-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" data-story-id="<?php echo absint( $story_id ); ?>" aria-label="<?php esc_attr_e( 'Hide chapter', 'fanfiction-manager' ); ?>">
-										<?php esc_html_e( 'Hide', 'fanfiction-manager' ); ?>
-									</button>
-								<?php elseif ( 'draft' === $status ) : ?>
-									<button type="button" class="fanfic-button small fanfic-button-primary fanfic-publish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Publish chapter', 'fanfiction-manager' ); ?>">
-										<?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?>
-									</button>
-								<?php endif; ?>
-									<button type="button" class="fanfic-button small danger fanfic-delete-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
-										<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
-									</button>
+									<?php if ( $can_moderate_chapter ) : ?>
+										<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( $chapter_id ) ); ?>" class="fanfic-button small" aria-label="<?php esc_attr_e( 'Edit chapter', 'fanfiction-manager' ); ?>">
+											<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
+										</a>
+										<?php if ( ! $is_chapter_blocked && 'publish' === $status ) : ?>
+											<button type="button" class="fanfic-button small fanfic-button-warning fanfic-hide-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" data-story-id="<?php echo absint( $story_id ); ?>" aria-label="<?php esc_attr_e( 'Hide chapter', 'fanfiction-manager' ); ?>">
+												<?php esc_html_e( 'Hide', 'fanfiction-manager' ); ?>
+											</button>
+										<?php elseif ( ! $is_chapter_blocked && 'draft' === $status ) : ?>
+											<button type="button" class="fanfic-button small fanfic-button-primary fanfic-publish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Make chapter visible', 'fanfiction-manager' ); ?>">
+												<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
+											</button>
+										<?php endif; ?>
+										<a href="<?php echo esc_url( $chapter_block_toggle_url ); ?>" class="fanfic-button small <?php echo $is_chapter_blocked ? 'fanfic-button-primary' : 'fanfic-button-warning'; ?>" onclick="return confirm('<?php echo esc_js( $is_chapter_blocked ? __( 'Unblock this chapter?', 'fanfiction-manager' ) : __( 'Block this chapter? Authors will be limited to view-only access.', 'fanfiction-manager' ) ); ?>');" aria-label="<?php echo esc_attr( $is_chapter_blocked ? __( 'Unblock chapter', 'fanfiction-manager' ) : __( 'Block chapter', 'fanfiction-manager' ) ); ?>">
+											<?php echo esc_html( $is_chapter_blocked ? __( 'Unblock', 'fanfiction-manager' ) : __( 'Block', 'fanfiction-manager' ) ); ?>
+										</a>
+										<button type="button" class="fanfic-button small danger fanfic-delete-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
+											<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+										</button>
+									<?php elseif ( ! $is_chapter_blocked ) : ?>
+										<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( $chapter_id ) ); ?>" class="fanfic-button small" aria-label="<?php esc_attr_e( 'Edit chapter', 'fanfiction-manager' ); ?>">
+											<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
+										</a>
+										<?php if ( 'publish' === $status ) : ?>
+											<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button small" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'View chapter', 'fanfiction-manager' ); ?>">
+												<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
+											</a>
+											<button type="button" class="fanfic-button small fanfic-button-warning fanfic-hide-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" data-story-id="<?php echo absint( $story_id ); ?>" aria-label="<?php esc_attr_e( 'Hide chapter', 'fanfiction-manager' ); ?>">
+												<?php esc_html_e( 'Hide', 'fanfiction-manager' ); ?>
+											</button>
+										<?php elseif ( 'draft' === $status ) : ?>
+											<button type="button" class="fanfic-button small fanfic-button-primary fanfic-publish-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Make chapter visible', 'fanfiction-manager' ); ?>">
+												<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
+											</button>
+										<?php endif; ?>
+										<button type="button" class="fanfic-button small danger fanfic-delete-chapter" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( $chapter->post_title ); ?>" aria-label="<?php esc_attr_e( 'Delete chapter', 'fanfiction-manager' ); ?>">
+											<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+										</button>
+									<?php endif; ?>
 								</div>
 							</td>
 						</tr>
@@ -1445,6 +1591,101 @@ fanfic_render_breadcrumb( 'edit-story', array(
 <script>
 (function() {
 	document.addEventListener('DOMContentLoaded', function() {
+		// === Licence toggle logic ===
+		(function() {
+			var radios = document.querySelectorAll('input[name="fanfic_story_licence_type"]');
+			var ccToggles = document.getElementById('fanfic-cc-toggles');
+			var hiddenField = document.getElementById('fanfic_story_licence');
+			var ccCommercial = document.getElementById('fanfic_cc_commercial');
+			var ccModifications = document.getElementById('fanfic_cc_modifications');
+			var ccSharealike = document.getElementById('fanfic_cc_sharealike');
+			var sharealikeRow = document.getElementById('fanfic-cc-sharealike-row');
+			var resultLabel = document.getElementById('fanfic-cc-result-label');
+
+			if (!radios.length || !hiddenField) return;
+
+			var ccLabelMap = {
+				'cc-by': 'CC BY',
+				'cc-by-sa': 'CC BY-SA',
+				'cc-by-nc': 'CC BY-NC',
+				'cc-by-nc-sa': 'CC BY-NC-SA',
+				'cc-by-nd': 'CC BY-ND',
+				'cc-by-nc-nd': 'CC BY-NC-ND'
+			};
+
+			function getSelectedType() {
+				var checked = document.querySelector('input[name="fanfic_story_licence_type"]:checked');
+				return checked ? checked.value : 'all-rights-reserved';
+			}
+
+			function resolveCCSlug() {
+				var commercial = ccCommercial && ccCommercial.value === 'yes';
+				var modifications = ccModifications && ccModifications.value === 'yes';
+				var sharealike = ccSharealike && ccSharealike.value === 'yes';
+
+				if (sharealikeRow) {
+					sharealikeRow.style.display = modifications ? '' : 'none';
+				}
+				if (!modifications) sharealike = false;
+
+				var slug;
+				if (!modifications) {
+					slug = commercial ? 'cc-by-nd' : 'cc-by-nc-nd';
+				} else if (sharealike) {
+					slug = commercial ? 'cc-by-sa' : 'cc-by-nc-sa';
+				} else {
+					slug = commercial ? 'cc-by' : 'cc-by-nc';
+				}
+
+				hiddenField.value = slug;
+				if (resultLabel) {
+					resultLabel.textContent = ccLabelMap[slug] || slug;
+				}
+			}
+
+			function updateLicenceUI() {
+				var type = getSelectedType();
+				if (ccToggles) {
+					ccToggles.style.display = (type === 'creative-commons') ? 'block' : 'none';
+				}
+
+				if (type === 'all-rights-reserved') {
+					hiddenField.value = 'all-rights-reserved';
+				} else if (type === 'public-domain') {
+					hiddenField.value = 'public-domain';
+				} else if (type === 'creative-commons') {
+					resolveCCSlug();
+				}
+			}
+
+			// Reverse-map existing slug to toggle states on page load
+			function initFromSlug() {
+				var slug = hiddenField.value;
+				if (!slug || slug === 'all-rights-reserved' || slug === 'public-domain') return;
+
+				// It's a CC slug — parse components
+				var hasNC = slug.indexOf('-nc') !== -1;
+				var hasND = slug.indexOf('-nd') !== -1;
+				var hasSA = slug.indexOf('-sa') !== -1;
+
+				if (ccCommercial) ccCommercial.value = hasNC ? 'no' : 'yes';
+				if (ccModifications) ccModifications.value = hasND ? 'no' : 'yes';
+				if (ccSharealike) ccSharealike.value = hasSA ? 'yes' : 'no';
+
+				resolveCCSlug();
+			}
+
+			radios.forEach(function(radio) {
+				radio.addEventListener('change', updateLicenceUI);
+			});
+			if (ccCommercial) ccCommercial.addEventListener('change', resolveCCSlug);
+			if (ccModifications) ccModifications.addEventListener('change', resolveCCSlug);
+			if (ccSharealike) ccSharealike.addEventListener('change', resolveCCSlug);
+
+			initFromSlug();
+			updateLicenceUI();
+		})();
+
 		// Initialize multi-select dropdowns (warnings)
 		document.querySelectorAll('.fanfic-warnings-multiselect').forEach(function(select) {
 			var trigger = select.querySelector('.multi-select__trigger');
@@ -2174,7 +2415,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 					// If this is the last chapter, add warning
 					if (checkData.success && checkData.data.is_last_chapter) {
-						confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last published chapter/prologue. Hideing it will automatically hide your story from readers (Draft status).', 'fanfiction-manager' ); ?>';
+						confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last visible chapter/prologue. Hiding it will automatically hide your story from readers.', 'fanfiction-manager' ); ?>';
 					}
 
 					if (!confirm(confirmMessage)) {
@@ -2361,7 +2602,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 						var confirmMessage = '<?php esc_html_e( 'Are you sure you want to delete chapter', 'fanfiction-manager' ); ?> "' + chapterTitle + '"?';
 
 						if (isLastChapter) {
-							confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last chapter/prologue. Deleting it will automatically set your story to DRAFT status, making it invisible to readers. Epilogues alone are not enough to keep a story published.', 'fanfiction-manager' ); ?>';
+							confirmMessage += '\n\n<?php esc_html_e( 'WARNING: This is your last chapter/prologue. Deleting it will automatically hide your story from readers. Epilogues alone are not enough to keep a story visible.', 'fanfiction-manager' ); ?>';
 						}
 
 						if (confirm(confirmMessage)) {

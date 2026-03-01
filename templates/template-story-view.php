@@ -151,4 +151,7 @@ if ( $story_post && 'fanfiction_story' === $story_post->post_type && 'publish' !
 fanfic_render_breadcrumb( 'view-story', array( 'story_id' => get_the_ID() ) );
 
 // Process shortcodes in the template
-echo do_shortcode( $template );
+$rendered_template = do_shortcode( $template );
+echo function_exists( 'fanfic_wrap_story_age_confirmation_gate' )
+	? fanfic_wrap_story_age_confirmation_gate( $rendered_template, get_the_ID(), 'story' )
+	: $rendered_template;

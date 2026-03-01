@@ -103,8 +103,22 @@
 		return fanficFormatCompactMetricCount(count) + ' ' + (count === 1 ? 'view' : 'views');
 	}
 
-	function fanficFormatBracketedMetricCount(count) {
-		return count > 0 ? '(' + fanficFormatCompactMetricCount(count) + ')' : '';
+	function fanficFormatSegmentedMetricCount(count) {
+		return count > 0 ? fanficFormatCompactMetricCount(count) : '';
+	}
+
+	function fanficFormatLikeCountText(count) {
+		if (count <= 0) {
+			return fanficAjax.i18n && fanficAjax.i18n.like ? fanficAjax.i18n.like : 'Like';
+		}
+		return fanficFormatCompactMetricCount(count) + ' ' + (count === 1 ? 'like' : 'likes');
+	}
+
+	function fanficFormatDislikeCountText(count) {
+		if (count <= 0) {
+			return fanficAjax.i18n && fanficAjax.i18n.dislike ? fanficAjax.i18n.dislike : 'Dislike';
+		}
+		return fanficFormatCompactMetricCount(count) + ' ' + (count === 1 ? 'dislike' : 'dislikes');
 	}
 
 	/**
@@ -799,6 +813,8 @@
 	initReportButtons: function() {
 		const self = this;
 
+		this.refreshReportButtons();
+
 		$(document).on('click', '.fanfic-report-button', function(e) {
 			e.preventDefault();
 
@@ -807,27 +823,174 @@
 			const reportType = $button.data('report-type');
 
 			// Prevent double-click
-			if ($button.hasClass('loading')) {
+			if ($button.hasClass('loading') || $button.prop('disabled')) {
 				return;
 			}
 
 			self.log('Report button clicked:', { contentId, reportType });
-
-			// Show confirmation dialog
-			const confirmed = confirm(self.strings.reportConfirm || 'Are you sure you want to report this content?');
-			if (!confirmed) {
+			if (!contentId || !reportType) {
+				self.showError($button, self.strings.error);
 				return;
 			}
 
-			// Show prompt for report reason
-			const reason = prompt(self.strings.reportReason || 'Please provide a reason for reporting (optional):');
-			if (reason === null) {
-				return; // User cancelled
+			if (self.isReportLocked($button)) {
+				self.showError($button, self.strings.reportAlreadySubmitted || self.strings.error);
+				self.applyReportButtonState($button);
+				return;
 			}
 
-			// Submit report
-			self.submitReport(contentId, reportType, reason, $button);
+			self.openReportModal(contentId, reportType, $button);
 		});
+
+		$(document).on('click', '.fanfic-report-cancel', function(e) {
+			e.preventDefault();
+			self.closeReportModal();
+		});
+
+		$(document).on('click', '#fanfic-report-modal .fanfic-modal-close, #fanfic-report-modal .fanfic-modal-overlay', function(e) {
+			e.preventDefault();
+			self.closeReportModal();
+		});
+
+		$(document).on('submit', '#fanfic-report-form', function(e) {
+			e.preventDefault();
+
+			const $modal = $('#fanfic-report-modal');
+			const $submitButton = $modal.find('.fanfic-report-submit');
+			if ($submitButton.prop('disabled')) {
+				return;
+			}
+
+			const contentId = parseInt($modal.attr('data-content-id'), 10) || 0;
+			const reportType = ($modal.attr('data-report-type') || '').toString();
+			const reason = ($modal.find('input[name="fanfic_report_reason"]:checked').val() || '').toString();
+			const details = ($modal.find('#fanfic-report-details').val() || '').toString().trim();
+
+			self.clearReportFormMessage();
+
+			if (!reason) {
+				self.showReportFormMessage('error', self.strings.reportReasonRequired || self.strings.error);
+				return;
+			}
+
+			if ('other' === reason && !details) {
+				self.showReportFormMessage('error', self.strings.reportDetailsRequired || self.strings.error);
+				return;
+			}
+
+			self.submitReport(contentId, reportType, reason, details, $modal.data('triggerButton'));
+		});
+	},
+
+	getReportRevision: function($button) {
+		if (!$button || !$button.length) {
+			return '';
+		}
+		return String($button.attr('data-report-revision') || '').trim();
+	},
+
+	isReportLocked: function($button) {
+		if (!$button || !$button.length) {
+			return false;
+		}
+
+		const contentId = parseInt($button.attr('data-content-id'), 10) || 0;
+		const reportType = String($button.attr('data-report-type') || '').trim();
+		const revision = this.getReportRevision($button);
+
+		if (!contentId || !reportType || !revision) {
+			return false;
+		}
+
+		return FanficReportStore.isReported(reportType, contentId, revision);
+	},
+
+	applyReportButtonState: function($button) {
+		if (!$button || !$button.length) {
+			return;
+		}
+
+		const isLocked = this.isReportLocked($button);
+		$button.toggleClass('fanfic-report-button-reported', isLocked);
+		$button.prop('disabled', isLocked);
+		$button.attr('aria-disabled', isLocked ? 'true' : 'false');
+
+		const $text = $button.find('.fanfic-button-text');
+		if ($text.length) {
+			$text.text(isLocked ? (this.strings.reportedState || 'Reported') : (this.strings.reportLabel || 'Report'));
+		}
+	},
+
+	refreshReportButtons: function(reportType, contentId) {
+		let selector = '.fanfic-report-button';
+		if (reportType && contentId) {
+			selector += '[data-report-type="' + String(reportType) + '"][data-content-id="' + parseInt(contentId, 10) + '"]';
+		}
+
+		const self = this;
+		$(selector).each(function() {
+			const $button = $(this);
+			const revision = self.getReportRevision($button);
+			if (revision) {
+				FanficReportStore.clearStaleRevision(
+					String($button.attr('data-report-type') || '').trim(),
+					parseInt($button.attr('data-content-id'), 10) || 0,
+					revision
+				);
+			}
+			self.applyReportButtonState($button);
+		});
+	},
+
+	openReportModal: function(contentId, reportType, $button) {
+		const $modal = $('#fanfic-report-modal');
+		if (!$modal.length) {
+			this.showError($button, this.strings.error);
+			return;
+		}
+
+		$modal.attr('data-content-id', parseInt(contentId, 10) || 0);
+		$modal.attr('data-report-type', (reportType || '').toString());
+		$modal.data('triggerButton', $button);
+		$modal.find('#fanfic-report-form')[0].reset();
+		this.clearReportFormMessage();
+		$modal.fadeIn(200).attr('aria-hidden', 'false');
+		$('body').css('overflow', 'hidden');
+
+		setTimeout(function() {
+			$modal.find('input[name="fanfic_report_reason"]').first().focus();
+		}, 220);
+	},
+
+	closeReportModal: function() {
+		const $modal = $('#fanfic-report-modal');
+		if (!$modal.length) {
+			return;
+		}
+
+		$modal.fadeOut(200).attr('aria-hidden', 'true');
+		$('body').css('overflow', 'auto');
+		this.clearReportFormMessage();
+		$modal.removeAttr('data-content-id data-report-type');
+		$modal.removeData('triggerButton');
+	},
+
+	showReportFormMessage: function(type, message) {
+		const $message = $('#fanfic-report-modal .fanfic-report-form-message');
+		if (!$message.length) {
+			return;
+		}
+
+		$message
+			.removeClass('success error')
+			.addClass(type)
+			.text(message || '')
+			.show();
+	},
+
+	clearReportFormMessage: function() {
+		const $message = $('#fanfic-report-modal .fanfic-report-form-message');
+		$message.removeClass('success error').text('').hide();
 	},
 
 	/**
@@ -1062,49 +1225,64 @@
 	/**
 	 * Submit report to server.
 	 */
-	submitReport: function(contentId, reportType, reason, $button) {
+	submitReport: function(contentId, reportType, reason, details, $button) {
 		const self = this;
 		const postType = this.mapReportTypeToPostType(reportType);
-		const details = (reason || '').toString().trim();
+		const reasonLabel = this.getReportReasonLabel(reason);
 
 		if (!postType) {
-			self.showError($button, self.strings.error);
+			self.showReportFormMessage('error', self.strings.error);
 			return;
 		}
 
-		$button.addClass('loading');
+		if ($button && $button.length) {
+			$button.addClass('loading');
+		}
+		$('#fanfic-report-modal .fanfic-report-submit').prop('disabled', true);
 
 		if (!this.config.isLoggedIn) {
 			if (!this.config.allowAnonymousReports) {
-				self.showError($button, self.strings.anonymousReportsDisabled || self.strings.loginRequired);
-				$button.removeClass('loading');
+				self.showReportFormMessage('error', self.strings.anonymousReportsDisabled || self.strings.loginRequired);
+				if ($button && $button.length) {
+					$button.removeClass('loading');
+				}
+				$('#fanfic-report-modal .fanfic-report-submit').prop('disabled', false);
 				return;
 			}
 
 			if (!this.config.reportRecaptchaSiteKey) {
-				self.showError($button, self.strings.recaptchaRequired || self.strings.error);
-				$button.removeClass('loading');
+				self.showReportFormMessage('error', self.strings.recaptchaRequired || self.strings.error);
+				if ($button && $button.length) {
+					$button.removeClass('loading');
+				}
+				$('#fanfic-report-modal .fanfic-report-submit').prop('disabled', false);
 				return;
 			}
 
 			this.getReportRecaptchaToken(
 				function(token) {
 					if (!token) {
-						self.showError($button, self.strings.recaptchaRequired || self.strings.error);
-						$button.removeClass('loading');
+						self.showReportFormMessage('error', self.strings.recaptchaRequired || self.strings.error);
+						if ($button && $button.length) {
+							$button.removeClass('loading');
+						}
+						$('#fanfic-report-modal .fanfic-report-submit').prop('disabled', false);
 						return;
 					}
-					self.submitReportRequest(contentId, postType, details, token, $button);
+					self.submitReportRequest(contentId, reportType, postType, reason, reasonLabel, details, token, $button);
 				},
 				function(message) {
-					self.showError($button, message || self.strings.recaptchaLoadFailed || self.strings.error);
-					$button.removeClass('loading');
+					self.showReportFormMessage('error', message || self.strings.recaptchaLoadFailed || self.strings.error);
+					if ($button && $button.length) {
+						$button.removeClass('loading');
+					}
+					$('#fanfic-report-modal .fanfic-report-submit').prop('disabled', false);
 				}
 			);
 			return;
 		}
 
-		this.submitReportRequest(contentId, postType, details, '', $button);
+		this.submitReportRequest(contentId, reportType, postType, reason, reasonLabel, details, '', $button);
 	},
 
 	mapReportTypeToPostType: function(reportType) {
@@ -1120,8 +1298,50 @@
 		}
 	},
 
-	submitReportRequest: function(contentId, postType, details, recaptchaToken, $button) {
+	getReportReasonLabel: function(reason) {
+		switch ((reason || '').toString()) {
+			case 'spam':
+				return 'Spam';
+			case 'harassment':
+				return 'Harassment or Bullying';
+			case 'inappropriate':
+				return 'Inappropriate Content';
+			case 'copyright':
+				return 'Copyright Violation';
+			case 'other':
+				return 'Other';
+			default:
+				return '';
+		}
+	},
+
+	logReportActivity: function(reportType, reasonLabel, $button) {
+		if (!this.config.isLoggedIn || typeof window.FanficRecentActivity === 'undefined' || typeof window.FanficRecentActivity.log !== 'function') {
+			return;
+		}
+
+		const pageContext = typeof window.FanficRecentActivity.getPageContext === 'function'
+			? window.FanficRecentActivity.getPageContext()
+			: null;
+		const data = {
+			reportTargetType: String(reportType || '').trim(),
+			reasonLabel: String(reasonLabel || '').trim(),
+			contentLabel: $button && $button.length ? String($button.attr('data-report-content-label') || '').trim() : ''
+		};
+
+		if (pageContext) {
+			data.storyTitle = pageContext.storyTitle || '';
+			data.storyUrl = pageContext.storyUrl || '';
+			data.chapterTitle = pageContext.chapterTitle || '';
+			data.chapterUrl = pageContext.chapterUrl || '';
+		}
+
+		window.FanficRecentActivity.log('report', data);
+	},
+
+	submitReportRequest: function(contentId, reportType, postType, reason, reasonLabel, details, recaptchaToken, $button) {
 		const self = this;
+		const anonymousUuid = this.config.isLoggedIn ? '' : FanficLocalStore.getAnonymousUuid();
 
 		$.ajax({
 			url: this.config.ajaxUrl,
@@ -1131,25 +1351,48 @@
 				nonce: this.config.nonce,
 				post_id: contentId,
 				post_type: postType,
-				reason: 'other',
+				reason: reason,
 				details: details,
-				recaptcha_token: recaptchaToken
+				recaptcha_token: recaptchaToken,
+				anonymous_uuid: anonymousUuid
 			},
 			success: function(response) {
 				self.log('Report response:', response);
 
 				if (response.success) {
-					self.showSuccess($button, response.data.message || 'Report submitted successfully. Thank you!');
+					if ($button && $button.length) {
+						FanficReportStore.markReported(
+							reportType,
+							contentId,
+							self.getReportRevision($button),
+							{
+								reasonLabel: reasonLabel
+							}
+						);
+						self.refreshReportButtons(reportType, contentId);
+						self.logReportActivity(reportType, reasonLabel, $button);
+					}
+					self.closeReportModal();
+					if ($button && $button.length) {
+						self.showSuccess($button, response.data.message || self.strings.reportSubmitted || 'Report submitted successfully. Thank you!');
+					}
 				} else {
-					self.showError($button, response.data.message || self.strings.error);
+					self.showReportFormMessage('error', response.data.message || self.strings.error);
 				}
 			},
 			error: function(xhr) {
 				self.log('Report error:', xhr);
-				self.handleAjaxError(xhr, $button);
+				let message = self.strings.error;
+				if (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+					message = xhr.responseJSON.data.message;
+				}
+				self.showReportFormMessage('error', message);
 			},
 			complete: function() {
-				$button.removeClass('loading');
+				if ($button && $button.length) {
+					$button.removeClass('loading');
+				}
+				$('#fanfic-report-modal .fanfic-report-submit').prop('disabled', false);
 			}
 		});
 	},
@@ -1586,10 +1829,66 @@
 			return 'story_' + parseInt(storyId, 10) + '_chapter_' + parseInt(chapterId, 10);
 		},
 
+		getCurrentReadRevision: function(storyId, chapterId) {
+			var $node = $('[data-story-id="' + parseInt(storyId, 10) + '"][data-chapter-id="' + parseInt(chapterId, 10) + '"][data-read-revision]').first();
+			if (!$node.length) {
+				return '';
+			}
+
+			var revision = $node.attr('data-read-revision');
+			return revision ? String(revision) : '';
+		},
+
+		normalizeReadEntryForCurrentRevision: function(storyId, chapterId, entry) {
+			if (!entry || typeof entry !== 'object') {
+				return null;
+			}
+
+			var currentRevision = this.getCurrentReadRevision(storyId, chapterId);
+			if (!currentRevision) {
+				return entry;
+			}
+
+			var hasReadState = Object.prototype.hasOwnProperty.call(entry, 'read') ||
+				Object.prototype.hasOwnProperty.call(entry, 'read_auto_suppressed') ||
+				Object.prototype.hasOwnProperty.call(entry, 'read_revision');
+
+			if (!hasReadState) {
+				return entry;
+			}
+
+			var entryRevision = entry.read_revision ? String(entry.read_revision) : '';
+			if (entryRevision === currentRevision) {
+				return entry;
+			}
+
+			var normalized = Object.assign({}, entry);
+			delete normalized.read;
+			delete normalized.read_auto_suppressed;
+			delete normalized.read_revision;
+
+			return normalized;
+		},
+
 		getChapter: function(storyId, chapterId) {
 			const all = this.getAll();
 			const key = this.makeKey(storyId, chapterId);
-			return all[key] || null;
+			const entry = all[key] || null;
+			if (!entry || typeof entry !== 'object') {
+				return entry;
+			}
+
+			const normalized = this.normalizeReadEntryForCurrentRevision(storyId, chapterId, entry);
+			if (normalized !== entry) {
+				if (normalized && Object.keys(normalized).length) {
+					all[key] = normalized;
+				} else {
+					delete all[key];
+				}
+				this.saveAll(all);
+			}
+
+			return normalized;
 		},
 
 		setChapter: function(storyId, chapterId, entry) {
@@ -1656,10 +1955,17 @@
 
 		setRead: function(storyId, chapterId, read) {
 			const entry = this.getChapter(storyId, chapterId) || {};
+			const currentRevision = this.getCurrentReadRevision(storyId, chapterId);
 			if (read) {
 				entry.read = true;
+				if (currentRevision) {
+					entry.read_revision = currentRevision;
+				}
 			} else {
 				delete entry.read;
+				if (!entry.read_auto_suppressed) {
+					delete entry.read_revision;
+				}
 			}
 			entry.timestamp = Date.now();
 			this.setChapter(storyId, chapterId, entry);
@@ -1668,10 +1974,17 @@
 
 		setReadAutoSuppressed: function(storyId, chapterId, suppressed) {
 			const entry = this.getChapter(storyId, chapterId) || {};
+			const currentRevision = this.getCurrentReadRevision(storyId, chapterId);
 			if (suppressed) {
 				entry.read_auto_suppressed = true;
+				if (currentRevision) {
+					entry.read_revision = currentRevision;
+				}
 			} else {
 				delete entry.read_auto_suppressed;
+				if (!entry.read) {
+					delete entry.read_revision;
+				}
 			}
 			entry.timestamp = Date.now();
 			this.setChapter(storyId, chapterId, entry);
@@ -1744,6 +2057,70 @@
 			});
 
 			this.saveAll(finalData);
+		}
+	};
+
+	const FanficReportStore = {
+		key: 'fanfic_report_history',
+
+		getAll: function() {
+			try {
+				const raw = window.localStorage.getItem(this.key);
+				if (!raw) {
+					return {};
+				}
+				const parsed = JSON.parse(raw);
+				return parsed && typeof parsed === 'object' ? parsed : {};
+			} catch (e) {
+				return {};
+			}
+		},
+
+		saveAll: function(data) {
+			try {
+				window.localStorage.setItem(this.key, JSON.stringify(data || {}));
+				return true;
+			} catch (e) {
+				return false;
+			}
+		},
+
+		makeKey: function(reportType, contentId) {
+			return String(reportType || '').trim() + '_' + parseInt(contentId, 10);
+		},
+
+		getEntry: function(reportType, contentId) {
+			const all = this.getAll();
+			return all[this.makeKey(reportType, contentId)] || null;
+		},
+
+		clearStaleRevision: function(reportType, contentId, revision) {
+			const key = this.makeKey(reportType, contentId);
+			const all = this.getAll();
+			const entry = all[key];
+			if (entry && entry.revision && entry.revision !== revision) {
+				delete all[key];
+				this.saveAll(all);
+			}
+		},
+
+		isReported: function(reportType, contentId, revision) {
+			const entry = this.getEntry(reportType, contentId);
+			return !!(entry && entry.revision && revision && entry.revision === revision);
+		},
+
+		markReported: function(reportType, contentId, revision, data) {
+			if (!reportType || !contentId || !revision) {
+				return false;
+			}
+
+			const all = this.getAll();
+			all[this.makeKey(reportType, contentId)] = {
+				revision: revision,
+				reasonLabel: data && data.reasonLabel ? String(data.reasonLabel) : '',
+				timestamp: Date.now()
+			};
+			return this.saveAll(all);
 		}
 	};
 
@@ -1962,7 +2339,7 @@
 				FanficLocalStore.setRead(self.context.storyId, self.context.chapterId, true);
 				FanficLocalStore.setReadAutoSuppressed(self.context.storyId, self.context.chapterId, false);
 				self.debugRead('Local read state saved', FanficLocalStore.getChapter(self.context.storyId, self.context.chapterId) || {});
-				self.applyUiFromLocal();
+				self.applyUiFromLocal({ animateRead: true });
 				if (self.config.isLoggedIn) {
 					self.debugRead('Posting read interaction to server');
 					self.postInteraction('read');
@@ -2382,15 +2759,25 @@
 
 			var likeDelta = (toReaction === 'like' ? 1 : 0) - (fromReaction === 'like' ? 1 : 0);
 			if (likeDelta !== 0) {
+				// Segmented buttons: .like-count
 				this.adjustCount('.like-count', likeDelta, function(count) {
-					return fanficFormatBracketedMetricCount(count);
+					return fanficFormatSegmentedMetricCount(count);
+				});
+				// Standalone buttons: .like-text
+				this.adjustCount('.like-text', likeDelta, function(count) {
+					return fanficFormatLikeCountText(count);
 				});
 			}
 
 			var dislikeDelta = (toReaction === 'dislike' ? 1 : 0) - (fromReaction === 'dislike' ? 1 : 0);
 			if (dislikeDelta !== 0) {
+				// Segmented buttons: .dislike-count
 				this.adjustCount('.dislike-count', dislikeDelta, function(count) {
-					return fanficFormatBracketedMetricCount(count);
+					return fanficFormatSegmentedMetricCount(count);
+				});
+				// Standalone buttons: .dislike-text
+				this.adjustCount('.dislike-text', dislikeDelta, function(count) {
+					return fanficFormatDislikeCountText(count);
 				});
 			}
 		},
@@ -2726,18 +3113,32 @@
 			}
 
 			if (stats.likes !== undefined) {
+				// Segmented buttons: .like-count
 				$('.like-count').each(function() {
 					var $el = $(this);
 					var count = parseInt(stats.likes, 10);
-					fanficSetMetricCountDisplay($el, count, fanficFormatBracketedMetricCount(count));
+					fanficSetMetricCountDisplay($el, count, fanficFormatSegmentedMetricCount(count));
+				});
+				// Standalone buttons: .like-text
+				$('.like-text').each(function() {
+					var $el = $(this);
+					var count = parseInt(stats.likes, 10);
+					fanficSetMetricCountDisplay($el, count, fanficFormatLikeCountText(count));
 				});
 			}
 
 			if (stats.dislikes !== undefined) {
+				// Segmented buttons: .dislike-count
 				$('.dislike-count').each(function() {
 					var $el = $(this);
 					var count = parseInt(stats.dislikes, 10);
-					fanficSetMetricCountDisplay($el, count, fanficFormatBracketedMetricCount(count));
+					fanficSetMetricCountDisplay($el, count, fanficFormatSegmentedMetricCount(count));
+				});
+				// Standalone buttons: .dislike-text
+				$('.dislike-text').each(function() {
+					var $el = $(this);
+					var count = parseInt(stats.dislikes, 10);
+					fanficSetMetricCountDisplay($el, count, fanficFormatDislikeCountText(count));
 				});
 			}
 
@@ -2768,11 +3169,13 @@
 			}
 		},
 
-		applyUiFromLocal: function() {
+		applyUiFromLocal: function(options) {
 			if (!this.context) {
 				this.debugRead('applyUiFromLocal skipped: no context');
 				return;
 			}
+			const settings = options || {};
+			const animateRead = !!settings.animateRead;
 			const self = this;
 			const storyId = this.context.storyId;
 			const chapterId = this.context.chapterId;
@@ -2792,11 +3195,12 @@
 			this.debugRead('Read button sync target count', { count: $readButtons.length });
 			$readButtons.each(function(index) {
 				const $btn = $(this);
-				const serverRead = $btn.hasClass('fanfic-button-marked-read') ||
+				const wasRead = $btn.hasClass('fanfic-button-marked-read') ||
 					$btn.hasClass('fanfic-button-mark-readed') ||
 					$btn.hasClass('marked-read') ||
 					$btn.hasClass('is-markredd') ||
 					$btn.hasClass('read');
+				const serverRead = wasRead;
 				let isRead = false;
 				if (hasLocalRead) {
 					isRead = !!entry.read;
@@ -2821,6 +3225,10 @@
 					if (hasCheckIcon || $icon.contents().length) {
 						$icon.html('');
 					}
+				}
+
+				if (animateRead && !wasRead && isRead) {
+					self.animateReadConfirm($btn);
 				}
 
 				if (index === 0) {

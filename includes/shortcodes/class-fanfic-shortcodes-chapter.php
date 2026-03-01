@@ -73,7 +73,7 @@ class Fanfic_Shortcodes_Chapter {
 		}
 
 		return sprintf(
-			'<img src="%s" class="%s" alt="%s" loading="lazy" />',
+			'<a href="%1$s" class="fanfic-lightbox-trigger" data-type="image"><img src="%1$s" class="%2$s" alt="%3$s" loading="lazy" /></a>',
 			esc_url( $image_url ),
 			esc_attr( $class ),
 			esc_attr( $alt )
@@ -191,34 +191,26 @@ class Fanfic_Shortcodes_Chapter {
 		$actions = '';
 
 		if ( $is_story_view ) {
-			$edit_story = trim( (string) do_shortcode( '[edit-story-button story_id="' . absint( $story_id ) . '"]' ) );
-			if ( '' !== $edit_story ) {
-				$actions .= $edit_story;
-			}
-
-			$add_chapter = trim( (string) do_shortcode( '[add-chapter-button story_id="' . absint( $story_id ) . '"]' ) );
-			if ( '' !== $add_chapter ) {
-				$actions .= $add_chapter;
-			}
-
-			$feature_button = Fanfic_Featured_Stories::render_feature_button( $story_id );
-			if ( '' !== $feature_button ) {
-				$actions .= $feature_button;
+			if ( class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
+				$actions = Fanfic_Shortcodes_Buttons::render_context_management_buttons(
+					'story',
+					array(
+						'story_id' => absint( $story_id ),
+					)
+				);
 			}
 		}
 
 		if ( $is_chapter_view ) {
 			$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
-			if ( $chapter_id ) {
-				$edit_chapter = trim( (string) do_shortcode( '[edit-chapter-button chapter_id="' . absint( $chapter_id ) . '"]' ) );
-				if ( '' !== $edit_chapter ) {
-					$actions .= $edit_chapter;
-				}
-			}
-
-			$edit_story = trim( (string) do_shortcode( '[edit-story-button story_id="' . absint( $story_id ) . '"]' ) );
-			if ( '' !== $edit_story ) {
-				$actions .= $edit_story;
+			if ( $chapter_id && class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
+				$actions = Fanfic_Shortcodes_Buttons::render_context_management_buttons(
+					'chapter',
+					array(
+						'chapter_id' => absint( $chapter_id ),
+						'story_id'   => absint( $story_id ),
+					)
+				);
 			}
 		}
 
@@ -286,9 +278,10 @@ class Fanfic_Shortcodes_Chapter {
 				);
 				// Read indicator — same as chapter nav, opacity 0 until JS marks it read
 				$badges .= sprintf(
-					'<span class="fanfic-read-indicator" data-story-id="%1$d" data-chapter-id="%2$d" aria-label="%3$s" title="%3$s"></span>',
+					'<span class="fanfic-read-indicator" data-story-id="%1$d" data-chapter-id="%2$d" data-read-revision="%3$s" aria-label="%4$s" title="%4$s"></span>',
 					absint( $story_id ),
 					absint( $chapter_id ),
+					esc_attr( fanfic_get_chapter_content_updated_date( $chapter_id ) ),
 					esc_attr__( 'Read', 'fanfiction-manager' )
 				);
 			}
@@ -360,15 +353,16 @@ class Fanfic_Shortcodes_Chapter {
 		}
 
 		$published_timestamp = get_post_time( 'U', false, $chapter_id );
-		$modified_timestamp  = get_post_modified_time( 'U', false, $chapter_id );
+		$updated_datetime    = fanfic_get_chapter_content_updated_date( $chapter_id );
+		$modified_timestamp  = $updated_datetime ? strtotime( $updated_datetime ) : false;
 
 		// Only show if modified date is different from published date (more than 1 day difference)
-		if ( abs( $modified_timestamp - $published_timestamp ) < DAY_IN_SECONDS ) {
+		if ( false === $modified_timestamp || abs( $modified_timestamp - $published_timestamp ) < DAY_IN_SECONDS ) {
 			return '';
 		}
 
-		$modified_date = get_the_modified_date( get_option( 'date_format' ), $chapter_id );
-		$modified_datetime = get_the_modified_date( 'Y-m-d', $chapter_id );
+		$modified_date = wp_date( get_option( 'date_format' ), $modified_timestamp );
+		$modified_datetime = gmdate( 'Y-m-d', $modified_timestamp );
 
 		return sprintf(
 			'<time class="fanfic-updated-date" datetime="%s" itemprop="dateModified">%s</time>',

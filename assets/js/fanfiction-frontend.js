@@ -113,8 +113,24 @@
 		},
 
 		closeAll: function() {
-			$('.fanfic-modal').fadeOut(200);
-			$('body').css('overflow', 'auto');
+			let closedAny = false;
+			$('.fanfic-modal:visible').each(function() {
+				const $modal = $(this);
+				if ($modal.is('[data-static-modal="true"]')) {
+					return;
+				}
+
+				closedAny = true;
+				$modal.fadeOut(200);
+			});
+
+			if (closedAny) {
+				setTimeout(function() {
+					if ($('.fanfic-modal:visible').length === 0) {
+						$('body').css('overflow', 'auto');
+					}
+				}, 210);
+			}
 		},
 
 		// Escape key handler for WCAG 2.1 AA keyboard accessibility
@@ -578,12 +594,22 @@
 		init: function() {
 			// Close button
 			$(document).on('click', '.fanfic-modal .fanfic-modal-close, .fanfic-modal .cancel-delete', function() {
-				Modal.close($(this).closest('.fanfic-modal').attr('id'));
+				const $modal = $(this).closest('.fanfic-modal');
+				if ($modal.is('[data-static-modal="true"]') && !$(this).is('[data-allow-static-close="true"]')) {
+					return;
+				}
+
+				Modal.close($modal.attr('id'));
 			});
 
 			// Overlay click
 			$(document).on('click', '.fanfic-modal-overlay', function() {
-				Modal.close($(this).closest('.fanfic-modal').attr('id'));
+				const $modal = $(this).closest('.fanfic-modal');
+				if ($modal.is('[data-static-modal="true"]')) {
+					return;
+				}
+
+				Modal.close($modal.attr('id'));
 			});
 
 		// Notice close
@@ -595,6 +621,101 @@
 			}, 400);
 		});
 	}
+	};
+
+	/**
+	 * Warning-based age confirmation gate.
+	 */
+	const AgeConfirmationGate = {
+		init: function() {
+			const self = this;
+
+			$('[data-fanfic-age-gate]').each(function() {
+				const $gate = $(this);
+				const confirmKey = $gate.data('confirm-key');
+				const modalId = $gate.data('modal-id');
+
+				if (self.hasConfirmation(confirmKey)) {
+					self.unlock($gate);
+					return;
+				}
+
+				self.lock($gate);
+				self.openModal(modalId);
+			});
+
+			$(document).on('click', '[data-fanfic-age-confirm="yes"]', function() {
+				const $button = $(this);
+				const confirmKey = $button.data('confirm-key');
+				const modalId = $button.data('modal-id');
+				const targetId = $button.data('target-id');
+				const $gate = $('#' + targetId);
+
+				self.storeConfirmation(confirmKey);
+				if ($gate.length) {
+					self.unlock($gate);
+				}
+				self.closeModal(modalId);
+			});
+		},
+
+		hasConfirmation: function(confirmKey) {
+			if (!confirmKey) {
+				return false;
+			}
+
+			try {
+				return window.sessionStorage.getItem(confirmKey) === '1';
+			} catch (error) {
+				return false;
+			}
+		},
+
+		storeConfirmation: function(confirmKey) {
+			if (!confirmKey) {
+				return;
+			}
+
+			try {
+				window.sessionStorage.setItem(confirmKey, '1');
+			} catch (error) {
+				// Ignore unavailable sessionStorage and allow the current view only.
+			}
+		},
+
+		lock: function($gate) {
+			$gate.addClass('fanfic-age-gate-is-locked').attr('aria-hidden', 'true');
+		},
+
+		unlock: function($gate) {
+			$gate.removeClass('fanfic-age-gate-is-locked').removeAttr('aria-hidden');
+		},
+
+		openModal: function(modalId) {
+			if (!modalId) {
+				return;
+			}
+
+			if (typeof EnhancedModal !== 'undefined') {
+				EnhancedModal.open(modalId);
+				return;
+			}
+
+			Modal.open(modalId);
+		},
+
+		closeModal: function(modalId) {
+			if (!modalId) {
+				return;
+			}
+
+			if (typeof EnhancedModal !== 'undefined') {
+				EnhancedModal.close(modalId);
+				return;
+			}
+
+			Modal.close(modalId);
+		}
 	};
 
 	/**
@@ -2330,6 +2451,7 @@
 
 	$(document).ready(function() {
 		initializeStoryMediaGridLayout();
+		AgeConfirmationGate.init();
 	});
 
 	// Author's Notes toggle

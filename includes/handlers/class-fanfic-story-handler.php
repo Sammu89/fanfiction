@@ -384,6 +384,17 @@ class Fanfic_Story_Handler {
 		$current_user = wp_get_current_user();
 		$errors = array();
 
+		if ( in_array( 'fanfiction_banned_user', (array) $current_user->roles, true ) ) {
+			$message = __( 'Your account is suspended. You cannot create or edit stories.', 'fanfiction-manager' );
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => $message,
+					'errors'  => array( $message ),
+				) );
+			}
+			wp_die( esc_html( $message ) );
+		}
+
 		// Get and sanitize form data
 		$title = isset( $_POST['fanfic_story_title'] ) ? sanitize_text_field( $_POST['fanfic_story_title'] ) : '';
 		$introduction = isset( $_POST['fanfic_story_introduction'] ) ? wp_kses_post( $_POST['fanfic_story_introduction'] ) : '';
@@ -600,6 +611,11 @@ class Fanfic_Story_Handler {
 			update_post_meta( $new_story_id, '_fanfic_author_notes', $notes_content );
 			update_post_meta( $new_story_id, '_fanfic_comments_enabled', $comments_enabled );
 
+			// Licence.
+			if ( class_exists( 'Fanfic_Licence' ) && Fanfic_Licence::is_enabled() && isset( $_POST['fanfic_story_licence'] ) ) {
+				Fanfic_Licence::save_story_licence( $new_story_id, sanitize_text_field( wp_unslash( $_POST['fanfic_story_licence'] ) ) );
+			}
+
 			$coauthor_sync = self::sync_story_coauthors( $new_story_id, $current_user->ID, $coauthor_ids );
 			if ( ! empty( $coauthor_sync['errors'] ) && ! $is_ajax ) {
 				Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
@@ -640,7 +656,7 @@ class Fanfic_Story_Handler {
 			$story = get_post( $story_id );
 
 			// Check permissions
-			if ( ! $story || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+			if ( ! $story || ! fanfic_current_user_can_edit( 'story', $story_id ) ) {
 				if ( $is_ajax ) {
 					wp_send_json_error( array(
 						'message' => __( 'You do not have permission to edit this story.', 'fanfiction-manager' ),
@@ -863,6 +879,11 @@ class Fanfic_Story_Handler {
 			update_post_meta( $story_id, '_fanfic_author_notes', $notes_content );
 			update_post_meta( $story_id, '_fanfic_comments_enabled', $comments_enabled );
 
+			// Licence.
+			if ( class_exists( 'Fanfic_Licence' ) && Fanfic_Licence::is_enabled() && isset( $_POST['fanfic_story_licence'] ) ) {
+				Fanfic_Licence::save_story_licence( $story_id, sanitize_text_field( wp_unslash( $_POST['fanfic_story_licence'] ) ) );
+			}
+
 			$coauthor_sync = self::sync_story_coauthors( $story_id, $current_user->ID, $coauthor_ids );
 			if ( ! empty( $coauthor_sync['errors'] ) && ! $is_ajax ) {
 				Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
@@ -1015,7 +1036,7 @@ class Fanfic_Story_Handler {
 
 		$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
 		if ( $is_blocked && ! current_user_can( 'delete_others_posts' ) ) {
-			Fanfic_Flash_Messages::add_message( 'error', fanfic_get_blocked_story_message() );
+			Fanfic_Flash_Messages::add_message( 'error', fanfic_get_blocked_story_message( $story_id ) );
 			$redirect_url = self::get_page_url_with_fallback( 'manage-stories' );
 			$fallback_url = self::get_story_edit_url( $story_id );
 			self::redirect_with_fallback( $redirect_url, $fallback_url );

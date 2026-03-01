@@ -224,6 +224,9 @@ if ( isset( $_GET['error'] ) ) {
 								<button type="button" class="fanfic-button danger fanfic-refuse-invitation" data-story-id="<?php echo esc_attr( $story_id ); ?>">
 									<?php esc_html_e( 'Refuse', 'fanfiction-manager' ); ?>
 								</button>
+								<button type="button" class="fanfic-button danger fanfic-block-invitation" data-story-id="<?php echo esc_attr( $story_id ); ?>">
+									<?php esc_html_e( 'Refuse & Block', 'fanfiction-manager' ); ?>
+								</button>
 							</div>
 						</div>
 					<?php endforeach; ?>
@@ -249,7 +252,8 @@ if ( isset( $_GET['error'] ) ) {
 				'post_status'    => array( 'publish', 'draft', 'pending' ),
 				'posts_per_page' => $posts_per_page,
 				'paged'          => $paged,
-				'orderby'        => 'modified',
+				'meta_key'       => '_fanfic_content_updated_date',
+				'orderby'        => 'meta_value',
 				'order'          => 'DESC',
 				'author'         => $user_id,
 			);
@@ -331,8 +335,12 @@ if ( isset( $_GET['error'] ) ) {
 										<td><?php echo esc_html( $chapter_count ); ?></td>
 										<td><span title="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $views ) ); ?>" aria-label="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $views ) ); ?>"><?php echo esc_html( Fanfic_Shortcodes::format_engagement_number( $views ) ); ?></span></td>
 										<td>
-											<time datetime="<?php echo esc_attr( get_the_modified_time( 'c' ) ); ?>">
-												<?php echo esc_html( get_the_modified_time( get_option( 'date_format' ) ) ); ?>
+											<?php
+											$updated_datetime = fanfic_get_story_content_updated_date( $story_id );
+											$updated_timestamp = $updated_datetime ? strtotime( $updated_datetime ) : false;
+											?>
+											<time datetime="<?php echo esc_attr( $updated_datetime ? mysql2date( 'c', $updated_datetime, false ) : '' ); ?>">
+												<?php echo esc_html( $updated_timestamp ? wp_date( get_option( 'date_format' ), $updated_timestamp ) : '' ); ?>
 											</time>
 										</td>
 										<td class="fanfic-story-actions">
@@ -341,13 +349,13 @@ if ( isset( $_GET['error'] ) ) {
 													<?php esc_html_e( 'Suspended (read-only)', 'fanfiction-manager' ); ?>
 												</span>
 											<?php elseif ( $is_blocked ) : ?>
-												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
+												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
 													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
 												</span>
-												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
+												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
 													<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 												</span>
-												<span class="fanfic-button small danger disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message() ); ?>">
+												<span class="fanfic-button small danger disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
 													<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 												</span>
 											<?php else : ?>

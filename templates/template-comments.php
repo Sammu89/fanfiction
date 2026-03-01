@@ -86,6 +86,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 </div>
 
 <?php
+if ( class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
+	echo Fanfic_Shortcodes_Buttons::render_report_modal(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+}
+?>
+
+<?php
 /**
  * Custom comment template callback
  *
@@ -195,19 +201,28 @@ function fanfic_custom_comment_template( $comment, $args, $depth ) {
 					)
 				);
 
-				// Report button - only show to logged-in users who are not the comment author
-				if ( is_user_logged_in() && get_current_user_id() !== absint( $comment->user_id ) ) :
-					?>
-					<button
-						type="button"
-						class="fanfic-report-button comment-report-link"
-						data-item-id="<?php echo esc_attr( $comment->comment_ID ); ?>"
-						data-item-type="comment"
-						aria-label="<?php esc_attr_e( 'Report this comment', 'fanfiction-manager' ); ?>"
-					>
-						<?php esc_html_e( 'Report', 'fanfiction-manager' ); ?>
-					</button>
-				<?php endif; ?>
+				// Report button - hide for comment owners; anonymous viewers may report only if enabled globally.
+				$reporting_enabled = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_report', true ) : true;
+				$allow_anonymous_reports = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'allow_anonymous_reports', false ) : false;
+				$can_report_comment = false;
+
+				if ( $reporting_enabled ) {
+					if ( is_user_logged_in() ) {
+						$can_report_comment = get_current_user_id() !== absint( $comment->user_id );
+					} else {
+						$can_report_comment = $allow_anonymous_reports;
+					}
+				}
+
+				if ( $can_report_comment && class_exists( 'Fanfic_Shortcodes_Buttons' ) ) :
+					echo Fanfic_Shortcodes_Buttons::render_report_trigger(
+						$comment->comment_ID,
+						'comment',
+						__( 'Report this comment', 'fanfiction-manager' ),
+						'comment-report-link'
+					); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				endif;
+				?>
 			</div>
 		</article>
 	<?php

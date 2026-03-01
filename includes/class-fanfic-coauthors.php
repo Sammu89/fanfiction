@@ -222,7 +222,7 @@ class Fanfic_Coauthors {
 		if ( self::STATUS_REFUSED === $existing_status ) {
 			return array(
 				'success' => false,
-				'message' => __( 'This user has already refused a co-author invitation for this story.', 'fanfiction-manager' ),
+				'message' => __( 'This user has blocked co-author invitations for this story.', 'fanfiction-manager' ),
 			);
 		}
 
@@ -367,7 +367,96 @@ class Fanfic_Coauthors {
 	}
 
 	/**
-	 * Refuse pending invitation.
+	 * Decline pending invitation without blocking future invites.
+	 *
+	 * @since 1.6.4
+	 * @param int $story_id Story ID.
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	public static function decline_invitation( $story_id, $user_id ) {
+		global $wpdb;
+
+		if ( ! self::table_ready() ) {
+			return false;
+		}
+
+		$story_id = absint( $story_id );
+		$user_id  = absint( $user_id );
+		if ( ! $story_id || ! $user_id ) {
+			return false;
+		}
+
+		$deleted = $wpdb->delete(
+			self::get_table_name(),
+			array(
+				'story_id' => $story_id,
+				'user_id'  => $user_id,
+				'status'   => self::STATUS_PENDING,
+			),
+			array( '%d', '%d', '%s' )
+		);
+
+		if ( false === $deleted || 0 === $deleted ) {
+			return false;
+		}
+
+		$story_title = get_the_title( $story_id );
+
+		// Remove the stale pending invite notification for the responding user.
+		if ( class_exists( 'Fanfic_Notifications' ) ) {
+			Fanfic_Notifications::delete_notifications_by_type_and_story(
+				$user_id,
+				Fanfic_Notifications::TYPE_COAUTHOR_INVITE,
+				$story_id
+			);
+		}
+
+		// Notify the responding user that their decline was recorded.
+		self::notify_user(
+			$user_id,
+			'TYPE_COAUTHOR_REFUSED',
+			'coauthor_refused',
+			sprintf(
+				/* translators: %s: story title. */
+				__( 'You declined the co-author invitation for "%s".', 'fanfiction-manager' ),
+				$story_title
+			),
+			array(
+				'story_id'    => $story_id,
+				'story_title' => $story_title,
+			)
+		);
+
+		// Notify the original author that their invitation was declined.
+		$original_author = (int) get_post_field( 'post_author', $story_id );
+		if ( $original_author > 0 && $original_author !== $user_id ) {
+			self::notify_user(
+				$original_author,
+				'TYPE_COAUTHOR_REFUSED',
+				'coauthor_refused',
+				sprintf(
+					/* translators: 1: user display name, 2: story title. */
+					__( '%1$s declined your co-author invitation for "%2$s".', 'fanfiction-manager' ),
+					self::get_user_display_name( $user_id ),
+					$story_title
+				),
+				array(
+					'story_id'    => $story_id,
+					'user_id'     => $user_id,
+					'user_name'   => self::get_user_display_name( $user_id ),
+					'story_title' => $story_title,
+				)
+			);
+		}
+
+		self::clear_caches();
+
+		return true;
+	}
+
+	/**
+	 * Refuse pending invitation and block future invites.
 	 *
 	 * @since 1.5.3
 	 * @param int $story_id Story ID.
@@ -425,7 +514,7 @@ class Fanfic_Coauthors {
 			'coauthor_refused',
 			sprintf(
 				/* translators: %s: story title. */
-				__( 'You declined the co-author invitation for "%s".', 'fanfiction-manager' ),
+				__( 'You declined the co-author invitation for "%s" and blocked future invitations.', 'fanfiction-manager' ),
 				$story_title
 			),
 			array(
@@ -443,7 +532,7 @@ class Fanfic_Coauthors {
 				'coauthor_refused',
 				sprintf(
 					/* translators: 1: user display name, 2: story title. */
-					__( '%1$s refused your co-author invitation for "%2$s".', 'fanfiction-manager' ),
+					__( '%1$s declined and blocked future co-author invitations for "%2$s".', 'fanfiction-manager' ),
 					self::get_user_display_name( $user_id ),
 					$story_title
 				),
@@ -1122,6 +1211,8 @@ class Fanfic_Coauthors {
 		if ( 'accept' === $response ) {
 			$ok = self::accept_invitation( $story_id, $user_id );
 		} elseif ( 'refuse' === $response ) {
+			$ok = self::decline_invitation( $story_id, $user_id );
+		} elseif ( 'refuse_block' === $response ) {
 			$ok = self::refuse_invitation( $story_id, $user_id );
 		} else {
 			Fanfic_AJAX_Security::send_error_response( 'invalid_response', __( 'Invalid response.', 'fanfiction-manager' ), 400 );

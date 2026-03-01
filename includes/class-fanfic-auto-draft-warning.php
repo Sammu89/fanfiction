@@ -58,7 +58,6 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Invalid chapter ID.', 'fanfiction-manager' ) ) );
 		}
 
-		$current_user = wp_get_current_user();
 		$chapter = get_post( $chapter_id );
 
 		// Check if chapter exists
@@ -72,9 +71,13 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Parent story not found.', 'fanfiction-manager' ) ) );
 		}
 
-		// Check permissions - must be author or have edit_others_posts capability
-		if ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+		// Check permissions
+		if ( ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to hide this chapter.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( fanfic_is_chapter_blocked( $chapter_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Blocked chapters cannot have their visibility changed.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if chapter is published
@@ -126,7 +129,6 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Invalid chapter ID.', 'fanfiction-manager' ) ) );
 		}
 
-		$current_user = wp_get_current_user();
 		$chapter = get_post( $chapter_id );
 
 		// Check if chapter exists
@@ -140,9 +142,13 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Parent story not found.', 'fanfiction-manager' ) ) );
 		}
 
-		// Check permissions - must be author or have edit_others_posts capability
-		if ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+		// Check permissions
+		if ( ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to publish this chapter.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( fanfic_is_chapter_blocked( $chapter_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Blocked chapters cannot be made visible.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if chapter is draft
@@ -205,7 +211,6 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Invalid chapter ID.', 'fanfiction-manager' ) ) );
 		}
 
-		$current_user = wp_get_current_user();
 		$chapter = get_post( $chapter_id );
 
 		// Check if chapter exists
@@ -219,8 +224,8 @@ class Fanfic_Auto_Draft_Warning {
 			wp_send_json_error( array( 'message' => __( 'Parent story not found.', 'fanfiction-manager' ) ) );
 		}
 
-		// Check permissions - must be author or have edit_others_posts capability
-		if ( $story->post_author != $current_user->ID && ! current_user_can( 'edit_others_posts' ) ) {
+		// Check permissions
+		if ( ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to update this chapter.', 'fanfiction-manager' ) ) );
 		}
 

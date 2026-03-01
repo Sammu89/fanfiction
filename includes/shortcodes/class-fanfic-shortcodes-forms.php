@@ -1080,6 +1080,15 @@ class Fanfic_Shortcodes_Forms {
 			exit;
 		}
 
+		if ( class_exists( 'Fanfic_Database_Setup' ) ) {
+			$table_result = Fanfic_Database_Setup::ensure_reports_table();
+			if ( is_wp_error( $table_result ) ) {
+				Fanfic_Flash_Messages::add_message( 'error', __( 'Failed to submit report. Please try again.', 'fanfiction-manager' ) );
+				wp_redirect( wp_get_referer() );
+				exit;
+			}
+		}
+
 		global $wpdb;
 		$reports_table = $wpdb->prefix . 'fanfic_reports';
 
@@ -1087,9 +1096,7 @@ class Fanfic_Shortcodes_Forms {
 		$reporter_id = is_user_logged_in() ? get_current_user_id() : 0;
 		$reporter_ip = self::get_user_ip();
 		$reported_item_type = 'story' === $content_type ? 'fanfiction_story' : ( 'chapter' === $content_type ? 'fanfiction_chapter' : 'comment' );
-
-		// Check for duplicate reports within 24 hours
-		$time_24h_ago = gmdate( 'Y-m-d H:i:s', strtotime( '-24 hours' ) );
+		$content_revision = fanfic_get_report_revision_token( $content_id, $reported_item_type );
 
 		if ( $reporter_id ) {
 			// Check for logged-in user
@@ -1098,11 +1105,11 @@ class Fanfic_Shortcodes_Forms {
 				WHERE reported_item_id = %d
 				AND reported_item_type = %s
 				AND reporter_id = %d
-				AND created_at > %s",
+				AND content_revision = %s",
 				$content_id,
 				$reported_item_type,
 				$reporter_id,
-				$time_24h_ago
+				$content_revision
 			) );
 		} else {
 			// Check for anonymous user by IP
@@ -1111,26 +1118,21 @@ class Fanfic_Shortcodes_Forms {
 				WHERE reported_item_id = %d
 				AND reported_item_type = %s
 				AND reporter_ip = %s
-				AND created_at > %s",
+				AND content_revision = %s",
 				$content_id,
 				$reported_item_type,
 				$reporter_ip,
-				$time_24h_ago
+				$content_revision
 			) );
 		}
 
 		if ( $duplicate ) {
-			Fanfic_Flash_Messages::add_message( 'error', __( 'You have already reported this content.', 'fanfiction-manager' ) );
+			Fanfic_Flash_Messages::add_message( 'error', __( 'You have already reported this version of the content. You can report it again after it receives a qualifying update.', 'fanfiction-manager' ) );
 			wp_redirect( wp_get_referer() );
 			exit;
 		}
 
-		// Combine reason and details for storage
-		$full_reason = sprintf(
-			"[%s]\n\n%s",
-			self::get_reason_label( $reason ),
-			$details
-		);
+		$reason_label = self::get_reason_label( $reason );
 
 		// Insert report
 		$inserted = $wpdb->insert(
@@ -1139,13 +1141,15 @@ class Fanfic_Shortcodes_Forms {
 				'reported_item_id'   => $content_id,
 				'reported_item_type' => $reported_item_type,
 				'reporter_id'        => $reporter_id,
+				'anonymous_uuid'     => '',
 				'reporter_ip'        => $reporter_ip,
-				'reason'             => $full_reason,
+				'content_revision'   => $content_revision,
+				'reason'             => $reason_label,
 				'details'            => $details,
 				'status'             => 'pending',
 				'created_at'         => current_time( 'mysql' ),
 			),
-			array( '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
+			array( '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 
 		if ( false === $inserted ) {

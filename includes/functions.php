@@ -36,6 +36,11 @@ function fanfic_get_blocked_story_message( $story_id = 0 ) {
 		return __( 'This story has been blocked. If you believe this is a mistake, please contact the site administrator.', 'fanfiction-manager' );
 	}
 
+	$story = get_post( $story_id );
+	if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+		return __( 'This story has been blocked. If you believe this is a mistake, please contact the site administrator.', 'fanfiction-manager' );
+	}
+
 	$block_type   = get_post_meta( $story_id, '_fanfic_block_type', true );
 	$block_reason = get_post_meta( $story_id, '_fanfic_block_reason', true );
 	$blocked_at   = get_post_meta( $story_id, '_fanfic_blocked_timestamp', true );
@@ -74,7 +79,7 @@ function fanfic_get_blocked_story_message( $story_id = 0 ) {
 				$message = sprintf(
 					__( 'Your story was blocked%s because: %s', 'fanfiction-manager' ),
 					$timestamp_text,
-					$block_reason
+					fanfic_get_block_reason_label( $block_reason )
 				);
 			} else {
 				$message = sprintf(
@@ -86,6 +91,332 @@ function fanfic_get_blocked_story_message( $story_id = 0 ) {
 	}
 
 	return $message;
+}
+
+/**
+ * Get block reason labels.
+ *
+ * @since 1.0.0
+ * @return array<string,string>
+ */
+function fanfic_get_block_reason_labels() {
+	return array(
+		'manual'          => __( 'Manual Review', 'fanfiction-manager' ),
+		'tos_violation'   => __( 'Terms of Service Violation', 'fanfiction-manager' ),
+		'copyright'       => __( 'Copyright Concern', 'fanfiction-manager' ),
+		'inappropriate'   => __( 'Inappropriate Content', 'fanfiction-manager' ),
+		'spam'            => __( 'Spam / Advertising', 'fanfiction-manager' ),
+		'harassment'      => __( 'Harassment / Bullying', 'fanfiction-manager' ),
+		'illegal'         => __( 'Potentially Illegal Content', 'fanfiction-manager' ),
+		'underage'        => __( 'Content Involving Minors', 'fanfiction-manager' ),
+		'rating_mismatch' => __( 'Rating / Warning Mismatch', 'fanfiction-manager' ),
+		'user_request'    => __( 'Author Request', 'fanfiction-manager' ),
+		'pending_review'  => __( 'Pending Review', 'fanfiction-manager' ),
+		'other'           => __( 'Other', 'fanfiction-manager' ),
+	);
+}
+
+/**
+ * Get a human-readable block reason label.
+ *
+ * @since 1.0.0
+ * @param string $block_reason Block reason code or freeform text.
+ * @return string
+ */
+function fanfic_get_block_reason_label( $block_reason ) {
+	$block_reason = is_string( $block_reason ) ? trim( $block_reason ) : '';
+	if ( '' === $block_reason ) {
+		return '';
+	}
+
+	$labels = fanfic_get_block_reason_labels();
+	return isset( $labels[ $block_reason ] ) ? $labels[ $block_reason ] : $block_reason;
+}
+
+/**
+ * Get the block flag meta key for a post.
+ *
+ * @since 1.0.0
+ * @param int|WP_Post $post Post object or ID.
+ * @return string
+ */
+function fanfic_get_block_flag_meta_key( $post ) {
+	$post = get_post( $post );
+	if ( ! $post ) {
+		return '';
+	}
+
+	if ( 'fanfiction_story' === $post->post_type ) {
+		return '_fanfic_story_blocked';
+	}
+
+	if ( 'fanfiction_chapter' === $post->post_type ) {
+		return '_fanfic_chapter_blocked';
+	}
+
+	return '';
+}
+
+/**
+ * Check whether a chapter is blocked.
+ *
+ * @since 1.0.0
+ * @param int $chapter_id Chapter ID.
+ * @return bool
+ */
+function fanfic_is_chapter_blocked( $chapter_id ) {
+	return (bool) get_post_meta( $chapter_id, '_fanfic_chapter_blocked', true );
+}
+
+/**
+ * Check whether a post is blocked.
+ *
+ * @since 1.0.0
+ * @param int $post_id Post ID.
+ * @return bool
+ */
+function fanfic_is_post_blocked( $post_id ) {
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return false;
+	}
+
+	if ( 'fanfiction_story' === $post->post_type ) {
+		return fanfic_is_story_blocked( $post_id );
+	}
+
+	if ( 'fanfiction_chapter' === $post->post_type ) {
+		return fanfic_is_chapter_blocked( $post_id );
+	}
+
+	return false;
+}
+
+/**
+ * Check whether the current user owns a story or chapter.
+ *
+ * For chapters, ownership is granted to the chapter author and the parent story author.
+ *
+ * @since 1.0.0
+ * @param int $post_id Post ID.
+ * @return bool
+ */
+function fanfic_current_user_is_content_owner( $post_id ) {
+	$user_id = get_current_user_id();
+	if ( ! $user_id ) {
+		return false;
+	}
+
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return false;
+	}
+
+	if ( (int) $post->post_author === $user_id ) {
+		return true;
+	}
+
+	if ( 'fanfiction_chapter' === $post->post_type ) {
+		$story_id = (int) $post->post_parent;
+		if ( $story_id && (int) get_post_field( 'post_author', $story_id ) === $user_id ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Check whether the current user can view a non-public story or chapter.
+ *
+ * @since 1.0.0
+ * @param int $post_id Post ID.
+ * @return bool
+ */
+function fanfic_current_user_can_view_restricted_post( $post_id ) {
+	if ( current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' ) ) {
+		return true;
+	}
+
+	return fanfic_current_user_is_content_owner( $post_id );
+}
+
+/**
+ * Check whether a story is publicly visible.
+ *
+ * @since 1.0.0
+ * @param int $story_id Story ID.
+ * @return bool
+ */
+function fanfic_is_story_publicly_visible( $story_id ) {
+	$story = get_post( $story_id );
+	if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+		return false;
+	}
+
+	return 'publish' === $story->post_status && ! fanfic_is_story_blocked( $story_id );
+}
+
+/**
+ * Check whether a chapter is publicly visible.
+ *
+ * @since 1.0.0
+ * @param int $chapter_id Chapter ID.
+ * @return bool
+ */
+function fanfic_is_chapter_publicly_visible( $chapter_id ) {
+	$chapter = get_post( $chapter_id );
+	if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+		return false;
+	}
+
+	if ( 'publish' !== $chapter->post_status || fanfic_is_chapter_blocked( $chapter_id ) ) {
+		return false;
+	}
+
+	$story_id = (int) $chapter->post_parent;
+	return $story_id > 0 && fanfic_is_story_publicly_visible( $story_id );
+}
+
+/**
+ * Check whether the current user can view a story or chapter.
+ *
+ * @since 1.0.0
+ * @param int $post_id Post ID.
+ * @return bool
+ */
+function fanfic_current_user_can_view_post( $post_id ) {
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return false;
+	}
+
+	if ( 'fanfiction_story' === $post->post_type ) {
+		if ( fanfic_is_story_publicly_visible( $post_id ) ) {
+			return true;
+		}
+
+		return fanfic_current_user_can_view_restricted_post( $post_id );
+	}
+
+	if ( 'fanfiction_chapter' === $post->post_type ) {
+		if ( fanfic_is_chapter_publicly_visible( $post_id ) ) {
+			return true;
+		}
+
+		return fanfic_current_user_can_view_restricted_post( $post_id ) || fanfic_current_user_can_view_restricted_post( (int) $post->post_parent );
+	}
+
+	return false;
+}
+
+/**
+ * Block a post with canonical metadata.
+ *
+ * @since 1.0.0
+ * @param int   $post_id Post ID.
+ * @param array $args    Block arguments.
+ * @return bool
+ */
+function fanfic_apply_post_block( $post_id, $args = array() ) {
+	$post = get_post( $post_id );
+	if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+		return false;
+	}
+
+	$defaults = array(
+		'actor_id'      => get_current_user_id(),
+		'block_type'    => 'manual',
+		'block_reason'  => '',
+		'change_status' => false,
+		'new_status'    => 'draft',
+		'save_status'   => false,
+	);
+	$args = wp_parse_args( $args, $defaults );
+
+	$flag_meta_key = fanfic_get_block_flag_meta_key( $post );
+	if ( '' === $flag_meta_key ) {
+		return false;
+	}
+
+	$current_status = get_post_status( $post_id );
+	if ( $args['save_status'] && $current_status && ! get_post_meta( $post_id, '_fanfic_story_blocked_prev_status', true ) ) {
+		update_post_meta( $post_id, '_fanfic_story_blocked_prev_status', $current_status );
+	}
+
+	update_post_meta( $post_id, $flag_meta_key, 1 );
+	update_post_meta( $post_id, '_fanfic_block_type', sanitize_key( $args['block_type'] ) );
+	update_post_meta( $post_id, '_fanfic_block_reason', sanitize_text_field( $args['block_reason'] ) );
+	update_post_meta( $post_id, '_fanfic_blocked_timestamp', time() );
+
+	if ( $args['change_status'] && $current_status && $args['new_status'] !== $current_status ) {
+		wp_update_post(
+			array(
+				'ID'          => $post_id,
+				'post_status' => $args['new_status'],
+			)
+		);
+	}
+
+	if ( 'fanfiction_story' === $post->post_type ) {
+		do_action( 'fanfic_story_blocked', $post_id, (int) $args['actor_id'], sanitize_key( $args['block_type'] ), sanitize_text_field( $args['block_reason'] ) );
+	} else {
+		do_action( 'fanfic_chapter_blocked', $post_id, (int) $args['actor_id'], sanitize_key( $args['block_type'] ), sanitize_text_field( $args['block_reason'] ) );
+	}
+
+	return true;
+}
+
+/**
+ * Unblock a post with canonical metadata.
+ *
+ * @since 1.0.0
+ * @param int   $post_id Post ID.
+ * @param array $args    Unblock arguments.
+ * @return bool
+ */
+function fanfic_remove_post_block( $post_id, $args = array() ) {
+	$post = get_post( $post_id );
+	if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+		return false;
+	}
+
+	$defaults = array(
+		'actor_id'       => get_current_user_id(),
+		'restore_status' => false,
+	);
+	$args = wp_parse_args( $args, $defaults );
+
+	$flag_meta_key = fanfic_get_block_flag_meta_key( $post );
+	if ( '' === $flag_meta_key ) {
+		return false;
+	}
+
+	if ( $args['restore_status'] ) {
+		$prev_status = get_post_meta( $post_id, '_fanfic_story_blocked_prev_status', true );
+		if ( $prev_status ) {
+			wp_update_post(
+				array(
+					'ID'          => $post_id,
+					'post_status' => $prev_status,
+				)
+			);
+		}
+	}
+
+	delete_post_meta( $post_id, $flag_meta_key );
+	delete_post_meta( $post_id, '_fanfic_block_type' );
+	delete_post_meta( $post_id, '_fanfic_block_reason' );
+	delete_post_meta( $post_id, '_fanfic_blocked_timestamp' );
+	delete_post_meta( $post_id, '_fanfic_story_blocked_prev_status' );
+
+	if ( 'fanfiction_story' === $post->post_type ) {
+		do_action( 'fanfic_story_unblocked', $post_id, (int) $args['actor_id'] );
+	} else {
+		do_action( 'fanfic_chapter_unblocked', $post_id, (int) $args['actor_id'] );
+	}
+
+	return true;
 }
 
 /**
@@ -319,17 +650,28 @@ function fanfic_current_user_can_edit( $content_type, $content_id ) {
 
 	switch ( $content_type ) {
 		case 'story':
-		case 'chapter':
 			$post = get_post( $content_id );
-			if ( ! $post ) {
+			if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
 				return false;
 			}
-			// Authors can edit their own content
-			return absint( $post->post_author ) === $user_id;
+			if ( fanfic_is_story_blocked( $content_id ) ) {
+				return false;
+			}
+			return current_user_can( 'edit_fanfiction_story', $content_id );
+
+		case 'chapter':
+			$post = get_post( $content_id );
+			if ( ! $post || 'fanfiction_chapter' !== $post->post_type ) {
+				return false;
+			}
+			if ( fanfic_is_chapter_blocked( $content_id ) || fanfic_is_story_blocked( (int) $post->post_parent ) ) {
+				return false;
+			}
+			return current_user_can( 'edit_fanfiction_chapter', $content_id ) || current_user_can( 'edit_fanfiction_story', (int) $post->post_parent );
 
 		case 'profile':
 			// Users can edit their own profile
-			return absint( $content_id ) === $user_id;
+			return absint( $content_id ) === $user_id && ! in_array( 'fanfiction_banned_user', (array) wp_get_current_user()->roles, true );
 
 		default:
 			return false;
@@ -1582,43 +1924,17 @@ function fanfic_get_tags_for_indexing( $story_id ) {
  * @return bool True on success
  */
 function fanfic_block_story( $story_id, $reason = '', $actor_id = 0 ) {
-	if ( ! $actor_id ) {
-		$actor_id = get_current_user_id();
-	}
-
-	$story = get_post( $story_id );
-	if ( ! $story || $story->post_type !== 'fanfiction_story' ) {
-		return false;
-	}
-
-	$timestamp = time();
-
-	// Save previous status if not already saved
-	$story_status = get_post_status( $story_id );
-	if ( $story_status && ! get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true ) ) {
-		update_post_meta( $story_id, '_fanfic_story_blocked_prev_status', $story_status );
-	}
-
-	// Set block metadata
-	update_post_meta( $story_id, '_fanfic_story_blocked', 1 );
-	update_post_meta( $story_id, '_fanfic_block_type', 'manual' );
-	update_post_meta( $story_id, '_fanfic_block_reason', $reason );
-	update_post_meta( $story_id, '_fanfic_blocked_timestamp', $timestamp );
-
-	// Set to draft
-	if ( $story_status && 'draft' !== $story_status ) {
-		wp_update_post(
-			array(
-				'ID'          => $story_id,
-				'post_status' => 'draft',
-			)
-		);
-	}
-
-	// Fire action for moderation log
-	do_action( 'fanfic_story_blocked', $story_id, $actor_id, 'manual', $reason );
-
-	return true;
+	return fanfic_apply_post_block(
+		$story_id,
+		array(
+			'actor_id'      => $actor_id ? $actor_id : get_current_user_id(),
+			'block_type'    => 'manual',
+			'block_reason'  => $reason,
+			'change_status' => true,
+			'new_status'    => 'draft',
+			'save_status'   => true,
+		)
+	);
 }
 
 /**
@@ -1630,37 +1946,53 @@ function fanfic_block_story( $story_id, $reason = '', $actor_id = 0 ) {
  * @return bool True on success
  */
 function fanfic_unblock_story( $story_id, $actor_id = 0 ) {
-	if ( ! $actor_id ) {
-		$actor_id = get_current_user_id();
-	}
+	return fanfic_remove_post_block(
+		$story_id,
+		array(
+			'actor_id'       => $actor_id ? $actor_id : get_current_user_id(),
+			'restore_status' => true,
+		)
+	);
+}
 
-	$story = get_post( $story_id );
-	if ( ! $story || $story->post_type !== 'fanfiction_story' ) {
-		return false;
-	}
+/**
+ * Block a chapter.
+ *
+ * @since 1.0.0
+ * @param int    $chapter_id Chapter post ID.
+ * @param string $reason     Block reason code or text.
+ * @param int    $actor_id   Actor user ID.
+ * @return bool
+ */
+function fanfic_block_chapter( $chapter_id, $reason = '', $actor_id = 0 ) {
+	return fanfic_apply_post_block(
+		$chapter_id,
+		array(
+			'actor_id'      => $actor_id ? $actor_id : get_current_user_id(),
+			'block_type'    => 'manual',
+			'block_reason'  => $reason,
+			'change_status' => false,
+			'save_status'   => false,
+		)
+	);
+}
 
-	// Restore previous status
-	$prev_status = get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true );
-	if ( $prev_status ) {
-		wp_update_post(
-			array(
-				'ID'          => $story_id,
-				'post_status' => $prev_status,
-			)
-		);
-	}
-
-	// Clean up metadata
-	delete_post_meta( $story_id, '_fanfic_story_blocked' );
-	delete_post_meta( $story_id, '_fanfic_block_type' );
-	delete_post_meta( $story_id, '_fanfic_block_reason' );
-	delete_post_meta( $story_id, '_fanfic_blocked_timestamp' );
-	delete_post_meta( $story_id, '_fanfic_story_blocked_prev_status' );
-
-	// Fire action for moderation log
-	do_action( 'fanfic_story_unblocked', $story_id, $actor_id );
-
-	return true;
+/**
+ * Unblock a chapter.
+ *
+ * @since 1.0.0
+ * @param int $chapter_id Chapter post ID.
+ * @param int $actor_id   Actor user ID.
+ * @return bool
+ */
+function fanfic_unblock_chapter( $chapter_id, $actor_id = 0 ) {
+	return fanfic_remove_post_block(
+		$chapter_id,
+		array(
+			'actor_id'       => $actor_id ? $actor_id : get_current_user_id(),
+			'restore_status' => false,
+		)
+	);
 }
 
 /**
@@ -1682,7 +2014,7 @@ function fanfic_is_story_blocked( $story_id ) {
  * @return array|false Block info or false if not blocked
  */
 function fanfic_get_block_info( $story_id ) {
-	if ( ! fanfic_is_story_blocked( $story_id ) ) {
+	if ( ! fanfic_is_post_blocked( $story_id ) ) {
 		return false;
 	}
 
@@ -1992,6 +2324,186 @@ function fanfic_get_age_badge_class( $value, $prefix = 'fanfic-age-badge-' ) {
 	}
 
 	return $prefix . '18-plus';
+}
+
+/**
+ * Get normalized story age-confirmation settings.
+ *
+ * @since 2.0.0
+ * @return array{enabled:bool,minimum_age:int}
+ */
+function fanfic_get_story_age_confirmation_settings() {
+	$enabled = class_exists( 'Fanfic_Settings' ) ? (bool) Fanfic_Settings::get_setting( 'enable_story_age_confirmation', false ) : false;
+	$minimum_age = class_exists( 'Fanfic_Settings' ) ? absint( Fanfic_Settings::get_setting( 'story_age_confirmation_minimum', 18 ) ) : 18;
+	$minimum_age = min( 18, max( 1, $minimum_age ) );
+
+	return array(
+		'enabled'     => $enabled,
+		'minimum_age' => $minimum_age,
+	);
+}
+
+/**
+ * Get age-gate data for a story when warning-based confirmation is required.
+ *
+ * @since 2.0.0
+ * @param int $story_id Story post ID.
+ * @return array<string,mixed>
+ */
+function fanfic_get_story_age_confirmation_data( $story_id ) {
+	$story_id = absint( $story_id );
+	$settings = fanfic_get_story_age_confirmation_settings();
+	$inactive = array(
+		'active'      => false,
+		'story_id'    => $story_id,
+		'minimum_age' => $settings['minimum_age'],
+	);
+
+	if ( ! $story_id || ! $settings['enabled'] ) {
+		return $inactive;
+	}
+
+	if ( ! class_exists( 'Fanfic_Warnings' ) || ( class_exists( 'Fanfic_Settings' ) && ! Fanfic_Settings::get_setting( 'enable_warnings', true ) ) ) {
+		return $inactive;
+	}
+
+	$warning_ids = Fanfic_Warnings::get_story_warning_ids( $story_id );
+	if ( empty( $warning_ids ) ) {
+		return $inactive;
+	}
+
+	$required_age = Fanfic_Warnings::calculate_derived_age( $warning_ids );
+	$required_age = Fanfic_Warnings::normalize_age_label( $required_age, false );
+	if ( '' === $required_age || ! is_numeric( $required_age ) ) {
+		return $inactive;
+	}
+
+	$required_age_int = absint( $required_age );
+	if ( $required_age_int < $settings['minimum_age'] ) {
+		return $inactive;
+	}
+
+	$required_age_label = fanfic_get_age_display_label( (string) $required_age_int, false );
+	if ( '' === $required_age_label ) {
+		$required_age_label = (string) $required_age_int . '+';
+	}
+
+	return array(
+		'active'             => true,
+		'story_id'           => $story_id,
+		'minimum_age'        => $settings['minimum_age'],
+		'required_age'       => $required_age_int,
+		'required_age_label' => $required_age_label,
+		'badge_class'        => fanfic_get_age_badge_class( (string) $required_age_int ),
+		'confirm_key'        => 'fanfic_age_gate_confirmed_' . $required_age_int,
+		'leave_url'          => fanfic_get_story_archive_url(),
+	);
+}
+
+/**
+ * Wrap page content in the warning-based story age gate markup when needed.
+ *
+ * @since 2.0.0
+ * @param string $content Rendered page content.
+ * @param int    $story_id Story post ID.
+ * @param string $context Gate context slug.
+ * @return string
+ */
+function fanfic_wrap_story_age_confirmation_gate( $content, $story_id, $context = 'story' ) {
+	$gate = fanfic_get_story_age_confirmation_data( $story_id );
+	if ( empty( $gate['active'] ) ) {
+		return (string) $content;
+	}
+
+	$context = sanitize_key( (string) $context );
+	if ( '' === $context ) {
+		$context = 'story';
+	}
+
+	$modal_id = 'fanfic-age-confirmation-modal-' . $context . '-' . $gate['story_id'];
+	$title_id = $modal_id . '-title';
+	$text_id  = $modal_id . '-text';
+	$target_id = 'fanfic-age-gate-target-' . $context . '-' . $gate['story_id'];
+	$story_title = wp_strip_all_tags( get_the_title( $gate['story_id'] ) );
+	if ( '' === $story_title ) {
+		$story_title = __( 'This story', 'fanfiction-manager' );
+	}
+
+	ob_start();
+	?>
+	<div
+		id="<?php echo esc_attr( $modal_id ); ?>"
+		class="fanfic-modal fanfic-age-confirmation-modal"
+		role="dialog"
+		aria-hidden="true"
+		aria-modal="true"
+		aria-labelledby="<?php echo esc_attr( $title_id ); ?>"
+		aria-describedby="<?php echo esc_attr( $text_id ); ?>"
+		data-static-modal="true"
+		style="display:none;"
+	>
+		<div class="fanfic-modal-overlay"></div>
+		<div class="fanfic-modal-content fanfic-age-confirmation-modal-content">
+			<div class="fanfic-modal-body fanfic-age-confirmation-modal-body">
+				<h2 id="<?php echo esc_attr( $title_id ); ?>"><?php esc_html_e( 'Age Confirmation Required', 'fanfiction-manager' ); ?></h2>
+				<div id="<?php echo esc_attr( $text_id ); ?>" class="fanfic-age-confirmation-copy">
+					<p>
+						<?php
+						printf(
+							/* translators: 1: story title, 2: warning-derived age rating */
+							esc_html__( '"%1$s" is marked %2$s.', 'fanfiction-manager' ),
+							esc_html( $story_title ),
+							esc_html( $gate['required_age_label'] )
+						);
+						?>
+					</p>
+					<p>
+						<?php
+						printf(
+							/* translators: %d: minimum reader age */
+							esc_html__( 'Please confirm that you are at least %d years old to continue reading.', 'fanfiction-manager' ),
+							$gate['required_age']
+						);
+						?>
+					</p>
+				</div>
+				<div class="fanfic-modal-actions fanfic-age-confirmation-actions">
+					<button
+						type="button"
+						class="fanfic-button"
+						data-fanfic-age-confirm="yes"
+						data-target-id="<?php echo esc_attr( $target_id ); ?>"
+						data-modal-id="<?php echo esc_attr( $modal_id ); ?>"
+						data-confirm-key="<?php echo esc_attr( $gate['confirm_key'] ); ?>"
+					>
+						<?php
+						printf(
+							/* translators: %d: minimum reader age */
+							esc_html__( 'I am %d or older', 'fanfiction-manager' ),
+							$gate['required_age']
+						);
+						?>
+					</button>
+					<a class="fanfic-button secondary" href="<?php echo esc_url( $gate['leave_url'] ); ?>">
+						<?php esc_html_e( 'Leave this page', 'fanfiction-manager' ); ?>
+					</a>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div
+		id="<?php echo esc_attr( $target_id ); ?>"
+		class="fanfic-age-gate-target fanfic-age-gate-is-locked"
+		data-fanfic-age-gate="true"
+		data-modal-id="<?php echo esc_attr( $modal_id ); ?>"
+		data-confirm-key="<?php echo esc_attr( $gate['confirm_key'] ); ?>"
+	>
+		<?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+	</div>
+	<?php
+
+	return ob_get_clean();
 }
 
 /**
@@ -2664,12 +3176,14 @@ function fanfic_build_stories_query_args( $params, $paged = 1, $per_page = 12 ) 
 		);
 	}
 
-	// Fallback: relevance search mode — use WP_Query ordering.
+	// Fallback: relevance search mode — preserve relevance order when provided,
+	// otherwise use the canonical computed story update date.
 	if ( ! empty( $search_ids ) && is_array( $post__in ) ) {
 		$query_args['orderby'] = 'post__in';
 	} elseif ( empty( $query_args['orderby'] ) ) {
-		$query_args['orderby'] = 'modified';
-		$query_args['order']   = 'DESC';
+		$query_args['meta_key'] = '_fanfic_content_updated_date';
+		$query_args['orderby']  = 'meta_value';
+		$query_args['order']    = 'DESC';
 	}
 
 	return array(
@@ -3467,4 +3981,180 @@ function fanfic_get_custom_taxonomy_term_count( $taxonomy_id, $term_slug ) {
 
 	$counts = fanfic_get_filter_map_counts_by_facet( 'custom:' . sanitize_title( $taxonomy['slug'] ) );
 	return absint( $counts[ $term_slug ] ?? 0 );
+}
+
+/**
+ * Get the canonical story content-updated datetime.
+ *
+ * @since 2.2.2
+ * @param int $story_id Story post ID.
+ * @return string MySQL datetime or empty string.
+ */
+function fanfic_sync_story_content_updated_date( $story_id ) {
+	global $wpdb;
+
+	$story_id = absint( $story_id );
+	if ( ! $story_id ) {
+		return '';
+	}
+
+	$postmeta_table = $wpdb->postmeta;
+	$posts_table    = $wpdb->posts;
+	$meta_key       = '_fanfic_chapter_content_updated_date';
+	$current_value  = (string) get_post_meta( $story_id, '_fanfic_content_updated_date', true );
+	$latest_update  = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT MAX(
+				CASE
+					WHEN pm.meta_value IS NOT NULL AND pm.meta_value <> '' THEN pm.meta_value
+					ELSE ''
+				END
+			)
+			FROM {$posts_table} p
+			LEFT JOIN {$postmeta_table} pm
+				ON pm.post_id = p.ID
+				AND pm.meta_key = %s
+			WHERE p.post_parent = %d
+				AND p.post_type = 'fanfiction_chapter'
+				AND p.post_status IN ('publish', 'draft', 'pending', 'private')",
+			$meta_key,
+			$story_id
+		)
+	);
+
+	$canonical_date = $latest_update ? (string) $latest_update : $current_value;
+	update_post_meta( $story_id, '_fanfic_content_updated_date', $canonical_date );
+
+	return $canonical_date;
+}
+
+/**
+ * Get the canonical story content-updated datetime.
+ *
+ * @since 2.2.2
+ * @param int $story_id Story post ID.
+ * @return string MySQL datetime or empty string.
+ */
+function fanfic_get_story_content_updated_date( $story_id ) {
+	$story_id = absint( $story_id );
+	if ( ! $story_id ) {
+		return '';
+	}
+
+	$content_updated = (string) get_post_meta( $story_id, '_fanfic_content_updated_date', true );
+	if ( '' !== $content_updated ) {
+		return $content_updated;
+	}
+
+	return fanfic_sync_story_content_updated_date( $story_id );
+}
+
+/**
+ * Get the canonical chapter content-updated datetime.
+ *
+ * @since 2.2.2
+ * @param int $chapter_id Chapter post ID.
+ * @return string MySQL datetime or empty string.
+ */
+function fanfic_get_chapter_content_updated_date( $chapter_id ) {
+	$chapter_id = absint( $chapter_id );
+	if ( ! $chapter_id ) {
+		return '';
+	}
+
+	$content_updated = (string) get_post_meta( $chapter_id, '_fanfic_chapter_content_updated_date', true );
+	return $content_updated;
+}
+
+/**
+ * Get the canonical updated datetime for supported content.
+ *
+ * @since 2.2.2
+ * @param int|WP_Post $post_or_id Post object or post ID.
+ * @return string MySQL datetime or empty string.
+ */
+function fanfic_get_content_updated_date( $post_or_id ) {
+	$post = get_post( $post_or_id );
+	if ( ! $post instanceof WP_Post ) {
+		return '';
+	}
+
+	if ( 'fanfiction_story' === $post->post_type ) {
+		return fanfic_get_story_content_updated_date( $post->ID );
+	}
+
+	if ( 'fanfiction_chapter' === $post->post_type ) {
+		return fanfic_get_chapter_content_updated_date( $post->ID );
+	}
+
+	return (string) $post->post_modified;
+}
+
+/**
+ * Get the canonical updated timestamp for supported content.
+ *
+ * @since 2.2.2
+ * @param int|WP_Post $post_or_id Post object or post ID.
+ * @return int Unix timestamp or 0.
+ */
+function fanfic_get_content_updated_timestamp( $post_or_id ) {
+	$datetime = fanfic_get_content_updated_date( $post_or_id );
+	$timestamp = $datetime ? strtotime( $datetime ) : false;
+	return false !== $timestamp ? (int) $timestamp : 0;
+}
+
+/**
+ * Get the canonical updated ISO-8601 datetime for supported content.
+ *
+ * @since 2.2.2
+ * @param int|WP_Post $post_or_id Post object or post ID.
+ * @return string
+ */
+function fanfic_get_content_updated_iso8601( $post_or_id ) {
+	$datetime = fanfic_get_content_updated_date( $post_or_id );
+	if ( '' === $datetime ) {
+		return '';
+	}
+
+	return mysql2date( 'c', $datetime, false );
+}
+
+/**
+ * Get a stable report revision token for content.
+ *
+ * @since 2.2.2
+ * @param int    $content_id   Content ID.
+ * @param string $content_type Content type slug or post type.
+ * @return string
+ */
+function fanfic_get_report_revision_token( $content_id, $content_type ) {
+	$content_id   = absint( $content_id );
+	$content_type = sanitize_key( (string) $content_type );
+
+	if ( ! $content_id || '' === $content_type ) {
+		return '';
+	}
+
+	$revision_source = '';
+	$normalized_type = $content_type;
+
+	if ( in_array( $content_type, array( 'story', 'fanfiction_story' ), true ) ) {
+		$normalized_type = 'story';
+		$revision_source = fanfic_get_story_content_updated_date( $content_id );
+	} elseif ( in_array( $content_type, array( 'chapter', 'fanfiction_chapter' ), true ) ) {
+		$normalized_type = 'chapter';
+		$revision_source = fanfic_get_chapter_content_updated_date( $content_id );
+	} elseif ( 'comment' === $content_type ) {
+		$comment = get_comment( $content_id );
+		if ( $comment ) {
+			$normalized_type = 'comment';
+			$revision_source = trim( preg_replace( '/\s+/', ' ', (string) $comment->comment_content ) );
+		}
+	}
+
+	if ( '' === $revision_source ) {
+		return '';
+	}
+
+	return md5( $normalized_type . '|' . $content_id . '|' . $revision_source );
 }

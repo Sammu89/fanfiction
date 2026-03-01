@@ -117,7 +117,7 @@ class Fanfic_Export {
 				$genres_string,
 				$status_string,
 				$story->post_date,
-				$story->post_modified,
+				fanfic_get_story_content_updated_date( $story->ID ),
 				$views,
 				$rating,
 				$featured,

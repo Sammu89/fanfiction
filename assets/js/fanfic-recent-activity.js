@@ -297,6 +297,7 @@
 			bookmark_story:   'dashicons-heart',
 			bookmark_chapter: 'dashicons-bookmark',
 			comment:          'dashicons-admin-comments',
+			report:           'dashicons-flag',
 			login:            'dashicons-admin-users',
 			logout:           'dashicons-migrate'
 		};
@@ -360,6 +361,22 @@
 					return 'You commented on ' + chapterLink + ' of ' + storyLink;
 				}
 				return 'You commented on ' + (chapterLink || storyLink);
+
+			case 'report':
+				var reasonText = d.reasonLabel ? ' for <strong>' + escHtml(d.reasonLabel) + '</strong>' : '';
+				if (d.reportTargetType === 'comment') {
+					if (chapterLink && storyLink) {
+						return 'You reported a comment on ' + chapterLink + ' of ' + storyLink + reasonText;
+					}
+					return 'You reported a comment' + reasonText;
+				}
+				if (d.reportTargetType === 'chapter') {
+					return 'You reported ' + (chapterLink || '<strong>' + escHtml(d.contentLabel || 'chapter') + '</strong>') + reasonText;
+				}
+				if (d.reportTargetType === 'story') {
+					return 'You reported ' + (storyLink || '<strong>' + escHtml(d.contentLabel || 'story') + '</strong>') + reasonText;
+				}
+				return 'You submitted a report' + reasonText;
 
 			case 'login':
 				return 'You logged in';

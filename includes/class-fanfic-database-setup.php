@@ -35,6 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_chapter_search_index: Chapter-level ranking counters (NEW in 1.5.4)
  * - wp_fanfic_story_search_index: Pre-computed search index (NEW in 1.2.0)
  * - wp_fanfic_story_filter_map: Pre-computed filter facets map (NEW in 1.5.2)
+ * - wp_fanfic_reports: Content reports queue
  * - wp_fanfic_moderation_log: Moderation action log (NEW in 1.2.0)
  *
  * @since 1.0.0
@@ -47,7 +48,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '2.2.0';
+	const DB_VERSION = '2.2.2';
 
 	/**
 	 * Option name for database version tracking
@@ -550,7 +551,13 @@ class Fanfic_Database_Setup {
 			$errors[] = 'Failed to create story_filter_map table';
 		}
 
-		// 21. Moderation Log Table
+		// 21. Reports Table
+		$result = self::ensure_reports_table();
+		if ( is_wp_error( $result ) ) {
+			$errors[] = $result->get_error_message();
+		}
+
+		// 22. Moderation Log Table
 		$table_moderation_log = $prefix . 'fanfic_moderation_log';
 		$sql_moderation_log   = "CREATE TABLE IF NOT EXISTS {$table_moderation_log} (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -987,6 +994,72 @@ class Fanfic_Database_Setup {
 			}
 		}
 
+		// v2.2.2: Ensure reports table schema is current.
+		if ( version_compare( $current_version, '2.2.2', '<' ) ) {
+			self::ensure_reports_table();
+		}
+
+	}
+
+	/**
+	 * Ensure the reports table exists.
+	 *
+	 * @since 2.2.1
+	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 */
+	public static function ensure_reports_table() {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . 'fanfic_reports';
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset_collate = $wpdb->get_charset_collate();
+		$sql_reports     = self::get_reports_table_sql( $table_name, $charset_collate );
+		dbDelta( $sql_reports );
+
+		if ( ! self::verify_table_exists( $table_name ) ) {
+			return new WP_Error(
+				'reports_table_creation_failed',
+				__( 'Failed to create reports table.', 'fanfiction-manager' )
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Get the reports table schema.
+	 *
+	 * @since 2.2.1
+	 * @param string $table_name Full reports table name.
+	 * @param string $charset_collate Database charset and collation clause.
+	 * @return string
+	 */
+	private static function get_reports_table_sql( $table_name, $charset_collate ) {
+		return "CREATE TABLE IF NOT EXISTS {$table_name} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			reported_item_id bigint(20) UNSIGNED NOT NULL,
+			reported_item_type varchar(50) NOT NULL,
+			reporter_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
+			anonymous_uuid varchar(100) NOT NULL DEFAULT '',
+			reporter_ip varchar(100) NOT NULL DEFAULT '',
+			content_revision varchar(64) NOT NULL DEFAULT '',
+			reason text NOT NULL,
+			details text DEFAULT NULL,
+			status varchar(20) NOT NULL DEFAULT 'pending',
+			moderator_id bigint(20) UNSIGNED DEFAULT NULL,
+			moderator_notes text DEFAULT NULL,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY idx_item_lookup (reported_item_id, reported_item_type),
+			KEY idx_content_revision (content_revision),
+			KEY idx_reporter_id (reporter_id),
+			KEY idx_anonymous_uuid (anonymous_uuid),
+			KEY idx_status (status),
+			KEY idx_created_at (created_at),
+			KEY idx_updated_at (updated_at)
+		) {$charset_collate};";
 	}
 
 	/**
@@ -1033,6 +1106,7 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_moderation_log',
+			$prefix . 'fanfic_reports',
 			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_chapter_search_index',
@@ -1095,6 +1169,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_chapter_search_index',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_story_filter_map',
+			$prefix . 'fanfic_reports',
 			$prefix . 'fanfic_moderation_log',
 		);
 
@@ -1214,6 +1289,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_chapter_search_index',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_story_filter_map',
+			$prefix . 'fanfic_reports',
 			$prefix . 'fanfic_moderation_log',
 		);
 
@@ -1295,6 +1371,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_chapter_search_index',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_story_filter_map',
+			$prefix . 'fanfic_reports',
 			$prefix . 'fanfic_moderation_log',
 		);
 
@@ -1338,6 +1415,7 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_chapter_search_index',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_story_filter_map',
+			$prefix . 'fanfic_reports',
 			$prefix . 'fanfic_moderation_log',
 		);
 
@@ -1372,6 +1450,7 @@ class Fanfic_Database_Setup {
 		$prefix = $wpdb->prefix;
 		$tables = array(
 			$prefix . 'fanfic_moderation_log',
+			$prefix . 'fanfic_reports',
 			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_story_search_index',
 			$prefix . 'fanfic_chapter_search_index',

@@ -193,7 +193,9 @@ class Fanfic_Taxonomies_Admin {
 		$enable_fandoms  = Fanfic_Settings::get_setting( 'enable_fandom_classification', false );
 		$enable_languages = Fanfic_Settings::get_setting( 'enable_language_classification', false );
 		$enable_warnings = Fanfic_Settings::get_setting( 'enable_warnings', true );
-		$enable_tags     = Fanfic_Settings::get_setting( 'enable_tags', true );
+		$enable_story_age_confirmation = Fanfic_Settings::get_setting( 'enable_story_age_confirmation', false );
+		$story_age_confirmation_minimum = absint( Fanfic_Settings::get_setting( 'story_age_confirmation_minimum', 18 ) );
+		$story_age_confirmation_minimum = min( 18, max( 1, $story_age_confirmation_minimum ) );
 
 		?>
 		<!-- Feature Toggles -->
@@ -211,20 +213,26 @@ class Fanfic_Taxonomies_Admin {
 							<th scope="row"><?php esc_html_e( 'Warnings & Age Classification', 'fanfiction-manager' ); ?></th>
 							<td>
 								<label>
-									<input type="checkbox" name="enable_warnings" value="1" <?php checked( $enable_warnings, true ); ?>>
+									<input type="checkbox" id="fanfic-enable-warnings" name="enable_warnings" value="1" <?php checked( $enable_warnings, true ); ?>>
 									<?php esc_html_e( 'Enable warnings and age classification', 'fanfiction-manager' ); ?>
 								</label>
 								<p class="description"><?php esc_html_e( 'Enable content warnings and derived age ratings.', 'fanfiction-manager' ); ?></p>
 							</td>
 						</tr>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Tags', 'fanfiction-manager' ); ?></th>
-							<td>
-								<label>
-									<input type="checkbox" name="enable_tags" value="1" <?php checked( $enable_tags, true ); ?>>
-									<?php esc_html_e( 'Enable visible and invisible tags', 'fanfiction-manager' ); ?>
+						<tr id="fanfic-story-age-confirmation-row" style="<?php echo $enable_warnings ? '' : 'display:none;'; ?>">
+							<th scope="row"></th>
+							<td style="padding-left: 24px;">
+								<label for="fanfic-enable-story-age-confirmation">
+									<input type="checkbox" id="fanfic-enable-story-age-confirmation" name="enable_story_age_confirmation" value="1" <?php checked( $enable_story_age_confirmation, true ); ?>>
+									<?php esc_html_e( 'Ask the reader for age confirmation before showing the story', 'fanfiction-manager' ); ?>
 								</label>
-								<p class="description"><?php esc_html_e( 'Authors add tags and search keywords to their stories.', 'fanfiction-manager' ); ?></p>
+								<div style="margin-top: 10px;">
+									<label for="fanfic-story-age-confirmation-minimum" style="display: inline-flex; align-items: center; gap: 8px;">
+										<span><?php esc_html_e( 'Prompt when the story age rating is at or above', 'fanfiction-manager' ); ?></span>
+										<input type="number" id="fanfic-story-age-confirmation-minimum" name="story_age_confirmation_minimum" value="<?php echo esc_attr( $story_age_confirmation_minimum ); ?>" min="1" max="18" style="width: 80px;">
+									</label>
+								</div>
+								<p class="description"><?php esc_html_e( 'Example: set this to 16 to require confirmation for 16+ and 18+ stories.', 'fanfiction-manager' ); ?></p>
 							</td>
 						</tr>
 						<tr>
@@ -255,6 +263,20 @@ class Fanfic_Taxonomies_Admin {
 				</p>
 			</form>
 		</div>
+		<script type="text/javascript">
+		jQuery(document).ready(function($) {
+			function syncWarningDependentRows() {
+				var warningsEnabled = $('#fanfic-enable-warnings').is(':checked');
+				$('#fanfic-story-age-confirmation-row').toggle(warningsEnabled);
+				if (!warningsEnabled) {
+					$('#fanfic-enable-story-age-confirmation').prop('checked', false);
+				}
+			}
+
+			$('#fanfic-enable-warnings').on('change', syncWarningDependentRows);
+			syncWarningDependentRows();
+		});
+		</script>
 
 
 		<?php
@@ -1008,11 +1030,14 @@ class Fanfic_Taxonomies_Admin {
 		$enable_fandoms = isset( $_POST['enable_fandom_classification'] ) && '1' === $_POST['enable_fandom_classification'];
 		Fanfic_Settings::update_setting( 'enable_fandom_classification', $enable_fandoms );
 
-		// Save warnings and tags settings
+		// Save warning settings
 		$enable_warnings = isset( $_POST['enable_warnings'] ) && '1' === $_POST['enable_warnings'];
-		$enable_tags     = isset( $_POST['enable_tags'] ) && '1' === $_POST['enable_tags'];
+		$enable_story_age_confirmation = $enable_warnings && isset( $_POST['enable_story_age_confirmation'] ) && '1' === $_POST['enable_story_age_confirmation'];
+		$story_age_confirmation_minimum = isset( $_POST['story_age_confirmation_minimum'] ) ? absint( wp_unslash( $_POST['story_age_confirmation_minimum'] ) ) : 18;
+		$story_age_confirmation_minimum = min( 18, max( 1, $story_age_confirmation_minimum ) );
 		Fanfic_Settings::update_setting( 'enable_warnings', $enable_warnings );
-		Fanfic_Settings::update_setting( 'enable_tags', $enable_tags );
+		Fanfic_Settings::update_setting( 'enable_story_age_confirmation', $enable_story_age_confirmation );
+		Fanfic_Settings::update_setting( 'story_age_confirmation_minimum', $story_age_confirmation_minimum );
 
 		// Save language classification setting
 		$enable_languages = isset( $_POST['enable_language_classification'] ) && '1' === $_POST['enable_language_classification'];

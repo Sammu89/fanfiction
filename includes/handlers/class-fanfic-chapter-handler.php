@@ -211,8 +211,19 @@ class Fanfic_Chapter_Handler {
 		$current_user = wp_get_current_user();
 		$story = get_post( $story_id );
 
+		if ( in_array( 'fanfiction_banned_user', (array) $current_user->roles, true ) ) {
+			$message = __( 'Your account is suspended. You cannot create or edit chapters.', 'fanfiction-manager' );
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => $message,
+					'errors'  => array( $message ),
+				) );
+			}
+			return;
+		}
+
 		// Check permissions
-		if ( ! $story || 'fanfiction_story' !== $story->post_type || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+		if ( ! $story || 'fanfiction_story' !== $story->post_type || ! fanfic_current_user_can_edit( 'story', $story_id ) ) {
 			if ( $is_ajax ) {
 				wp_send_json_error( array(
 					'message' => __( 'You do not have permission to create chapters for this story.', 'fanfiction-manager' ),
@@ -462,8 +473,19 @@ class Fanfic_Chapter_Handler {
 		$chapter = get_post( $chapter_id );
 		$story_id = $chapter ? (int) $chapter->post_parent : 0;
 
+		if ( in_array( 'fanfiction_banned_user', (array) $current_user->roles, true ) ) {
+			$message = __( 'Your account is suspended. You cannot create or edit chapters.', 'fanfiction-manager' );
+			if ( $is_ajax ) {
+				wp_send_json_error( array(
+					'message' => $message,
+					'errors'  => array( $message ),
+				) );
+			}
+			return;
+		}
+
 		// Check permissions
-		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || $story_id <= 0 || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || $story_id <= 0 || ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
 			if ( $is_ajax ) {
 				wp_send_json_error( array(
 					'message' => __( 'You do not have permission to edit this chapter.', 'fanfiction-manager' ),
@@ -773,7 +795,7 @@ class Fanfic_Chapter_Handler {
 		$story_id = $chapter ? (int) $chapter->post_parent : 0;
 
 		// Check permissions
-		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || $story_id <= 0 || ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || $story_id <= 0 || ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
 			return;
 		}
 
@@ -830,7 +852,7 @@ class Fanfic_Chapter_Handler {
 		}
 
 		// Check permissions - accepted co-authors can manage chapters as well.
-		if ( ! current_user_can( 'edit_fanfiction_story', $story->ID ) ) {
+		if ( ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to delete this chapter.', 'fanfiction-manager' ) ) );
 		}
 

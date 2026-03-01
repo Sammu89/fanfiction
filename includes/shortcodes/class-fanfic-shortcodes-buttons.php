@@ -94,12 +94,15 @@ class Fanfic_Shortcodes_Buttons {
 			$output .= self::render_button( $action, $context, $context_ids, $nonce );
 		}
 
+		$output .= self::render_context_management_buttons( $context, $context_ids );
+
 		$output .= '</div>';
 
 		// Render follow email modal once per page (for logged-out users).
 		if ( ! is_user_logged_in() ) {
 			$output .= self::render_follow_email_modal();
 		}
+		$output .= self::render_report_modal();
 
 		return $output;
 	}
@@ -195,11 +198,11 @@ class Fanfic_Shortcodes_Buttons {
 
 		switch ( $context ) {
 			case 'story':
-				$actions = array( 'follow', 'share', 'report', 'edit' );
+				$actions = array( 'follow', 'share', 'report' );
 				break;
 
 			case 'chapter':
-				$actions = array( 'follow', 'mark-read', 'share', 'report', 'edit' );
+				$actions = array( 'follow', 'mark-read', 'share', 'report' );
 				break;
 
 			case 'author':
@@ -222,6 +225,71 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		return apply_filters( 'fanfic_action_buttons_actions', $actions, $context );
+	}
+
+	/**
+	 * Render context-specific management controls shared by title rows and action bars.
+	 *
+	 * @since 2.3.0
+	 * @param string $context Context (story, chapter, author).
+	 * @param array  $context_ids Optional resolved context IDs.
+	 * @return string
+	 */
+	public static function render_context_management_buttons( $context, $context_ids = array() ) {
+		$context = is_string( $context ) ? trim( $context ) : '';
+		if ( '' === $context ) {
+			return '';
+		}
+
+		if ( empty( $context_ids ) || ! is_array( $context_ids ) ) {
+			$context_ids = self::get_context_ids( $context );
+		}
+
+		if ( empty( $context_ids ) || ! is_array( $context_ids ) ) {
+			return '';
+		}
+
+		$buttons = '';
+
+		if ( 'story' === $context ) {
+			$story_id = isset( $context_ids['story_id'] ) ? absint( $context_ids['story_id'] ) : 0;
+			if ( ! $story_id ) {
+				return '';
+			}
+
+			$buttons .= trim( (string) do_shortcode( '[edit-story-button story_id="' . $story_id . '"]' ) );
+			$buttons .= trim( (string) do_shortcode( '[add-chapter-button story_id="' . $story_id . '"]' ) );
+
+			if ( class_exists( 'Fanfic_Featured_Stories' ) ) {
+				$buttons .= trim( (string) Fanfic_Featured_Stories::render_feature_button( $story_id ) );
+			}
+		} elseif ( 'chapter' === $context ) {
+			$chapter_id = isset( $context_ids['chapter_id'] ) ? absint( $context_ids['chapter_id'] ) : 0;
+			$story_id   = isset( $context_ids['story_id'] ) ? absint( $context_ids['story_id'] ) : 0;
+
+			if (
+				$chapter_id &&
+				! current_user_can( 'manage_options' ) &&
+				! current_user_can( 'moderate_fanfiction' ) &&
+				( fanfic_is_chapter_blocked( $chapter_id ) || ( $story_id && fanfic_is_story_blocked( $story_id ) ) )
+			) {
+				return '';
+			}
+
+			if ( $chapter_id ) {
+				$buttons .= trim( (string) do_shortcode( '[edit-chapter-button chapter_id="' . $chapter_id . '"]' ) );
+			}
+
+			if ( $story_id ) {
+				$buttons .= trim( (string) do_shortcode( '[edit-story-button story_id="' . $story_id . '"]' ) );
+			}
+		}
+
+		if ( '' === $buttons ) {
+			return '';
+		}
+
+		return '<div class="fanfic-context-management-buttons fanfic-context-management-buttons-' . esc_attr( $context ) . '">' . $buttons . '</div>';
 	}
 
 	/**
@@ -369,6 +437,8 @@ class Fanfic_Shortcodes_Buttons {
 			if ( ! empty( $share_data['text'] ) ) {
 				$data_attrs['data-share-text'] = $share_data['text'];
 			}
+		} elseif ( 'mark-read' === $action && ! empty( $context_ids['chapter_id'] ) ) {
+			$data_attrs['data-read-revision'] = fanfic_get_chapter_content_updated_date( $context_ids['chapter_id'] );
 		}
 
 		// Get button label and icon
@@ -407,23 +477,48 @@ class Fanfic_Shortcodes_Buttons {
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
 
 		// Segmented buttons hide text label but still show count.
-		$hide_text_label = ( '' !== $segmented );
-
-		if ( ! $hide_text_label ) {
-			$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '">' . esc_html( $label ) . '</span>';
-		}
+		$is_segmented = ( '' !== $segmented );
 
 		// Add count display for like/dislike buttons.
 		if ( 'like' === $action && isset( $context_ids['chapter_id'] ) ) {
 			$like_count = Fanfic_Interactions::get_chapter_likes( $context_ids['chapter_id'] );
-			$count_text = absint( $like_count ) > 0 ? '(' . Fanfic_Shortcodes::format_engagement_number( $like_count ) . ')' : '';
-			$output .= '<span class="fanfic-button-count like-count" data-count="' . absint( $like_count ) . '" title="' . esc_attr( Fanfic_Shortcodes::format_number( $like_count ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $like_count ) ) . '">' . esc_html( $count_text ) . '</span>';
-		}
-		if ( 'dislike' === $action && isset( $context_ids['chapter_id'] ) ) {
+			if ( $is_segmented ) {
+				// Segmented: just show the number (no parentheses).
+				$count_text = absint( $like_count ) > 0 ? Fanfic_Shortcodes::format_engagement_number( $like_count ) : '';
+				$output .= '<span class="fanfic-button-count like-count" data-count="' . absint( $like_count ) . '" title="' . esc_attr( Fanfic_Shortcodes::format_number( $like_count ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $like_count ) ) . '">' . esc_html( $count_text ) . '</span>';
+			} else {
+				// Standalone: "Like" when 0, "X like(s)" when > 0.
+				$like_count_int = absint( $like_count );
+				if ( $like_count_int > 0 ) {
+					$formatted_count = Fanfic_Shortcodes::format_engagement_number( $like_count_int );
+					/* translators: %s: number of likes */
+					$count_text = sprintf( _n( '%s like', '%s likes', $like_count_int, 'fanfiction-manager' ), $formatted_count );
+				} else {
+					$count_text = $label;
+				}
+				$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '" data-count="' . $like_count_int . '" title="' . esc_attr( Fanfic_Shortcodes::format_number( $like_count_int ) ) . '">' . esc_html( $count_text ) . '</span>';
+			}
+		} elseif ( 'dislike' === $action && isset( $context_ids['chapter_id'] ) ) {
 			$stats         = Fanfic_Interactions::get_chapter_stats( $context_ids['chapter_id'] );
 			$dislike_count = absint( $stats['dislikes'] ?? 0 );
-			$count_text    = $dislike_count > 0 ? '(' . Fanfic_Shortcodes::format_engagement_number( $dislike_count ) . ')' : '';
-			$output .= '<span class="fanfic-button-count dislike-count" data-count="' . $dislike_count . '" title="' . esc_attr( Fanfic_Shortcodes::format_number( $dislike_count ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $dislike_count ) ) . '">' . esc_html( $count_text ) . '</span>';
+			if ( $is_segmented ) {
+				// Segmented: just show the number (no parentheses).
+				$count_text = $dislike_count > 0 ? Fanfic_Shortcodes::format_engagement_number( $dislike_count ) : '';
+				$output .= '<span class="fanfic-button-count dislike-count" data-count="' . $dislike_count . '" title="' . esc_attr( Fanfic_Shortcodes::format_number( $dislike_count ) ) . '" aria-label="' . esc_attr( Fanfic_Shortcodes::format_number( $dislike_count ) ) . '">' . esc_html( $count_text ) . '</span>';
+			} else {
+				// Standalone: "Dislike" when 0, "X dislike(s)" when > 0.
+				if ( $dislike_count > 0 ) {
+					$formatted_count = Fanfic_Shortcodes::format_engagement_number( $dislike_count );
+					/* translators: %s: number of dislikes */
+					$count_text = sprintf( _n( '%s dislike', '%s dislikes', $dislike_count, 'fanfiction-manager' ), $formatted_count );
+				} else {
+					$count_text = $label;
+				}
+				$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '" data-count="' . $dislike_count . '" title="' . esc_attr( Fanfic_Shortcodes::format_number( $dislike_count ) ) . '">' . esc_html( $count_text ) . '</span>';
+			}
+		} elseif ( ! $is_segmented ) {
+			// Other buttons (follow, share, etc.) - show label as before.
+			$output .= '<span class="fanfic-button-text ' . ( $text_class ? esc_attr( $text_class ) : '' ) . '">' . esc_html( $label ) . '</span>';
 		}
 
 		$output .= '</button>';
@@ -564,10 +659,8 @@ class Fanfic_Shortcodes_Buttons {
 				return false;
 
 			case 'mark-read':
-				// For mark-read, check if THIS specific chapter has been marked as read
-				if ( isset( $context_ids['story_id'] ) && isset( $context_ids['chapter_number'] ) ) {
-					// Use the Reading Progress class method for accurate chapter-specific check
-					return Fanfic_Reading_Progress::is_chapter_read( $user_id, $context_ids['story_id'], $context_ids['chapter_number'] );
+				if ( isset( $context_ids['chapter_id'] ) && class_exists( 'Fanfic_Interactions' ) ) {
+					return Fanfic_Interactions::is_chapter_read_current( $user_id, $context_ids['chapter_id'] );
 				}
 				return false;
 
@@ -905,19 +998,7 @@ class Fanfic_Shortcodes_Buttons {
 			return '';
 		}
 
-		$label = __( 'Report', 'fanfiction-manager' );
-		$icon = '<span class="dashicons dashicons-flag" aria-hidden="true"></span>';
-
-		$output = '<button type="button" class="fanfic-button fanfic-report-button" ';
-		$output .= 'data-content-id="' . absint( $content_id ) . '" ';
-		$output .= 'data-report-type="' . esc_attr( $report_type ) . '" ';
-		$output .= 'data-nonce="' . esc_attr( $nonce ) . '" ';
-		$output .= 'aria-label="' . esc_attr( sprintf( __( 'Report this %s', 'fanfiction-manager' ), $context ) ) . '">';
-		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
-		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
-		$output .= '</button>';
-
-		return $output;
+		return self::render_report_trigger( $content_id, $report_type, sprintf( __( 'Report this %s', 'fanfiction-manager' ), $context ) );
 	}
 
 	/**
@@ -926,6 +1007,73 @@ class Fanfic_Shortcodes_Buttons {
 	 * @var bool
 	 */
 	private static $follow_modal_rendered = false;
+
+	/**
+	 * Whether the report modal has already been rendered on this page.
+	 *
+	 * @var bool
+	 */
+	private static $report_modal_rendered = false;
+
+	/**
+	 * Render a report trigger button with shared markup.
+	 *
+	 * @since 2.3.0
+	 * @param int    $content_id  Content ID.
+	 * @param string $report_type Report type slug.
+	 * @param string $aria_label  Accessible label.
+	 * @param string $extra_class Optional additional CSS classes.
+	 * @return string
+	 */
+	public static function render_report_trigger( $content_id, $report_type, $aria_label = '', $extra_class = '' ) {
+		$content_id  = absint( $content_id );
+		$report_type = sanitize_key( (string) $report_type );
+		$extra_class = trim( (string) $extra_class );
+
+		if ( ! $content_id || '' === $report_type ) {
+			return '';
+		}
+
+		$classes = array( 'fanfic-button', 'fanfic-report-button' );
+		if ( '' !== $extra_class ) {
+			$classes[] = $extra_class;
+		}
+
+		if ( '' === $aria_label ) {
+			$aria_label = __( 'Report this content', 'fanfiction-manager' );
+		}
+
+		$report_revision = fanfic_get_report_revision_token( $content_id, $report_type );
+		$content_label   = '';
+		if ( in_array( $report_type, array( 'story', 'chapter' ), true ) ) {
+			$content_label = get_the_title( $content_id );
+			if ( '' === $content_label ) {
+				$content_label = ( 'chapter' === $report_type ) ? __( 'Chapter', 'fanfiction-manager' ) : __( 'Story', 'fanfiction-manager' );
+			}
+		} elseif ( 'comment' === $report_type ) {
+			$comment = get_comment( $content_id );
+			if ( $comment ) {
+				$content_label = wp_trim_words( wp_strip_all_tags( $comment->comment_content ), 8, '...' );
+			}
+			if ( '' === $content_label ) {
+				$content_label = __( 'Comment', 'fanfiction-manager' );
+			}
+		}
+
+		$icon = '<span class="dashicons dashicons-flag" aria-hidden="true"></span>';
+
+		$output = '<button type="button" class="' . esc_attr( implode( ' ', $classes ) ) . '" ';
+		$output .= 'data-content-id="' . $content_id . '" ';
+		$output .= 'data-report-type="' . esc_attr( $report_type ) . '" ';
+		$output .= 'data-report-revision="' . esc_attr( $report_revision ) . '" ';
+		$output .= 'data-report-content-label="' . esc_attr( $content_label ) . '" ';
+		$output .= 'aria-label="' . esc_attr( $aria_label ) . '">';
+		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
+		$output .= '<span class="fanfic-button-text">' . esc_html__( 'Report', 'fanfiction-manager' ) . '</span>';
+		$output .= '</button>';
+
+		return $output;
+	}
 
 	/**
 	 * Render the follow email modal (once per page).
@@ -971,6 +1119,73 @@ class Fanfic_Shortcodes_Buttons {
 					<button type="button" id="fanfic-follow-only-btn" class="fanfic-button secondary">
 						<?php esc_html_e( 'Follow Only', 'fanfiction-manager' ); ?>
 					</button>
+				</div>
+			</div>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Render the report modal (once per page).
+	 *
+	 * @since 2.3.0
+	 * @return string
+	 */
+	public static function render_report_modal() {
+		if ( self::$report_modal_rendered ) {
+			return '';
+		}
+		self::$report_modal_rendered = true;
+
+		ob_start();
+		?>
+		<div id="fanfic-report-modal" class="fanfic-modal fanfic-report-modal" role="dialog" aria-hidden="true" aria-labelledby="fanfic-report-modal-title" style="display:none;">
+			<div class="fanfic-modal-overlay"></div>
+			<div class="fanfic-modal-content">
+				<button type="button" class="fanfic-modal-close" aria-label="<?php esc_attr_e( 'Close', 'fanfiction-manager' ); ?>">&times;</button>
+				<div class="fanfic-modal-body">
+					<h2 id="fanfic-report-modal-title"><?php esc_html_e( 'Report Content', 'fanfiction-manager' ); ?></h2>
+					<p class="fanfic-modal-description"><?php esc_html_e( 'Choose the reason that best matches the problem. Add more detail if needed. Details are required when selecting Other.', 'fanfiction-manager' ); ?></p>
+
+					<form id="fanfic-report-form" novalidate>
+						<fieldset class="fanfic-report-reason-group">
+							<legend><?php esc_html_e( 'Reason', 'fanfiction-manager' ); ?></legend>
+							<label class="fanfic-report-reason-option">
+								<input type="radio" name="fanfic_report_reason" value="spam">
+								<span><?php esc_html_e( 'Spam', 'fanfiction-manager' ); ?></span>
+							</label>
+							<label class="fanfic-report-reason-option">
+								<input type="radio" name="fanfic_report_reason" value="harassment">
+								<span><?php esc_html_e( 'Harassment or Bullying', 'fanfiction-manager' ); ?></span>
+							</label>
+							<label class="fanfic-report-reason-option">
+								<input type="radio" name="fanfic_report_reason" value="inappropriate">
+								<span><?php esc_html_e( 'Inappropriate Content', 'fanfiction-manager' ); ?></span>
+							</label>
+							<label class="fanfic-report-reason-option">
+								<input type="radio" name="fanfic_report_reason" value="copyright">
+								<span><?php esc_html_e( 'Copyright Violation', 'fanfiction-manager' ); ?></span>
+							</label>
+							<label class="fanfic-report-reason-option">
+								<input type="radio" name="fanfic_report_reason" value="other">
+								<span><?php esc_html_e( 'Other', 'fanfiction-manager' ); ?></span>
+							</label>
+						</fieldset>
+
+						<div class="fanfic-report-details-group">
+							<label for="fanfic-report-details"><?php esc_html_e( 'Details', 'fanfiction-manager' ); ?></label>
+							<textarea id="fanfic-report-details" name="fanfic_report_details" rows="5" maxlength="2000" placeholder="<?php esc_attr_e( 'Tell the moderators what is wrong with this content.', 'fanfiction-manager' ); ?>"></textarea>
+							<p class="description"><?php esc_html_e( 'Optional for all reasons except Other.', 'fanfiction-manager' ); ?></p>
+						</div>
+
+						<div class="fanfic-report-form-message" aria-live="polite"></div>
+
+						<div class="fanfic-modal-actions">
+							<button type="button" class="fanfic-button secondary fanfic-report-cancel"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
+							<button type="submit" class="fanfic-button fanfic-report-submit"><?php esc_html_e( 'Submit Report', 'fanfiction-manager' ); ?></button>
+						</div>
+					</form>
 				</div>
 			</div>
 		</div>

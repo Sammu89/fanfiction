@@ -98,6 +98,13 @@
 			if (refuseButton) {
 				event.preventDefault();
 				handleInvitationResponse(refuseButton, 'refuse');
+				return;
+			}
+
+			var blockButton = event.target.closest('.fanfic-block-invitation');
+			if (blockButton) {
+				event.preventDefault();
+				handleInvitationResponse(blockButton, 'refuse_block');
 			}
 		});
 	}

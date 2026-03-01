@@ -487,35 +487,7 @@ class Fanfic_Search_Index {
 	 * @return string|null Content updated date
 	 */
 	private static function get_updated_date( $story_id ) {
-		// Use custom content update date if available.
-		$content_updated = get_post_meta( $story_id, '_fanfic_content_updated_date', true );
-
-		if ( $content_updated ) {
-			return $content_updated;
-		}
-
-		// Fallback: find the most recent published chapter date (created or modified).
-		global $wpdb;
-		$latest_chapter_date = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT GREATEST( MAX( post_date ), MAX( post_modified ) )
-				 FROM {$wpdb->posts}
-				 WHERE post_parent = %d
-				   AND post_type = 'fanfiction_chapter'
-				   AND post_status = 'publish'",
-				$story_id
-			)
-		);
-
-		if ( $latest_chapter_date ) {
-			// Backfill the meta so future lookups are fast.
-			update_post_meta( $story_id, '_fanfic_content_updated_date', $latest_chapter_date );
-			return $latest_chapter_date;
-		}
-
-		// No chapters yet — fall back to story publication date.
-		$post = get_post( $story_id );
-		return $post ? $post->post_date : null;
+		return fanfic_get_story_content_updated_date( $story_id );
 	}
 
 	/**
@@ -1240,11 +1212,15 @@ class Fanfic_Search_Index {
 
 		// Chapter creation counts as a content update baseline.
 		if ( ! $update ) {
-			update_post_meta( $story_id, '_fanfic_content_updated_date', current_time( 'mysql' ) );
-		} else {
-			// On edits, only significant chapter content changes update the timestamp.
+			update_post_meta( $post_id, '_fanfic_chapter_content_updated_date', current_time( 'mysql' ) );
+		}
+
+		// On edits, only significant chapter content changes update the chapter timestamp.
+		if ( $update ) {
 			self::check_chapter_content_change( $post_id, $post, $story_id );
 		}
+
+		fanfic_sync_story_content_updated_date( $story_id );
 
 		// Update index
 		self::update_index( $story_id );
@@ -1266,6 +1242,7 @@ class Fanfic_Search_Index {
 
 		$chapter = get_post( $post_id );
 		if ( $chapter && $chapter->post_parent ) {
+			fanfic_sync_story_content_updated_date( $chapter->post_parent );
 			self::update_index( $chapter->post_parent );
 		}
 	}
@@ -1292,6 +1269,7 @@ class Fanfic_Search_Index {
 
 		$story_id = absint( $post->post_parent );
 		if ( $story_id ) {
+			fanfic_sync_story_content_updated_date( $story_id );
 			self::update_index( $story_id );
 		}
 	}
@@ -1803,8 +1781,6 @@ class Fanfic_Search_Index {
 	/**
 	 * Check if chapter content changed significantly (10%+ change)
 	 *
-	 * Updates parent story's _fanfic_content_updated_date meta if significant change detected.
-	 *
 	 * @since 1.5.0
 	 * @param int     $chapter_id Chapter post ID.
 	 * @param WP_Post $post       New post object.
@@ -1829,7 +1805,7 @@ class Fanfic_Search_Index {
 
 		// Check if content changed significantly
 		if ( self::is_content_significantly_changed( $old_content, $new_content ) ) {
-			update_post_meta( $story_id, '_fanfic_content_updated_date', current_time( 'mysql' ) );
+			update_post_meta( $chapter_id, '_fanfic_chapter_content_updated_date', current_time( 'mysql' ) );
 		}
 	}
 

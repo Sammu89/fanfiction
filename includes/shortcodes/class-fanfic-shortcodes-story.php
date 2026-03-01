@@ -114,7 +114,7 @@ class Fanfic_Shortcodes_Story {
 		}
 
 		return sprintf(
-			'<img src="%s" class="%s" alt="%s" loading="lazy" />',
+			'<a href="%1$s" class="fanfic-lightbox-trigger" data-type="image"><img src="%1$s" class="%2$s" alt="%3$s" loading="lazy" /></a>',
 			esc_url( $image_url ),
 			esc_attr( $class ),
 			esc_attr( $alt )
@@ -571,8 +571,14 @@ class Fanfic_Shortcodes_Story {
 			return '';
 		}
 
-		return '<time class="story-last-updated" datetime="' . esc_attr( get_the_modified_date( 'c', $story_id ) ) . '">' .
-			esc_html( get_the_modified_date( $atts['format'], $story_id ) ) .
+		$updated_datetime = fanfic_get_story_content_updated_date( $story_id );
+		$updated_timestamp = $updated_datetime ? strtotime( $updated_datetime ) : false;
+		if ( false === $updated_timestamp ) {
+			return '';
+		}
+
+		return '<time class="story-last-updated" datetime="' . esc_attr( mysql2date( 'c', $updated_datetime, false ) ) . '">' .
+			esc_html( wp_date( $atts['format'], $updated_timestamp ) ) .
 			'</time>';
 	}
 
@@ -620,7 +626,7 @@ class Fanfic_Shortcodes_Story {
 			6 * HOUR_IN_SECONDS
 		);
 
-		return '<span class="story-word-count">' . Fanfic_Shortcodes::format_number( $total_words ) . '</span>';
+		return '<span class="story-word-count" title="' . esc_attr( Fanfic_Shortcodes::format_number( $total_words ) ) . '">' . Fanfic_Shortcodes::format_engagement_number( $total_words ) . '</span>';
 	}
 
 	/**
@@ -647,10 +653,17 @@ class Fanfic_Shortcodes_Story {
 				$chapters = get_posts( array(
 					'post_type'      => 'fanfiction_chapter',
 					'post_parent'    => $story_id,
-					'post_status'    => 'publish',
+					'post_status'    => fanfic_current_user_can_view_restricted_post( $story_id ) ? 'any' : 'publish',
 					'posts_per_page' => -1,
 					'fields'         => 'ids',
 				) );
+
+				$chapters = array_filter(
+					(array) $chapters,
+					static function( $chapter_id ) {
+						return fanfic_current_user_can_view_post( $chapter_id );
+					}
+				);
 
 				return count( $chapters );
 			},

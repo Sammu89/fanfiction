@@ -1011,6 +1011,7 @@ class Fanfic_Moderation_Ajax {
 			'post_type'       => $report['reported_item_type'],
 			'reporter_name'   => $reporter_name,
 			'reason'          => $report['reason'],
+			'details'         => $report['details'],
 			'status'          => $report['status'],
 			'moderator_name'  => $moderator_name,
 			'moderator_notes' => $report['moderator_notes'],

@@ -1,40 +1,18 @@
 The co-author system allows a story to have one original author and multiple invited collaborators.
 
+* Stories may display multiple authors
+* Accepted collaborators appear as co-authors
+* Co-author profiles will list co-authored stories
+
 Its purpose is to enable collaboration without changing post ownership. The original author (WordPress `post_author`) always remains the owner of the story.
 
 When a user writes a story, they can invite other users to collaborate while retaining full ownership of the post.
 
 ---
 
-## Core Structure
-
-Every story has:
-
-* One original author (`post_author`)
-* Zero to five co-authors
-
-Co-authors are stored separately from the WordPress post author and include a status that determines their level of participation.
-
-Co-author statuses:
-
-* `pending`
-* `accepted`
-* `refused`
-
-Only users with `accepted` status are treated as collaborators.
-
----
-
 ## Co-Author Limit
 
 Each story may have up to **5** co-authors at a time.
-
-The limit includes users with:
-
-* `pending`
-* `accepted`
-
-Users with `refused` status do not count toward the limit.
 
 ---
 
@@ -43,9 +21,9 @@ Users with `refused` status do not count toward the limit.
 When the feature is enabled, co-authors can be managed by:
 
 * The original author
-* Any accepted co-author
+* Any other co-author
 
-Accepted co-authors can invite new collaborators and remove existing ones.
+Accepted co-authors can invite new collaborators and remove existing ones but never remove the original author.
 
 ---
 
@@ -60,7 +38,7 @@ When a user attempts to invite someone as a co-author, the system blocks the act
 * The invited user is the original author
 * The invited user already has a pending invitation
 * The invited user is already accepted
-* The invited user previously refused
+* The invited user previously refused and blocked future invitations
 * The story has reached the co-author limit
 
 Only valid invitations are stored.
@@ -71,11 +49,10 @@ Only valid invitations are stored.
 
 When an invitation is sent:
 
-* The invited user is stored as `pending`
 * The invited user receives an invitation notification
-* The invitation remains active until accepted, refused, or removed
+* The invitation remains active until accepted, declined, blocked, or removed
 
-Pending invitations remain visible in notifications until resolved.
+Pending invitations remain visible in notifications dashboard until resolved.
 
 ---
 
@@ -83,18 +60,21 @@ Pending invitations remain visible in notifications until resolved.
 
 When a pending user accepts:
 
-* Status changes to `accepted`
 * Pending invitation notification is removed
 * Both parties receive confirmation notifications
 * The story search index is refreshed
 
-When a pending user refuses:
+When a pending user refuses (no block):
 
-* Status changes to `refused`
 * Pending invitation notification is removed
 * Both parties receive refusal notifications
+* The user can be invited again later
 
-Refused users remain stored but do not count toward the co-author limit.
+When a pending user refuses and blocks future invites:
+
+* Pending invitation notification is removed
+* Both parties receive refusal notifications
+* The user cannot be invited again for this story
 
 ---
 
@@ -114,9 +94,8 @@ The original author remains the WordPress post owner.
 
 ## Pending Invitation Access
 
-Users with `pending` status:
 
-* Do not receive editing permissions
+* Users do not receive editing permissions
 * Do receive read-only preview access to the story and its chapters (including drafts)
 
 This allows invited users to review the content before deciding.
@@ -136,6 +115,7 @@ If an accepted co-author is removed:
 
 * A removal notification is sent
 * The story search index is refreshed
+* The user can be invited again later
 
 If a pending invitation is removed:
 
@@ -151,16 +131,14 @@ When disabled:
 
 * Co-author management stops functioning
 * Existing co-author data remains stored
-* Users are notified of the change
-* Affected stories are reindexed
+* Co-authors lose access
 
 When re-enabled:
 
-* Preserved co-author relationships become active again
+* Co-author relationships become active again
 * Users are notified
 * Stories are reindexed
 
-Disabling the feature does not delete stored data.
 
 ---
 
@@ -200,19 +178,3 @@ The story form acts as the source of truth for current co-author relationships.
 ## Story Deletion
 
 When a story is deleted, all associated co-author relationships are automatically removed.
-
----
-
-## Reader-Facing Behavior
-
-From a reader’s perspective:
-
-* Stories may display multiple authors
-* Accepted collaborators appear as real co-authors
-* User profiles can list co-authored stories
-
-Invitation workflows, permissions, and validation occur in the background to maintain controlled collaboration.
-
----
-
-If you want, we can also tighten this further. Right now it’s clean, but we could compress it by ~20% without losing clarity.

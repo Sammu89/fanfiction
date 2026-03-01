@@ -404,6 +404,35 @@ class Fanfic_Featured_Stories {
 	}
 
 	/**
+	 * Ensure a story is manually featured without toggling it off if already featured.
+	 *
+	 * @since 2.3.0
+	 * @param int $story_id Story post ID.
+	 * @return array {featured: bool, type: string}
+	 */
+	public static function set_manual_featured( $story_id ) {
+		$story_id = absint( $story_id );
+		if ( ! $story_id ) {
+			return array(
+				'featured' => false,
+				'type'     => '',
+			);
+		}
+
+		$now = current_time( 'mysql' );
+		update_post_meta( $story_id, self::META_IS_FEATURED, 1 );
+		update_post_meta( $story_id, self::META_FEATURED_TYPE, 'manual' );
+		delete_post_meta( $story_id, self::META_FEATURED_SCORE );
+		update_post_meta( $story_id, self::META_FEATURED_AT, $now );
+		self::clear_featured_cache();
+
+		return array(
+			'featured' => true,
+			'type'     => 'manual',
+		);
+	}
+
+	/**
 	 * Check if a story is featured.
 	 *
 	 * @since 2.3.0

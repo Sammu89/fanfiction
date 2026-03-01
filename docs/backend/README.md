@@ -10,11 +10,17 @@ This folder contains backend-focused documentation for systems that affect how s
 - [Translated Stories](translated-stories.md)  
   Explains what translated stories are, why the system exists, what stays synchronized between linked stories, and what does not.
 
+- [Blocking and Suspensions](blocking-and-suspension.md)  
+  Explains what happens when a story, chapter, or user is moderated, including what admins/moderators can do and what authors/readers will see.
+
 - [Status System](status-system.md)  
   Explains the built-in story status behavior, including automatic inactivity changes and author restrictions.
 
 - [Shortcodes](shortcodes.md)  
   Lists the shortcode tags registered by the plugin and what each one outputs.
+
+- [True Update Dates](true-updates.md)  
+  Explains what the plugin considers a meaningful story or chapter update, and why minor edits do not bump recently updated ordering.
 
 ## How The Admin Documentation Page Works
 

@@ -196,6 +196,27 @@ class Fanfic_Shortcodes_Taxonomy {
 			}
 		}
 
+		// Licence.
+		if ( class_exists( 'Fanfic_Licence' ) && Fanfic_Licence::is_enabled() ) {
+			$licence_slug  = Fanfic_Licence::get_story_licence( $story_id );
+			$licence_label = Fanfic_Licence::get_label( $licence_slug );
+			$licence_desc  = Fanfic_Licence::get_description( $licence_slug );
+
+			if ( ! empty( $licence_label ) ) {
+				$rows[] = array(
+					'label'         => __( 'Licence', 'fanfiction-manager' ),
+					'values'        => array(
+						array(
+							'label'   => $licence_label,
+							'url'     => '',
+							'tooltip' => $licence_desc,
+						),
+					),
+					'is_searchable' => false,
+				);
+			}
+		}
+
 		if ( empty( $rows ) ) {
 			return '';
 		}
@@ -210,11 +231,15 @@ class Fanfic_Shortcodes_Taxonomy {
 					continue;
 				}
 
-				$value_url = trim( (string) ( $value_item['url'] ?? '' ) );
+				$value_url     = trim( (string) ( $value_item['url'] ?? '' ) );
+				$tooltip_attr  = '';
+				if ( ! empty( $value_item['tooltip'] ) ) {
+					$tooltip_attr = ' title="' . esc_attr( $value_item['tooltip'] ) . '"';
+				}
 				if ( '' !== $value_url ) {
-					$value_markup[] = '<a href="' . esc_url( $value_url ) . '" class="fanfic-story-taxonomy-link">' . esc_html( $value_label ) . '</a>';
+					$value_markup[] = '<a href="' . esc_url( $value_url ) . '" class="fanfic-story-taxonomy-link"' . $tooltip_attr . '>' . esc_html( $value_label ) . '</a>';
 				} else {
-					$value_markup[] = '<span class="fanfic-story-taxonomy-value">' . esc_html( $value_label ) . '</span>';
+					$value_markup[] = '<span class="fanfic-story-taxonomy-value"' . $tooltip_attr . '>' . esc_html( $value_label ) . '</span>';
 				}
 			}
 

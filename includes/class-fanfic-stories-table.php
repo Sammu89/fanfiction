@@ -68,7 +68,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			'author'           => __( 'Author', 'fanfiction-manager' ),
 			'chapter_count'    => __( 'Chapter Count', 'fanfiction-manager' ),
 			'status'           => __( 'Status', 'fanfiction-manager' ),
-			'publication'      => __( 'Publication Status', 'fanfiction-manager' ),
+			'publication'      => __( 'Visibility', 'fanfiction-manager' ),
 			'views'            => __( 'Views', 'fanfiction-manager' ),
 			'genre'            => __( 'Genre', 'fanfiction-manager' ),
 			'average_rating'   => __( 'Average Rating', 'fanfiction-manager' ),
@@ -87,6 +87,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			'title'          => array( 'title', false ),
 			'author'         => array( 'author', false ),
 			'chapter_count'  => array( 'chapter_count', false ),
+			'publication'    => array( 'publication', false ),
 			'status'         => array( 'status', false ),
 			'views'          => array( 'views', false ),
 			'average_rating' => array( 'average_rating', false ),
@@ -103,8 +104,9 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	public function get_bulk_actions() {
 		return array(
 			'delete'         => __( 'Delete', 'fanfiction-manager' ),
-			'publish'        => __( 'Publish', 'fanfiction-manager' ),
-			'set_draft'      => __( 'Set to Draft', 'fanfiction-manager' ),
+			'publish'        => __( 'Make Visible', 'fanfiction-manager' ),
+			'set_draft'      => __( 'Hide', 'fanfiction-manager' ),
+			'feature'        => __( 'Feature', 'fanfiction-manager' ),
 			'block'          => __( 'Block', 'fanfiction-manager' ),
 			'unblock'        => __( 'Unblock', 'fanfiction-manager' ),
 			'apply_genre'    => __( 'Change Genre', 'fanfiction-manager' ),
@@ -220,10 +222,54 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 *
 	 * @since 1.0.0
 	 * @param object $item Story item
-	 * @return string Chapter count (excluding prologue/epilogue)
+	 * @return string Chapter count (including prologue/epilogue)
 	 */
 	public function column_chapter_count( $item ) {
 		return absint( $item->chapter_count );
+	}
+
+	/**
+	 * Count all child chapter posts for a story, including prologues and epilogues.
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id Story post ID.
+	 * @return int
+	 */
+	private function get_story_chapter_count( $story_id ) {
+		$chapter_ids = get_posts(
+			array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => absint( $story_id ),
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			)
+		);
+
+		return count( $chapter_ids );
+	}
+
+	/**
+	 * Get a sortable visibility rank for a story row.
+	 *
+	 * Visible stories sort above hidden ones, while blocked stories sort last.
+	 *
+	 * @since 1.0.0
+	 * @param object $story Story post object.
+	 * @return int
+	 */
+	private function get_story_visibility_rank( $story ) {
+		$story_id = isset( $story->ID ) ? absint( $story->ID ) : 0;
+		if ( $story_id && get_post_meta( $story_id, '_fanfic_story_blocked', true ) ) {
+			return 0;
+		}
+
+		$post_status = isset( $story->post_status ) ? (string) $story->post_status : '';
+		if ( 'publish' === $post_status ) {
+			return 2;
+		}
+
+		return 1;
 	}
 
 	/**
@@ -255,10 +301,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 */
 	public function column_publication( $item ) {
 		$post_status = $item->post_status;
-		$is_blocked = (bool) get_post_meta( $item->ID, '_fanfic_story_blocked', true );
+		$is_blocked = fanfic_is_story_blocked( $item->ID );
 
 		if ( $is_blocked ) {
-			$block_reason = get_post_meta( $item->ID, '_fanfic_story_blocked_reason', true );
+			$block_reason = get_post_meta( $item->ID, '_fanfic_block_reason', true );
 			$reason_labels = self::get_block_reason_labels();
 			$reason_label = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : $block_reason;
 
@@ -270,10 +316,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		}
 
 		if ( 'publish' === $post_status ) {
-			return '<span class="status-badge status-visible"><span class="dashicons dashicons-yes-alt"></span> ' . __( 'Published', 'fanfiction-manager' ) . '</span>';
+			return '<span class="status-badge status-visible"><span class="dashicons dashicons-yes-alt"></span> ' . __( 'Visible', 'fanfiction-manager' ) . '</span>';
 		}
 
-		return '<span class="status-badge status-hidden"><span class="dashicons dashicons-edit"></span> ' . __( 'Draft', 'fanfiction-manager' ) . '</span>';
+		return '<span class="status-badge status-hidden"><span class="dashicons dashicons-edit"></span> ' . __( 'Hidden', 'fanfiction-manager' ) . '</span>';
 	}
 
 	/**
@@ -283,20 +329,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 * @return array Associative array of reason codes to labels
 	 */
 	public static function get_block_reason_labels() {
-		return array(
-			'manual'              => __( 'Manual Block', 'fanfiction-manager' ),
-			'tos_violation'       => __( 'Terms of Service Violation', 'fanfiction-manager' ),
-			'copyright'           => __( 'Copyright Infringement', 'fanfiction-manager' ),
-			'inappropriate'       => __( 'Inappropriate Content', 'fanfiction-manager' ),
-			'spam'                => __( 'Spam or Advertising', 'fanfiction-manager' ),
-			'harassment'          => __( 'Harassment or Bullying', 'fanfiction-manager' ),
-			'illegal'             => __( 'Illegal Content', 'fanfiction-manager' ),
-			'underage'            => __( 'Underage Content', 'fanfiction-manager' ),
-			'rating_mismatch'     => __( 'Rating/Warning Mismatch', 'fanfiction-manager' ),
-			'user_request'        => __( 'Author Request', 'fanfiction-manager' ),
-			'pending_review'      => __( 'Pending Review', 'fanfiction-manager' ),
-			'other'               => __( 'Other', 'fanfiction-manager' ),
-		);
+		return fanfic_get_block_reason_labels();
 	}
 
 	/**
@@ -369,7 +402,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 * @return string Last updated date
 	 */
 	public function column_last_updated( $item ) {
-		$date = strtotime( $item->post_modified );
+		$date = strtotime( fanfic_get_story_content_updated_date( $item->ID ) );
 		$time_diff = human_time_diff( $date, current_time( 'timestamp' ) );
 
 		return sprintf(
@@ -482,18 +515,19 @@ class Fanfic_Stories_Table extends WP_List_Table {
 
 			case 'last_updated':
 			default:
-				$args['orderby'] = 'modified';
+				$args['meta_key'] = '_fanfic_content_updated_date';
+				$args['orderby'] = 'meta_value';
 				$args['order'] = $order;
 				break;
 		}
 
 		// Get stories (without special sorting first)
-		if ( ! in_array( $orderby, array( 'chapter_count', 'views', 'average_rating' ), true ) ) {
+		if ( ! in_array( $orderby, array( 'chapter_count', 'publication', 'views', 'average_rating' ), true ) ) {
 			$query = new WP_Query( $args );
 			$stories = $query->posts;
 			$total_items = $query->found_posts;
 		} else {
-			// For special sorting (chapter_count, views, average_rating), we need custom logic
+			// For special sorting (chapter_count, publication, views, average_rating), we need custom logic
 			// First, get all matching stories
 			$args['posts_per_page'] = -1;
 			$args['offset'] = 0;
@@ -505,25 +539,11 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			$total_items = $query->found_posts;
 
 			// Add computed data for sorting
-			foreach ( $all_stories as $story ) {
-				$story_id = $story->ID;
+				foreach ( $all_stories as $story ) {
+					$story_id = $story->ID;
 
-				// Count chapters (excluding prologue/epilogue)
-				$chapters = get_posts( array(
-					'post_type'      => 'fanfiction_chapter',
-					'post_parent'    => $story_id,
-					'post_status'    => 'any',
-					'posts_per_page' => -1,
-					'fields'         => 'ids',
-					'meta_query'     => array(
-						array(
-							'key'     => '_fanfic_chapter_type',
-							'value'   => 'chapter',
-							'compare' => '=',
-						),
-					),
-				) );
-				$story->chapter_count = count( $chapters );
+				$story->chapter_count = $this->get_story_chapter_count( $story_id );
+				$story->visibility_rank = $this->get_story_visibility_rank( $story );
 
 				if ( 'views' === $orderby ) {
 					$story->views_count = Fanfic_Interactions::get_story_views( $story_id );
@@ -539,6 +559,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			if ( 'chapter_count' === $orderby ) {
 				usort( $all_stories, function( $a, $b ) use ( $order ) {
 					return 'ASC' === $order ? $a->chapter_count - $b->chapter_count : $b->chapter_count - $a->chapter_count;
+				} );
+			} elseif ( 'publication' === $orderby ) {
+				usort( $all_stories, function( $a, $b ) use ( $order ) {
+					return 'ASC' === $order ? $a->visibility_rank - $b->visibility_rank : $b->visibility_rank - $a->visibility_rank;
 				} );
 			} elseif ( 'views' === $orderby ) {
 				usort( $all_stories, function( $a, $b ) use ( $order ) {
@@ -558,21 +582,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		// Add chapter count to all stories
 		foreach ( $stories as $story ) {
 			if ( ! isset( $story->chapter_count ) ) {
-				$chapters = get_posts( array(
-					'post_type'      => 'fanfiction_chapter',
-					'post_parent'    => $story->ID,
-					'post_status'    => 'any',
-					'posts_per_page' => -1,
-					'fields'         => 'ids',
-					'meta_query'     => array(
-						array(
-							'key'     => '_fanfic_chapter_type',
-							'value'   => 'chapter',
-							'compare' => '=',
-						),
-					),
-				) );
-				$story->chapter_count = count( $chapters );
+				$story->chapter_count = $this->get_story_chapter_count( $story->ID );
 			}
 		}
 
@@ -596,10 +606,16 @@ class Fanfic_Stories_Table extends WP_List_Table {
 	 * @return void
 	 */
 	protected function extra_tablenav( $which ) {
+		$can_feature_manually = class_exists( 'Fanfic_Featured_Stories' )
+			&& Fanfic_Featured_Stories::can_user_feature()
+			&& 'automatic' !== Fanfic_Settings::get_setting( 'featured_mode', 'manual' );
 		?>
 		<div class="alignleft actions">
-			<button type="button" id="bulk-publish-<?php echo esc_attr($which); ?>" class="button bulk-publish"><?php esc_html_e( 'Publish', 'fanfiction-manager' ); ?></button>
-			<button type="button" id="bulk-set-draft-<?php echo esc_attr($which); ?>" class="button bulk-set-draft"><?php esc_html_e( 'Set to Draft', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-publish-<?php echo esc_attr($which); ?>" class="button bulk-publish"><?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?></button>
+			<button type="button" id="bulk-set-draft-<?php echo esc_attr($which); ?>" class="button bulk-set-draft"><?php esc_html_e( 'Hide', 'fanfiction-manager' ); ?></button>
+			<?php if ( $can_feature_manually ) : ?>
+				<button type="button" id="bulk-feature-<?php echo esc_attr($which); ?>" class="button bulk-feature"><?php esc_html_e( 'Feature', 'fanfiction-manager' ); ?></button>
+			<?php endif; ?>
 			<button type="button" id="bulk-block-<?php echo esc_attr($which); ?>" class="button bulk-block"><?php esc_html_e( 'Block', 'fanfiction-manager' ); ?></button>
 			<button type="button" id="bulk-unblock-<?php echo esc_attr($which); ?>" class="button bulk-unblock"><?php esc_html_e( 'Unblock', 'fanfiction-manager' ); ?></button>
 			<button type="button" id="bulk-change-author-<?php echo esc_attr($which); ?>" class="button bulk-change-author"><?php esc_html_e( 'Change Author', 'fanfiction-manager' ); ?></button>
@@ -952,6 +968,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 
 		                $('.bulk-publish').on('click', function(e) { e.preventDefault(); run_bulk_action('publish', $(this)); });
 		                $('.bulk-set-draft').on('click', function(e) { e.preventDefault(); run_bulk_action('set_draft', $(this)); });
+		                $('.bulk-feature').on('click', function(e) { e.preventDefault(); run_bulk_action('feature', $(this)); });
 		                $('.bulk-unblock').on('click', function(e) { e.preventDefault(); run_bulk_action('unblock', $(this)); });
 		                $('.bulk-delete').on('click', function(e) { e.preventDefault(); run_bulk_action('delete', $(this)); });
 
@@ -1327,41 +1344,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 				}
 
 				foreach ( $story_ids as $story_id ) {
-					$story_status = get_post_status( $story_id );
-					if ( $story_status && ! get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true ) ) {
-						update_post_meta( $story_id, '_fanfic_story_blocked_prev_status', $story_status );
-					}
-					update_post_meta( $story_id, '_fanfic_story_blocked', 1 );
-					update_post_meta( $story_id, '_fanfic_story_blocked_reason', $block_reason );
-					wp_update_post( array(
-						'ID'          => $story_id,
-						'post_status' => 'draft',
-					) );
-
-					// Fire story blocked hook for moderation log
-					$reason_labels = self::get_block_reason_labels();
-					$reason_label = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : $block_reason;
-					do_action( 'fanfic_story_blocked', $story_id, get_current_user_id(), $block_reason, $reason_label );
-
-					$chapters = get_posts( array(
-						'post_type'      => 'fanfiction_chapter',
-						'post_parent'    => $story_id,
-						'post_status'    => 'any',
-						'posts_per_page' => -1,
-						'fields'         => 'ids',
-					) );
-					foreach ( $chapters as $chapter_id ) {
-						$chapter_status = get_post_status( $chapter_id );
-						if ( $chapter_status && ! get_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status', true ) ) {
-							update_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status', $chapter_status );
-						}
-						update_post_meta( $chapter_id, '_fanfic_story_blocked', 1 );
-						update_post_meta( $chapter_id, '_fanfic_story_blocked_reason', $block_reason );
-						wp_update_post( array(
-							'ID'          => $chapter_id,
-							'post_status' => 'draft',
-						) );
-					}
+					fanfic_block_story( $story_id, $block_reason, get_current_user_id() );
 				}
 				$this->add_notice(
 					sprintf(
@@ -1375,41 +1358,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 
 			case 'unblock':
 				foreach ( $story_ids as $story_id ) {
-					$story_prev_status = get_post_meta( $story_id, '_fanfic_story_blocked_prev_status', true );
-					$story_restore_status = $story_prev_status ? $story_prev_status : 'draft';
-					if ( $story_restore_status ) {
-						wp_update_post( array(
-							'ID'          => $story_id,
-							'post_status' => $story_restore_status,
-						) );
-					}
-					delete_post_meta( $story_id, '_fanfic_story_blocked_prev_status' );
-					delete_post_meta( $story_id, '_fanfic_story_blocked' );
-					delete_post_meta( $story_id, '_fanfic_story_blocked_reason' );
-
-					// Fire story unblocked hook for moderation log
-					do_action( 'fanfic_story_unblocked', $story_id, get_current_user_id() );
-
-					$chapters = get_posts( array(
-						'post_type'      => 'fanfiction_chapter',
-						'post_parent'    => $story_id,
-						'post_status'    => 'any',
-						'posts_per_page' => -1,
-						'fields'         => 'ids',
-					) );
-					foreach ( $chapters as $chapter_id ) {
-						$chapter_prev_status = get_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status', true );
-						$chapter_restore_status = $chapter_prev_status ? $chapter_prev_status : 'draft';
-						if ( $chapter_restore_status ) {
-							wp_update_post( array(
-								'ID'          => $chapter_id,
-								'post_status' => $chapter_restore_status,
-							) );
-						}
-						delete_post_meta( $chapter_id, '_fanfic_story_blocked_prev_status' );
-						delete_post_meta( $chapter_id, '_fanfic_story_blocked' );
-						delete_post_meta( $chapter_id, '_fanfic_story_blocked_reason' );
-					}
+					fanfic_unblock_story( $story_id, get_current_user_id() );
 				}
 				$this->add_notice(
 					sprintf(
@@ -1451,21 +1400,21 @@ class Fanfic_Stories_Table extends WP_List_Table {
 					$this->add_notice(
 						sprintf(
 							/* translators: %d: Number of stories */
-							_n( '%d story published successfully.', '%d stories published successfully.', $published_count, 'fanfiction-manager' ),
+							_n( '%d story made visible.', '%d stories made visible.', $published_count, 'fanfiction-manager' ),
 							$published_count
 						),
 						'success'
 					);
 				}
 
-				if ( ! empty( $failed_stories_details ) ) {
-					$error_message = sprintf(
-						/* translators: %s: Comma-separated list of failed story titles and reasons */
-						__( 'The following stories could not be published because they do not meet the requirements: %s', 'fanfiction-manager' ),
-						implode( '; ', $failed_stories_details )
-					);
-					$this->add_notice( $error_message, 'error' );
-				}
+					if ( ! empty( $failed_stories_details ) ) {
+						$error_message = sprintf(
+							/* translators: %s: Comma-separated list of failed story titles and reasons */
+							__( 'The following stories could not be made visible because they do not meet the requirements: %s', 'fanfiction-manager' ),
+							implode( '; ', $failed_stories_details )
+						);
+						$this->add_notice( $error_message, 'error' );
+					}
 				break;
 
 			case 'set_draft':
@@ -1476,9 +1425,29 @@ class Fanfic_Stories_Table extends WP_List_Table {
 					) );
 				}
 				$this->add_notice(
+						sprintf(
+							/* translators: %d: Number of stories */
+							_n( '%d story hidden.', '%d stories hidden.', count( $story_ids ), 'fanfiction-manager' ),
+							count( $story_ids )
+						),
+						'success'
+				);
+				break;
+
+			case 'feature':
+				if ( ! class_exists( 'Fanfic_Featured_Stories' ) || 'automatic' === Fanfic_Settings::get_setting( 'featured_mode', 'manual' ) ) {
+					$this->add_notice( __( 'Manual featuring is not available in automatic mode.', 'fanfiction-manager' ), 'error' );
+					break;
+				}
+
+				foreach ( $story_ids as $story_id ) {
+					Fanfic_Featured_Stories::set_manual_featured( $story_id );
+				}
+
+				$this->add_notice(
 					sprintf(
 						/* translators: %d: Number of stories */
-						_n( '%d story set to draft.', '%d stories set to draft.', count( $story_ids ), 'fanfiction-manager' ),
+						_n( '%d story featured.', '%d stories featured.', count( $story_ids ), 'fanfiction-manager' ),
 						count( $story_ids )
 					),
 					'success'

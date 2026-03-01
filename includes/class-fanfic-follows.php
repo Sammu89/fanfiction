@@ -518,16 +518,14 @@ class Fanfic_Follows {
 		$chapter_number = get_post_meta( $chapter->ID, '_fanfic_chapter_number', true );
 		$chapter_label  = self::get_chapter_label_helper( $chapter->ID );
 
-		$post_date     = strtotime( $chapter->post_date );
-		$post_modified = strtotime( $chapter->post_modified );
-		$display_date  = ( $post_modified > $post_date ) ? $chapter->post_modified : $chapter->post_date;
-		$formatted_date = wp_date( get_option( 'date_format' ), strtotime( $display_date ) );
+		$display_date   = fanfic_get_chapter_content_updated_date( $chapter->ID );
+		$display_ts     = $display_date ? strtotime( $display_date ) : false;
+		$formatted_date = $display_ts ? wp_date( get_option( 'date_format' ), $display_ts ) : '';
 
 		$current_user_id = get_current_user_id();
 		$is_read         = false;
-		if ( $current_user_id && class_exists( 'Fanfic_Reading_Progress' ) ) {
-			$read_chapters = self::get_cached_read_chapters_helper( $current_user_id, $story->ID );
-			$is_read       = in_array( absint( $chapter_number ), $read_chapters, true );
+		if ( $current_user_id && class_exists( 'Fanfic_Interactions' ) ) {
+			$is_read = Fanfic_Interactions::is_chapter_read_current( $current_user_id, $chapter->ID );
 		}
 
 		$output  = '<div class="fanfic-follow-item fanfic-follow-chapter">';
@@ -617,10 +615,9 @@ class Fanfic_Follows {
 		}
 
 		$latest_chapter_label = self::get_chapter_label_helper( $latest_chapter->ID );
-		$post_date            = strtotime( $latest_chapter->post_date );
-		$post_modified        = strtotime( $latest_chapter->post_modified );
-		$display_date         = ( $post_modified > $post_date ) ? $latest_chapter->post_modified : $latest_chapter->post_date;
-		$latest_chapter_date  = wp_date( get_option( 'date_format' ), strtotime( $display_date ) );
+		$display_date        = fanfic_get_chapter_content_updated_date( $latest_chapter->ID );
+		$display_ts          = $display_date ? strtotime( $display_date ) : false;
+		$latest_chapter_date = $display_ts ? wp_date( get_option( 'date_format' ), $display_ts ) : '';
 
 		return sprintf(
 			'<p class="fanfic-follow-story-latest-update">%1$s <a href="%2$s">%3$s</a> %4$s</p>',

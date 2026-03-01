@@ -498,6 +498,23 @@ function fanfic_get_story_card_translation_siblings( $story_id, $translation_gro
 	fanfic_preload_story_card_index_data( array( $story_id ) );
 
 	$group_rows = $GLOBALS['fanfic_story_card_translation_cache'][ $translation_group_id ] ?? array();
+	$cache_was_empty = empty( $group_rows );
+
+	// Check if cache only has the current story (no siblings).
+	$cache_has_only_self = false;
+	if ( ! $cache_was_empty && count( $group_rows ) === 1 ) {
+		$first_row_id = absint( $group_rows[0]['story_id'] ?? 0 );
+		if ( $first_row_id === $story_id ) {
+			$cache_has_only_self = true;
+		}
+	}
+
+	// Fallback: if cache is empty or only has current story, query directly.
+	if ( $cache_was_empty || $cache_has_only_self ) {
+		$group_rows = fanfic_get_translation_siblings_fallback( $translation_group_id );
+	}
+
+
 	if ( empty( $group_rows ) || ! is_array( $group_rows ) ) {
 		return array();
 	}
@@ -517,6 +534,72 @@ function fanfic_get_story_card_translation_siblings( $story_id, $translation_gro
 			'language_name' => sanitize_text_field( (string) ( $row['language_name'] ?? '' ) ),
 		);
 	}
+
+	return $siblings;
+}
+
+/**
+ * Fallback query to get translation siblings directly from the translations table.
+ *
+ * Used when the search index cache doesn't have translation data.
+ *
+ * @since 1.5.4
+ * @param int $translation_group_id Translation group ID.
+ * @return array<int,array{story_id:int,language_slug:string,story_slug:string,view_count:int,language_name:string}>
+ */
+function fanfic_get_translation_siblings_fallback( $translation_group_id ) {
+	$translation_group_id = absint( $translation_group_id );
+	if ( ! $translation_group_id ) {
+		return array();
+	}
+
+	// Use Fanfic_Translations class if available and enabled.
+	if ( ! class_exists( 'Fanfic_Translations' ) || ! Fanfic_Translations::is_enabled() ) {
+		return array();
+	}
+
+	$story_ids = Fanfic_Translations::get_group_stories( $translation_group_id );
+	if ( empty( $story_ids ) ) {
+		return array();
+	}
+
+	$siblings = array();
+	foreach ( $story_ids as $sibling_id ) {
+		$sibling_id = absint( $sibling_id );
+		$post = get_post( $sibling_id );
+		if ( ! $post || 'publish' !== $post->post_status || 'fanfiction' !== $post->post_type ) {
+			continue;
+		}
+
+		// Get language term.
+		$language_terms = get_the_terms( $sibling_id, 'fanfic_language' );
+		$language_slug = '';
+		$language_name = '';
+		if ( ! empty( $language_terms ) && ! is_wp_error( $language_terms ) ) {
+			$language_term = reset( $language_terms );
+			$language_slug = $language_term->slug;
+			$language_name = $language_term->name;
+		}
+
+		// Get view count from interactions table if available.
+		$view_count = 0;
+		if ( class_exists( 'Fanfic_Interactions' ) ) {
+			$view_count = Fanfic_Interactions::get_story_views( $sibling_id );
+		}
+
+		$siblings[] = array(
+			'story_id'      => $sibling_id,
+			'language_slug' => $language_slug,
+			'story_slug'    => $post->post_name,
+			'view_count'    => $view_count,
+			'language_name' => $language_name,
+		);
+	}
+
+	// Sort by view count descending.
+	usort( $siblings, function( $a, $b ) {
+		return $b['view_count'] - $a['view_count'];
+	} );
 
 	return $siblings;
 }
@@ -677,8 +760,25 @@ function fanfic_get_story_card_html( $story_id ) {
 	if ( '' === $language_label ) {
 		$language_label = fanfic_story_card_format_language_label( $language_slug );
 	}
-	$translation_group_id = absint( $card_index_data['translation_group_id'] );
-	$translation_count = absint( $card_index_data['translation_count'] );
+	// Check if Languages feature is enabled.
+	$languages_enabled = class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled();
+
+	// Only process translation data if Languages are enabled.
+	if ( $languages_enabled ) {
+		$translation_group_id = absint( $card_index_data['translation_group_id'] );
+		$translation_count = absint( $card_index_data['translation_count'] );
+
+		// Fallback: if search index doesn't have translation data, try fetching directly.
+		if ( 0 === $translation_group_id && class_exists( 'Fanfic_Translations' ) && Fanfic_Translations::is_enabled() ) {
+			$translation_group_id = absint( Fanfic_Translations::get_group_id( $story_id ) );
+			if ( $translation_group_id > 0 ) {
+				$translation_count = count( Fanfic_Translations::get_translation_siblings( $story_id ) );
+			}
+		}
+	} else {
+		$translation_group_id = 0;
+		$translation_count = 0;
+	}
 	$genre_items = array();
 	foreach ( fanfic_story_card_parse_csv_values( $card_index_data['genre_names'] ) as $genre_name ) {
 		$genre_label = trim( sanitize_text_field( (string) $genre_name ) );
@@ -827,15 +927,40 @@ function fanfic_get_story_card_html( $story_id ) {
 	}
 
 	$translation_siblings = fanfic_get_story_card_translation_siblings( $story_id, $translation_group_id );
+
+
 	$translation_links = array();
 	$seen_translation_languages = array();
 	foreach ( $translation_siblings as $sibling ) {
 		$sibling_language_slug = sanitize_title( (string) ( $sibling['language_slug'] ?? '' ) );
 		$sibling_story_id = absint( $sibling['story_id'] ?? 0 );
 		$sibling_url = fanfic_story_card_build_story_url( (string) ( $sibling['story_slug'] ?? '' ), $sibling_story_id );
-		if ( '' === $sibling_language_slug || '' === $sibling_url ) {
+
+		// Fallback to permalink if URL builder fails.
+		if ( '' === $sibling_url && $sibling_story_id > 0 ) {
+			$sibling_url = get_permalink( $sibling_story_id );
+		}
+
+		// Skip if no URL (shouldn't happen with fallback).
+		if ( '' === $sibling_url ) {
 			continue;
 		}
+
+		// If language slug is missing, try to fetch it directly.
+		if ( '' === $sibling_language_slug && $sibling_story_id > 0 ) {
+			$lang_terms = get_the_terms( $sibling_story_id, 'fanfic_language' );
+			if ( ! empty( $lang_terms ) && ! is_wp_error( $lang_terms ) ) {
+				$lang_term = reset( $lang_terms );
+				$sibling_language_slug = $lang_term->slug;
+				$sibling['language_name'] = $lang_term->name;
+			}
+		}
+
+		// Skip if still no language.
+		if ( '' === $sibling_language_slug ) {
+			continue;
+		}
+
 		if ( isset( $seen_translation_languages[ $sibling_language_slug ] ) ) {
 			continue;
 		}
@@ -1044,6 +1169,7 @@ function fanfic_get_story_card_html( $story_id ) {
 
 						<?php $has_translations = ! empty( $translation_links ) || ( $translation_group_id && $translation_count > 0 ); ?>
 						<?php $language_filter_url = '' !== $language_slug ? fanfic_story_card_build_clean_filter_url( 'language', $language_slug ) : ''; ?>
+						<?php if ( $languages_enabled ) : ?>
 						<div class="story-card-language-row"<?php echo $has_translations ? '' : ' style="grid-area:translations"'; ?>>
 							<strong><?php esc_html_e( 'Language:', 'fanfiction-manager' ); ?></strong>
 							<?php if ( '' !== $language_filter_url && '' !== $language_slug ) : ?>
@@ -1052,11 +1178,12 @@ function fanfic_get_story_card_html( $story_id ) {
 								<span><?php echo esc_html( '' !== $language_label ? $language_label : __( 'Unknown', 'fanfiction-manager' ) ); ?></span>
 							<?php endif; ?>
 						</div>
+						<?php endif; ?>
 
 						<div class="search-story-card-metrics" aria-label="<?php esc_attr_e( 'Story metrics', 'fanfiction-manager' ); ?>">
 							<span class="search-story-card-metric">
 								<span class="dashicons dashicons-edit" aria-hidden="true"></span>
-								<span><?php printf( esc_html__( '%s words', 'fanfiction-manager' ), esc_html( number_format_i18n( $word_count ) ) ); ?></span>
+								<span title="<?php printf( esc_attr__( '%s words', 'fanfiction-manager' ), esc_attr( Fanfic_Shortcodes::format_number( $word_count ) ) ); ?>" aria-label="<?php printf( esc_attr__( '%s words', 'fanfiction-manager' ), esc_attr( Fanfic_Shortcodes::format_number( $word_count ) ) ); ?>"><?php printf( esc_html__( '%s words', 'fanfiction-manager' ), esc_html( Fanfic_Shortcodes::format_engagement_number( $word_count ) ) ); ?></span>
 							</span>
 							<span class="search-story-card-metric">
 								<span class="dashicons dashicons-visibility" aria-hidden="true"></span>

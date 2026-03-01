@@ -48,10 +48,11 @@ function fanfic_get_default_chapter_view_template() {
 		$chapter_id = get_the_ID();
 		if ( $chapter_id ) {
 			$published_timestamp = get_post_time( 'U', false, $chapter_id );
-			$modified_timestamp  = get_post_modified_time( 'U', false, $chapter_id );
+			$updated_datetime    = fanfic_get_chapter_content_updated_date( $chapter_id );
+			$modified_timestamp  = $updated_datetime ? strtotime( $updated_datetime ) : false;
 
 			// Only show if modified date is different from published date (more than 1 day difference)
-			if ( abs( $modified_timestamp - $published_timestamp ) >= DAY_IN_SECONDS ) {
+			if ( false !== $modified_timestamp && abs( $modified_timestamp - $published_timestamp ) >= DAY_IN_SECONDS ) {
 				?>
 				<span class="fanfic-updated">
 					<?php esc_html_e( 'Updated:', 'fanfiction-manager' ); ?> [fanfic-chapter-updated]
@@ -69,10 +70,12 @@ function fanfic_get_default_chapter_view_template() {
 <div class="fanfic-chapter-content" itemprop="text">
 	[fanfic-chapter-content]
 </div>
-
+<!-- Action buttons (like, follow, mark-read, share, report, edit) -->
+<div class="fanfic-chapter-actions">
+[fanfiction-action-buttons]
+</div>
 <!-- Visual separator -->
 <hr class="fanfic-content-separator" aria-hidden="true">
-
 <!-- Rating & Like/Dislike section -->
 <section class="fanfic-chapter-rating" aria-labelledby="rating-heading">
 	<h3 id="rating-heading"><?php esc_html_e( 'Rate this chapter', 'fanfiction-manager' ); ?></h3>
@@ -81,11 +84,6 @@ function fanfic_get_default_chapter_view_template() {
 		<div class="fanfic-rating-right">[fanfic-like-dislike]</div>
 	</div>
 </section>
-
-<!-- Action buttons (like, follow, mark-read, share, report, edit) -->
-<div class="fanfic-chapter-actions">
-[fanfiction-action-buttons]
-</div>
 
 <!-- Chapter navigation (previous/next) -->
 <nav class="fanfic-chapter-navigation" aria-label="<?php esc_attr_e( 'Chapter navigation', 'fanfiction-manager' ); ?>">
@@ -126,10 +124,9 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 	if ( $story_id ) {
 		$story = get_post( $story_id );
 
-		// If story is draft, check if user has permission
-		if ( $story && 'draft' === $story->post_status ) {
-			// Check if user can edit this story (uses your custom role permissions)
-			if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
+		// If story is hidden, check if user has permission to view restricted content.
+		if ( $story && 'publish' !== $story->post_status ) {
+			if ( ! fanfic_current_user_can_view_post( $chapter_post->ID ) ) {
 				// Show access denied message
 				?>
 				<div class="fanfic-content-wrapper fanfic-fullpage-message">
@@ -137,7 +134,7 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 						<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
 						<span class="fanfic-message-content">
 							<strong class="fanfic-message-title"><?php esc_html_e( 'Access Denied', 'fanfiction-manager' ); ?></strong>
-							<span class="fanfic-message-text"><?php esc_html_e( 'This chapter is part of a story that is currently in draft status and not publicly available.', 'fanfiction-manager' ); ?></span>
+							<span class="fanfic-message-text"><?php esc_html_e( 'This chapter is part of a story that is not currently visible to the public.', 'fanfiction-manager' ); ?></span>
 							<span class="fanfic-message-actions">
 								<a href="<?php echo esc_url( home_url( '/fanfiction/' ) ); ?>" class="fanfic-button">
 									<?php esc_html_e( 'Back to Stories', 'fanfiction-manager' ); ?>
@@ -179,6 +176,10 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 		);
 	}
 
+	if ( fanfic_is_chapter_blocked( $chapter_post->ID ) ) {
+		$warning_parts[] = esc_html__( 'this chapter is blocked', 'fanfiction-manager' );
+	}
+
 	if ( ! empty( $story ) && 'publish' !== $story->post_status ) {
 		$story_status_obj = get_post_status_object( $story->post_status );
 		$story_status_label = $story_status_obj && ! empty( $story_status_obj->label ) ? $story_status_obj->label : $story->post_status;
@@ -213,4 +214,8 @@ fanfic_render_breadcrumb( 'view-chapter', array(
 ) );
 
 // Process shortcodes in the template
-echo do_shortcode( $template );
+$rendered_template = do_shortcode( $template );
+$parent_story_id = $chapter_post ? absint( $chapter_post->post_parent ) : 0;
+echo function_exists( 'fanfic_wrap_story_age_confirmation_gate' )
+	? fanfic_wrap_story_age_confirmation_gate( $rendered_template, $parent_story_id, 'chapter' )
+	: $rendered_template;

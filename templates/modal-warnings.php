@@ -149,18 +149,18 @@ function fanfic_get_validation_error_heading( $type = 'story' ) {
 	<div class="fanfic-auto-draft-warning-box">
 		<div class="fanfic-auto-draft-warning-header">
 			<span class="dashicons dashicons-warning" aria-hidden="true"></span>
-			<h3><?php esc_html_e( 'Story Automatically Drafted', 'fanfiction-manager' ); ?></h3>
+			<h3><?php esc_html_e( 'Story Automatically Hidden', 'fanfiction-manager' ); ?></h3>
 			<button type="button" class="fanfic-auto-draft-warning-close" data-close-target="fanfic-story-auto-draft-warning" aria-label="<?php esc_attr_e( 'Close warning', 'fanfiction-manager' ); ?>">
 				<span class="dashicons dashicons-no-alt" aria-hidden="true"></span>
 			</button>
 		</div>
 		<div class="fanfic-auto-draft-warning-body">
-			<p><?php esc_html_e( 'Your story has been automatically moved to draft status because it no longer has any published chapters.', 'fanfiction-manager' ); ?></p>
+			<p><?php esc_html_e( 'Your story has been automatically hidden because it no longer has any visible chapters.', 'fanfiction-manager' ); ?></p>
 			<p>
 				<strong><?php esc_html_e( 'Story: ', 'fanfiction-manager' ); ?></strong>
 				<span id="fanfic-story-warning-title"></span>
 			</p>
-			<p><?php esc_html_e( 'To make your story visible to readers again, publish at least one chapter or prologue.', 'fanfiction-manager' ); ?></p>
+				<p><?php esc_html_e( 'To make your story visible to readers again, make at least one chapter or prologue visible.', 'fanfiction-manager' ); ?></p>
 		</div>
 	</div>
 </div>
@@ -175,15 +175,15 @@ function fanfic_get_validation_error_heading( $type = 'story' ) {
 	<div class="fanfic-auto-draft-warning-box">
 		<div class="fanfic-auto-draft-warning-header">
 			<span class="dashicons dashicons-warning" aria-hidden="true"></span>
-			<h3><?php esc_html_e( 'Story Automatically Drafted', 'fanfiction-manager' ); ?></h3>
+			<h3><?php esc_html_e( 'Story Automatically Hidden', 'fanfiction-manager' ); ?></h3>
 			<button type="button" class="fanfic-auto-draft-warning-close" data-close-target="fanfic-chapter-auto-draft-warning" aria-label="<?php esc_attr_e( 'Close warning', 'fanfiction-manager' ); ?>">
 				<span class="dashicons dashicons-no-alt" aria-hidden="true"></span>
 			</button>
 		</div>
 		<div class="fanfic-auto-draft-warning-body">
-			<p><?php esc_html_e( 'Your story has been automatically moved to draft status because it no longer has any published chapters.', 'fanfiction-manager' ); ?></p>
+			<p><?php esc_html_e( 'Your story has been automatically hidden because it no longer has any visible chapters.', 'fanfiction-manager' ); ?></p>
 
-			<p><?php esc_html_e( 'To make your story visible to readers again, you need to publish this chapter or another chapter/prologue.', 'fanfiction-manager' ); ?></p>
+				<p><?php esc_html_e( 'To make your story visible to readers again, you need to make this chapter or another chapter/prologue visible.', 'fanfiction-manager' ); ?></p>
 		</div>
 	</div>
 </div>
@@ -197,14 +197,14 @@ function fanfic_get_validation_error_heading( $type = 'story' ) {
 <div id="publish-prompt-modal" class="fanfic-modal" role="dialog" aria-labelledby="publish-modal-title" aria-modal="true" style="display: none;">
 	<div class="fanfic-modal-overlay"></div>
 	<div class="fanfic-modal-content">
-		<h2 id="publish-modal-title"><?php esc_html_e( 'Ready to Publish Your Story?', 'fanfiction-manager' ); ?></h2>
-		<p><?php esc_html_e( 'Great! Your story now has its first published chapter. Would you like to publish your story to make it visible to readers?', 'fanfiction-manager' ); ?></p>
+		<h2 id="publish-modal-title"><?php esc_html_e( 'Ready to Make Your Story Visible?', 'fanfiction-manager' ); ?></h2>
+		<p><?php esc_html_e( 'Great! Your story now has its first visible chapter. Would you like to make your story visible to readers?', 'fanfiction-manager' ); ?></p>
 		<div class="fanfic-modal-actions">
 			<button type="button" id="publish-story-now" class="fanfic-button-primary">
-				<?php esc_html_e( 'Yes, Publish Story', 'fanfiction-manager' ); ?>
+				<?php esc_html_e( 'Yes, Make Story Visible', 'fanfiction-manager' ); ?>
 			</button>
 			<button type="button" id="keep-as-draft" class="secondary">
-				<?php esc_html_e( 'No, Keep as Draft', 'fanfiction-manager' ); ?>
+				<?php esc_html_e( 'No, Keep Hidden', 'fanfiction-manager' ); ?>
 			</button>
 		</div>
 	</div>
@@ -224,49 +224,49 @@ function fanfic_get_validation_error_heading( $type = 'story' ) {
 var FanficMessages = {
 	// Delete Confirmations
 	deleteChapter: '<?php echo esc_js( __( 'Once you delete a chapter, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ) ); ?>',
-	deleteChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last chapter/prologue. Deleting it will automatically set your story to DRAFT status, making it invisible to readers.', 'fanfiction-manager' ) ); ?>',
+	deleteChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last chapter/prologue. Deleting it will automatically hide your story from readers.', 'fanfiction-manager' ) ); ?>',
 	deleteStory: '<?php echo esc_js( __( 'Once you delete a story, there is no going back. All data will be permanently removed.', 'fanfiction-manager' ) ); ?>',
 
 	// Hide Confirmations
 	hideChapter: '<?php echo esc_js( __( 'Are you sure you want to hide', 'fanfiction-manager' ) ); ?>',
-	hideChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last published chapter/prologue. Hideing it will automatically draft your story.', 'fanfiction-manager' ) ); ?>',
-	hideChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter hideed. Your story has been set to draft because it no longer has any published chapters or prologues.', 'fanfiction-manager' ) ); ?>',
+	hideChapterLastWarning: '<?php echo esc_js( __( 'WARNING: This is your last visible chapter/prologue. Hiding it will automatically hide your story.', 'fanfiction-manager' ) ); ?>',
+	hideChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter hidden. Your story has been hidden because it no longer has any visible chapters or prologues.', 'fanfiction-manager' ) ); ?>',
 
 	// Delete Success Alerts
 	deleteChapterSuccess: '<?php echo esc_js( __( 'Chapter deleted successfully.', 'fanfiction-manager' ) ); ?>',
-	deleteChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter deleted. Your story has been set to draft because it no longer has any chapters or prologues.', 'fanfiction-manager' ) ); ?>',
+	deleteChapterAutoDraftAlert: '<?php echo esc_js( __( 'Chapter deleted. Your story has been hidden because it no longer has any chapters or prologues.', 'fanfiction-manager' ) ); ?>',
 
 	// Error Messages
 	errorCheckingLastChapter: '<?php echo esc_js( __( 'Error checking if this is the last chapter. Please try again.', 'fanfiction-manager' ) ); ?>',
 	errorDeletingChapter: '<?php echo esc_js( __( 'An error occurred while deleting the chapter.', 'fanfiction-manager' ) ); ?>',
 	errorDeletingStory: '<?php echo esc_js( __( 'An error occurred while deleting the story.', 'fanfiction-manager' ) ); ?>',
 	errorHideingChapter: '<?php echo esc_js( __( 'An error occurred while hideing the chapter.', 'fanfiction-manager' ) ); ?>',
-	errorPublishingChapter: '<?php echo esc_js( __( 'An error occurred while publishing the chapter.', 'fanfiction-manager' ) ); ?>',
+	errorPublishingChapter: '<?php echo esc_js( __( 'An error occurred while making the chapter visible.', 'fanfiction-manager' ) ); ?>',
 	errorUpdatingChapter: '<?php echo esc_js( __( 'An error occurred while updating the chapter.', 'fanfiction-manager' ) ); ?>',
 
 	// Loading States
 	deleting: '<?php echo esc_js( __( 'Deleting...', 'fanfiction-manager' ) ); ?>',
 	hideing: '<?php echo esc_js( __( 'Hideing...', 'fanfiction-manager' ) ); ?>',
-	publishing: '<?php echo esc_js( __( 'Publishing...', 'fanfiction-manager' ) ); ?>',
+	publishing: '<?php echo esc_js( __( 'Making visible...', 'fanfiction-manager' ) ); ?>',
 	updating: '<?php echo esc_js( __( 'Updating...', 'fanfiction-manager' ) ); ?>',
 
 	// Button Labels
 	delete: '<?php echo esc_js( __( 'Delete', 'fanfiction-manager' ) ); ?>',
 	hide: '<?php echo esc_js( __( 'Hide', 'fanfiction-manager' ) ); ?>',
-	publish: '<?php echo esc_js( __( 'Publish', 'fanfiction-manager' ) ); ?>',
+	publish: '<?php echo esc_js( __( 'Make Visible', 'fanfiction-manager' ) ); ?>',
 
 	// Publish Story Prompts
-	publishStoryPromptTitle: '<?php echo esc_js( __( 'Ready to Publish Your Story?', 'fanfiction-manager' ) ); ?>',
-	publishStoryPromptMessage: '<?php echo esc_js( __( 'Great! Your story now has its first published chapter. Would you like to publish your story to make it visible to readers?', 'fanfiction-manager' ) ); ?>',
-	publishStoryYes: '<?php echo esc_js( __( 'Yes, Publish Story', 'fanfiction-manager' ) ); ?>',
-	publishStoryNo: '<?php echo esc_js( __( 'No, Keep as Draft', 'fanfiction-manager' ) ); ?>',
-	publishingStory: '<?php echo esc_js( __( 'Publishing...', 'fanfiction-manager' ) ); ?>',
+	publishStoryPromptTitle: '<?php echo esc_js( __( 'Ready to Make Your Story Visible?', 'fanfiction-manager' ) ); ?>',
+	publishStoryPromptMessage: '<?php echo esc_js( __( 'Great! Your story now has its first visible chapter. Would you like to make your story visible to readers?', 'fanfiction-manager' ) ); ?>',
+	publishStoryYes: '<?php echo esc_js( __( 'Yes, Make Story Visible', 'fanfiction-manager' ) ); ?>',
+	publishStoryNo: '<?php echo esc_js( __( 'No, Keep Hidden', 'fanfiction-manager' ) ); ?>',
+	publishingStory: '<?php echo esc_js( __( 'Making visible...', 'fanfiction-manager' ) ); ?>',
 
 	// Validation Errors
-	validationErrorsPrefix: '<?php echo esc_js( __( 'Cannot publish chapter. Missing required fields:', 'fanfiction-manager' ) ); ?>',
+	validationErrorsPrefix: '<?php echo esc_js( __( 'Cannot make chapter visible. Missing required fields:', 'fanfiction-manager' ) ); ?>',
 	clickEditToFix: '<?php echo esc_js( __( 'Click Edit to correct these issues.', 'fanfiction-manager' ) ); ?>',
-	storyValidationErrorHeading: '<?php echo esc_js( __( 'Story cannot be published due to the following issues:', 'fanfiction-manager' ) ); ?>',
-	chapterValidationErrorHeading: '<?php echo esc_js( __( 'Chapter cannot be published due to the following issues:', 'fanfiction-manager' ) ); ?>'
+	storyValidationErrorHeading: '<?php echo esc_js( __( 'Story cannot be made visible due to the following issues:', 'fanfiction-manager' ) ); ?>',
+	chapterValidationErrorHeading: '<?php echo esc_js( __( 'Chapter cannot be made visible due to the following issues:', 'fanfiction-manager' ) ); ?>'
 };
 
 // ============================================================================

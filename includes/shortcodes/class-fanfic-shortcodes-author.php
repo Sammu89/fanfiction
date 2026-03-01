@@ -177,7 +177,23 @@ class Fanfic_Shortcodes_Author {
 			'loading' => 'lazy',
 		);
 
-		return get_avatar( $author_id, $atts['size'], '', '', $avatar_args );
+		$avatar_html = get_avatar( $author_id, $atts['size'], '', '', $avatar_args );
+		$avatar_url  = get_avatar_url(
+			$author_id,
+			array(
+				'size' => 300,
+			)
+		);
+
+		if ( empty( $avatar_url ) ) {
+			return $avatar_html;
+		}
+
+		return sprintf(
+			'<a href="%1$s" class="fanfic-lightbox-trigger" data-type="image">%2$s</a>',
+			esc_url( $avatar_url ),
+			$avatar_html
+		);
 	}
 
 	/**

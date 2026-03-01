@@ -34,6 +34,8 @@ class Fanfic_Moderation_Log {
 		// Story block/unblock hooks
 		add_action( 'fanfic_story_blocked', array( __CLASS__, 'log_story_blocked' ), 10, 4 );
 		add_action( 'fanfic_story_unblocked', array( __CLASS__, 'log_story_unblocked' ), 10, 2 );
+		add_action( 'fanfic_chapter_blocked', array( __CLASS__, 'log_chapter_blocked' ), 10, 4 );
+		add_action( 'fanfic_chapter_unblocked', array( __CLASS__, 'log_chapter_unblocked' ), 10, 2 );
 	}
 
 	/**
@@ -335,6 +337,40 @@ class Fanfic_Moderation_Log {
 	}
 
 	/**
+	 * Hook: Log chapter blocked.
+	 *
+	 * @since 1.0.0
+	 * @param int    $chapter_id  Chapter ID.
+	 * @param int    $actor_id    Actor ID.
+	 * @param string $block_type  Block type.
+	 * @param string $reason      Reason.
+	 * @return void
+	 */
+	public static function log_chapter_blocked( $chapter_id, $actor_id, $block_type, $reason ) {
+		if ( ! $actor_id ) {
+			$actor_id = get_current_user_id();
+		}
+
+		self::insert( $actor_id, 'chapter_block_' . $block_type, 'chapter', $chapter_id, $reason );
+	}
+
+	/**
+	 * Hook: Log chapter unblocked.
+	 *
+	 * @since 1.0.0
+	 * @param int $chapter_id Chapter ID.
+	 * @param int $actor_id   Actor ID.
+	 * @return void
+	 */
+	public static function log_chapter_unblocked( $chapter_id, $actor_id ) {
+		if ( ! $actor_id ) {
+			$actor_id = get_current_user_id();
+		}
+
+		self::insert( $actor_id, 'chapter_unblock', 'chapter', $chapter_id, 'Chapter unblocked' );
+	}
+
+	/**
 	 * Get formatted log entry for display
 	 *
 	 * @since 1.2.0
@@ -358,6 +394,9 @@ class Fanfic_Moderation_Log {
 		} elseif ( $log_entry['target_type'] === 'story' ) {
 			$story = get_post( $log_entry['target_id'] );
 			$target_name = $story ? $story->post_title : __( 'Unknown Story', 'fanfiction-manager' );
+		} elseif ( $log_entry['target_type'] === 'chapter' ) {
+			$chapter = get_post( $log_entry['target_id'] );
+			$target_name = $chapter ? $chapter->post_title : __( 'Unknown Chapter', 'fanfiction-manager' );
 		}
 
 		// Format action
@@ -393,6 +432,10 @@ class Fanfic_Moderation_Log {
 			'block_ban'    => __( 'Blocked Story (User Ban)', 'fanfiction-manager' ),
 			'block_rule'   => __( 'Blocked Story (Rule Change)', 'fanfiction-manager' ),
 			'unblock'      => __( 'Unblocked Story', 'fanfiction-manager' ),
+			'chapter_block_manual' => __( 'Blocked Chapter (Manual)', 'fanfiction-manager' ),
+			'chapter_block_ban'    => __( 'Blocked Chapter (User Ban)', 'fanfiction-manager' ),
+			'chapter_block_rule'   => __( 'Blocked Chapter (Rule Change)', 'fanfiction-manager' ),
+			'chapter_unblock'      => __( 'Unblocked Chapter', 'fanfiction-manager' ),
 		);
 
 		return isset( $labels[ $action ] ) ? $labels[ $action ] : ucfirst( str_replace( '_', ' ', $action ) );

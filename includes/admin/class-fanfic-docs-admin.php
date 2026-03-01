@@ -58,12 +58,20 @@ class Fanfic_Docs_Admin {
 				'label' => __( 'Status Classification System', 'fanfiction-manager' ),
 			),
 			array(
+				'id'    => 'true-updates',
+				'label' => __( 'True Update Dates', 'fanfiction-manager' ),
+			),
+			array(
 				'id'    => 'coauthors',
 				'label' => __( 'Co-Authors', 'fanfiction-manager' ),
 			),
 			array(
 				'id'    => 'translated-stories',
 				'label' => __( 'Translated Stories', 'fanfiction-manager' ),
+			),
+			array(
+				'id'    => 'blocking-and-suspension',
+				'label' => __( 'Blocking and Suspensions', 'fanfiction-manager' ),
 			),
 			array(
 				'id'    => 'shortcode',
@@ -218,8 +226,10 @@ class Fanfic_Docs_Admin {
 		if ( null === self::$docs_map ) {
 			self::$docs_map = array(
 				'status-system'      => FANFIC_PLUGIN_DIR . 'docs/backend/status-system.md',
+				'true-updates'       => FANFIC_PLUGIN_DIR . 'docs/backend/true-updates.md',
 				'coauthors'          => FANFIC_PLUGIN_DIR . 'docs/backend/coauthors.md',
 				'translated-stories' => FANFIC_PLUGIN_DIR . 'docs/backend/translated-stories.md',
+				'blocking-and-suspension' => FANFIC_PLUGIN_DIR . 'docs/backend/blocking-and-suspension.md',
 				'shortcode'          => FANFIC_PLUGIN_DIR . 'docs/backend/shortcodes.md',
 			);
 		}

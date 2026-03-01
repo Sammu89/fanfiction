@@ -109,7 +109,7 @@ class Fanfic_SEO {
         echo '<meta property="article:published_time" content="' . esc_attr(get_the_date('c', $post)) . '">' . "\n";
 
         // Article modification date
-        echo '<meta property="article:modified_time" content="' . esc_attr(get_the_modified_date('c', $post)) . '">' . "\n";
+        echo '<meta property="article:modified_time" content="' . esc_attr(fanfic_get_content_updated_iso8601($post)) . '">' . "\n";
     }
 
     /**
@@ -179,7 +179,7 @@ class Fanfic_SEO {
         }
 
         // Check for cached schema data
-        $cache_key = 'fanfic_schema_' . $post->ID . '_' . get_the_modified_time('U', $post);
+        $cache_key = 'fanfic_schema_' . $post->ID . '_' . fanfic_get_content_updated_timestamp($post);
         $schema_data = get_transient($cache_key);
 
         if (false === $schema_data) {
@@ -212,7 +212,7 @@ class Fanfic_SEO {
             'headline' => get_the_title($post),
             'description' => self::get_description($post),
             'datePublished' => get_the_date('c', $post),
-            'dateModified' => get_the_modified_date('c', $post),
+            'dateModified' => fanfic_get_content_updated_iso8601($post),
             'url' => get_permalink($post),
         );
 
@@ -371,7 +371,7 @@ class Fanfic_SEO {
         echo '<meta property="article:published_time" content="' . esc_attr(get_the_date('c', $post)) . '" />' . "\n";
 
         // article:modified_time
-        echo '<meta property="article:modified_time" content="' . esc_attr(get_the_modified_date('c', $post)) . '" />' . "\n";
+        echo '<meta property="article:modified_time" content="' . esc_attr(fanfic_get_content_updated_iso8601($post)) . '" />' . "\n";
 
         // article:author
         $author_url = fanfic_get_user_profile_url($post->post_author);
@@ -964,7 +964,7 @@ class Fanfic_SEO {
      */
     public static function clear_seo_cache($post_id) {
         // Clear schema data cache
-        delete_transient('fanfic_schema_' . $post_id . '_' . get_the_modified_time('U', $post_id));
+        delete_transient('fanfic_schema_' . $post_id . '_' . fanfic_get_content_updated_timestamp($post_id));
 
         // Clear word count cache
         delete_transient('fanfic_word_count_' . $post_id);

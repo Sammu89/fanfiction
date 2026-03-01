@@ -556,6 +556,11 @@
 			moderatorNotes = '<tr><th>Moderator Notes:</th><td>' + escapeHtml(report.moderator_notes) + '</td></tr>';
 		}
 
+		var reportDetails = '';
+		if (report.details) {
+			reportDetails = '<tr><th>Details:</th><td>' + escapeHtml(report.details) + '</td></tr>';
+		}
+
 		var postLink = report.post_link ? '<a href="' + escapeHtml(report.post_link) + '" target="_blank">' + escapeHtml(report.post_title) + '</a>' : escapeHtml(report.post_title);
 
 		return '<h2>Report Details #' + report.id + '</h2>' +
@@ -566,6 +571,7 @@
 						'<tr><th>Content Type:</th><td>' + escapeHtml(report.post_type) + '</td></tr>' +
 						'<tr><th>Reported By:</th><td>' + escapeHtml(report.reporter_name) + '</td></tr>' +
 						'<tr><th>Reason:</th><td>' + escapeHtml(report.reason) + '</td></tr>' +
+						reportDetails +
 						'<tr><th>Status:</th><td><span class="status-badge ' + statusClass + '">' + escapeHtml(report.status) + '</span></td></tr>' +
 						'<tr><th>Reported On:</th><td>' + escapeHtml(report.created_at) + '</td></tr>' +
 						'<tr><th>Last Updated:</th><td>' + escapeHtml(report.updated_at) + '</td></tr>' +

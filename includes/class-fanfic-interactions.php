@@ -686,6 +686,30 @@ class Fanfic_Interactions {
 	}
 
 	/**
+	 * Check whether a chapter is read for its current content version.
+	 *
+	 * @since 2.2.2
+	 * @param int         $user_id        User ID.
+	 * @param int         $chapter_id     Chapter ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return bool
+	 */
+	public static function is_chapter_read_current( $user_id, $chapter_id, $anonymous_uuid = '' ) {
+		$chapter_id = absint( $chapter_id );
+		$actor      = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $chapter_id || empty( $actor ) ) {
+			return false;
+		}
+
+		$current = self::get_user_chapter_interactions_raw( $actor['user_id'], $chapter_id, $actor['anonymous_hash'] );
+		if ( empty( $current['read'] ) || ! is_array( $current['read'] ) ) {
+			return false;
+		}
+
+		return self::is_read_interaction_current( $chapter_id, $current['read']['updated_at'] ?? '' );
+	}
+
+	/**
 	 * Remove read.
 	 *
 	 * @since 1.6.0
@@ -1165,7 +1189,10 @@ class Fanfic_Interactions {
 			} elseif ( 'rating' === $type ) {
 				$data[ $key ]['rating'] = round( floatval( $row['value'] ?? 0 ), 1 );
 			} elseif ( 'read' === $type ) {
-				$data[ $key ]['read'] = true;
+				if ( self::is_read_interaction_current( $chapter_id, $row['updated_at'] ?? '' ) ) {
+					$data[ $key ]['read']          = true;
+					$data[ $key ]['read_revision'] = self::get_chapter_read_revision( $chapter_id );
+				}
 			} elseif ( 'view' === $type ) {
 				$data[ $key ]['view'] = true;
 			}
@@ -2379,10 +2406,14 @@ class Fanfic_Interactions {
 			self::remove_rating( $chapter_id, $user_id );
 		}
 
-		if ( ! empty( $entry['read'] ) ) {
+		$current_read_revision  = self::get_chapter_read_revision( $chapter_id );
+		$local_read_revision    = isset( $entry['read_revision'] ) ? (string) $entry['read_revision'] : '';
+		$has_current_read_state = ( '' !== $current_read_revision && $current_read_revision === $local_read_revision );
+
+		if ( ! empty( $entry['read'] ) && $has_current_read_state ) {
 			self::record_read( $chapter_id, $user_id );
 			$active_types[] = 'read';
-		} elseif ( isset( $current['read'] ) ) {
+		} elseif ( ! empty( $entry['read_auto_suppressed'] ) && $has_current_read_state && isset( $current['read'] ) ) {
 			self::delete_interaction( $user_id, $chapter_id, 'read' );
 		}
 
@@ -2861,6 +2892,47 @@ class Fanfic_Interactions {
 	}
 
 	/**
+	 * Get the canonical read revision token for a chapter.
+	 *
+	 * @since 2.2.2
+	 * @param int $chapter_id Chapter ID.
+	 * @return string
+	 */
+	private static function get_chapter_read_revision( $chapter_id ) {
+		$chapter_id = absint( $chapter_id );
+		if ( ! $chapter_id ) {
+			return '';
+		}
+
+		return (string) fanfic_get_chapter_content_updated_date( $chapter_id );
+	}
+
+	/**
+	 * Check whether a read interaction matches the current chapter version.
+	 *
+	 * @since 2.2.2
+	 * @param int    $chapter_id Chapter ID.
+	 * @param string $read_at    Read interaction datetime.
+	 * @return bool
+	 */
+	private static function is_read_interaction_current( $chapter_id, $read_at ) {
+		$chapter_id       = absint( $chapter_id );
+		$current_revision = self::get_chapter_read_revision( $chapter_id );
+		$read_at          = (string) $read_at;
+		if ( ! $chapter_id || '' === $current_revision || '' === $read_at ) {
+			return false;
+		}
+
+		$revision_ts = strtotime( $current_revision );
+		$read_ts     = strtotime( $read_at );
+		if ( false === $revision_ts || false === $read_ts ) {
+			return false;
+		}
+
+		return $read_ts >= $revision_ts;
+	}
+
+	/**
 	 * Get raw interaction rows indexed by type for anonymous UUID + chapter.
 	 *
 	 * @since 1.7.0
@@ -2957,6 +3029,17 @@ class Fanfic_Interactions {
 
 		if ( ! empty( $entry['read'] ) ) {
 			$data['read'] = true;
+		}
+
+		if ( ! empty( $entry['read_auto_suppressed'] ) ) {
+			$data['read_auto_suppressed'] = true;
+		}
+
+		if ( isset( $entry['read_revision'] ) ) {
+			$read_revision = sanitize_text_field( (string) $entry['read_revision'] );
+			if ( '' !== $read_revision ) {
+				$data['read_revision'] = $read_revision;
+			}
 		}
 
 		if ( ! empty( $entry['view'] ) ) {
