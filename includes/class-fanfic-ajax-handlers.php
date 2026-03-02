@@ -261,6 +261,26 @@ class Fanfic_AJAX_Handlers {
 		);
 
 		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_submit_re_review',
+			array( __CLASS__, 'ajax_submit_re_review' ),
+			true, // Require login
+			array(
+				'rate_limit' => true,
+				'capability' => 'read',
+			)
+		);
+
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_get_block_comparison',
+			array( __CLASS__, 'ajax_get_block_comparison' ),
+			true, // Require login
+			array(
+				'rate_limit' => true,
+				'capability' => 'moderate_fanfiction',
+			)
+		);
+
+		Fanfic_AJAX_Security::register_ajax_handler(
 			'fanfic_toggle_chapter_block_ajax',
 			array( __CLASS__, 'ajax_toggle_chapter_block' ),
 			true, // Require login
@@ -1810,6 +1830,214 @@ class Fanfic_AJAX_Handlers {
 	}
 
 	/**
+	 * Handle an author submitting a blocked-story re-review request.
+	 *
+	 * @since 2.3.0
+	 * @return void
+	 */
+	public static function ajax_submit_re_review() {
+		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
+		$current_user_id = get_current_user_id();
+
+		if ( ! $story_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid story.', 'fanfiction-manager' ) ) );
+		}
+
+		$story = get_post( $story_id );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			wp_send_json_error( array( 'message' => __( 'Story not found.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( absint( $story->post_author ) !== $current_user_id ) {
+			wp_send_json_error( array( 'message' => __( 'You do not own this story.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! function_exists( 'fanfic_is_story_blocked' ) || ! fanfic_is_story_blocked( $story_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'This story is no longer blocked.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! class_exists( 'Fanfic_Moderation_Messages' ) ) {
+			wp_send_json_error( array( 'message' => __( 'An error occurred. Please try again.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( Fanfic_Moderation_Messages::has_active_message( $current_user_id, 'story', $story_id ) ) {
+			update_post_meta( $story_id, '_fanfic_re_review_requested', 1 );
+			wp_send_json_error( array( 'message' => __( 'A re-review request is already awaiting moderation.', 'fanfiction-manager' ) ) );
+		}
+
+		$change_summary = function_exists( 'fanfic_build_change_summary' )
+			? fanfic_build_change_summary( $story_id )
+			: __( 'Author requested a re-review after editing the blocked story.', 'fanfiction-manager' );
+		$message = '[Re-review Request] ' . $change_summary;
+
+		$result = Fanfic_Moderation_Messages::create_message( $current_user_id, 'story', $story_id, $message );
+		if ( is_wp_error( $result ) ) {
+			$code = $result->get_error_code();
+			if ( 'already_messaged' === $code ) {
+				update_post_meta( $story_id, '_fanfic_re_review_requested', 1 );
+				wp_send_json_error( array( 'message' => __( 'A re-review request is already awaiting moderation.', 'fanfiction-manager' ) ) );
+			}
+
+			wp_send_json_error( array( 'message' => __( 'Failed to submit the re-review request. Please try again.', 'fanfiction-manager' ) ) );
+		}
+
+		update_post_meta( $story_id, '_fanfic_re_review_requested', 1 );
+
+		wp_send_json_success(
+			array(
+				'message'     => __( 'Re-review request sent successfully.', 'fanfiction-manager' ),
+				'story_id'    => $story_id,
+				'badge_label' => __( 'Re-review Submitted', 'fanfiction-manager' ),
+			)
+		);
+	}
+
+	/**
+	 * Render a comparison cell value.
+	 *
+	 * @since 2.3.0
+	 * @param array  $row Row definition from fanfic_get_block_comparison_rows().
+	 * @param string $side Either old or new.
+	 * @return string
+	 */
+	private static function render_block_comparison_cell( $row, $side ) {
+		$value_key = 'old' === $side ? 'old_value' : 'new_value';
+		$value     = isset( $row[ $value_key ] ) ? (string) $row[ $value_key ] : '';
+
+		if ( 'image' === $row['type'] ) {
+			if ( '' === $value ) {
+				return '<span class="fanfic-comparison-empty">' . esc_html__( 'No cover image', 'fanfiction-manager' ) . '</span>';
+			}
+
+			return sprintf(
+				'<div class="fanfic-comparison-cover"><img src="%1$s" alt="%2$s"></div><div class="fanfic-comparison-url"><a href="%1$s" target="_blank" rel="noopener noreferrer">%3$s</a></div>',
+				esc_url( $value ),
+				esc_attr__( 'Cover image preview', 'fanfiction-manager' ),
+				esc_html__( 'Open image', 'fanfiction-manager' )
+			);
+		}
+
+		if ( '' === $value ) {
+			return '<span class="fanfic-comparison-empty">' . esc_html__( 'None', 'fanfiction-manager' ) . '</span>';
+		}
+
+		if ( 'longtext' === $row['type'] ) {
+			return '<div class="fanfic-comparison-text">' . nl2br( esc_html( $value ) ) . '</div>';
+		}
+
+		return '<span>' . esc_html( $value ) . '</span>';
+	}
+
+	/**
+	 * Build the moderator comparison HTML for a blocked story.
+	 *
+	 * @since 2.3.0
+	 * @param int $story_id Story ID.
+	 * @return string
+	 */
+	private static function build_block_comparison_html( $story_id ) {
+		$rows = function_exists( 'fanfic_get_block_comparison_rows' ) ? fanfic_get_block_comparison_rows( $story_id ) : array();
+		$snapshot = function_exists( 'fanfic_get_block_snapshot' ) ? fanfic_get_block_snapshot( $story_id ) : array();
+		$revision_url = function_exists( 'fanfic_get_revision_compare_url' ) ? fanfic_get_revision_compare_url( $story_id ) : '';
+		$changed_count = 0;
+
+		ob_start();
+		?>
+		<div class="fanfic-block-comparison">
+			<div class="fanfic-block-comparison-header">
+				<h4><?php esc_html_e( 'Blocked Story Comparison', 'fanfiction-manager' ); ?></h4>
+				<?php if ( ! empty( $snapshot['snapshot_time'] ) ) : ?>
+					<p class="description">
+						<?php
+						printf(
+							/* translators: %s: formatted snapshot date */
+							esc_html__( 'Baseline captured on %s.', 'fanfiction-manager' ),
+							esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $snapshot['snapshot_time'] ) )
+						);
+						?>
+					</p>
+				<?php endif; ?>
+				<?php if ( $revision_url ) : ?>
+					<p><a href="<?php echo esc_url( $revision_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Open WordPress revision comparison', 'fanfiction-manager' ); ?></a></p>
+				<?php endif; ?>
+			</div>
+
+			<table class="widefat striped fanfic-comparison-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Field', 'fanfiction-manager' ); ?></th>
+						<th><?php esc_html_e( 'Blocked Snapshot', 'fanfiction-manager' ); ?></th>
+						<th><?php esc_html_e( 'Current Version', 'fanfiction-manager' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $row ) : ?>
+						<?php
+						if ( ! empty( $row['changed'] ) ) {
+							$changed_count++;
+						}
+						$row_class = ! empty( $row['changed'] ) ? 'changed' : 'unchanged';
+						$old_class = ! empty( $row['changed'] ) ? 'snapshot-value' : '';
+						$new_class = ! empty( $row['changed'] ) ? 'current-value' : '';
+						?>
+						<tr class="comparison-row <?php echo esc_attr( $row_class ); ?>">
+							<th scope="row"><?php echo esc_html( $row['label'] ); ?></th>
+							<td class="<?php echo esc_attr( $old_class ); ?>"><?php echo wp_kses_post( self::render_block_comparison_cell( $row, 'old' ) ); ?></td>
+							<td class="<?php echo esc_attr( $new_class ); ?>"><?php echo wp_kses_post( self::render_block_comparison_cell( $row, 'new' ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+
+			<?php if ( 0 === $changed_count ) : ?>
+				<p class="description"><?php esc_html_e( 'No changes were detected between the snapshot and the current story state.', 'fanfiction-manager' ); ?></p>
+			<?php endif; ?>
+		</div>
+		<?php
+
+		return ob_get_clean();
+	}
+
+	/**
+	 * Handle loading the blocked-story comparison for moderators.
+	 *
+	 * @since 2.3.0
+	 * @return void
+	 */
+	public static function ajax_get_block_comparison() {
+		$message_id = isset( $_POST['message_id'] ) ? absint( $_POST['message_id'] ) : 0;
+
+		if ( ! $message_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid message.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! class_exists( 'Fanfic_Moderation_Messages' ) ) {
+			wp_send_json_error( array( 'message' => __( 'An error occurred.', 'fanfiction-manager' ) ) );
+		}
+
+		$message = Fanfic_Moderation_Messages::get_message( $message_id );
+		if ( ! $message ) {
+			wp_send_json_error( array( 'message' => __( 'Message not found.', 'fanfiction-manager' ) ) );
+		}
+
+		$story_id = absint( $message['target_id'] );
+		if ( 'story' !== $message['target_type'] || ! $story_id ) {
+			wp_send_json_error( array( 'message' => __( 'No blocked-story comparison is available for this message.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! function_exists( 'fanfic_get_block_snapshot' ) || empty( fanfic_get_block_snapshot( $story_id ) ) ) {
+			wp_send_json_error( array( 'message' => __( 'No block snapshot was found for this story.', 'fanfiction-manager' ) ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'message_id' => $message_id,
+				'html'       => self::build_block_comparison_html( $story_id ),
+			)
+		);
+	}
+
+	/**
 	 * Handle moderator blocking or unblocking a chapter from frontend controls.
 	 *
 	 * @since 2.3.0
@@ -2008,6 +2236,9 @@ class Fanfic_AJAX_Handlers {
 
 				Fanfic_Moderation_Messages::update_status( $message_id, 'ignored', $mod_id, $moderator_note );
 				$new_status = 'ignored';
+				if ( 'story' === $target_type ) {
+					delete_post_meta( $target_id, '_fanfic_re_review_requested' );
+				}
 
 				// Notify author.
 				if ( class_exists( 'Fanfic_Notifications' ) ) {
@@ -2034,6 +2265,9 @@ class Fanfic_AJAX_Handlers {
 			case 'delete':
 				Fanfic_Moderation_Messages::update_status( $message_id, 'deleted', $mod_id, $moderator_note );
 				$new_status = 'deleted';
+				if ( 'story' === $target_type ) {
+					delete_post_meta( $target_id, '_fanfic_re_review_requested' );
+				}
 
 				// Log the action (no notification for delete).
 				if ( class_exists( 'Fanfic_Moderation_Log' ) ) {

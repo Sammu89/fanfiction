@@ -137,7 +137,7 @@ class Fanfic_Moderation_Messages {
 	}
 
 	/**
-	 * Checks whether an active (unread or ignored) message already exists
+	 * Checks whether an active unread message already exists
 	 * from a given author for a given target.
 	 *
 	 * @since 2.3.0
@@ -159,7 +159,7 @@ class Fanfic_Moderation_Messages {
 				WHERE author_id = %d
 				  AND target_type = %s
 				  AND target_id = %d
-				  AND status IN ('unread', 'ignored')",
+				  AND status = 'unread'",
 				(int) $author_id,
 				$target_type,
 				(int) $target_id
@@ -167,6 +167,39 @@ class Fanfic_Moderation_Messages {
 		);
 
 		return ( (int) $count ) > 0;
+	}
+
+	/**
+	 * Retrieve the current unread message for an author/target pair.
+	 *
+	 * @since 2.3.0
+	 * @param int    $author_id Author ID.
+	 * @param string $target_type Target type.
+	 * @param int    $target_id Target ID.
+	 * @return array|null
+	 */
+	public static function get_active_message( $author_id, $target_type, $target_id ) {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'fanfic_moderation_messages';
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$table}
+				WHERE author_id = %d
+				  AND target_type = %s
+				  AND target_id = %d
+				  AND status = 'unread'
+				ORDER BY id DESC
+				LIMIT 1",
+				(int) $author_id,
+				$target_type,
+				(int) $target_id
+			),
+			ARRAY_A
+		);
+
+		return $row ? $row : null;
 	}
 
 	/**
@@ -451,6 +484,44 @@ class Fanfic_Moderation_Messages {
 			$data,
 			array( 'id' => $message_id ),
 			$format,
+			array( '%d' )
+		);
+
+		return false !== $result;
+	}
+
+	/**
+	 * Update the message body of an existing moderation message.
+	 *
+	 * @since 2.3.0
+	 * @param int    $message_id Message ID.
+	 * @param string $message_text New message body.
+	 * @return bool
+	 */
+	public static function update_message_text( $message_id, $message_text ) {
+		global $wpdb;
+
+		$message_id = (int) $message_id;
+		if ( $message_id <= 0 ) {
+			return false;
+		}
+
+		$message_text = sanitize_textarea_field( $message_text );
+		$length       = mb_strlen( $message_text );
+		if ( $length < 1 || $length > 1000 ) {
+			return false;
+		}
+
+		$table = $wpdb->prefix . 'fanfic_moderation_messages';
+
+		$result = $wpdb->update(
+			$table,
+			array(
+				'message'    => $message_text,
+				'updated_at' => current_time( 'mysql' ),
+			),
+			array( 'id' => $message_id ),
+			array( '%s', '%s' ),
 			array( '%d' )
 		);
 

@@ -656,7 +656,7 @@ class Fanfic_Story_Handler {
 			$story = get_post( $story_id );
 
 			// Check permissions
-			if ( ! $story || ! fanfic_current_user_can_edit( 'story', $story_id ) ) {
+			if ( ! $story || ! fanfic_current_user_can_edit( 'story', $story_id, 'blocked_edit' ) ) {
 				if ( $is_ajax ) {
 					wp_send_json_error( array(
 						'message' => __( 'You do not have permission to edit this story.', 'fanfiction-manager' ),
@@ -669,6 +669,8 @@ class Fanfic_Story_Handler {
 			// Determine post status based on action
 			$current_status = get_post_status( $story_id );
 			$post_status = $current_status;
+			$is_moderator_edit = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
+			$is_blocked_story_edit = ! $is_moderator_edit && fanfic_is_story_blocked( $story_id );
 			$existing_content_updated_date = (string) get_post_meta( $story_id, '_fanfic_content_updated_date', true );
 			$current_publish_date = isset( $story->post_date ) ? substr( (string) $story->post_date, 0, 10 ) : '';
 			$new_publish_date = is_array( $publish_date_data ) ? substr( (string) $publish_date_data['local'], 0, 10 ) : $current_publish_date;
@@ -703,7 +705,9 @@ class Fanfic_Story_Handler {
 				self::redirect_with_fallback( $redirect_url, $fallback_url );
 			}
 
-			if ( 'save_draft' === $form_action ) {
+			if ( $is_blocked_story_edit ) {
+				$post_status = $current_status;
+			} elseif ( 'save_draft' === $form_action ) {
 				$post_status = 'draft';
 			} elseif ( 'publish' === $form_action ) {
 				// For publish action, save as draft first so we can validate the updated content
@@ -774,7 +778,7 @@ class Fanfic_Story_Handler {
 			error_log( '=== STORY HANDLER UPDATE END ===' );
 
 			// NOW validate if user wanted to publish
-			if ( 'publish' === $form_action ) {
+			if ( 'publish' === $form_action && ! $is_blocked_story_edit ) {
 				$validation_errors = Fanfic_Validation::get_validation_errors( $story_id );
 
 				if ( ! empty( $validation_errors ) ) {
@@ -888,6 +892,11 @@ class Fanfic_Story_Handler {
 			if ( ! empty( $coauthor_sync['errors'] ) && ! $is_ajax ) {
 				Fanfic_Flash_Messages::add_message( 'warning', implode( ' ', $coauthor_sync['errors'] ) );
 			}
+
+			if ( $is_blocked_story_edit && function_exists( 'fanfic_refresh_re_review_message' ) ) {
+				fanfic_refresh_re_review_message( $story_id );
+			}
+
 			self::refresh_story_search_index( $story_id );
 
 			// Redirect based on action

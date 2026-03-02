@@ -57,6 +57,8 @@ $is_edit_mode = is_singular( 'fanfiction_story' );
 $story_id = $is_edit_mode ? get_the_ID() : 0;
 $story = null;
 $story_title = '';
+$fanfic_story_blocked_owner_edit = false;
+$fanfic_story_re_review_requested = false;
 
 // For edit mode, validate story exists and user has permission
 if ( $is_edit_mode ) {
@@ -95,14 +97,22 @@ if ( $is_edit_mode ) {
 
 	$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
 	if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
-		if ( function_exists( 'fanfic_render_restriction_banner' ) ) {
+		$fanfic_story_blocked_owner_edit = function_exists( 'fanfic_current_user_is_content_owner' ) && fanfic_current_user_is_content_owner( $story_id );
+		if ( ! $fanfic_story_blocked_owner_edit && function_exists( 'fanfic_render_restriction_banner' ) ) {
 			$ctx = fanfic_get_restriction_context( 'story', $story_id );
 			fanfic_render_restriction_banner( $ctx, array(
 				array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
 				array( 'label' => __( 'View Story', 'fanfiction-manager' ), 'url' => get_permalink( $story_id ), 'class' => 'secondary' ),
 			) );
 		}
-		return;
+		if ( ! $fanfic_story_blocked_owner_edit ) {
+			return;
+		}
+
+		$fanfic_story_re_review_requested = (bool) get_post_meta( $story_id, '_fanfic_re_review_requested', true );
+		if ( ! $fanfic_story_re_review_requested && class_exists( 'Fanfic_Moderation_Messages' ) ) {
+			$fanfic_story_re_review_requested = Fanfic_Moderation_Messages::has_active_message( get_current_user_id(), 'story', $story_id );
+		}
 	}
 
 	$story_title = $story->post_title;
@@ -403,14 +413,39 @@ if ( $is_edit_mode ) {
 
 			<!-- Story Form -->
 			<div class="fanfic-form-wrapper fanfic-story-form-<?php echo esc_attr( $form_mode ); ?>">
+				<?php if ( $fanfic_story_blocked_owner_edit ) : ?>
+					<div class="fanfic-message fanfic-message-warning" role="status">
+						<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+						<span class="fanfic-message-content">
+							<strong><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></strong><br>
+								<?php esc_html_e( 'Your edits stay hidden while this story is blocked. Save your changes below, then request re-review. Moderators will always review the latest version you have saved, including any newer changes you save after sending the request.', 'fanfiction-manager' ); ?>
+							<span class="fanfic-message-actions">
+								<?php if ( $fanfic_story_re_review_requested ) : ?>
+									<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
+										<?php esc_html_e( 'Re-review Submitted', 'fanfiction-manager' ); ?>
+									</span>
+								<?php else : ?>
+									<button type="button" class="fanfic-button secondary fanfic-submit-re-review-btn" data-story-id="<?php echo esc_attr( $story_id ); ?>">
+										<?php esc_html_e( 'Request Moderator Review', 'fanfiction-manager' ); ?>
+									</button>
+								<?php endif; ?>
+							</span>
+						</span>
+					</div>
+				<?php endif; ?>
 				<div class="fanfic-form-header">
 					<h2><?php echo $is_edit_mode ? sprintf( esc_html__( 'Edit Story: "%s"', 'fanfiction-manager' ), esc_html( $story->post_title ) ) : esc_html__( 'Create New Story', 'fanfiction-manager' ); ?></h2>
 					<?php if ( $is_edit_mode ) : ?>
 						<?php
 						$post_status = get_post_status( $story_id );
-						$status_class = 'publish' === $post_status ? 'published' : 'draft';
-						// Use plain-language labels: "Visible" and "Hidden" instead of "Published" / "Draft"
-						$status_text = 'publish' === $post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
+						if ( $fanfic_story_blocked_owner_edit ) {
+							$status_class = 'blocked';
+							$status_text = __( 'Blocked', 'fanfiction-manager' );
+						} else {
+							$status_class = 'publish' === $post_status ? 'published' : 'draft';
+							// Use plain-language labels: "Visible" and "Hidden" instead of "Published" / "Draft"
+							$status_text = 'publish' === $post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
+						}
 						?>
 						<span class="fanfic-story-status-badge fanfic-status-<?php echo esc_attr( $status_class ); ?>">
 							<?php echo esc_html( $status_text ); ?>
@@ -1197,18 +1232,20 @@ if ( $is_edit_mode ) {
 
 							<!-- Update: saves changes only, disabled until form is dirty -->
 							<button type="submit" name="fanfic_form_action" value="update" class="fanfic-button" id="update-button" disabled>
-								<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
+								<?php echo esc_html( $fanfic_story_blocked_owner_edit ? __( 'Save Changes', 'fanfiction-manager' ) : __( 'Update', 'fanfiction-manager' ) ); ?>
 							</button>
 
 							<!-- Visibility toggle -->
-							<?php if ( $is_published ) : ?>
-								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary" id="hide-story-button">
-									<?php esc_html_e( 'Hide Story', 'fanfiction-manager' ); ?>
-								</button>
-							<?php else : ?>
-								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button secondary" id="make-visible-button">
-									<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
-								</button>
+							<?php if ( ! $fanfic_story_blocked_owner_edit ) : ?>
+								<?php if ( $is_published ) : ?>
+									<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary" id="hide-story-button">
+										<?php esc_html_e( 'Hide Story', 'fanfiction-manager' ); ?>
+									</button>
+								<?php else : ?>
+									<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button secondary" id="make-visible-button">
+										<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
+									</button>
+								<?php endif; ?>
 							<?php endif; ?>
 
 							<!-- View link: only when story is visible -->

@@ -158,6 +158,12 @@
 			const unblockLabel = strings.unblockLabel || 'Unblock';
 			const ignoreLabel = strings.ignoreLabel || 'Ignore';
 			const deleteLabel = strings.deleteLabel || 'Delete';
+			const compareLabel = strings.compareLabel || 'Compare Changes';
+			const hasComparison = getMessageRows(messageId).$detailRow.find('.fanfic-msg-compare-changes').length > 0;
+
+			if (hasComparison) {
+				actions.push('<a href="#" class="fanfic-msg-compare-changes" data-message-id="' + messageId + '">' + compareLabel + '</a>');
+			}
 
 			if (isRestricted && status !== 'resolved' && status !== 'deleted') {
 				actions.push('<a href="#" class="fanfic-msg-action-unblock" data-message-id="' + messageId + '">' + unblockLabel + '</a>');
@@ -235,6 +241,72 @@
 				$(this).remove();
 			});
 		}
+
+		function ensureDetailRowVisible(messageId) {
+			const rows = getMessageRows(messageId);
+			const $expandButton = rows.$mainRow.find('.fanfic-expand-message');
+
+			if (!rows.$detailRow.is(':visible')) {
+				rows.$detailRow.stop(true, true).slideDown(150);
+			}
+
+			$expandButton.addClass('is-expanded').attr('aria-expanded', 'true');
+		}
+
+		$(document).on('click', '.fanfic-msg-compare-changes', function(e) {
+			e.preventDefault();
+
+			const $button = $(this);
+			if ($button.hasClass('is-busy')) {
+				return;
+			}
+
+			const messageId = parseInt($button.data('message-id'), 10) || 0;
+			const rows = getMessageRows(messageId);
+			const $container = rows.$detailRow.find('.fanfic-block-comparison-container').first();
+			const compareLabel = strings.compareLabel || 'Compare Changes';
+			const hideCompareLabel = strings.hideCompareLabel || 'Hide Comparison';
+
+			if (!$container.length) {
+				return;
+			}
+
+			ensureDetailRowVisible(messageId);
+
+			if ($container.data('loaded')) {
+				const isVisible = $container.is(':visible');
+				$container.stop(true, true).slideToggle(150);
+				rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-compare-changes[data-message-id="' + messageId + '"]').text(isVisible ? compareLabel : hideCompareLabel);
+				return;
+			}
+
+			$button.addClass('is-busy').prop('disabled', true).text(strings.compareLoading || 'Loading comparison...');
+
+			$.ajax({
+				url: fanfictionAdmin.ajaxUrl || ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_get_block_comparison',
+					nonce: fanfictionAdmin.nonce || '',
+					message_id: messageId
+				}
+			}).done(function(response) {
+				if (response && response.success && response.data && response.data.html) {
+					$container.html(response.data.html).data('loaded', true).hide().slideDown(150);
+					rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-compare-changes[data-message-id="' + messageId + '"]').text(hideCompareLabel);
+					return;
+				}
+
+				window.alert((response && response.data && response.data.message) || (strings.actionError || 'An error occurred. Please try again.'));
+			}).fail(function() {
+				window.alert(strings.actionError || 'An error occurred. Please try again.');
+			}).always(function() {
+				$button.removeClass('is-busy').prop('disabled', false);
+				if (!$container.data('loaded')) {
+					rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-compare-changes[data-message-id="' + messageId + '"]').text(compareLabel);
+				}
+			});
+		});
 
 		$(document).on('click', '.fanfic-expand-message', function(e) {
 			e.preventDefault();

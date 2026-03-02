@@ -187,6 +187,7 @@
 			this.initShareButtons();
 			// Restriction messaging
 			this.initModerationMessage();
+			this.initReReviewRequests();
 			this.initChapterBlockControls();
 			// Report buttons
 			this.initReportButtons();
@@ -354,6 +355,57 @@
 					.text(sentLabel)
 					.replaceAll($trigger);
 			}
+		},
+
+		initReReviewRequests: function() {
+			const self = this;
+
+			$(document).on('click', '.fanfic-submit-re-review-btn', function(e) {
+				e.preventDefault();
+
+				const $button = $(this);
+				const storyId = parseInt($button.data('story-id'), 10) || 0;
+				const originalLabel = $button.text();
+
+				if (!storyId || $button.prop('disabled')) {
+					return;
+				}
+
+				$button.prop('disabled', true);
+
+				$.ajax({
+					url: self.config.ajaxUrl,
+					type: 'POST',
+					data: {
+						action: 'fanfic_submit_re_review',
+						nonce: self.config.nonce,
+						story_id: storyId
+					}
+				}).done(function(response) {
+					if (response && response.success) {
+						self.showSuccess($button, (response.data && response.data.message) || self.strings.reReviewSent || self.strings.error);
+						self.markReReviewSubmitted(storyId, (response.data && response.data.badge_label) || 'Re-review Submitted');
+						return;
+					}
+
+					$button.prop('disabled', false).text(originalLabel);
+					self.showError($button, (response && response.data && response.data.message) || self.strings.reReviewError || self.strings.error);
+				}).fail(function() {
+					$button.prop('disabled', false).text(originalLabel);
+					self.showError($button, self.strings.reReviewError || self.strings.error);
+				});
+			});
+		},
+
+		markReReviewSubmitted: function(storyId, badgeLabel) {
+			const label = badgeLabel || 'Re-review Submitted';
+			const selector = '.fanfic-submit-re-review-btn[data-story-id="' + parseInt(storyId, 10) + '"]';
+
+			$(selector).each(function() {
+				$('<span class="fanfic-button secondary fanfic-message-sent-badge disabled"></span>')
+					.text(label)
+					.replaceAll($(this));
+			});
 		},
 
 		initChapterBlockControls: function() {

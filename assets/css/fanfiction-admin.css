@@ -327,6 +327,76 @@ body.fanfic-admin-modal-open {
 	color: #b32d2e;
 }
 
+.fanfic-block-comparison-container {
+	margin-top: 12px;
+}
+
+.fanfic-block-comparison {
+	padding: 14px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.fanfic-block-comparison-header h4 {
+	margin: 0 0 6px;
+}
+
+.fanfic-comparison-table {
+	margin-top: 12px;
+}
+
+.fanfic-comparison-table th,
+.fanfic-comparison-table td {
+	vertical-align: top;
+}
+
+.fanfic-comparison-table .comparison-row.unchanged {
+	opacity: 0.7;
+}
+
+.fanfic-comparison-table .snapshot-value {
+	background: #fff1f1;
+}
+
+.fanfic-comparison-table .current-value {
+	background: #eefaf0;
+}
+
+.fanfic-comparison-cover img {
+	display: block;
+	max-width: 140px;
+	height: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.fanfic-comparison-url {
+	margin-top: 6px;
+	font-size: 12px;
+}
+
+.fanfic-comparison-text {
+	max-height: 160px;
+	overflow: auto;
+	white-space: normal;
+}
+
+.fanfic-comparison-empty {
+	color: #646970;
+	font-style: italic;
+}
+
+.fanfic-diff-added {
+	color: #136333;
+	font-weight: 600;
+}
+
+.fanfic-diff-removed {
+	color: #b32d2e;
+	font-weight: 600;
+}
+
 /* High Contrast Mode Support */
 @media (prefers-contrast: more) {
 	table th {

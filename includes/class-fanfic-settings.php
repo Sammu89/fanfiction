@@ -1841,6 +1841,12 @@ class Fanfic_Settings {
 					</tr>
 				</tbody>
 			</table>
+
+			<?php
+			if ( class_exists( 'Fanfic_Debug_Generator' ) ) {
+				Fanfic_Debug_Generator::render_debug_section();
+			}
+			?>
 		</div>
 
 		<script type="text/javascript">
@@ -2827,6 +2833,11 @@ class Fanfic_Settings {
 	 * @return void
 	 */
 	public static function display_admin_notices() {
+		// Debug generator notices
+		if ( class_exists( 'Fanfic_Debug_Generator' ) ) {
+			Fanfic_Debug_Generator::display_notices();
+		}
+
 		// Success message for settings updated
 		if ( isset( $_GET['updated'] ) && 'true' === $_GET['updated'] ) {
 			?>

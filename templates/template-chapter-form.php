@@ -241,6 +241,9 @@ function fanfic_template_get_available_chapter_numbers( $story_id, $exclude_chap
 // PERMISSION AND MODE DETECTION
 // ============================================================================
 
+$fanfic_blocked_chapter_owner_edit = false;
+$fanfic_story_re_review_requested = false;
+
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
 	?>
@@ -343,26 +346,37 @@ if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 
 $is_blocked = fanfic_is_story_blocked( $story_id );
 if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
-	if ( function_exists( 'fanfic_render_restriction_banner' ) ) {
+	$fanfic_blocked_chapter_owner_edit = $is_edit_mode && function_exists( 'fanfic_current_user_is_content_owner' ) && fanfic_current_user_is_content_owner( $chapter_id );
+	if ( ! $fanfic_blocked_chapter_owner_edit && function_exists( 'fanfic_render_restriction_banner' ) ) {
 		$ctx = fanfic_get_restriction_context( 'story', $story_id );
 		fanfic_render_restriction_banner( $ctx, array(
 			array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
 			array( 'label' => __( 'View Story', 'fanfiction-manager' ), 'url' => get_permalink( $story_id ), 'class' => 'secondary' ),
 		) );
 	}
-	return;
+	if ( ! $fanfic_blocked_chapter_owner_edit ) {
+		return;
+	}
+
+	$fanfic_story_re_review_requested = (bool) get_post_meta( $story_id, '_fanfic_re_review_requested', true );
+	if ( ! $fanfic_story_re_review_requested && class_exists( 'Fanfic_Moderation_Messages' ) ) {
+		$fanfic_story_re_review_requested = Fanfic_Moderation_Messages::has_active_message( get_current_user_id(), 'story', $story_id );
+	}
 }
 
 $is_chapter_blocked = $is_edit_mode ? fanfic_is_chapter_blocked( $chapter_id ) : false;
 if ( $is_chapter_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
-	if ( function_exists( 'fanfic_render_restriction_banner' ) ) {
+	$fanfic_blocked_chapter_owner_edit = function_exists( 'fanfic_current_user_is_content_owner' ) && fanfic_current_user_is_content_owner( $chapter_id );
+	if ( ! $fanfic_blocked_chapter_owner_edit && function_exists( 'fanfic_render_restriction_banner' ) ) {
 		$ctx = fanfic_get_restriction_context( 'chapter', $chapter_id );
 		fanfic_render_restriction_banner( $ctx, array(
 			array( 'label' => __( 'Back to Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $story_id ) ),
 			array( 'label' => __( 'View Chapter', 'fanfiction-manager' ), 'url' => get_permalink( $chapter_id ), 'class' => 'secondary' ),
 		) );
 	}
-	return;
+	if ( ! $fanfic_blocked_chapter_owner_edit ) {
+		return;
+	}
 }
 
 // Get chapter data for edit mode
@@ -538,6 +552,27 @@ if ( ! $is_edit_mode ) {
 ?>
 
 <p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
+
+<?php if ( $fanfic_blocked_chapter_owner_edit ) : ?>
+	<div class="fanfic-message fanfic-message-warning" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+		<span class="fanfic-message-content">
+			<strong><?php esc_html_e( 'Blocked Content Edit', 'fanfiction-manager' ); ?></strong><br>
+				<?php esc_html_e( 'This chapter belongs to blocked content. Save your chapter changes below, then request re-review. Moderators will always review the latest saved version of the blocked story, including any newer changes you save after sending the request.', 'fanfiction-manager' ); ?>
+			<span class="fanfic-message-actions">
+				<?php if ( $fanfic_story_re_review_requested ) : ?>
+					<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
+						<?php esc_html_e( 'Re-review Submitted', 'fanfiction-manager' ); ?>
+					</span>
+				<?php else : ?>
+					<button type="button" class="fanfic-button secondary fanfic-submit-re-review-btn" data-story-id="<?php echo esc_attr( $story_id ); ?>">
+						<?php esc_html_e( 'Request Moderator Review', 'fanfiction-manager' ); ?>
+					</button>
+				<?php endif; ?>
+			</span>
+		</span>
+	</div>
+<?php endif; ?>
 
 <!-- Chapter Form Section -->
 <section class="fanfic-content-section fanfic-form-section" aria-labelledby="form-heading">
@@ -858,16 +893,18 @@ if ( ! $is_edit_mode ) {
 
 					<!-- Update: saves changes only, disabled until form is dirty -->
 					<button type="submit" name="fanfic_chapter_action" value="update" class="fanfic-button" id="update-chapter-button" disabled>
-						<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
+						<?php echo esc_html( $fanfic_blocked_chapter_owner_edit ? __( 'Save Changes', 'fanfiction-manager' ) : __( 'Update', 'fanfiction-manager' ) ); ?>
 					</button>
 
 					<!-- Visibility toggle -->
-					<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button secondary" id="hide-chapter-button" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-story-id="<?php echo absint( $story_id ); ?>"<?php echo ( $is_chapter_blocked || ! $is_chapter_published ) ? ' hidden' : ''; ?>>
-							<?php esc_html_e( 'Hide Chapter', 'fanfiction-manager' ); ?>
-						</button>
-					<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button secondary" id="make-chapter-visible-button"<?php echo ( $is_chapter_blocked || $is_chapter_published ) ? ' hidden' : ''; ?>>
-							<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
-						</button>
+					<?php if ( ! $fanfic_blocked_chapter_owner_edit ) : ?>
+						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button secondary" id="hide-chapter-button" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-story-id="<?php echo absint( $story_id ); ?>"<?php echo ( $is_chapter_blocked || ! $is_chapter_published ) ? ' hidden' : ''; ?>>
+								<?php esc_html_e( 'Hide Chapter', 'fanfiction-manager' ); ?>
+							</button>
+						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button secondary" id="make-chapter-visible-button"<?php echo ( $is_chapter_blocked || $is_chapter_published ) ? ' hidden' : ''; ?>>
+								<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
+							</button>
+					<?php endif; ?>
 
 					<?php if ( $can_moderate_chapter ) : ?>
 						<div class="fanfic-inline-block-form fanfic-inline-block-form-with-reason fanfic-chapter-block-controls" data-chapter-id="<?php echo absint( $chapter_id ); ?>">

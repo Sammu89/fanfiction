@@ -290,6 +290,7 @@ class Fanfic_Core {
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-languages-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-custom-taxonomies-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-docs-admin.php';
+			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-debug-generator.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-admin.php';
 		}
 	}
@@ -318,6 +319,7 @@ class Fanfic_Core {
 
 		// Initialize taxonomies
 		add_action( 'init', array( 'Fanfic_Taxonomies', 'register' ) );
+		add_filter( 'wp_revisions_to_keep', 'fanfic_filter_revisions_to_keep', 10, 2 );
 
 		// Initialize roles and capabilities filter
 		Fanfic_Roles_Caps::init();
@@ -338,6 +340,7 @@ class Fanfic_Core {
 			Fanfic_Cache_Admin::init();
 			Fanfic_Wizard::get_instance(); // Initialize wizard singleton
 			Fanfic_Settings::init();
+			Fanfic_Debug_Generator::init();
 			$this->mark_post_delete_stage( 'init_hooks:admin_modules:cache_wizard_settings:done' );
 
 			// Classification table health checks and rebuild handler.
@@ -621,6 +624,12 @@ class Fanfic_Core {
 	public function hide_banned_users_content( $query ) {
 		// Only apply to main query on frontend
 		if ( is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		// Singular requests need to resolve first so later access control can
+		// decide between owner read-only access and a public 404 response.
+		if ( $query->is_singular() || $query->get( 'fanfiction_story' ) || $query->get( 'fanfiction_chapter' ) ) {
 			return;
 		}
 
@@ -1406,6 +1415,8 @@ class Fanfic_Core {
 						'modMessageError'    => __( 'Failed to send message. Please try again.', 'fanfiction-manager' ),
 						'modMessageTooLong'  => __( 'Message must be between 1 and 1000 characters.', 'fanfiction-manager' ),
 						'modMessageEmpty'    => __( 'Please enter a message before sending.', 'fanfiction-manager' ),
+						'reReviewSent'       => __( 'Re-review request sent successfully.', 'fanfiction-manager' ),
+						'reReviewError'      => __( 'Failed to submit the re-review request. Please try again.', 'fanfiction-manager' ),
 						'chapterBlockReasonRequired' => __( 'Please choose a block reason.', 'fanfiction-manager' ),
 						'chapterBlockConfirm' => __( 'Block this chapter? Authors will be limited to view-only access.', 'fanfiction-manager' ),
 						'chapterUnblockConfirm' => __( 'Unblock this chapter?', 'fanfiction-manager' ),
@@ -1704,10 +1715,9 @@ class Fanfic_Core {
 		}
 
 		$story_is_blocked = fanfic_is_story_blocked( $story_id );
-		$story_is_hidden = 'publish' !== get_post_status( $story_id );
 		$chapter_is_blocked = $chapter_id ? fanfic_is_chapter_blocked( $chapter_id ) : false;
 
-		if ( ! $story_is_blocked && ! $chapter_is_blocked && ! ( $chapter_id && $story_is_hidden ) ) {
+		if ( ! $story_is_blocked && ! $chapter_is_blocked ) {
 			return;
 		}
 

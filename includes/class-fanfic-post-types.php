@@ -99,7 +99,7 @@ class Fanfic_Post_Types {
 			'hierarchical'       => true,
 			'menu_position'      => 5,
 			'menu_icon'          => 'dashicons-book',
-			'supports'           => array( 'title', 'editor', 'thumbnail', 'custom-fields', 'comments' ),
+			'supports'           => array( 'title', 'editor', 'thumbnail', 'custom-fields', 'comments', 'revisions' ),
 			'exclude_from_search' => true,
 			'show_in_rest'       => true,
 		);
@@ -160,7 +160,7 @@ class Fanfic_Post_Types {
 			'hierarchical'       => true,
 			'menu_position'      => null,
 			'menu_icon'          => 'dashicons-media-document',
-			'supports'           => array( 'title', 'editor', 'custom-fields', 'page-attributes', 'comments' ),
+			'supports'           => array( 'title', 'editor', 'custom-fields', 'page-attributes', 'comments', 'revisions' ),
 			'exclude_from_search' => true,
 			'show_in_rest'       => true,
 		);

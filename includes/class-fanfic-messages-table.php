@@ -34,6 +34,18 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 class Fanfic_Messages_Table extends WP_List_Table {
 
 	/**
+	 * Whether a message target has a stored blocked-story snapshot.
+	 *
+	 * @since 2.3.0
+	 * @param string $target_type Target type.
+	 * @param int    $target_id Target ID.
+	 * @return bool
+	 */
+	private function target_has_block_snapshot( $target_type, $target_id ) {
+		return 'story' === $target_type && ! empty( get_post_meta( $target_id, '_fanfic_block_snapshot', true ) );
+	}
+
+	/**
 	 * Constructor.
 	 *
 	 * Initialises the list table with singular/plural labels and no AJAX mode.
@@ -172,6 +184,7 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		$can_take_actions = ! in_array( $status, array( 'resolved', 'deleted' ), true );
 		$restriction_context = function_exists( 'fanfic_get_restriction_context' ) ? fanfic_get_restriction_context( $target_type, $target_id ) : array();
 		$admin_restriction_summary = function_exists( 'fanfic_get_admin_restriction_summary' ) ? fanfic_get_admin_restriction_summary( $target_type, $target_id ) : '';
+		$has_snapshot = $this->target_has_block_snapshot( $target_type, $target_id );
 
 		// Hidden detail row.
 		?>
@@ -213,6 +226,13 @@ class Fanfic_Messages_Table extends WP_List_Table {
 					><?php echo esc_textarea( $existing_note ); ?></textarea>
 
 					<div class="fanfic-message-detail-actions" style="margin-top:8px;">
+						<?php if ( $has_snapshot ) : ?>
+							<button type="button"
+								class="button fanfic-msg-compare-changes"
+								data-message-id="<?php echo esc_attr( $message_id ); ?>"
+							><?php esc_html_e( 'Compare Changes', 'fanfiction-manager' ); ?></button>
+						<?php endif; ?>
+
 						<?php if ( $is_restricted && $can_take_actions ) : ?>
 							<button type="button"
 								class="button button-primary fanfic-msg-action-unblock"
@@ -236,6 +256,8 @@ class Fanfic_Messages_Table extends WP_List_Table {
 							><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
 						<?php endif; ?>
 					</div>
+
+					<div class="fanfic-block-comparison-container" data-message-id="<?php echo esc_attr( $message_id ); ?>"></div>
 
 				</div>
 			</td>
@@ -452,8 +474,17 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		$target_id   = absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 );
 		$status      = isset( $item['status'] ) ? $item['status'] : '';
 		$is_restricted = false;
+		$has_snapshot = $this->target_has_block_snapshot( $target_type, $target_id );
 
 		$actions = array();
+
+		if ( $has_snapshot ) {
+			$actions[] = sprintf(
+				'<a href="#" class="fanfic-msg-compare-changes" data-message-id="%d">%s</a>',
+				$message_id,
+				esc_html__( 'Compare Changes', 'fanfiction-manager' )
+			);
+		}
 
 		if ( 'story' === $target_type ) {
 			$is_restricted = fanfic_is_story_blocked( $target_id );

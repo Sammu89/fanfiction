@@ -1,8 +1,8 @@
 # Block / Report System Audit And Implementation Plan
 
 Date: March 1, 2026
-Status: Handoff plan for implementation
-Scope: Blocked-author messaging implementation plus author self-correction workflow planning.
+Status: Messaging system implemented; correction workflow plan updated to adopted snapshot/revision design
+Scope: Blocked-author messaging implementation plus the simplified blocked-content correction and compare workflow.
 
 ## Objective
 
@@ -20,11 +20,10 @@ This phase must deliver:
 
 This phase must not deliver:
 
-- author-side `Correct Problem` editing flow in this implementation pass
 - report-system unification
 - threaded back-and-forth conversations
 
-This document also includes the planned architecture for the later `Correct Problem` workflow so the message system can be built without creating conflicts.
+This document originally described a later, more complex `Correct Problem` workflow based on working copies and extra tables. That design has now been superseded by the simpler snapshot-plus-revision approach described at the end of this document.
 
 ## Decision
 
@@ -585,489 +584,320 @@ The phase is complete when:
 - chapter logging works because the moderation log schema supports chapter targets
 - public reports remain separate and unaffected
 
-## Future Phase: Author Correction Submission Workflow
+## Implementation Status As Of March 3, 2026
 
-### Goal
+This section compares the plan above against the code currently in the plugin.
 
-Allow an author to correct a blocked story or blocked chapter without editing the live blocked object directly.
+This is a code-state summary, not a manual QA sign-off.
 
-The author should be able to:
+### Messaging System: Already Coded
 
-- click `Correct Problem`
-- edit allowed content in a remediation path
-- save work safely without changing the live blocked content
-- submit the correction to moderation
+- dedicated `wp_fanfic_moderation_messages` table exists
+- moderation message CRUD service exists in `includes/class-fanfic-moderation-messages.php`
+- moderation `Messages` tab exists and is wired into the moderation screen
+- moderation messages table UI exists in `includes/class-fanfic-messages-table.php`
+- author message modal exists and is submitted through AJAX
+- moderator actions `Unblock`, `Ignore`, and `Delete` are implemented
+- moderator note on message handling is implemented and stored
+- suspension reasons are stored on ban and shown in the frontend suspension notice
+- chapter block actions now collect and store a real reason plus optional reason text
+- canonical restriction helpers and author-facing restriction messages are implemented
+- story view, chapter view, story form, chapter form, and suspension notice all expose `Message Moderation`
+- moderation log schema supports `varchar(50)` `target_type`, so `chapter` targets are supported
+- ignore and delete moderation actions are logged
+- unblock actions flow through the real unblock hooks and log paths
+- public reports remain separate from blocked-author messaging
 
-Moderators should be able to:
+### Messaging System: Still To Be Coded Or Cleaned Up
 
-- see a compact summary of what changed before opening anything
-- review the actual diff using as much native WordPress revision UI as practical
-- open the full working copy or full live content only when more context is needed
-- approve and unblock, or reject
+- the old public report queue UI mismatch described in the audit remains a separate backlog item
+- dashboard blocked-state UX is still partly custom and tooltip-based instead of using the shared restriction-banner renderer everywhere
+- the historical plan mentioned unread/read state; the shipped system uses `unread`, `ignored`, `resolved`, and `deleted`
+- the historical plan described several separate moderator AJAX endpoints; the shipped code uses a consolidated `fanfic_mod_message_action` endpoint instead
+
+### Adopted Diff System: Already Coded
+
+- `fanfiction_story` and `fanfiction_chapter` now support revisions
+- `wp_revisions_to_keep` is filtered so only blocked stories and blocked chapters retain revisions
+- blocking a story writes `_fanfic_block_snapshot`
+- unblocking a story clears `_fanfic_block_snapshot` and `_fanfic_re_review_requested`
+- blocked story owners can open and use the real story edit form
+- blocked story owners can open and use chapter edit forms for chapters inside that blocked story
+- blocked save handlers keep the current status for non-moderators so blocked content cannot be made visible through normal owner edits
+- re-review submission is implemented through `fanfic_submit_re_review`
+- re-review requests create moderation messages with a generated change summary
+- `_fanfic_re_review_requested` is set on submit and cleared on ignore, delete, and unblock
+- moderators can open `Compare Changes` from the `Messages` tab
+- compare rendering shows snapshot-versus-current rows and links to WordPress revision compare
+- admin JS and CSS for the compare panel are implemented
+
+### Adopted Diff System: Still To Be Coded
+
+- the compare and re-review flow is currently story-centric; chapter-only blocked content does not yet have its own dedicated snapshot, submit, and compare path
+- the chapter edit banner can now expose the blocked-edit workflow, but chapter-only re-review still needs its own canonical backend flow if chapter moderation should be fully independent from story moderation
+- comparison rendering is row-based old-versus-new; more granular inline added/removed diff rendering is not implemented yet
+- the snapshot field list may still need extension if moderators want additional story metadata reviewed in the compare panel
+- end-to-end manual verification in WordPress admin and browser still needs to be done
+
+### Historical Plan Items Now Superseded
+
+The following older plan assumptions should no longer be treated as current:
+
+- blocked authors being fully read-only is no longer the intended rule for blocked stories and blocked chapters owned by the author
+- the working-copy / correction-submission / correction-items / separate `Corrections` tab architecture is no longer the recommended direction
+- approval-time copy-back from shadow content is no longer part of the design
+
+## Adopted Blocked-Content Diff System
+
+The earlier working-copy proposal is no longer the recommended direction.
+
+The adopted design is intentionally simpler:
+
+- authors edit the real blocked story and blocked chapters
+- the blocked state itself keeps content non-public
+- a JSON snapshot captured at block time is the canonical "before" baseline
+- normal WordPress revisions are retained only for blocked saves
+- moderators review snapshot-versus-current values, with native revision compare as a supplemental text diff
 
 ### Core Design Decision
 
-Do not reopen direct editing on the live blocked story or chapter.
+Do not create working copies, correction tables, or shadow-post workflows.
 
-Use a separate correction-submission workflow with working copies.
+Use the real blocked post objects plus:
+
+- `_fanfic_block_snapshot` on blocked stories
+- blocked-only revision retention through `wp_revisions_to_keep`
+- `_fanfic_re_review_requested` to prevent duplicate resubmission state
 
 Reason:
 
-- it keeps the live blocked version stable while review is happening
-- it gives a clean baseline for comparison
-- it avoids mixing proposed corrections with the public blocked version
-- it makes approval, rejection, rollback, and logging much cleaner
+- no new database tables are needed
+- authors fix the exact object moderators will later unblock
+- the moderation baseline is explicit and immutable at block time
+- WordPress revisions still provide content diff support without accumulating for normal edits
 
-### Scope Rules
+### Current Baseline Model
+
+When a story is blocked:
+
+- the system writes the normal block metadata
+- it also stores a JSON snapshot in `_fanfic_block_snapshot`
+
+The snapshot is the authoritative "before changes" record for moderation review.
+
+It captures at minimum:
+
+- `post_title`
+- `post_content`
+- genre IDs and names
+- status IDs and names
+- fandom IDs and labels
+- warning IDs and names
+- language ID and label
+- licence
+- age rating
+- cover image ID and URL
+- author notes enabled, position, and content
+- original-work flag
+- `snapshot_time`
+
+This is required because the first retained blocked edit revision is already the edited state, not the original blocked state.
+
+### Revision Strategy
+
+Revision support should exist on both:
+
+- `fanfiction_story`
+- `fanfiction_chapter`
+
+But revisions should only be retained when moderation needs them.
+
+Adopted rule:
+
+- keep `0` revisions for normal story and chapter saves
+- keep a positive number of revisions only when:
+  - the story itself is blocked
+  - the chapter itself is blocked
+  - the chapter belongs to a blocked story
+
+This keeps native revision history available for blocked correction work without adding normal-edit revision noise.
+
+### Author Correction Flow
 
 If a story is blocked:
 
-- the `Correct Problem` action should be available from the blocked story context
-- the correction workflow should permit edits to the story and its chapters
-- all chapter edits in that flow belong to the same story correction submission
+- the story author may still open the story edit form
+- the story author may still open chapter edit forms for chapters in that blocked story
+- saves write directly to the real blocked story or chapter
+- non-moderators cannot change publish visibility while blocked
 
-If only a chapter is blocked:
+If a chapter is blocked while the parent story is not:
 
-- the `Correct Problem` action should only be available for that chapter
-- the correction workflow should only allow editing that blocked chapter
-- no sibling chapters or story-level fields should become editable through that submission
+- the content owner may still edit that blocked chapter
+- the chapter remains hidden until moderator action
 
-### Required WordPress Foundation Changes
+Blocked-owner UI should show:
 
-Before building the correction flow:
+- a warning banner that edits remain hidden while blocked
+- a `Submit for Re-review` action
+- an awaiting badge once submitted
 
-- enable `revisions` support on `fanfiction_story`
-- enable `revisions` support on `fanfiction_chapter`
+### Re-review Submission Model
 
-Reason:
+No separate correction submission system is required.
 
-- this is required to use native revision history and comparison screens
-- without this, the moderation review cannot lean on WordPress core diff tools
-
-Recommended update in post type registration:
-
-- story supports: add `revisions`
-- chapter supports: add `revisions`
-
-### Data Model
-
-#### 1. Correction submissions
-
-Create a dedicated table:
-
-- `wp_fanfic_correction_submissions`
-
-Recommended fields:
-
-- `id`
-- `author_id`
-- `target_type` with values `story`, `chapter`
-- `target_id`
-- `story_id`
-- `scope_type` with values `story_bundle`, `chapter_only`
-- `status` with values `draft`, `submitted`, `approved`, `rejected`, `cancelled`
-- `submission_note`
-- `block_reason_code`
-- `block_reason_text`
-- `baseline_created_at`
-- `submitted_at`
-- `reviewed_at`
-- `moderator_id`
-- `moderator_decision`
-- `moderator_note`
-- `created_at`
-- `updated_at`
-
-Behavior rules:
-
-- only one active correction submission should exist per blocked target at a time
-- `draft` and `submitted` count as active
-- author can continue editing while in `draft`
-- after `submitted`, author editing should be locked unless moderators send it back or the submission is cancelled
-
-#### 2. Working copy mapping
-
-Create a dedicated table:
-
-- `wp_fanfic_correction_items`
-
-Recommended fields:
-
-- `id`
-- `submission_id`
-- `item_type` with values `story`, `chapter`
-- `source_post_id`
-- `working_post_id`
-- `baseline_revision_id`
-- `latest_revision_id`
-- `change_manifest` as longtext storing JSON
-- `created_at`
-- `updated_at`
-
-Purpose:
-
-- maps each live object to its hidden working copy
-- stores the canonical baseline revision for moderator comparison
-- stores compact change summary data for queue and review UI
-
-#### 3. Working copies
-
-Use normal WordPress posts as working copies instead of inventing a second shadow storage format.
+Re-review uses the existing moderation messages table.
 
 Recommended behavior:
 
-- duplicate the live blocked story or chapter into a hidden working copy post
-- for story-scope submissions, duplicate the story and all included chapters into hidden working copies
-- keep the same post type as the source item so the editor and revision system remain native
-
-Recommended post meta on each working copy:
-
-- `_fanfic_is_correction_working_copy` = `1`
-- `_fanfic_correction_submission_id`
-- `_fanfic_correction_source_post_id`
-- `_fanfic_correction_scope_type`
-- `_fanfic_correction_locked` = `0` or `1`
-
-Visibility rules:
-
-- working copies must never appear publicly
-- working copies must not appear in normal author dashboards as regular stories or chapters
-- frontend routing must reject direct viewing of working copies
-
-### Revision Baseline Strategy
-
-This is the most important part if the goal is to use native WordPress diff UI cleanly.
-
-#### Baseline creation
-
-When the author first clicks `Correct Problem`:
-
-- create the correction submission
-- create the working copy or working copies
-- immediately create a first revision on each working copy that represents the exact original blocked state
-
-That first revision becomes the immutable baseline for moderation comparison.
-
-Recommended stored references:
-
-- `baseline_revision_id` on each correction item
-- `baseline_created_at` on the submission
-
-#### Ongoing saves
-
-Each author save in correction mode should:
-
-- save only to the working copy
-- create normal WordPress revisions on the working copy
-- update `latest_revision_id` on the correction item
-- recompute the structured change manifest
-
-#### Moderator compare target
-
-Moderators should compare:
-
-- baseline revision: original blocked version
-- latest revision: current proposed correction
-
-This keeps the comparison focused on what the author changed to address moderation.
-
-### Change Manifest
-
-Native WordPress revisions will not compactly summarize everything moderators need.
-
-Add a computed structured manifest per correction item.
-
-Purpose:
-
-- drive compact queue badges
-- power a clean review summary
-- cover changes that native revision compare does not show well
-
-#### Recommended manifest structure
-
-Store JSON with sections such as:
-
-- `core_fields`
-- `meta_fields`
-- `taxonomies`
-- `media`
-- `chapters`
-
-Recommended detail level:
-
-- `core_fields`
-  - `post_title`
-  - `post_content`
-  - `post_excerpt`
-  - `post_name` if relevant
-- `meta_fields`
-  - field key
-  - label
-  - old value summary
-  - new value summary
-- `taxonomies`
-  - taxonomy
-  - added terms
-  - removed terms
-- `media`
-  - cover image changed yes or no
-  - old attachment ID or URL summary
-  - new attachment ID or URL summary
-- `chapters`
-  - for story-scope submissions, per chapter summary of changed fields
-
-#### Recommended tracked fields
-
-At minimum, include:
-
-- story title
-- story content or summary fields
-- story cover image
-- story author notes fields
-- story comments enabled
-- story taxonomy assignments such as genre and status
-- chapter title
-- chapter content
-- chapter number
-- chapter type
-- chapter author notes fields
-- chapter comments enabled
-
-#### Manifest rendering examples
-
-Compact queue badges:
-
-- `Story: title, summary, cover, genres`
-- `Chapters changed: 3`
-- `Chapter 4: content, notes`
-
-Detailed review summary:
-
-- `Removed genre: Horror`
-- `Added genre: Romance`
-- `Cover image replaced`
-- `Chapter 2 title updated`
-- `Chapter 2 content edited`
-
-### Moderator Screens
-
-The moderator experience should use a two-level review model.
-
-#### 1. Corrections queue
-
-Add a new moderation tab:
-
-- `Corrections`
-
-Keep it separate from:
-
-- `Queue` for public reports
-- `Messages` for blocked-author messages
-- `Log`
-
-Recommended queue columns:
-
-- status
-- author
-- target
-- scope
-- submitted
-- compact changed-fields summary
-- actions
-
-Recommended row actions:
-
-- `Review`
-- `Open Live`
-- `Open Working Copy`
-
-The queue should show compact change badges first so moderators can scan without opening each item.
-
-#### 2. Correction review screen
-
-Recommended layout:
-
-- header summary
-- changed-fields summary panel
-- native revision diff panel
-- chapter changes panel for story-scope submissions
-- moderator actions panel
-
-Header summary should show:
-
-- author
-- target
-- scope
-- current block reason
-- submission note
-- submit date
-
-Changed-fields summary panel should show:
-
-- concise structured changes from the manifest
-- taxonomy additions and removals
-- image changed state
-- chapter count changed state if that is ever supported later
-
-Native revision diff panel should show:
-
-- WordPress revision comparison between baseline revision and latest revision
-- used primarily for title and content review
-
-Chapter changes panel should show:
-
-- one row per changed chapter
-- chapter title or number
-- compact changed-fields summary
-- `View Diff`
-- `Open Full Chapter`
-
-Moderator actions panel should include:
-
-- `Approve And Unblock`
-- `Reject`
-- optional moderator note
-- link to full live story or chapter
-- link to full working copy story or chapter
-
-### Maximum Native WordPress Use
-
-The cleanest possible approach while staying close to core WordPress is:
-
-- use revisions on the working copy posts
-- use WordPress revision compare for text fields
-- use normal post editing screens or current frontend forms against the working copy
-- store only a thin custom manifest for what WordPress does not summarize well
-
-This is the recommended balance.
-
-Do not try to force the entire moderation review into the raw WordPress revision UI because:
-
-- taxonomy changes are not clearly summarized there
-- featured image changes are not clearly summarized there
-- grouped story-plus-chapter review is not something core provides out of the box
-
-### Approval And Apply Strategy
-
-When moderators approve a correction:
-
-- copy approved working-copy data into the live blocked target
-- for story-scope submissions, apply approved chapter working copies as well
-- create a normal live-post revision checkpoint when possible
-- unblock the story or chapter
-- store moderator note if provided
-- mark submission `approved`
-- write moderation log entries
-
-When moderators reject a correction:
-
-- keep the live blocked target unchanged
-- mark submission `rejected`
-- store moderator note
-- write moderation log entries
-
-### Supported Changes In First Version
-
-To keep the workflow manageable, the first implementation should support editing existing objects only.
-
-Allowed in version 1:
-
-- edit story fields
-- edit story taxonomies
-- edit story cover image
-- edit existing chapter fields
-
-Not recommended for version 1:
-
-- create new chapters inside remediation
-- delete chapters inside remediation
-- reorder chapters inside remediation
-- split one blocked submission into multiple review branches
-
-Reason:
-
-- those structural edits complicate scope, diff rendering, and approval logic significantly
-- existing-object corrections already solve the primary moderation use case
-
-### Routing And UX Rules
-
-Author-facing `Correct Problem` behavior:
-
-- if a story is blocked, the button should lead into the story correction workspace
-- if a chapter is blocked, the button should lead into the chapter correction workspace
-- if only a chapter is blocked, no story-level correction route should be opened
-
-Workspace UX:
-
-- show a visible `Correction Draft` or `Correction Submission` banner
-- explain that edits are not yet live
-- provide `Save Draft` and `Submit For Review`
-- prevent normal publish actions
+- author clicks `Submit for Re-review`
+- system compares `_fanfic_block_snapshot` with the current story state
+- system builds a human-readable change summary
+- system creates a moderation message prefixed with `[Re-review Request]`
+- system sets `_fanfic_re_review_requested = 1`
+
+Duplicate prevention should remain simple:
+
+- only one active unread re-review message per blocked story
+- when the moderator ignores or deletes the message, clear `_fanfic_re_review_requested`
+- when the story is unblocked, also clear `_fanfic_re_review_requested`
+
+### Moderator Compare Model
+
+The moderator compare screen should be based on snapshot-versus-current rows, not a custom correction-queue architecture.
+
+Recommended UI:
+
+- keep using the moderation `Messages` tab
+- show `Compare Changes` on relevant re-review messages
+- render a comparison table:
+  - field name
+  - blocked snapshot value
+  - current value
+- highlight changed rows
+- gray unchanged rows
+- show old and new cover thumbnails side by side
+- include a link to WordPress revision comparison for detailed title/content review
+
+The snapshot comparison is canonical for:
+
+- taxonomy changes
+- cover image changes
+- warning changes
+- language changes
+- meta-field changes
+
+The WordPress revision screen is supplemental for:
+
+- title text differences
+- long-form content differences
+
+### Supported Change Surface
+
+This simplified system is intended for correction of existing blocked content.
+
+Tracked story-level changes:
+
+- title
+- main content
+- introduction if later added to snapshot state
+- genres
+- statuses
+- fandoms
+- warnings
+- language
+- licence
+- age rating
+- cover image
+- author notes
+- original-work flag
+
+Tracked chapter-level changes:
+
+- chapter revisions are retained while blocked
+- moderator review is still story-centric when the blocked story owns the review flow
+- blocked chapter edits remain supported without introducing a separate chapter working-copy system
+
+### Explicit Non-Goals
+
+This design should not add:
+
+- working-copy posts
+- correction submission tables
+- correction item mapping tables
+- a separate `Corrections` moderation tab
+- multi-branch review flows
+- approval-time copy-back from shadow content
 
 ### Validation And Permissions
 
-Author correction access rules:
+Author edit access:
 
-- user must own the blocked target
-- target must still be blocked
-- only one active submission per target
+- must own the blocked story or blocked chapter
+- banned users remain unable to edit
+- blocked edit context only relaxes the "blocked content cannot be edited" rule for the owner path
+
+Save rules for non-moderators:
+
+- keep current story status while story is blocked
+- keep current chapter status while chapter or parent story is blocked
+- allow edits to save, but do not allow blocked content to be made visible through the form
 
 Moderator review rules:
 
-- moderator or admin capability required
-- approval must validate that the submission still maps to the same live target
-- approval should re-check block state before unblocking
+- compare access requires moderator/admin capability
+- unblock still acts on the real story or chapter
+- unblocking deletes the stored snapshot and re-review marker
 
-### Logging Requirements For Correction Workflow
+### Logging And Message Lifecycle
 
-Recommended new action types:
+The moderation message remains the workflow object.
 
-- `correction_submission_created`
-- `correction_submission_submitted`
-- `correction_submission_cancelled`
-- `correction_submission_approved`
-- `correction_submission_rejected`
-- `correction_unblock_story`
-- `correction_unblock_chapter`
+Expected lifecycle:
 
-Optional but useful:
+- unread: awaiting moderator review
+- ignored: restriction remains; author may submit again later
+- deleted: dismissed; author may submit again later
+- resolved through unblock: restriction removed and cleanup runs
 
-- include submission ID in log details
-- include working post IDs in internal metadata
+The moderation log should continue to record:
 
-### Testing Plan For Correction Workflow
+- ignore
+- delete
+- unblock
+
+No extra correction-specific log family is required for this design.
+
+### Testing Plan For The Adopted Diff System
 
 Author tests:
 
-- blocked story can enter correction mode
-- story correction mode can edit story and included chapters
-- blocked chapter can enter chapter-only correction mode
-- normal live blocked content is unchanged while edits are saved in correction mode
-- draft saves create revisions on working copies
-- submit locks the submission for review
+- block a story and confirm `_fanfic_block_snapshot` is written
+- open blocked story edit as the owner and confirm the full form still renders
+- open blocked chapter edit as the owner and confirm the full form still renders
+- save blocked edits and confirm content stays blocked
+- submit re-review and confirm the awaiting badge appears
 
 Moderator tests:
 
-- `Corrections` tab shows compact change summaries
-- review screen shows baseline-to-latest diff
-- moderators can open full live and full working content
-- approval applies corrected values to live content and unblocks correctly
-- rejection leaves live content unchanged
+- open the moderation `Messages` tab
+- open a re-review request
+- click `Compare Changes`
+- confirm old versus new values render correctly
+- confirm revision link opens when a retained revision exists
+- ignore or delete and confirm resubmission becomes possible
+- unblock and confirm snapshot cleanup runs
 
 Regression tests:
 
-- blocked content remains inaccessible to public readers during correction review
-- regular story and chapter editing paths stay unchanged for non-blocked content
-- messages and public reports remain separate systems
+- unblocked stories and chapters should still keep no retained revisions
+- public readers should still not see blocked content
+- blocked edits should not create a separate shadow workflow
+- public reports remain separate from moderation messages
 
-### Recommended Implementation Order For Future Correction Phase
+### Recommended Next-Step Order
 
-1. Enable revisions on story and chapter post types
-2. Add correction submission and correction item tables
-3. Add working-copy creation and mapping
-4. Add author correction routes and correction-mode save handling
-5. Add baseline revision creation and latest revision tracking
-6. Add structured change manifest generation
-7. Add moderation `Corrections` tab and queue
-8. Add correction review screen with native diff integration
-9. Add approval, apply, reject, unblock, and logging flows
+1. Keep the snapshot field list aligned with the real moderation review needs
+2. Extend comparison rendering if additional story fields need review
+3. Decide whether chapter-only compare needs its own snapshot layer later
+4. Manually validate the end-to-end unblock and cleanup flow in WordPress admin
