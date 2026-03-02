@@ -185,12 +185,304 @@
 
 			// Share buttons
 			this.initShareButtons();
-		// Report buttons
-		this.initReportButtons();
-		// Login-required buttons
-		this.initLoginRequiredButtons();
+			// Restriction messaging
+			this.initModerationMessage();
+			this.initChapterBlockControls();
+			// Report buttons
+			this.initReportButtons();
+			// Login-required buttons
+			this.initLoginRequiredButtons();
 
 			this.log('Fanfic Interactions initialized');
+		},
+
+		initModerationMessage: function() {
+			const self = this;
+
+			$(document).on('click', '.fanfic-message-mod-btn', function(e) {
+				e.preventDefault();
+				self.openModerationMessageModal($(this));
+			});
+
+			$(document).on('click', '#fanfic-mod-message-modal .fanfic-modal-overlay, #fanfic-mod-modal-cancel', function(e) {
+				e.preventDefault();
+				self.closeModerationMessageModal();
+			});
+
+			$(document).on('input', '#fanfic-mod-message-text', function() {
+				self.updateModerationMessageCount();
+			});
+
+			$(document).on('keydown', function(e) {
+				if (e.key === 'Escape' && $('#fanfic-mod-message-modal').is(':visible')) {
+					self.closeModerationMessageModal();
+				}
+			});
+
+			$(document).on('submit', '#fanfic-mod-message-form', function(e) {
+				e.preventDefault();
+
+				const $modal = $('#fanfic-mod-message-modal');
+				const targetType = String($modal.find('#fanfic-mod-target-type').val() || '').trim();
+				const targetId = parseInt($modal.find('#fanfic-mod-target-id').val(), 10) || 0;
+				const message = String($modal.find('#fanfic-mod-message-text').val() || '').trim();
+				const $trigger = $modal.data('triggerButton');
+
+				self.clearModerationMessageFormMessage();
+
+				if (!message) {
+					self.showModerationMessageFormMessage('error', self.strings.modMessageEmpty || self.strings.error);
+					return;
+				}
+
+				if (message.length > 1000) {
+					self.showModerationMessageFormMessage('error', self.strings.modMessageTooLong || self.strings.error);
+					return;
+				}
+
+				self.submitModerationMessage(targetType, targetId, message, $trigger);
+			});
+		},
+
+		openModerationMessageModal: function($button) {
+			const $modal = $('#fanfic-mod-message-modal');
+			if (!$modal.length) {
+				this.showError($button, this.strings.modMessageError || this.strings.error);
+				return;
+			}
+
+			$modal.find('#fanfic-mod-target-type').val(String($button.data('target-type') || ''));
+			$modal.find('#fanfic-mod-target-id').val(parseInt($button.data('target-id'), 10) || 0);
+			$modal.find('#fanfic-mod-message-text').val('');
+			$modal.data('triggerButton', $button);
+			this.clearModerationMessageFormMessage();
+			this.updateModerationMessageCount();
+			$modal.fadeIn(200).attr('aria-hidden', 'false');
+			$('body').css('overflow', 'hidden');
+
+			setTimeout(function() {
+				$modal.find('#fanfic-mod-message-text').trigger('focus');
+			}, 220);
+		},
+
+		closeModerationMessageModal: function() {
+			const $modal = $('#fanfic-mod-message-modal');
+			if (!$modal.length) {
+				return;
+			}
+
+			const $trigger = $modal.data('triggerButton');
+			$modal.fadeOut(200).attr('aria-hidden', 'true');
+			$modal.find('#fanfic-mod-target-type').val('');
+			$modal.find('#fanfic-mod-target-id').val('');
+			$modal.find('#fanfic-mod-message-text').val('');
+			$modal.removeData('triggerButton');
+			$('body').css('overflow', 'auto');
+			this.clearModerationMessageFormMessage();
+			this.updateModerationMessageCount();
+
+			if ($trigger && $trigger.length) {
+				$trigger.trigger('focus');
+			}
+		},
+
+		updateModerationMessageCount: function() {
+			const value = String($('#fanfic-mod-message-text').val() || '');
+			$('#fanfic-mod-char-count').text(value.length);
+		},
+
+		showModerationMessageFormMessage: function(type, message) {
+			const $message = $('#fanfic-mod-form-message');
+			if (!$message.length) {
+				return;
+			}
+
+			$message
+				.removeClass('success error')
+				.addClass(type)
+				.text(message || '')
+				.show();
+		},
+
+		clearModerationMessageFormMessage: function() {
+			$('#fanfic-mod-form-message').removeClass('success error').text('').hide();
+		},
+
+		submitModerationMessage: function(targetType, targetId, message, $trigger) {
+			const self = this;
+			const $submit = $('#fanfic-mod-modal-submit');
+
+			$submit.prop('disabled', true);
+
+			$.ajax({
+				url: this.config.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_send_moderation_message',
+					nonce: this.config.nonce,
+					target_type: targetType,
+					target_id: targetId,
+					message: message
+				}
+			}).done(function(response) {
+				if (response && response.success) {
+					self.markModerationMessageSent(targetType, targetId, $trigger);
+					self.closeModerationMessageModal();
+					return;
+				}
+
+				self.showModerationMessageFormMessage('error', (response && response.data && response.data.message) || self.strings.modMessageError || self.strings.error);
+			}).fail(function() {
+				self.showModerationMessageFormMessage('error', self.strings.modMessageError || self.strings.error);
+			}).always(function() {
+				$submit.prop('disabled', false);
+			});
+		},
+
+		markModerationMessageSent: function(targetType, targetId, $trigger) {
+			const selector = '.fanfic-message-mod-btn[data-target-type="' + String(targetType) + '"][data-target-id="' + parseInt(targetId, 10) + '"]';
+			const sentLabel = this.strings.modMessageSentState || 'Message Sent - Awaiting Review';
+
+			$(selector).each(function() {
+				$('<span class="fanfic-button secondary fanfic-message-sent-badge disabled"></span>')
+					.text(sentLabel)
+					.replaceAll($(this));
+			});
+
+			if ($trigger && $trigger.length) {
+				$('<span class="fanfic-button secondary fanfic-message-sent-badge disabled"></span>')
+					.text(sentLabel)
+					.replaceAll($trigger);
+			}
+		},
+
+		initChapterBlockControls: function() {
+			const self = this;
+
+			$(document).on('click', '.fanfic-block-chapter-submit', function(e) {
+				e.preventDefault();
+				self.submitChapterBlock($(this), true);
+			});
+
+			$(document).on('click', '.fanfic-unblock-chapter-submit', function(e) {
+				e.preventDefault();
+				self.submitChapterBlock($(this), false);
+			});
+		},
+
+		submitChapterBlock: function($button, shouldBlock) {
+			const self = this;
+			const $controls = $button.closest('.fanfic-chapter-block-controls');
+			const chapterId = parseInt($controls.data('chapter-id') || $button.data('chapter-id'), 10) || 0;
+			const chapterTitle = String($button.data('chapter-title') || '').trim();
+			const $reasonSelect = $controls.find('.fanfic-block-reason-select').first();
+			const $reasonText = $controls.find('.fanfic-block-reason-text').first();
+			const blockReason = String($reasonSelect.val() || '').trim();
+			const blockReasonText = String($reasonText.val() || '').trim();
+			const originalLabel = $button.text();
+
+			if (!chapterId) {
+				this.showError($controls, this.strings.error);
+				return;
+			}
+
+			if (shouldBlock) {
+				if (!blockReason) {
+					this.showError($controls, this.strings.chapterBlockReasonRequired || this.strings.error);
+					return;
+				}
+
+				if (!window.confirm(this.strings.chapterBlockConfirm || 'Block this chapter? Authors will be limited to view-only access.')) {
+					return;
+				}
+			} else if (!window.confirm(this.strings.chapterUnblockConfirm || 'Unblock this chapter?')) {
+				return;
+			}
+
+			$button.prop('disabled', true).text(shouldBlock ? (this.strings.chapterBlocking || 'Blocking...') : (this.strings.chapterUnblocking || 'Unblocking...'));
+
+			$.ajax({
+				url: this.config.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_toggle_chapter_block_ajax',
+					nonce: this.config.nonce,
+					chapter_id: chapterId,
+					block_reason: blockReason,
+					block_reason_text: blockReasonText
+				}
+			}).done(function(response) {
+				if (response && response.success) {
+					self.applyChapterBlockState(chapterId, response.data || {});
+					self.showSuccess($controls, (response.data && response.data.message) || self.strings.modMessageSent || 'Success');
+					return;
+				}
+
+				self.showError($controls, (response && response.data && response.data.message) || self.strings.error);
+				$button.prop('disabled', false).text(originalLabel);
+			}).fail(function(xhr) {
+				self.handleAjaxError(xhr, $controls);
+				$button.prop('disabled', false).text(originalLabel);
+			});
+		},
+
+		applyChapterBlockState: function(chapterId, payload) {
+			const isBlocked = !!payload.is_blocked;
+			const postStatus = String(payload.post_status || 'draft');
+			const visibleLabel = this.strings.chapterVisible || 'Visible';
+			const hiddenLabel = this.strings.chapterHidden || 'Hidden';
+			const blockedLabel = this.strings.chapterBlocked || 'Blocked';
+
+			$('.fanfic-chapter-block-controls[data-chapter-id="' + chapterId + '"]').each(function() {
+				const $controls = $(this);
+				$controls.find('.fanfic-chapter-block-panel-block').prop('hidden', isBlocked);
+				$controls.find('.fanfic-chapter-block-panel-unblock').prop('hidden', !isBlocked);
+				$controls.find('.fanfic-block-reason-text').val('');
+				const $select = $controls.find('.fanfic-block-reason-select');
+				if ($select.length && $select.find('option[value="manual"]').length) {
+					$select.val('manual');
+				}
+				$controls.find('.fanfic-block-chapter-submit').prop('disabled', false).text(this.strings ? this.strings.chapterBlock || 'Block' : 'Block');
+				$controls.find('.fanfic-unblock-chapter-submit').prop('disabled', false).text(this.strings ? this.strings.chapterUnblock || 'Unblock' : 'Unblock');
+			}.bind(this));
+
+			$('.fanfic-chapter-row[data-chapter-id="' + chapterId + '"]').each(function() {
+				const $row = $(this);
+				const badgeText = isBlocked ? blockedLabel : (postStatus === 'publish' ? visibleLabel : hiddenLabel);
+				const badgeClass = isBlocked ? 'blocked' : postStatus;
+				$row.attr('data-post-status', postStatus);
+				$row.find('.fanfic-status-badge').attr('class', 'fanfic-status-badge fanfic-status-' + badgeClass).text(badgeText);
+				$row.find('.fanfic-hide-chapter').prop('hidden', isBlocked || postStatus !== 'publish');
+				$row.find('.fanfic-publish-chapter').prop('hidden', isBlocked || postStatus !== 'draft');
+			});
+
+			$('.fanfic-form-actions').has('.fanfic-chapter-block-controls[data-chapter-id="' + chapterId + '"]').each(function() {
+				const $actions = $(this);
+				const $statusBadge = $('.fanfic-chapter-status-badge').first();
+				const isPublished = postStatus === 'publish';
+
+				$actions.find('#hide-chapter-button').prop('hidden', isBlocked || !isPublished);
+				$actions.find('#make-chapter-visible-button').prop('hidden', isBlocked || isPublished);
+				$actions.find('a[data-fanfic-chapter-view="1"]').prop('hidden', isBlocked || !isPublished);
+
+				if (!$statusBadge.length) {
+					return;
+				}
+
+				if (isBlocked) {
+					$statusBadge.attr('class', 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-blocked');
+					$statusBadge.html('<span class="dashicons dashicons-lock"></span>' + blockedLabel);
+					return;
+				}
+
+				if (isPublished) {
+					$statusBadge.attr('class', 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-published');
+					$statusBadge.text(visibleLabel);
+				} else {
+					$statusBadge.attr('class', 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-draft');
+					$statusBadge.html('<span class="dashicons dashicons-hidden"></span>' + hiddenLabel);
+				}
+			});
 		},
 
 		/**

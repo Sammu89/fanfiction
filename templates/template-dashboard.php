@@ -293,6 +293,7 @@ if ( isset( $_GET['error'] ) ) {
 
 			<div class="fanfic-author-stories-manage">
 				<?php if ( $query->have_posts() ) : ?>
+					<?php $has_moderation_message_target = false; ?>
 					<div class="fanfic-stories-table-wrapper">
 						<table class="fanfic-stories-table">
 							<thead>
@@ -349,6 +350,12 @@ if ( isset( $_GET['error'] ) ) {
 													<?php esc_html_e( 'Suspended (read-only)', 'fanfiction-manager' ); ?>
 												</span>
 											<?php elseif ( $is_blocked ) : ?>
+												<?php
+												$has_moderation_message_target = true;
+												$has_active_message = class_exists( 'Fanfic_Moderation_Messages' )
+													? Fanfic_Moderation_Messages::has_active_message( $current_user->ID, 'story', $story_id )
+													: false;
+												?>
 												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
 													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
 												</span>
@@ -358,6 +365,21 @@ if ( isset( $_GET['error'] ) ) {
 												<span class="fanfic-button small danger disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
 													<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 												</span>
+												<?php if ( class_exists( 'Fanfic_Moderation_Messages' ) ) : ?>
+													<?php if ( $has_active_message ) : ?>
+														<span class="fanfic-button small secondary fanfic-message-sent-badge disabled">
+															<?php esc_html_e( 'Message Sent - Awaiting Review', 'fanfiction-manager' ); ?>
+														</span>
+													<?php else : ?>
+														<button
+															type="button"
+															class="fanfic-button small secondary fanfic-message-mod-btn"
+															data-target-type="story"
+															data-target-id="<?php echo esc_attr( $story_id ); ?>">
+															<?php esc_html_e( 'Message Moderation', 'fanfiction-manager' ); ?>
+														</button>
+													<?php endif; ?>
+												<?php endif; ?>
 											<?php else : ?>
 												<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button small">
 													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
@@ -382,6 +404,12 @@ if ( isset( $_GET['error'] ) ) {
 							</tbody>
 						</table>
 					</div>
+
+					<?php
+					if ( $has_moderation_message_target && function_exists( 'fanfic_render_moderation_message_modal' ) ) {
+						fanfic_render_moderation_message_modal();
+					}
+					?>
 
 					<?php
 					// Pagination

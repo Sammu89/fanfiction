@@ -260,6 +260,73 @@ body.fanfic-admin-modal-open {
 	cursor: not-allowed;
 }
 
+.fanfic-message-detail-row td {
+	background: #f6f7f7;
+	padding: 18px 16px;
+}
+
+.fanfic-message-detail-inner {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.fanfic-message-full-text {
+	margin: 0;
+	padding: 12px 14px;
+	border-left: 4px solid #2271b1;
+	background: #fff;
+}
+
+.fanfic-expand-message {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	transition: transform 0.2s ease;
+}
+
+.fanfic-expand-message-icon {
+	transition: transform 0.2s ease;
+}
+
+.fanfic-expand-message.is-expanded .fanfic-expand-message-icon {
+	transform: rotate(90deg);
+}
+
+.fanfic-message-detail-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.fanfic-msg-status-badge {
+	display: inline-block;
+	padding: 3px 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.fanfic-msg-status-badge.status-unread {
+	background: #fcf9e8;
+	color: #8a6d1f;
+}
+
+.fanfic-msg-status-badge.status-ignored {
+	background: #f0f0f1;
+	color: #50575e;
+}
+
+.fanfic-msg-status-badge.status-resolved {
+	background: #edfaef;
+	color: #136333;
+}
+
+.fanfic-msg-status-badge.status-deleted {
+	background: #fbeaea;
+	color: #b32d2e;
+}
+
 /* High Contrast Mode Support */
 @media (prefers-contrast: more) {
 	table th {

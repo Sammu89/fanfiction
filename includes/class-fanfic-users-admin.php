@@ -1019,6 +1019,11 @@ class Fanfic_Users_Admin {
 			// Ban user
 			$(document).on('click', '.fanfic-action-ban', function(e) {
 				e.preventDefault();
+				if (window.FanficAdminBanModal && typeof window.FanficAdminBanModal.openFromTrigger === 'function') {
+					window.FanficAdminBanModal.openFromTrigger($(this));
+					return;
+				}
+
 				var userId = $(this).data('user-id');
 				var nonce = $(this).data('nonce');
 
@@ -1322,6 +1327,8 @@ class Fanfic_Users_Admin {
 	public static function ajax_ban_user() {
 		// Get user ID
 		$user_id = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
+		$suspension_reason = isset( $_POST['suspension_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['suspension_reason'] ) ) : '';
+		$suspension_reason_text = isset( $_POST['suspension_reason_text'] ) ? sanitize_textarea_field( wp_unslash( $_POST['suspension_reason_text'] ) ) : '';
 
 		// Verify nonce
 		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'fanfic_user_action_' . $user_id ) ) {
@@ -1362,6 +1369,19 @@ class Fanfic_Users_Admin {
 		update_user_meta( $user_id, 'fanfic_banned', '1' );
 		update_user_meta( $user_id, 'fanfic_banned_by', get_current_user_id() );
 		update_user_meta( $user_id, 'fanfic_banned_at', current_time( 'mysql' ) );
+
+		$valid_reasons = function_exists( 'fanfic_get_suspension_reason_labels' ) ? array_keys( fanfic_get_suspension_reason_labels() ) : array();
+		if ( $suspension_reason && in_array( $suspension_reason, $valid_reasons, true ) ) {
+			update_user_meta( $user_id, 'fanfic_suspension_reason', $suspension_reason );
+		} else {
+			delete_user_meta( $user_id, 'fanfic_suspension_reason' );
+		}
+
+		if ( '' !== $suspension_reason_text ) {
+			update_user_meta( $user_id, 'fanfic_suspension_reason_text', $suspension_reason_text );
+		} else {
+			delete_user_meta( $user_id, 'fanfic_suspension_reason_text' );
+		}
 
 		// Fire action hook
 		do_action( 'fanfic_user_banned', $user_id, get_current_user_id() );

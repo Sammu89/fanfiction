@@ -43,6 +43,7 @@ function fanfic_get_blocked_story_message( $story_id = 0 ) {
 
 	$block_type   = get_post_meta( $story_id, '_fanfic_block_type', true );
 	$block_reason = get_post_meta( $story_id, '_fanfic_block_reason', true );
+	$block_reason_text = get_post_meta( $story_id, '_fanfic_block_reason_text', true );
 	$blocked_at   = get_post_meta( $story_id, '_fanfic_blocked_timestamp', true );
 
 	$message = '';
@@ -81,6 +82,9 @@ function fanfic_get_blocked_story_message( $story_id = 0 ) {
 					$timestamp_text,
 					fanfic_get_block_reason_label( $block_reason )
 				);
+				if ( $block_reason_text ) {
+					$message .= ' - ' . sanitize_text_field( $block_reason_text );
+				}
 			} else {
 				$message = sprintf(
 					__( 'This story was blocked%s. If you believe this is a mistake, please contact the site administrator.', 'fanfiction-manager' ),
@@ -131,6 +135,82 @@ function fanfic_get_block_reason_label( $block_reason ) {
 
 	$labels = fanfic_get_block_reason_labels();
 	return isset( $labels[ $block_reason ] ) ? $labels[ $block_reason ] : $block_reason;
+}
+
+/**
+ * Check whether a block reason is a defined moderation reason code.
+ *
+ * @since 2.3.0
+ * @param string $block_reason Block reason code.
+ * @return bool
+ */
+function fanfic_is_valid_block_reason_code( $block_reason ) {
+	$block_reason = is_string( $block_reason ) ? trim( $block_reason ) : '';
+	if ( '' === $block_reason ) {
+		return false;
+	}
+
+	$labels = fanfic_get_block_reason_labels();
+	return isset( $labels[ $block_reason ] );
+}
+
+/**
+ * Normalize a moderator-entered block reason code.
+ *
+ * @since 2.3.0
+ * @param string $block_reason Submitted block reason.
+ * @param string $fallback     Fallback reason code.
+ * @return string
+ */
+function fanfic_normalize_block_reason_code( $block_reason, $fallback = 'manual' ) {
+	$block_reason = is_string( $block_reason ) ? trim( $block_reason ) : '';
+	$fallback     = is_string( $fallback ) ? trim( $fallback ) : 'manual';
+
+	if ( fanfic_is_valid_block_reason_code( $block_reason ) ) {
+		return $block_reason;
+	}
+
+	return fanfic_is_valid_block_reason_code( $fallback ) ? $fallback : 'manual';
+}
+
+/**
+ * Normalize moderator-entered block reason text.
+ *
+ * @since 2.3.0
+ * @param string $reason_text Submitted free-text details.
+ * @param int    $max_length  Maximum length.
+ * @return string
+ */
+function fanfic_normalize_block_reason_text( $reason_text, $max_length = 500 ) {
+	$reason_text = sanitize_textarea_field( (string) $reason_text );
+	$max_length  = max( 1, absint( $max_length ) );
+
+	if ( function_exists( 'mb_strlen' ) && mb_strlen( $reason_text ) > $max_length ) {
+		$reason_text = mb_substr( $reason_text, 0, $max_length );
+	} elseif ( strlen( $reason_text ) > $max_length ) {
+		$reason_text = substr( $reason_text, 0, $max_length );
+	}
+
+	return trim( $reason_text );
+}
+
+/**
+ * Check whether block reason text exceeds the allowed limit.
+ *
+ * @since 2.3.0
+ * @param string $reason_text Submitted free-text details.
+ * @param int    $max_length  Maximum length.
+ * @return bool
+ */
+function fanfic_block_reason_text_exceeds_limit( $reason_text, $max_length = 500 ) {
+	$reason_text = sanitize_textarea_field( (string) $reason_text );
+	$max_length  = max( 1, absint( $max_length ) );
+
+	if ( function_exists( 'mb_strlen' ) ) {
+		return mb_strlen( $reason_text ) > $max_length;
+	}
+
+	return strlen( $reason_text ) > $max_length;
 }
 
 /**
@@ -328,6 +408,7 @@ function fanfic_apply_post_block( $post_id, $args = array() ) {
 		'actor_id'      => get_current_user_id(),
 		'block_type'    => 'manual',
 		'block_reason'  => '',
+		'block_reason_text' => '',
 		'change_status' => false,
 		'new_status'    => 'draft',
 		'save_status'   => false,
@@ -347,6 +428,14 @@ function fanfic_apply_post_block( $post_id, $args = array() ) {
 	update_post_meta( $post_id, $flag_meta_key, 1 );
 	update_post_meta( $post_id, '_fanfic_block_type', sanitize_key( $args['block_type'] ) );
 	update_post_meta( $post_id, '_fanfic_block_reason', sanitize_text_field( $args['block_reason'] ) );
+	$normalized_reason_text = function_exists( 'fanfic_normalize_block_reason_text' )
+		? fanfic_normalize_block_reason_text( $args['block_reason_text'] )
+		: sanitize_textarea_field( $args['block_reason_text'] );
+	if ( '' !== $normalized_reason_text ) {
+		update_post_meta( $post_id, '_fanfic_block_reason_text', $normalized_reason_text );
+	} else {
+		delete_post_meta( $post_id, '_fanfic_block_reason_text' );
+	}
 	update_post_meta( $post_id, '_fanfic_blocked_timestamp', time() );
 
 	if ( $args['change_status'] && $current_status && $args['new_status'] !== $current_status ) {
@@ -407,6 +496,7 @@ function fanfic_remove_post_block( $post_id, $args = array() ) {
 	delete_post_meta( $post_id, $flag_meta_key );
 	delete_post_meta( $post_id, '_fanfic_block_type' );
 	delete_post_meta( $post_id, '_fanfic_block_reason' );
+	delete_post_meta( $post_id, '_fanfic_block_reason_text' );
 	delete_post_meta( $post_id, '_fanfic_blocked_timestamp' );
 	delete_post_meta( $post_id, '_fanfic_story_blocked_prev_status' );
 
@@ -1923,13 +2013,14 @@ function fanfic_get_tags_for_indexing( $story_id ) {
  * @param int    $actor_id User ID who performed the block (default: current user).
  * @return bool True on success
  */
-function fanfic_block_story( $story_id, $reason = '', $actor_id = 0 ) {
+function fanfic_block_story( $story_id, $reason = '', $actor_id = 0, $reason_text = '' ) {
 	return fanfic_apply_post_block(
 		$story_id,
 		array(
 			'actor_id'      => $actor_id ? $actor_id : get_current_user_id(),
 			'block_type'    => 'manual',
 			'block_reason'  => $reason,
+			'block_reason_text' => $reason_text,
 			'change_status' => true,
 			'new_status'    => 'draft',
 			'save_status'   => true,
@@ -1964,13 +2055,14 @@ function fanfic_unblock_story( $story_id, $actor_id = 0 ) {
  * @param int    $actor_id   Actor user ID.
  * @return bool
  */
-function fanfic_block_chapter( $chapter_id, $reason = '', $actor_id = 0 ) {
+function fanfic_block_chapter( $chapter_id, $reason = '', $actor_id = 0, $reason_text = '' ) {
 	return fanfic_apply_post_block(
 		$chapter_id,
 		array(
 			'actor_id'      => $actor_id ? $actor_id : get_current_user_id(),
 			'block_type'    => 'manual',
 			'block_reason'  => $reason,
+			'block_reason_text' => $reason_text,
 			'change_status' => false,
 			'save_status'   => false,
 		)
@@ -4157,4 +4249,446 @@ function fanfic_get_report_revision_token( $content_id, $content_type ) {
 	}
 
 	return md5( $normalized_type . '|' . $content_id . '|' . $revision_source );
+}
+
+/**
+ * Get suspension reason labels.
+ *
+ * @since 2.3.0
+ * @return array<string,string>
+ */
+function fanfic_get_suspension_reason_labels() {
+	return array(
+		'tos_violation' => __( 'Terms of Service Violation', 'fanfiction-manager' ),
+		'harassment'    => __( 'Harassment / Bullying', 'fanfiction-manager' ),
+		'spam'          => __( 'Spam / Advertising', 'fanfiction-manager' ),
+		'ban_evasion'   => __( 'Ban Evasion', 'fanfiction-manager' ),
+		'inappropriate' => __( 'Inappropriate Conduct', 'fanfiction-manager' ),
+		'other'         => __( 'Other', 'fanfiction-manager' ),
+	);
+}
+
+/**
+ * Get a single suspension reason label.
+ *
+ * @since 2.3.0
+ * @param string $reason Reason code.
+ * @return string Human-readable label.
+ */
+function fanfic_get_suspension_reason_label( $reason ) {
+	$labels = fanfic_get_suspension_reason_labels();
+	return isset( $labels[ $reason ] ) ? $labels[ $reason ] : (string) $reason;
+}
+
+/**
+ * Get a human-readable message explaining why a chapter is blocked.
+ *
+ * @since 2.3.0
+ * @param int $chapter_id Chapter post ID.
+ * @return string
+ */
+function fanfic_get_blocked_chapter_message( $chapter_id = 0 ) {
+	if ( ! $chapter_id ) {
+		return __( 'This chapter has been blocked by a moderator.', 'fanfiction-manager' );
+	}
+
+	$chapter = get_post( $chapter_id );
+	if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+		return __( 'This chapter has been blocked by a moderator.', 'fanfiction-manager' );
+	}
+
+	$block_type   = get_post_meta( $chapter_id, '_fanfic_block_type', true );
+	$block_reason = get_post_meta( $chapter_id, '_fanfic_block_reason', true );
+	$block_reason_text = get_post_meta( $chapter_id, '_fanfic_block_reason_text', true );
+	$blocked_at   = get_post_meta( $chapter_id, '_fanfic_blocked_timestamp', true );
+
+	$timestamp_text = '';
+	if ( $blocked_at ) {
+		$timestamp_text = ' ' . sprintf(
+			__( 'on %s', 'fanfiction-manager' ),
+			date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $blocked_at )
+		);
+	}
+
+	switch ( $block_type ) {
+		case 'ban':
+			return sprintf(
+				__( 'This chapter was blocked%s because the author\'s account has been suspended.', 'fanfiction-manager' ),
+				$timestamp_text
+			);
+
+		case 'rule':
+			$rule_reason = is_string( $block_reason ) ? sanitize_text_field( $block_reason ) : '';
+			return sprintf(
+				__( 'This chapter was automatically blocked%s because site content rules have changed. %s', 'fanfiction-manager' ),
+				$timestamp_text,
+				$rule_reason
+			);
+
+		case 'manual':
+		default:
+			if ( $block_reason ) {
+				$message = sprintf(
+					__( 'Your chapter was blocked%s because: %s', 'fanfiction-manager' ),
+					$timestamp_text,
+					fanfic_get_block_reason_label( $block_reason )
+				);
+				if ( $block_reason_text ) {
+					$message .= ' - ' . sanitize_text_field( $block_reason_text );
+				}
+				return $message;
+			}
+			return sprintf(
+				__( 'This chapter was blocked%s. If you believe this is a mistake, please contact the site administrator.', 'fanfiction-manager' ),
+				$timestamp_text
+			);
+	}
+}
+
+/**
+ * Get a human-readable message explaining why a user's account is suspended.
+ *
+ * @since 2.3.0
+ * @param int $user_id User ID.
+ * @return string
+ */
+function fanfic_get_suspension_message( $user_id = 0 ) {
+	if ( ! $user_id ) {
+		return __( 'Your account has been suspended.', 'fanfiction-manager' );
+	}
+
+	$reason      = get_user_meta( $user_id, 'fanfic_suspension_reason', true );
+	$reason_text = get_user_meta( $user_id, 'fanfic_suspension_reason_text', true );
+	$banned_at   = get_user_meta( $user_id, 'fanfic_banned_at', true );
+
+	$timestamp_text = '';
+	if ( $banned_at ) {
+		$timestamp_text = ' ' . sprintf(
+			__( 'on %s', 'fanfiction-manager' ),
+			date_i18n( get_option( 'date_format' ), strtotime( $banned_at ) )
+		);
+	}
+
+	if ( $reason && 'other' !== $reason ) {
+		$label = fanfic_get_suspension_reason_label( $reason );
+		$msg   = sprintf(
+			__( 'Your account was suspended%s for: %s', 'fanfiction-manager' ),
+			$timestamp_text,
+			$label
+		);
+		if ( $reason_text ) {
+			$msg .= ' - ' . sanitize_text_field( $reason_text );
+		}
+		return $msg;
+	}
+
+	if ( $reason_text ) {
+		return sprintf(
+			__( 'Your account was suspended%s. Reason: %s', 'fanfiction-manager' ),
+			$timestamp_text,
+			sanitize_text_field( $reason_text )
+		);
+	}
+
+	return sprintf(
+		__( 'Your account was suspended%s.', 'fanfiction-manager' ),
+		$timestamp_text
+	);
+}
+
+/**
+ * Get structured restriction context for a target.
+ *
+ * Returns an array with restriction details used by banners and message modals.
+ *
+ * @since 2.3.0
+ * @param string $target_type 'story', 'chapter', or 'user'.
+ * @param int    $target_id   Post ID or user ID.
+ * @return array {
+ *     @type bool   $is_restricted
+ *     @type string $restriction_type  'story_blocked', 'chapter_blocked', 'user_suspended', or ''
+ *     @type string $target_type
+ *     @type int    $target_id
+ *     @type string $reason_message
+ *     @type bool   $has_active_message
+ *     @type int    $owner_id
+ * }
+ */
+function fanfic_get_restriction_context( $target_type, $target_id ) {
+	$context = array(
+		'is_restricted'      => false,
+		'restriction_type'   => '',
+		'target_type'        => $target_type,
+		'target_id'          => absint( $target_id ),
+		'reason_message'     => '',
+		'has_active_message' => false,
+		'owner_id'           => 0,
+	);
+
+	if ( 'story' === $target_type ) {
+		$story = get_post( $target_id );
+		if ( ! $story ) {
+			return $context;
+		}
+		$context['owner_id'] = absint( $story->post_author );
+		if ( fanfic_is_story_blocked( $target_id ) ) {
+			$context['is_restricted']    = true;
+			$context['restriction_type'] = 'story_blocked';
+			$context['reason_message']   = fanfic_get_blocked_story_message( $target_id );
+		}
+	} elseif ( 'chapter' === $target_type ) {
+		$chapter = get_post( $target_id );
+		if ( ! $chapter ) {
+			return $context;
+		}
+		$context['owner_id'] = absint( $chapter->post_author );
+		if ( fanfic_is_chapter_blocked( $target_id ) ) {
+			$context['is_restricted']    = true;
+			$context['restriction_type'] = 'chapter_blocked';
+			$context['reason_message']   = fanfic_get_blocked_chapter_message( $target_id );
+		}
+	} elseif ( 'user' === $target_type ) {
+		$context['owner_id'] = absint( $target_id );
+		if ( get_user_meta( $target_id, 'fanfic_banned', true ) === '1' ) {
+			$context['is_restricted']    = true;
+			$context['restriction_type'] = 'user_suspended';
+			$context['reason_message']   = fanfic_get_suspension_message( $target_id );
+		}
+	}
+
+	if ( $context['is_restricted'] && class_exists( 'Fanfic_Moderation_Messages' ) ) {
+		$context['has_active_message'] = Fanfic_Moderation_Messages::has_active_message(
+			$context['owner_id'],
+			$target_type,
+			$target_id
+		);
+	}
+
+	return $context;
+}
+
+/**
+ * Get an admin-facing restriction summary for moderation screens.
+ *
+ * @since 2.3.0
+ * @param string $target_type Restriction target type.
+ * @param int    $target_id   Target object ID.
+ * @return string
+ */
+function fanfic_get_admin_restriction_summary( $target_type, $target_id ) {
+	$target_type = sanitize_key( $target_type );
+	$target_id   = absint( $target_id );
+
+	if ( ! $target_id ) {
+		return '';
+	}
+
+	$moderator_name = '';
+	$timestamp      = '';
+	$reason         = '';
+	$reason_text    = '';
+	$type_label     = '';
+
+	if ( 'story' === $target_type || 'chapter' === $target_type ) {
+		$post = get_post( $target_id );
+		if ( ! $post ) {
+			return '';
+		}
+
+		$type_label  = 'story' === $target_type ? __( 'Story blocked', 'fanfiction-manager' ) : __( 'Chapter blocked', 'fanfiction-manager' );
+		$timestamp   = get_post_meta( $target_id, '_fanfic_blocked_timestamp', true );
+		$reason      = get_post_meta( $target_id, '_fanfic_block_reason', true );
+		$reason_text = get_post_meta( $target_id, '_fanfic_block_reason_text', true );
+
+		if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+			$actions = 'story' === $target_type
+				? array( 'block_manual', 'block_ban', 'block_rule' )
+				: array( 'chapter_block_manual', 'chapter_block_ban', 'chapter_block_rule' );
+			$logs = Fanfic_Moderation_Log::get_logs(
+				array(
+					'target_type' => $target_type,
+					'target_id'   => $target_id,
+					'action'      => $actions,
+					'limit'       => 1,
+				)
+			);
+
+			if ( ! empty( $logs[0]['actor_id'] ) ) {
+				$user = get_userdata( absint( $logs[0]['actor_id'] ) );
+				if ( $user ) {
+					$moderator_name = $user->display_name;
+				}
+			}
+		}
+	} elseif ( 'user' === $target_type ) {
+		$type_label  = __( 'Account suspended', 'fanfiction-manager' );
+		$timestamp   = get_user_meta( $target_id, 'fanfic_banned_at', true );
+		$reason      = get_user_meta( $target_id, 'fanfic_suspension_reason', true );
+		$reason_text = get_user_meta( $target_id, 'fanfic_suspension_reason_text', true );
+
+		$moderator_id = absint( get_user_meta( $target_id, 'fanfic_banned_by', true ) );
+		if ( $moderator_id ) {
+			$user = get_userdata( $moderator_id );
+			if ( $user ) {
+				$moderator_name = $user->display_name;
+			}
+		}
+	} else {
+		return '';
+	}
+
+	$parts = array( $type_label );
+
+	if ( $timestamp ) {
+		$formatted_timestamp = is_numeric( $timestamp )
+			? date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $timestamp )
+			: date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), strtotime( (string) $timestamp ) );
+		$parts[] = sprintf( __( 'on %s', 'fanfiction-manager' ), $formatted_timestamp );
+	}
+
+	if ( $moderator_name ) {
+		$parts[] = sprintf( __( 'by %s.', 'fanfiction-manager' ), $moderator_name );
+	} else {
+		$parts[] = '.';
+	}
+
+	$summary = implode( ' ', array_filter( $parts ) );
+	$summary = preg_replace( '/\s+\./', '.', $summary );
+
+	if ( 'user' === $target_type ) {
+		$reason_label = $reason ? fanfic_get_suspension_reason_label( $reason ) : '';
+	} else {
+		$reason_label = $reason ? fanfic_get_block_reason_label( $reason ) : '';
+	}
+
+	if ( $reason_label ) {
+		$summary .= ' ' . sprintf( __( 'Reason: %s', 'fanfiction-manager' ), $reason_label );
+	}
+
+	if ( $reason_text ) {
+		$summary .= ' - ' . sanitize_text_field( $reason_text );
+	}
+
+	return trim( $summary );
+}
+
+/**
+ * Render the moderation message modal once per page.
+ *
+ * @since 2.3.0
+ * @return void
+ */
+function fanfic_render_moderation_message_modal() {
+	static $modal_rendered = false;
+	if ( $modal_rendered ) {
+		return;
+	}
+
+	$modal_rendered = true;
+	?>
+	<div id="fanfic-mod-message-modal" class="fanfic-modal" style="display:none;" aria-hidden="true" aria-modal="true" role="dialog" aria-labelledby="fanfic-mod-modal-title">
+		<div class="fanfic-modal-overlay"></div>
+		<div class="fanfic-modal-content">
+			<h2 id="fanfic-mod-modal-title"><?php esc_html_e( 'Message Moderation', 'fanfiction-manager' ); ?></h2>
+			<p class="fanfic-modal-description"><?php esc_html_e( 'Send a message to the moderation team about this restriction. Be respectful and provide any relevant context.', 'fanfiction-manager' ); ?></p>
+			<form id="fanfic-mod-message-form">
+				<input type="hidden" name="target_type" id="fanfic-mod-target-type" value="">
+				<input type="hidden" name="target_id" id="fanfic-mod-target-id" value="">
+				<div class="fanfic-form-group">
+					<label for="fanfic-mod-message-text"><?php esc_html_e( 'Your message:', 'fanfiction-manager' ); ?></label>
+					<textarea
+						id="fanfic-mod-message-text"
+						name="message"
+						rows="5"
+						maxlength="1000"
+						placeholder="<?php esc_attr_e( 'Describe your situation...', 'fanfiction-manager' ); ?>"
+					></textarea>
+					<span class="fanfic-char-counter"><span id="fanfic-mod-char-count">0</span>/1000</span>
+				</div>
+				<div class="fanfic-form-message" id="fanfic-mod-form-message" style="display:none;"></div>
+				<div class="fanfic-modal-actions">
+					<button type="button" class="fanfic-button secondary" id="fanfic-mod-modal-cancel">
+						<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
+					</button>
+					<button type="submit" class="fanfic-button primary" id="fanfic-mod-modal-submit">
+						<?php esc_html_e( 'Send Message', 'fanfiction-manager' ); ?>
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+	<?php
+}
+
+/**
+ * Render a restriction banner for blocked stories/chapters or suspended accounts.
+ *
+ * @since 2.3.0
+ * @param array  $context     Restriction context from fanfic_get_restriction_context().
+ * @param array  $nav_buttons Array of ['label' => string, 'url' => string, 'class' => string (optional)].
+ * @return void
+ */
+function fanfic_render_restriction_banner( $context, $nav_buttons = array() ) {
+	if ( empty( $context['is_restricted'] ) ) {
+		return;
+	}
+
+	$restriction_type = $context['restriction_type'];
+	$has_active       = ! empty( $context['has_active_message'] );
+	$target_type      = esc_attr( $context['target_type'] );
+	$target_id        = absint( $context['target_id'] );
+
+	switch ( $restriction_type ) {
+		case 'story_blocked':
+			$title = __( 'Story Blocked', 'fanfiction-manager' );
+			$info  = __( 'You can still view your story, but editing and publishing are disabled until the block is lifted.', 'fanfiction-manager' );
+			break;
+		case 'chapter_blocked':
+			$title = __( 'Chapter Blocked', 'fanfiction-manager' );
+			$info  = __( 'You can still view this chapter, but editing and visibility actions are disabled until the block is lifted.', 'fanfiction-manager' );
+			break;
+		case 'user_suspended':
+			$title = __( 'Account Suspended', 'fanfiction-manager' );
+			$info  = __( 'You can view your content but cannot create or edit stories while suspended.', 'fanfiction-manager' );
+			break;
+		default:
+			$title = __( 'Restricted', 'fanfiction-manager' );
+			$info  = '';
+	}
+
+	?>
+	<div class="fanfic-message fanfic-message-error fanfic-blocked-notice" role="alert" aria-live="assertive">
+		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+		<span class="fanfic-message-content">
+			<strong><?php echo esc_html( $title ); ?></strong><br>
+			<?php echo esc_html( $context['reason_message'] ); ?><br>
+			<?php if ( $info ) : ?>
+				<span class="fanfic-block-info"><?php echo esc_html( $info ); ?></span>
+			<?php endif; ?>
+			<span class="fanfic-message-actions">
+				<?php foreach ( $nav_buttons as $btn ) : ?>
+					<a href="<?php echo esc_url( $btn['url'] ); ?>" class="fanfic-button <?php echo isset( $btn['class'] ) ? esc_attr( $btn['class'] ) : 'secondary'; ?>">
+						<?php echo esc_html( $btn['label'] ); ?>
+					</a>
+				<?php endforeach; ?>
+				<?php if ( is_user_logged_in() && class_exists( 'Fanfic_Moderation_Messages' ) ) : ?>
+					<?php if ( $has_active ) : ?>
+						<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
+							<?php esc_html_e( 'Message Sent - Awaiting Review', 'fanfiction-manager' ); ?>
+						</span>
+					<?php else : ?>
+						<button type="button"
+							class="fanfic-button secondary fanfic-message-mod-btn"
+							data-target-type="<?php echo esc_attr( $target_type ); ?>"
+							data-target-id="<?php echo esc_attr( $target_id ); ?>">
+							<?php esc_html_e( 'Message Moderation', 'fanfiction-manager' ); ?>
+						</button>
+					<?php endif; ?>
+				<?php endif; ?>
+			</span>
+		</span>
+	</div>
+	<?php
+
+	fanfic_render_moderation_message_modal();
 }

@@ -132,11 +132,20 @@ if ( ! $enable_comments ) {
 	$template = str_replace( '[story-comments]', '', (string) $template );
 }
 
-// Show a discreet warning if this story is not published
-// Show a discreet warning if this story is not published
 $story_post = get_post();
+$is_story_author = $story_post && is_user_logged_in() && (int) $story_post->post_author === get_current_user_id();
+$is_story_blocked = $story_post && fanfic_is_story_blocked( $story_post->ID );
 
-if ( $story_post && 'fanfiction_story' === $story_post->post_type && 'publish' !== $story_post->post_status ) {
+if ( $story_post && 'fanfiction_story' === $story_post->post_type && $is_story_author && $is_story_blocked && function_exists( 'fanfic_render_restriction_banner' ) ) {
+	$context = fanfic_get_restriction_context( 'story', $story_post->ID );
+	fanfic_render_restriction_banner(
+		$context,
+		array(
+			array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
+			array( 'label' => __( 'Edit Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $story_post->ID ), 'class' => 'secondary' ),
+		)
+	);
+} elseif ( $story_post && 'fanfiction_story' === $story_post->post_type && 'publish' !== $story_post->post_status ) {
 	?>
 	<div class="fanfic-message fanfic-message-warning fanfic-draft-warning" role="status" aria-live="polite">
 		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>

@@ -24,6 +24,41 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Fanfic_Moderation {
 
 	/**
+	 * Expand a log action filter into one or more stored action names.
+	 *
+	 * @since 2.3.0
+	 * @param string $action_filter Filter value from the UI.
+	 * @return string|string[]|null
+	 */
+	private static function normalize_log_action_filter( $action_filter ) {
+		switch ( $action_filter ) {
+			case 'block':
+				return array(
+					'block_manual',
+					'block_ban',
+					'block_rule',
+					'chapter_block_manual',
+					'chapter_block_ban',
+					'chapter_block_rule',
+				);
+			case 'unblock':
+				return array(
+					'unblock',
+					'chapter_unblock',
+				);
+			case 'message':
+				return array(
+					'message_ignored',
+					'message_deleted',
+				);
+			case '':
+				return null;
+			default:
+				return sanitize_key( $action_filter );
+		}
+	}
+
+	/**
 	 * Initialize the moderation class
 	 *
 	 * Sets up WordPress hooks for moderation functionality.
@@ -40,7 +75,7 @@ class Fanfic_Moderation {
 	 * Render moderation queue page
 	 *
 	 * Uses WP_List_Table implementation for enhanced table functionality.
-	 * Now includes Queue and Log tabs.
+	 * Now includes reports, author messages, and log tabs.
 	 *
 	 * @since 1.0.0
 	 * @since 1.2.0 Added Log tab for viewing moderation history.
@@ -53,7 +88,7 @@ class Fanfic_Moderation {
 		}
 
 		// Get current main tab
-		$allowed_tabs = array( 'queue', 'log' );
+		$allowed_tabs = array( 'queue', 'messages', 'log' );
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'queue';
 		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'queue';
 
@@ -67,7 +102,16 @@ class Fanfic_Moderation {
 			<!-- Main Tabs -->
 			<nav class="nav-tab-wrapper">
 				<a href="?page=fanfiction-moderation&tab=queue" class="nav-tab <?php echo 'queue' === $current_tab ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'Queue', 'fanfiction-manager' ); ?>
+					<?php esc_html_e( 'Reports', 'fanfiction-manager' ); ?>
+				</a>
+				<?php
+				$unread_msg_count = class_exists( 'Fanfic_Moderation_Messages' ) ? Fanfic_Moderation_Messages::count_messages( array( 'status' => 'unread' ) ) : 0;
+				?>
+				<a href="?page=fanfiction-moderation&tab=messages" class="nav-tab <?php echo 'messages' === $current_tab ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Author Messages', 'fanfiction-manager' ); ?>
+					<?php if ( $unread_msg_count > 0 ) : ?>
+						<span class="fanfic-msg-badge"><?php echo absint( $unread_msg_count ); ?></span>
+					<?php endif; ?>
 				</a>
 				<a href="?page=fanfiction-moderation&tab=log" class="nav-tab <?php echo 'log' === $current_tab ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Log', 'fanfiction-manager' ); ?>
@@ -79,6 +123,9 @@ class Fanfic_Moderation {
 				switch ( $current_tab ) {
 					case 'log':
 						self::render_log_tab();
+						break;
+					case 'messages':
+						self::render_messages_tab();
 						break;
 					case 'queue':
 					default:
@@ -263,8 +310,9 @@ class Fanfic_Moderation {
 			'offset' => $offset,
 		);
 
-		if ( '' !== $action_filter ) {
-			$args['action'] = $action_filter;
+		$normalized_action_filter = self::normalize_log_action_filter( $action_filter );
+		if ( ! empty( $normalized_action_filter ) ) {
+			$args['action'] = $normalized_action_filter;
 		}
 
 		if ( '' !== $target_filter ) {
@@ -277,7 +325,7 @@ class Fanfic_Moderation {
 		$total_pages = ceil( $total_logs / $per_page );
 
 		?>
-		<p><?php esc_html_e( 'View the history of moderation actions including bans, unbans, story blocks, and unblocks.', 'fanfiction-manager' ); ?></p>
+		<p><?php esc_html_e( 'View the history of moderation actions including bans, unbans, story and chapter restrictions, and author-message decisions.', 'fanfiction-manager' ); ?></p>
 
 		<!-- Filters -->
 		<div class="fanfic-log-filters" style="margin: 15px 0;">
@@ -291,12 +339,14 @@ class Fanfic_Moderation {
 					<option value="unban" <?php selected( $action_filter, 'unban' ); ?>><?php esc_html_e( 'Unban', 'fanfiction-manager' ); ?></option>
 					<option value="block" <?php selected( $action_filter, 'block' ); ?>><?php esc_html_e( 'Block', 'fanfiction-manager' ); ?></option>
 					<option value="unblock" <?php selected( $action_filter, 'unblock' ); ?>><?php esc_html_e( 'Unblock', 'fanfiction-manager' ); ?></option>
+					<option value="message" <?php selected( $action_filter, 'message' ); ?>><?php esc_html_e( 'Message Actions', 'fanfiction-manager' ); ?></option>
 				</select>
 
 				<select name="target_filter">
 					<option value=""><?php esc_html_e( 'All Targets', 'fanfiction-manager' ); ?></option>
 					<option value="user" <?php selected( $target_filter, 'user' ); ?>><?php esc_html_e( 'Users', 'fanfiction-manager' ); ?></option>
 					<option value="story" <?php selected( $target_filter, 'story' ); ?>><?php esc_html_e( 'Stories', 'fanfiction-manager' ); ?></option>
+					<option value="chapter" <?php selected( $target_filter, 'chapter' ); ?>><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></option>
 				</select>
 
 				<button type="submit" class="button"><?php esc_html_e( 'Filter', 'fanfiction-manager' ); ?></button>
@@ -344,16 +394,30 @@ class Fanfic_Moderation {
 							if ( $story ) {
 								$target_link = get_edit_post_link( $log['target_id'] );
 							}
+						} elseif ( 'chapter' === $log['target_type'] ) {
+							$chapter = get_post( $log['target_id'] );
+							$target_name = $chapter ? $chapter->post_title : __( 'Unknown Chapter', 'fanfiction-manager' );
+							if ( $chapter ) {
+								$target_link = get_edit_post_link( $log['target_id'] );
+							}
 						}
 
 						// Format action badge
 						$action_badges = array(
-							'ban'     => array( 'label' => __( 'Ban', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-ban' ),
-							'unban'   => array( 'label' => __( 'Unban', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unban' ),
-							'block'   => array( 'label' => __( 'Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
-							'unblock' => array( 'label' => __( 'Unblock', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unblock' ),
+							'ban'                  => array( 'label' => __( 'Ban', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-ban' ),
+							'unban'                => array( 'label' => __( 'Unban', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unban' ),
+							'block_manual'         => array( 'label' => __( 'Story Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
+							'block_ban'            => array( 'label' => __( 'Story Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
+							'block_rule'           => array( 'label' => __( 'Story Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
+							'unblock'              => array( 'label' => __( 'Story Unblock', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unblock' ),
+							'chapter_block_manual' => array( 'label' => __( 'Chapter Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
+							'chapter_block_ban'    => array( 'label' => __( 'Chapter Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
+							'chapter_block_rule'   => array( 'label' => __( 'Chapter Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
+							'chapter_unblock'      => array( 'label' => __( 'Chapter Unblock', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unblock' ),
+							'message_ignored'      => array( 'label' => __( 'Message Ignored', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
+							'message_deleted'      => array( 'label' => __( 'Message Deleted', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
 						);
-						$badge = isset( $action_badges[ $log['action'] ] ) ? $action_badges[ $log['action'] ] : array( 'label' => ucfirst( $log['action'] ), 'class' => '' );
+						$badge = isset( $action_badges[ $log['action'] ] ) ? $action_badges[ $log['action'] ] : array( 'label' => ucfirst( str_replace( '_', ' ', $log['action'] ) ), 'class' => '' );
 						?>
 						<tr>
 							<td class="column-date">
@@ -465,6 +529,83 @@ class Fanfic_Moderation {
 			.fanfic-log-action-unblock {
 				background: #e3f2fd;
 				color: #1565c0;
+			}
+			.fanfic-log-action-message {
+				background: #f3e8ff;
+				color: #6b21a8;
+			}
+		</style>
+		<?php
+	}
+
+	/**
+	 * Render Messages tab content
+	 *
+	 * @since 2.3.0
+	 * @return void
+	 */
+	private static function render_messages_tab() {
+		if ( ! class_exists( 'Fanfic_Moderation_Messages' ) || ! class_exists( 'Fanfic_Messages_Table' ) ) {
+			echo '<p>' . esc_html__( 'Messages system is not available.', 'fanfiction-manager' ) . '</p>';
+			return;
+		}
+
+		$counts = Fanfic_Moderation_Messages::get_status_counts();
+
+		// Get current sub-tab
+		$allowed_sub = array( 'unread', 'ignored', 'resolved', 'all' );
+		$sub_tab     = isset( $_GET['sub'] ) ? sanitize_text_field( wp_unslash( $_GET['sub'] ) ) : 'unread';
+		$sub_tab     = in_array( $sub_tab, $allowed_sub, true ) ? $sub_tab : 'unread';
+
+		?>
+		<p><?php esc_html_e( 'Author messages about blocked content or account suspensions. Take action to help resolve restrictions or archive messages.', 'fanfiction-manager' ); ?></p>
+
+		<ul class="subsubsub">
+			<?php
+			$sub_tabs = array(
+				'unread'   => __( 'Unread', 'fanfiction-manager' ),
+				'ignored'  => __( 'Ignored', 'fanfiction-manager' ),
+				'resolved' => __( 'Resolved', 'fanfiction-manager' ),
+				'all'      => __( 'All', 'fanfiction-manager' ),
+			);
+			$last_key = array_key_last( $sub_tabs );
+			foreach ( $sub_tabs as $key => $label ) :
+				$count = isset( $counts[ $key ] ) ? absint( $counts[ $key ] ) : 0;
+			?>
+			<li>
+				<a href="?page=fanfiction-moderation&tab=messages&sub=<?php echo esc_attr( $key ); ?>"
+				   <?php echo $key === $sub_tab ? 'class="current"' : ''; ?>>
+					<?php printf( '%s (%d)', esc_html( $label ), $count ); ?>
+				</a><?php echo $key !== $last_key ? ' |' : ''; ?>
+			</li>
+			<?php endforeach; ?>
+		</ul>
+
+		<div style="margin-top: 20px; clear: both;">
+			<?php
+			$table = new Fanfic_Messages_Table();
+			$table->prepare_items( $sub_tab );
+			?>
+			<form method="get">
+				<input type="hidden" name="page" value="fanfiction-moderation">
+				<input type="hidden" name="tab" value="messages">
+				<input type="hidden" name="sub" value="<?php echo esc_attr( $sub_tab ); ?>">
+				<?php $table->display(); ?>
+			</form>
+		</div>
+
+		<style>
+			.fanfic-msg-badge {
+				display: inline-block;
+				background: #d63638;
+				color: #fff;
+				border-radius: 10px;
+				padding: 0 6px;
+				font-size: 11px;
+				font-weight: 700;
+				line-height: 18px;
+				margin-left: 4px;
+				vertical-align: middle;
 			}
 		</style>
 		<?php

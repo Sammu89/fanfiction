@@ -14,10 +14,311 @@
 	function init() {
 		// Handle moderation actions
 		initModerationActions();
+		initMessageActions();
+		initBanReasonModal();
 		initTaxonomyFilter();
 		initFandomsManager();
 
 		console.log('Fanfiction Manager Admin loaded');
+	}
+
+	function initBanReasonModal() {
+		if (!window.fanfictionAdmin || !fanfictionAdmin.suspensionReasons) {
+			return;
+		}
+
+		const modalId = 'fanfic-ban-user-modal';
+
+		function buildOptions() {
+			return Object.keys(fanfictionAdmin.suspensionReasons).map(function(key) {
+				return '<option value="' + escapeHtml(key) + '">' + escapeHtml(fanfictionAdmin.suspensionReasons[key]) + '</option>';
+			}).join('');
+		}
+
+		function getModal() {
+			let $modal = $('#' + modalId);
+			if ($modal.length) {
+				return $modal;
+			}
+
+			const strings = fanfictionAdmin.strings || {};
+			const modalHtml =
+				'<div class="fanfic-admin-modal fanfic-ban-user-modal" id="' + modalId + '" aria-hidden="true">' +
+					'<div class="fanfic-admin-modal-overlay"></div>' +
+					'<div class="fanfic-admin-modal-content">' +
+						'<h2>' + escapeHtml(strings.banUserTitle || 'Suspend User') + '</h2>' +
+						'<p>' + escapeHtml(strings.banUserDescription || 'Choose a suspension reason before confirming.') + '</p>' +
+						'<div class="fanfic-admin-modal-form">' +
+							'<label for="fanfic-ban-reason">' + escapeHtml(strings.banReasonLabel || 'Suspension reason') + '</label>' +
+							'<select id="fanfic-ban-reason" class="widefat">' + buildOptions() + '</select>' +
+							'<label for="fanfic-ban-reason-text" style="margin-top:12px;">' + escapeHtml(strings.banReasonTextLabel || 'Additional details') + '</label>' +
+							'<textarea id="fanfic-ban-reason-text" rows="4" maxlength="500" placeholder="' + escapeHtml(strings.banReasonPlaceholder || '') + '"></textarea>' +
+							'<div class="fanfic-admin-modal-message"></div>' +
+						'</div>' +
+						'<div class="fanfic-admin-modal-actions">' +
+							'<button type="button" class="button fanfic-ban-modal-cancel">' + escapeHtml(strings.banCancel || 'Cancel') + '</button>' +
+							'<button type="button" class="button button-primary fanfic-ban-modal-submit">' + escapeHtml(strings.banConfirm || 'Suspend User') + '</button>' +
+						'</div>' +
+					'</div>' +
+				'</div>';
+
+			$('body').append(modalHtml);
+			return $('#' + modalId);
+		}
+
+		function openFromTrigger($trigger) {
+			const $modal = getModal();
+			$modal.data('userId', $trigger.data('user-id'));
+			$modal.data('nonce', $trigger.data('nonce'));
+			$modal.find('.fanfic-admin-modal-message').empty();
+			$modal.find('#fanfic-ban-reason').prop('selectedIndex', 0);
+			$modal.find('#fanfic-ban-reason-text').val('');
+			$modal.fadeIn(150).attr('aria-hidden', 'false');
+			$('body').addClass('fanfic-admin-modal-open');
+			setTimeout(function() {
+				$modal.find('#fanfic-ban-reason').trigger('focus');
+			}, 20);
+		}
+
+		function closeBanModal() {
+			const $modal = $('#' + modalId);
+			if (!$modal.length) {
+				return;
+			}
+			$modal.fadeOut(150).attr('aria-hidden', 'true');
+			$('body').removeClass('fanfic-admin-modal-open');
+		}
+
+		$(document).on('click', '.fanfic-ban-modal-cancel, #' + modalId + ' .fanfic-admin-modal-overlay', function(e) {
+			e.preventDefault();
+			closeBanModal();
+		});
+
+		$(document).on('click', '#' + modalId + ' .fanfic-ban-modal-submit', function(e) {
+			e.preventDefault();
+
+			const $modal = $('#' + modalId);
+			const $message = $modal.find('.fanfic-admin-modal-message');
+			const $submit = $(this);
+			const strings = fanfictionAdmin.strings || {};
+			const reason = String($modal.find('#fanfic-ban-reason').val() || '').trim();
+			const reasonText = String($modal.find('#fanfic-ban-reason-text').val() || '').trim();
+			const userId = parseInt($modal.data('userId'), 10) || 0;
+			const nonce = String($modal.data('nonce') || '');
+
+			if (!reason) {
+				$message.html('<p class="error">' + escapeHtml(strings.banReasonRequired || 'Please choose a suspension reason.') + '</p>');
+				return;
+			}
+
+			$submit.prop('disabled', true).text(strings.banSubmitting || 'Suspending...');
+			$message.html('');
+
+			$.ajax({
+				url: fanfictionAdmin.ajaxUrl || ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_ban_user',
+					user_id: userId,
+					nonce: nonce,
+					suspension_reason: reason,
+					suspension_reason_text: reasonText
+				}
+			}).done(function(response) {
+				if (response && response.success) {
+					window.location.reload();
+					return;
+				}
+
+				$message.html('<p class="error">' + escapeHtml((response && response.data && response.data.message) || strings.actionError || 'An error occurred. Please try again.') + '</p>');
+				$submit.prop('disabled', false).text(strings.banConfirm || 'Suspend User');
+			}).fail(function() {
+				$message.html('<p class="error">' + escapeHtml(strings.actionError || 'An error occurred. Please try again.') + '</p>');
+				$submit.prop('disabled', false).text(strings.banConfirm || 'Suspend User');
+			});
+		});
+
+		window.FanficAdminBanModal = {
+			openFromTrigger: openFromTrigger
+		};
+	}
+
+	function initMessageActions() {
+		const strings = fanfictionAdmin.strings || {};
+
+		function getMessageRows(messageId) {
+			return {
+				$mainRow: $('#fanfic-msg-row-' + messageId),
+				$detailRow: $('#fanfic-msg-detail-' + messageId)
+			};
+		}
+
+		function getActionMarkup(messageId, status, isRestricted) {
+			const actions = [];
+			const unblockLabel = strings.unblockLabel || 'Unblock';
+			const ignoreLabel = strings.ignoreLabel || 'Ignore';
+			const deleteLabel = strings.deleteLabel || 'Delete';
+
+			if (isRestricted && status !== 'resolved' && status !== 'deleted') {
+				actions.push('<a href="#" class="fanfic-msg-action-unblock" data-message-id="' + messageId + '">' + unblockLabel + '</a>');
+			}
+
+			if (status !== 'ignored' && status !== 'resolved' && status !== 'deleted') {
+				actions.push('<a href="#" class="fanfic-msg-action-ignore" data-message-id="' + messageId + '">' + ignoreLabel + '</a>');
+			}
+
+			if (status !== 'deleted') {
+				actions.push('<a href="#" class="fanfic-msg-action-delete submitdelete" data-message-id="' + messageId + '">' + deleteLabel + '</a>');
+			}
+
+			return actions.join(' | ');
+		}
+
+		function updateMessageStatus($mainRow, status, label) {
+			$mainRow.attr('data-status', status);
+			$mainRow.find('.fanfic-msg-status-badge')
+				.attr('class', 'fanfic-msg-status-badge status-' + status)
+				.text(label);
+		}
+
+		function updateMessageActions(messageId, status, isRestricted) {
+			const rows = getMessageRows(messageId);
+			const inlineHtml = getActionMarkup(messageId, status, isRestricted);
+			rows.$mainRow.find('.fanfic-msg-actions-inline').html(inlineHtml);
+
+			const $detailActions = rows.$detailRow.find('.fanfic-message-detail-actions');
+			$detailActions.find('.fanfic-msg-action-unblock').remove();
+			$detailActions.find('.fanfic-msg-action-ignore').remove();
+			if (status === 'deleted') {
+				$detailActions.find('.fanfic-msg-action-delete').remove();
+				return;
+			}
+
+			if (isRestricted && status !== 'resolved') {
+				$detailActions.prepend('<button type="button" class="button button-primary fanfic-msg-action-unblock" data-message-id="' + messageId + '">' + (strings.unblockLabel || 'Unblock') + '</button> ');
+			}
+
+			if (status !== 'ignored' && status !== 'resolved') {
+				const $deleteBtn = $detailActions.find('.fanfic-msg-action-delete');
+				if ($deleteBtn.length) {
+					$deleteBtn.before('<button type="button" class="button fanfic-msg-action-ignore" data-message-id="' + messageId + '">' + (strings.ignoreLabel || 'Ignore') + '</button> ');
+				} else {
+					$detailActions.append('<button type="button" class="button fanfic-msg-action-ignore" data-message-id="' + messageId + '">' + (strings.ignoreLabel || 'Ignore') + '</button>');
+				}
+			}
+		}
+
+		function ensureAlreadyUnblockedNote($detailRow) {
+			if ($detailRow.find('.fanfic-msg-already-unblocked-note').length) {
+				return;
+			}
+
+			const noteHtml = '<p class="description fanfic-msg-already-unblocked-note">' + (strings.alreadyUnblockedNote || 'This target is already unblocked. Unblock is unavailable, but the message remains for review.') + '</p>';
+			const $reason = $detailRow.find('.fanfic-msg-restriction-reason').first();
+			if ($reason.length) {
+				$reason.after(noteHtml);
+			} else {
+				$detailRow.find('.fanfic-message-full-text').first().after(noteHtml);
+			}
+		}
+
+		function setBusyState(messageId, isBusy) {
+			$('[data-message-id="' + messageId + '"].fanfic-msg-action-unblock, [data-message-id="' + messageId + '"].fanfic-msg-action-ignore, [data-message-id="' + messageId + '"].fanfic-msg-action-delete')
+				.toggleClass('is-busy', isBusy)
+				.attr('aria-disabled', isBusy ? 'true' : 'false')
+				.prop('disabled', isBusy);
+		}
+
+		function fadeOutMessage(messageId) {
+			const rows = getMessageRows(messageId);
+			rows.$mainRow.add(rows.$detailRow).fadeOut(200, function() {
+				$(this).remove();
+			});
+		}
+
+		$(document).on('click', '.fanfic-expand-message', function(e) {
+			e.preventDefault();
+			const $button = $(this);
+			const rowId = $button.data('row-id');
+			const $detailRow = $('#fanfic-msg-detail-' + rowId);
+
+			if (!$detailRow.length) {
+				return;
+			}
+
+			const isExpanded = $button.hasClass('is-expanded');
+			$button.toggleClass('is-expanded', !isExpanded);
+			$button.attr('aria-expanded', !isExpanded ? 'true' : 'false');
+			$detailRow.stop(true, true).slideToggle(150);
+		});
+
+		$(document).on('click', '.fanfic-msg-action-unblock, .fanfic-msg-action-ignore, .fanfic-msg-action-delete', function(e) {
+			e.preventDefault();
+
+			const $button = $(this);
+			if ($button.hasClass('is-busy')) {
+				return;
+			}
+			const messageId = parseInt($button.data('message-id'), 10) || 0;
+			let actionType = 'ignore';
+
+			if ($button.hasClass('fanfic-msg-action-delete')) {
+				actionType = 'delete';
+			} else if ($button.hasClass('fanfic-msg-action-unblock')) {
+				actionType = 'unblock';
+			}
+
+			if ('unblock' === actionType && !window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.confirmUnblock) || 'Unblock this restricted item?')) {
+				return;
+			}
+
+			if ('delete' === actionType && !window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.confirmDelete) || 'Delete this moderation message?')) {
+				return;
+			}
+
+			const $detailRow = $('#fanfic-msg-detail-' + messageId);
+			const moderatorNote = $detailRow.find('.fanfic-msg-note-input').val() || '';
+
+			setBusyState(messageId, true);
+
+			$.ajax({
+				url: fanfictionAdmin.ajaxUrl || ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_mod_message_action',
+					nonce: fanfictionAdmin.nonce || '',
+					message_id: messageId,
+					action_type: actionType,
+					moderator_note: moderatorNote
+				}
+			}).done(function(response) {
+				if (response && response.success) {
+					const data = response.data || {};
+					const rows = getMessageRows(messageId);
+
+					updateMessageStatus(rows.$mainRow, data.new_status || 'resolved', data.status_label || 'Resolved');
+					updateMessageActions(messageId, data.new_status || 'resolved', !!data.is_restricted);
+
+					if (!data.is_restricted) {
+						rows.$mainRow.find('.fanfic-restriction-badge').remove();
+						ensureAlreadyUnblockedNote(rows.$detailRow);
+					}
+
+					if ('delete' === actionType || 'ignore' === actionType || 'unblock' === actionType) {
+						fadeOutMessage(messageId);
+					}
+					return;
+				}
+
+				window.alert((response && response.data && response.data.message) || (strings.actionError || 'An error occurred. Please try again.'));
+				setBusyState(messageId, false);
+			}).fail(function() {
+				window.alert(strings.actionError || 'An error occurred. Please try again.');
+				setBusyState(messageId, false);
+			}).always(function() {
+				$button.blur();
+			});
+		});
 	}
 
 	/**

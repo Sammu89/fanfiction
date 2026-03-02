@@ -255,6 +255,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-licence.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-messages.php';
 		require_once FANFIC_INCLUDES_DIR . 'functions.php';
 		require_once FANFIC_INCLUDES_DIR . 'fanfic-story-card.php';
 
@@ -280,6 +281,7 @@ class Fanfic_Core {
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation.php';
 			// Load WP_List_Table implementation for moderation queue
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-table.php';
+			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-messages-table.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-stamps.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-users-admin.php';
 			require_once FANFIC_INCLUDES_DIR . 'admin/class-fanfic-export-import-admin.php';
@@ -1178,18 +1180,36 @@ class Fanfic_Core {
 		}
 
 		// Get suspension details
-		$suspended_at = get_user_meta( $current_user->ID, 'fanfic_banned_at', true );
-		$suspended_date = $suspended_at ? date_i18n( get_option( 'date_format' ), strtotime( $suspended_at ) ) : 'recently';
+		$suspension_message = function_exists( 'fanfic_get_suspension_message' )
+			? fanfic_get_suspension_message( $current_user->ID )
+			: __( 'Your account has been suspended.', 'fanfiction-manager' );
+		$has_active_message = class_exists( 'Fanfic_Moderation_Messages' )
+			? Fanfic_Moderation_Messages::has_active_message( $current_user->ID, 'user', $current_user->ID )
+			: false;
 
 		?>
 		<div id="fanfic-suspension-notice" style="position: fixed; top: 0; left: 0; right: 0; background: #dc3232; color: #fff; padding: 15px 20px; text-align: center; z-index: 999999; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
 			<p style="margin: 0; font-size: 16px; font-weight: 600;">
-				<?php
-				printf(
-					'Your account has been suspended as of %s. You can view your content but cannot create or edit stories.',
-					esc_html( $suspended_date )
-				);
-				?>
+				<?php echo esc_html( $suspension_message ); ?>
+				<span style="font-weight:400;">
+					<?php esc_html_e( 'You can view your content but cannot create or edit stories.', 'fanfiction-manager' ); ?>
+				</span>
+				<?php if ( class_exists( 'Fanfic_Moderation_Messages' ) ) : ?>
+					<?php if ( $has_active_message ) : ?>
+						<span class="fanfic-button secondary fanfic-message-sent-badge disabled" style="margin-left:12px;">
+							<?php esc_html_e( 'Message Sent - Awaiting Review', 'fanfiction-manager' ); ?>
+						</span>
+					<?php else : ?>
+						<button
+							type="button"
+							class="fanfic-button secondary fanfic-message-mod-btn"
+							style="margin-left:12px;"
+							data-target-type="user"
+							data-target-id="<?php echo esc_attr( $current_user->ID ); ?>">
+							<?php esc_html_e( 'Message Moderation', 'fanfiction-manager' ); ?>
+						</button>
+					<?php endif; ?>
+				<?php endif; ?>
 			</p>
 		</div>
 		<style>
@@ -1210,6 +1230,10 @@ class Fanfic_Core {
 			}
 		</style>
 		<?php
+
+		if ( function_exists( 'fanfic_render_moderation_message_modal' ) ) {
+			fanfic_render_moderation_message_modal();
+		}
 	}
 
 	/**
@@ -1364,19 +1388,34 @@ class Fanfic_Core {
 						'error'             => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
 						'rateLimited'       => __( 'Too many requests. Please wait a moment.', 'fanfiction-manager' ),
 						'loginRequired'     => __( 'You must be logged in to do that.', 'fanfiction-manager' ),
-						'copiedLink'        => __( 'Copied link.', 'fanfiction-manager' ),
-						'copyThisLinkPrompt' => __( 'Copy this link:', 'fanfiction-manager' ),
-						'anonymousReportsDisabled' => __( 'Anonymous reports are disabled. Please log in to report content.', 'fanfiction-manager' ),
-						'reportReasonRequired' => __( 'Please choose a report reason.', 'fanfiction-manager' ),
-						'reportDetailsRequired' => __( 'Please add details when selecting Other.', 'fanfiction-manager' ),
+					'copiedLink'        => __( 'Copied link.', 'fanfiction-manager' ),
+					'copyThisLinkPrompt' => __( 'Copy this link:', 'fanfiction-manager' ),
+					'anonymousReportsDisabled' => __( 'Anonymous reports are disabled. Please log in to report content.', 'fanfiction-manager' ),
+					'reportReasonRequired' => __( 'Please choose a report reason.', 'fanfiction-manager' ),
+					'reportDetailsRequired' => __( 'Please add details when selecting Other.', 'fanfiction-manager' ),
 						'reportAlreadySubmitted' => __( 'You have already reported this version of the content. You can report it again after it receives a qualifying update.', 'fanfiction-manager' ),
 						'reportedState'     => __( 'Reported', 'fanfiction-manager' ),
 						'reportLabel'       => __( 'Report', 'fanfiction-manager' ),
 						'reportSubmitted'   => __( 'Report submitted successfully. Thank you for helping keep our community safe.', 'fanfiction-manager' ),
 						'recaptchaLoadFailed' => __( 'Could not load reCAPTCHA. Please refresh and try again.', 'fanfiction-manager' ),
 						'recaptchaRequired'  => __( 'Please complete the reCAPTCHA verification and try again.', 'fanfiction-manager' ),
-					'featureStory'       => __( 'Feature', 'fanfiction-manager' ),
-					'unfeatureStory'     => __( 'Unfeature', 'fanfiction-manager' ),
+						'featureStory'       => __( 'Feature', 'fanfiction-manager' ),
+						'unfeatureStory'     => __( 'Unfeature', 'fanfiction-manager' ),
+						'modMessageSent'     => __( 'Message sent successfully.', 'fanfiction-manager' ),
+						'modMessageSentState'=> __( 'Message Sent - Awaiting Review', 'fanfiction-manager' ),
+						'modMessageError'    => __( 'Failed to send message. Please try again.', 'fanfiction-manager' ),
+						'modMessageTooLong'  => __( 'Message must be between 1 and 1000 characters.', 'fanfiction-manager' ),
+						'modMessageEmpty'    => __( 'Please enter a message before sending.', 'fanfiction-manager' ),
+						'chapterBlockReasonRequired' => __( 'Please choose a block reason.', 'fanfiction-manager' ),
+						'chapterBlockConfirm' => __( 'Block this chapter? Authors will be limited to view-only access.', 'fanfiction-manager' ),
+						'chapterUnblockConfirm' => __( 'Unblock this chapter?', 'fanfiction-manager' ),
+						'chapterBlocking'    => __( 'Blocking...', 'fanfiction-manager' ),
+						'chapterUnblocking'  => __( 'Unblocking...', 'fanfiction-manager' ),
+						'chapterBlock'       => __( 'Block', 'fanfiction-manager' ),
+						'chapterUnblock'     => __( 'Unblock', 'fanfiction-manager' ),
+						'chapterBlocked'     => __( 'Blocked', 'fanfiction-manager' ),
+						'chapterVisible'     => __( 'Visible', 'fanfiction-manager' ),
+						'chapterHidden'      => __( 'Hidden', 'fanfiction-manager' ),
 					),
 				)
 			);
@@ -1697,8 +1736,10 @@ class Fanfic_Core {
 	 * @return void
 	 */
 	public function handle_chapter_block_toggle() {
-		$chapter_id = isset( $_GET['chapter_id'] ) ? absint( wp_unslash( $_GET['chapter_id'] ) ) : 0;
-		$nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+		$chapter_id = isset( $_REQUEST['chapter_id'] ) ? absint( wp_unslash( $_REQUEST['chapter_id'] ) ) : 0;
+		$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : '';
+		$block_reason = isset( $_REQUEST['block_reason'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['block_reason'] ) ) : 'manual';
+		$block_reason_text = isset( $_REQUEST['block_reason_text'] ) ? sanitize_textarea_field( wp_unslash( $_REQUEST['block_reason_text'] ) ) : '';
 		$redirect_url = wp_get_referer();
 
 		if ( ! $redirect_url ) {
@@ -1721,7 +1762,17 @@ class Fanfic_Core {
 		if ( fanfic_is_chapter_blocked( $chapter_id ) ) {
 			fanfic_unblock_chapter( $chapter_id, get_current_user_id() );
 		} else {
-			fanfic_block_chapter( $chapter_id, 'manual', get_current_user_id() );
+			$normalized_reason = function_exists( 'fanfic_normalize_block_reason_code' ) ? fanfic_normalize_block_reason_code( $block_reason, '' ) : trim( $block_reason );
+			if ( '' === $normalized_reason ) {
+				wp_die( esc_html__( 'Invalid block reason.', 'fanfiction-manager' ) );
+			}
+
+			if ( function_exists( 'fanfic_block_reason_text_exceeds_limit' ) && fanfic_block_reason_text_exceeds_limit( $block_reason_text ) ) {
+				wp_die( esc_html__( 'Additional block details must be 500 characters or fewer.', 'fanfiction-manager' ) );
+			}
+
+			$normalized_reason_text = function_exists( 'fanfic_normalize_block_reason_text' ) ? fanfic_normalize_block_reason_text( $block_reason_text ) : sanitize_textarea_field( $block_reason_text );
+			fanfic_block_chapter( $chapter_id, $normalized_reason, get_current_user_id(), $normalized_reason_text );
 		}
 
 		wp_safe_redirect( $redirect_url );

@@ -343,69 +343,25 @@ if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 
 $is_blocked = fanfic_is_story_blocked( $story_id );
 if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
-	// Get block reason for display
-	$block_reason = get_post_meta( $story_id, '_fanfic_block_reason', true );
-
-	// Map reason codes to user-friendly labels
-	$reason_labels = array(
-		'manual'              => __( 'This story has been blocked by a moderator.', 'fanfiction-manager' ),
-		'tos_violation'       => __( 'This story was blocked for violating our Terms of Service.', 'fanfiction-manager' ),
-		'copyright'           => __( 'This story was blocked due to a copyright concern.', 'fanfiction-manager' ),
-		'inappropriate'       => __( 'This story was blocked for containing inappropriate content.', 'fanfiction-manager' ),
-		'spam'                => __( 'This story was blocked for spam or advertising.', 'fanfiction-manager' ),
-		'harassment'          => __( 'This story was blocked for harassment or bullying content.', 'fanfiction-manager' ),
-		'illegal'             => __( 'This story was blocked for containing potentially illegal content.', 'fanfiction-manager' ),
-		'underage'            => __( 'This story was blocked for content concerns regarding minors.', 'fanfiction-manager' ),
-		'rating_mismatch'     => __( 'This story was blocked because the content does not match its rating/warnings.', 'fanfiction-manager' ),
-		'user_request'        => __( 'This story was blocked at your request.', 'fanfiction-manager' ),
-		'pending_review'      => __( 'This story is pending moderator review.', 'fanfiction-manager' ),
-		'other'               => __( 'This story has been blocked. Please contact support for more information.', 'fanfiction-manager' ),
-	);
-
-	$reason_message = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : __( 'This story has been blocked by a moderator.', 'fanfiction-manager' );
-	?>
-	<div class="fanfic-message fanfic-message-error fanfic-blocked-notice" role="alert" aria-live="assertive">
-		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
-		<span class="fanfic-message-content">
-			<strong><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></strong><br>
-			<?php echo esc_html( $reason_message ); ?><br>
-			<span class="fanfic-block-info">
-				<?php esc_html_e( 'You cannot add or edit chapters while the story is blocked.', 'fanfiction-manager' ); ?>
-				<?php esc_html_e( 'If you believe this was done in error, please contact site administration.', 'fanfiction-manager' ); ?>
-			</span>
-			<span class="fanfic-message-actions">
-				<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button">
-					<?php esc_html_e( 'Back to Dashboard', 'fanfiction-manager' ); ?>
-				</a>
-				<a href="<?php echo esc_url( get_permalink( $story_id ) ); ?>" class="fanfic-button secondary">
-					<?php esc_html_e( 'View Story', 'fanfiction-manager' ); ?>
-				</a>
-			</span>
-		</span>
-	</div>
-	<?php
+	if ( function_exists( 'fanfic_render_restriction_banner' ) ) {
+		$ctx = fanfic_get_restriction_context( 'story', $story_id );
+		fanfic_render_restriction_banner( $ctx, array(
+			array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
+			array( 'label' => __( 'View Story', 'fanfiction-manager' ), 'url' => get_permalink( $story_id ), 'class' => 'secondary' ),
+		) );
+	}
 	return;
 }
 
 $is_chapter_blocked = $is_edit_mode ? fanfic_is_chapter_blocked( $chapter_id ) : false;
 if ( $is_chapter_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
-	?>
-	<div class="fanfic-message fanfic-message-error fanfic-blocked-notice" role="alert" aria-live="assertive">
-		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
-		<span class="fanfic-message-content">
-			<strong><?php esc_html_e( 'Chapter Blocked', 'fanfiction-manager' ); ?></strong><br>
-			<?php esc_html_e( 'This chapter has been blocked by a moderator. You can still view it, but editing and visibility actions are disabled until the block is lifted.', 'fanfiction-manager' ); ?><br>
-			<span class="fanfic-message-actions">
-				<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button">
-					<?php esc_html_e( 'Back to Story', 'fanfiction-manager' ); ?>
-				</a>
-				<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button secondary">
-					<?php esc_html_e( 'View Chapter', 'fanfiction-manager' ); ?>
-				</a>
-			</span>
-		</span>
-	</div>
-	<?php
+	if ( function_exists( 'fanfic_render_restriction_banner' ) ) {
+		$ctx = fanfic_get_restriction_context( 'chapter', $chapter_id );
+		fanfic_render_restriction_banner( $ctx, array(
+			array( 'label' => __( 'Back to Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $story_id ) ),
+			array( 'label' => __( 'View Chapter', 'fanfiction-manager' ), 'url' => get_permalink( $chapter_id ), 'class' => 'secondary' ),
+		) );
+	}
 	return;
 }
 
@@ -896,14 +852,8 @@ if ( ! $is_edit_mode ) {
 					$current_chapter_status = get_post_status( $chapter_id );
 					$is_chapter_published   = 'publish' === $current_chapter_status;
 					$can_moderate_chapter   = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
-					$chapter_block_toggle_url = add_query_arg(
-						array(
-							'action'     => 'fanfic_toggle_chapter_block',
-							'chapter_id' => $chapter_id,
-							'_wpnonce'   => wp_create_nonce( 'fanfic_toggle_chapter_block_' . $chapter_id ),
-						),
-						admin_url( 'admin-post.php' )
-					);
+					$chapter_block_endpoint = admin_url( 'admin-post.php' );
+					$chapter_block_reasons  = function_exists( 'fanfic_get_block_reason_labels' ) ? fanfic_get_block_reason_labels() : array();
 					?>
 
 					<!-- Update: saves changes only, disabled until form is dirty -->
@@ -912,28 +862,50 @@ if ( ! $is_edit_mode ) {
 					</button>
 
 					<!-- Visibility toggle -->
-					<?php if ( ! $is_chapter_blocked && $is_chapter_published ) : ?>
-						<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button secondary" id="hide-chapter-button" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-story-id="<?php echo absint( $story_id ); ?>">
+					<button type="submit" name="fanfic_chapter_action" value="draft" class="fanfic-button secondary" id="hide-chapter-button" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-story-id="<?php echo absint( $story_id ); ?>"<?php echo ( $is_chapter_blocked || ! $is_chapter_published ) ? ' hidden' : ''; ?>>
 							<?php esc_html_e( 'Hide Chapter', 'fanfiction-manager' ); ?>
 						</button>
-					<?php elseif ( ! $is_chapter_blocked ) : ?>
-						<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button secondary" id="make-chapter-visible-button">
+					<button type="submit" name="fanfic_chapter_action" value="publish" class="fanfic-button secondary" id="make-chapter-visible-button"<?php echo ( $is_chapter_blocked || $is_chapter_published ) ? ' hidden' : ''; ?>>
 							<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
 						</button>
-					<?php endif; ?>
 
 					<?php if ( $can_moderate_chapter ) : ?>
-						<a href="<?php echo esc_url( $chapter_block_toggle_url ); ?>" class="fanfic-button secondary" onclick="return confirm('<?php echo esc_js( $is_chapter_blocked ? __( 'Unblock this chapter?', 'fanfiction-manager' ) : __( 'Block this chapter? Authors will be limited to view-only access.', 'fanfiction-manager' ) ); ?>');">
-							<?php echo esc_html( $is_chapter_blocked ? __( 'Unblock', 'fanfiction-manager' ) : __( 'Block', 'fanfiction-manager' ) ); ?>
-						</a>
+						<div class="fanfic-inline-block-form fanfic-inline-block-form-with-reason fanfic-chapter-block-controls" data-chapter-id="<?php echo absint( $chapter_id ); ?>">
+							<div class="fanfic-chapter-block-panel fanfic-chapter-block-panel-block"<?php echo $is_chapter_blocked ? ' hidden' : ''; ?>>
+								<input type="hidden" name="chapter_id" value="<?php echo esc_attr( $chapter_id ); ?>">
+								<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( 'fanfic_toggle_chapter_block_' . $chapter_id ) ); ?>">
+								<label class="screen-reader-text" for="fanfic-chapter-block-reason-<?php echo esc_attr( $chapter_id ); ?>">
+									<?php esc_html_e( 'Block reason', 'fanfiction-manager' ); ?>
+								</label>
+								<select name="block_reason" id="fanfic-chapter-block-reason-<?php echo esc_attr( $chapter_id ); ?>" class="fanfic-block-reason-select" aria-label="<?php esc_attr_e( 'Select a reason before blocking this chapter', 'fanfiction-manager' ); ?>">
+									<?php foreach ( $chapter_block_reasons as $reason_key => $reason_label ) : ?>
+										<option value="<?php echo esc_attr( $reason_key ); ?>" <?php selected( 'manual', $reason_key ); ?>>
+											<?php echo esc_html( $reason_label ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+								<label class="screen-reader-text" for="fanfic-chapter-block-reason-text-<?php echo esc_attr( $chapter_id ); ?>">
+									<?php esc_html_e( 'Additional block details', 'fanfiction-manager' ); ?>
+								</label>
+								<textarea id="fanfic-chapter-block-reason-text-<?php echo esc_attr( $chapter_id ); ?>" name="block_reason_text" class="fanfic-block-reason-text" rows="2" maxlength="500" placeholder="<?php esc_attr_e( 'Optional details for the author.', 'fanfiction-manager' ); ?>"></textarea>
+								<button type="submit" name="action" value="fanfic_toggle_chapter_block" formaction="<?php echo esc_url( $chapter_block_endpoint ); ?>" formmethod="post" class="fanfic-button secondary fanfic-block-chapter-submit" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>">
+									<?php esc_html_e( 'Block', 'fanfiction-manager' ); ?>
+								</button>
+							</div>
+							<div class="fanfic-chapter-block-panel fanfic-chapter-block-panel-unblock"<?php echo $is_chapter_blocked ? '' : ' hidden'; ?>>
+								<input type="hidden" name="chapter_id" value="<?php echo esc_attr( $chapter_id ); ?>">
+								<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( 'fanfic_toggle_chapter_block_' . $chapter_id ) ); ?>">
+								<button type="submit" name="action" value="fanfic_toggle_chapter_block" formaction="<?php echo esc_url( $chapter_block_endpoint ); ?>" formmethod="post" class="fanfic-button secondary fanfic-unblock-chapter-submit" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>">
+									<?php esc_html_e( 'Unblock', 'fanfiction-manager' ); ?>
+								</button>
+							</div>
+						</div>
 					<?php endif; ?>
 
 					<!-- View link: only when chapter is visible -->
-					<?php if ( $is_chapter_published ) : ?>
-						<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button secondary" target="_blank" rel="noopener noreferrer" data-fanfic-chapter-view="1">
+						<a href="<?php echo esc_url( get_permalink( $chapter_id ) ); ?>" class="fanfic-button secondary" target="_blank" rel="noopener noreferrer" data-fanfic-chapter-view="1"<?php echo ( ! $is_chapter_published || $is_chapter_blocked ) ? ' hidden' : ''; ?>>
 							<?php esc_html_e( 'View', 'fanfiction-manager' ); ?>
 						</a>
-					<?php endif; ?>
 
 					<!-- Cancel: always present -->
 					<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button secondary">

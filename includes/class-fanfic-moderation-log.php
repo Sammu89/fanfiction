@@ -122,8 +122,17 @@ class Fanfic_Moderation_Log {
 		}
 
 		if ( $args['action'] ) {
-			$where_clauses[] = 'action = %s';
-			$prepare_args[]  = $args['action'];
+			if ( is_array( $args['action'] ) ) {
+				$actions = array_values( array_filter( array_map( 'sanitize_key', $args['action'] ) ) );
+				if ( ! empty( $actions ) ) {
+					$placeholders    = implode( ', ', array_fill( 0, count( $actions ), '%s' ) );
+					$where_clauses[] = "action IN ({$placeholders})";
+					$prepare_args    = array_merge( $prepare_args, $actions );
+				}
+			} else {
+				$where_clauses[] = 'action = %s';
+				$prepare_args[]  = $args['action'];
+			}
 		}
 
 		if ( $args['target_type'] ) {
@@ -207,8 +216,17 @@ class Fanfic_Moderation_Log {
 		}
 
 		if ( isset( $args['action'] ) && $args['action'] ) {
-			$where_clauses[] = 'action = %s';
-			$prepare_args[]  = $args['action'];
+			if ( is_array( $args['action'] ) ) {
+				$actions = array_values( array_filter( array_map( 'sanitize_key', $args['action'] ) ) );
+				if ( ! empty( $actions ) ) {
+					$placeholders    = implode( ', ', array_fill( 0, count( $actions ), '%s' ) );
+					$where_clauses[] = "action IN ({$placeholders})";
+					$prepare_args    = array_merge( $prepare_args, $actions );
+				}
+			} else {
+				$where_clauses[] = 'action = %s';
+				$prepare_args[]  = $args['action'];
+			}
 		}
 
 		if ( isset( $args['target_type'] ) && $args['target_type'] ) {
@@ -426,16 +444,18 @@ class Fanfic_Moderation_Log {
 	 */
 	private static function get_action_label( $action ) {
 		$labels = array(
-			'ban'          => __( 'Banned User', 'fanfiction-manager' ),
-			'unban'        => __( 'Unbanned User', 'fanfiction-manager' ),
-			'block_manual' => __( 'Blocked Story (Manual)', 'fanfiction-manager' ),
-			'block_ban'    => __( 'Blocked Story (User Ban)', 'fanfiction-manager' ),
-			'block_rule'   => __( 'Blocked Story (Rule Change)', 'fanfiction-manager' ),
-			'unblock'      => __( 'Unblocked Story', 'fanfiction-manager' ),
+			'ban'             => __( 'Banned User', 'fanfiction-manager' ),
+			'unban'           => __( 'Unbanned User', 'fanfiction-manager' ),
+			'block_manual'    => __( 'Blocked Story (Manual)', 'fanfiction-manager' ),
+			'block_ban'       => __( 'Blocked Story (User Ban)', 'fanfiction-manager' ),
+			'block_rule'      => __( 'Blocked Story (Rule Change)', 'fanfiction-manager' ),
+			'unblock'         => __( 'Unblocked Story', 'fanfiction-manager' ),
 			'chapter_block_manual' => __( 'Blocked Chapter (Manual)', 'fanfiction-manager' ),
 			'chapter_block_ban'    => __( 'Blocked Chapter (User Ban)', 'fanfiction-manager' ),
 			'chapter_block_rule'   => __( 'Blocked Chapter (Rule Change)', 'fanfiction-manager' ),
 			'chapter_unblock'      => __( 'Unblocked Chapter', 'fanfiction-manager' ),
+			'message_ignored' => __( 'Ignored Author Message', 'fanfiction-manager' ),
+			'message_deleted' => __( 'Deleted Author Message', 'fanfiction-manager' ),
 		);
 
 		return isset( $labels[ $action ] ) ? $labels[ $action ] : ucfirst( str_replace( '_', ' ', $action ) );

@@ -248,6 +248,38 @@ class Fanfic_AJAX_Handlers {
 				'capability' => 'edit_others_posts',
 			)
 		);
+
+		// Author: send a message to moderation about a restriction (authenticated only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_send_moderation_message',
+			array( __CLASS__, 'ajax_send_moderation_message' ),
+			true, // Require login
+			array(
+				'rate_limit' => true,
+				'capability' => 'read',
+			)
+		);
+
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_toggle_chapter_block_ajax',
+			array( __CLASS__, 'ajax_toggle_chapter_block' ),
+			true, // Require login
+			array(
+				'rate_limit' => true,
+				'capability' => 'moderate_fanfiction',
+			)
+		);
+
+		// Moderator: take action on a moderation message (mod/admin only)
+		Fanfic_AJAX_Security::register_ajax_handler(
+			'fanfic_mod_message_action',
+			array( __CLASS__, 'ajax_mod_message_action' ),
+			true, // Require login
+			array(
+				'rate_limit'  => true,
+				'capability'  => 'moderate_fanfiction',
+			)
+		);
 	}
 
 	/**
@@ -1714,5 +1746,321 @@ class Fanfic_AJAX_Handlers {
 		$result = Fanfic_Featured_Stories::toggle_featured( $story_id );
 
 		wp_send_json_success( $result );
+	}
+
+	/**
+	 * Handle author submitting a moderation message about a restriction.
+	 *
+	 * @since 2.3.0
+	 * @return void
+	 */
+	public static function ajax_send_moderation_message() {
+		$target_type = isset( $_POST['target_type'] ) ? sanitize_text_field( wp_unslash( $_POST['target_type'] ) ) : '';
+		$target_id   = isset( $_POST['target_id'] ) ? absint( $_POST['target_id'] ) : 0;
+		$message     = isset( $_POST['message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) : '';
+
+		$valid_types = array( 'story', 'chapter', 'user' );
+		if ( ! in_array( $target_type, $valid_types, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid target type.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! $target_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid target.', 'fanfiction-manager' ) ) );
+		}
+
+		$current_user_id = get_current_user_id();
+
+		// Validate ownership.
+		if ( 'story' === $target_type || 'chapter' === $target_type ) {
+			$post = get_post( $target_id );
+			if ( ! $post || absint( $post->post_author ) !== $current_user_id ) {
+				wp_send_json_error( array( 'message' => __( 'You do not own this content.', 'fanfiction-manager' ) ) );
+			}
+		} elseif ( 'user' === $target_type ) {
+			if ( $target_id !== $current_user_id ) {
+				wp_send_json_error( array( 'message' => __( 'You can only message about your own account.', 'fanfiction-manager' ) ) );
+			}
+		}
+
+		// Validate target is still restricted.
+		$ctx = function_exists( 'fanfic_get_restriction_context' ) ? fanfic_get_restriction_context( $target_type, $target_id ) : array( 'is_restricted' => false );
+		if ( empty( $ctx['is_restricted'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'This item is no longer restricted.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( mb_strlen( $message ) < 1 || mb_strlen( $message ) > 1000 ) {
+			wp_send_json_error( array( 'message' => __( 'Message must be between 1 and 1000 characters.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! class_exists( 'Fanfic_Moderation_Messages' ) ) {
+			wp_send_json_error( array( 'message' => __( 'An error occurred. Please try again.', 'fanfiction-manager' ) ) );
+		}
+
+		$result = Fanfic_Moderation_Messages::create_message( $current_user_id, $target_type, $target_id, $message );
+
+		if ( is_wp_error( $result ) ) {
+			$code = $result->get_error_code();
+			if ( 'already_messaged' === $code ) {
+				wp_send_json_error( array( 'message' => __( 'You have already sent a message about this item. Please wait for a response.', 'fanfiction-manager' ) ) );
+			}
+			wp_send_json_error( array( 'message' => __( 'Failed to send message. Please try again.', 'fanfiction-manager' ) ) );
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Message sent successfully.', 'fanfiction-manager' ) ) );
+	}
+
+	/**
+	 * Handle moderator blocking or unblocking a chapter from frontend controls.
+	 *
+	 * @since 2.3.0
+	 * @return void
+	 */
+	public static function ajax_toggle_chapter_block() {
+		$chapter_id         = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
+		$block_reason       = isset( $_POST['block_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['block_reason'] ) ) : 'manual';
+		$block_reason_text  = isset( $_POST['block_reason_text'] ) ? sanitize_textarea_field( wp_unslash( $_POST['block_reason_text'] ) ) : '';
+		$moderator_id       = get_current_user_id();
+
+		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! $chapter_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid chapter.', 'fanfiction-manager' ) ) );
+		}
+
+		$chapter = get_post( $chapter_id );
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type ) {
+			wp_send_json_error( array( 'message' => __( 'Chapter not found.', 'fanfiction-manager' ) ) );
+		}
+
+		$is_blocked = function_exists( 'fanfic_is_chapter_blocked' ) ? fanfic_is_chapter_blocked( $chapter_id ) : false;
+
+		if ( $is_blocked ) {
+			if ( function_exists( 'fanfic_unblock_chapter' ) ) {
+				fanfic_unblock_chapter( $chapter_id, $moderator_id );
+			}
+
+			$post_status  = get_post_status( $chapter_id );
+			$status_class = 'publish' === $post_status ? 'published' : 'draft';
+			$status_label = 'publish' === $post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
+
+			wp_send_json_success(
+				array(
+					'message'      => __( 'Chapter unblocked successfully.', 'fanfiction-manager' ),
+					'chapter_id'   => $chapter_id,
+					'is_blocked'   => false,
+					'post_status'  => $post_status,
+					'status_class' => $status_class,
+					'status_label' => $status_label,
+				)
+			);
+		}
+
+		if ( '' === $block_reason ) {
+			wp_send_json_error( array( 'message' => __( 'Please choose a block reason.', 'fanfiction-manager' ) ) );
+		}
+
+		$normalized_reason = function_exists( 'fanfic_normalize_block_reason_code' ) ? fanfic_normalize_block_reason_code( $block_reason, '' ) : trim( $block_reason );
+		if ( '' === $normalized_reason ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid block reason.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( function_exists( 'fanfic_block_reason_text_exceeds_limit' ) && fanfic_block_reason_text_exceeds_limit( $block_reason_text ) ) {
+			wp_send_json_error( array( 'message' => __( 'Additional block details must be 500 characters or fewer.', 'fanfiction-manager' ) ) );
+		}
+
+		$normalized_reason_text = function_exists( 'fanfic_normalize_block_reason_text' ) ? fanfic_normalize_block_reason_text( $block_reason_text ) : sanitize_textarea_field( $block_reason_text );
+
+		if ( function_exists( 'fanfic_block_chapter' ) ) {
+			fanfic_block_chapter( $chapter_id, $normalized_reason, $moderator_id, $normalized_reason_text );
+		}
+
+		wp_send_json_success(
+			array(
+				'message'         => __( 'Chapter blocked successfully.', 'fanfiction-manager' ),
+				'chapter_id'      => $chapter_id,
+				'is_blocked'      => true,
+				'post_status'     => get_post_status( $chapter_id ),
+				'status_class'    => 'blocked',
+				'status_label'    => __( 'Blocked', 'fanfiction-manager' ),
+				'reason_label'    => function_exists( 'fanfic_get_block_reason_label' ) ? fanfic_get_block_reason_label( $normalized_reason ) : $normalized_reason,
+				'reason_text'     => $normalized_reason_text,
+				'reason_message'  => function_exists( 'fanfic_get_blocked_chapter_message' ) ? fanfic_get_blocked_chapter_message( $chapter_id ) : '',
+			)
+		);
+	}
+
+	/**
+	 * Handle moderator taking action on a moderation message.
+	 *
+	 * @since 2.3.0
+	 * @return void
+	 */
+	public static function ajax_mod_message_action() {
+		$message_id     = isset( $_POST['message_id'] ) ? absint( $_POST['message_id'] ) : 0;
+		$action_type    = isset( $_POST['action_type'] ) ? sanitize_text_field( wp_unslash( $_POST['action_type'] ) ) : '';
+		$moderator_note = isset( $_POST['moderator_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['moderator_note'] ) ) : '';
+
+		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! $message_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid message ID.', 'fanfiction-manager' ) ) );
+		}
+
+		$valid_actions = array( 'unblock', 'ignore', 'delete' );
+		if ( ! in_array( $action_type, $valid_actions, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid action.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! class_exists( 'Fanfic_Moderation_Messages' ) ) {
+			wp_send_json_error( array( 'message' => __( 'An error occurred.', 'fanfiction-manager' ) ) );
+		}
+
+		$msg = Fanfic_Moderation_Messages::get_message( $message_id );
+		if ( ! $msg ) {
+			wp_send_json_error( array( 'message' => __( 'Message not found.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( in_array( $msg['status'], array( 'resolved', 'deleted' ), true ) ) {
+			wp_send_json_error( array( 'message' => __( 'This message has already been closed.', 'fanfiction-manager' ) ) );
+		}
+
+		$mod_id      = get_current_user_id();
+		$target_type = $msg['target_type'];
+		$target_id   = absint( $msg['target_id'] );
+		$author_id   = absint( $msg['author_id'] );
+
+		$is_restricted = false;
+		if ( 'story' === $target_type ) {
+			$is_restricted = function_exists( 'fanfic_is_story_blocked' ) ? fanfic_is_story_blocked( $target_id ) : false;
+		} elseif ( 'chapter' === $target_type ) {
+			$is_restricted = function_exists( 'fanfic_is_chapter_blocked' ) ? fanfic_is_chapter_blocked( $target_id ) : false;
+		} elseif ( 'user' === $target_type ) {
+			$is_restricted = ( '1' === get_user_meta( $target_id, 'fanfic_banned', true ) );
+		}
+
+		$new_status = $msg['status'];
+
+		switch ( $action_type ) {
+			case 'unblock':
+				if ( ! $is_restricted ) {
+					wp_send_json_error( array( 'message' => __( 'This target is already unblocked.', 'fanfiction-manager' ) ) );
+				}
+
+				// Unblock the target.
+				if ( 'story' === $target_type ) {
+					if ( function_exists( 'fanfic_unblock_story' ) ) {
+						fanfic_unblock_story( $target_id, $mod_id );
+					}
+				} elseif ( 'chapter' === $target_type ) {
+					if ( function_exists( 'fanfic_unblock_chapter' ) ) {
+						fanfic_unblock_chapter( $target_id, $mod_id );
+					}
+				} elseif ( 'user' === $target_type ) {
+					// Reverse the ban.
+					$user = get_userdata( $target_id );
+					if ( $user ) {
+						$original_role = get_user_meta( $target_id, 'fanfic_original_role', true );
+						$user->set_role( $original_role ?: 'fanfiction_author' );
+						delete_user_meta( $target_id, 'fanfic_banned' );
+						delete_user_meta( $target_id, 'fanfic_banned_by' );
+						delete_user_meta( $target_id, 'fanfic_banned_at' );
+						delete_user_meta( $target_id, 'fanfic_original_role' );
+						delete_user_meta( $target_id, 'fanfic_suspension_reason' );
+						delete_user_meta( $target_id, 'fanfic_suspension_reason_text' );
+						update_user_meta( $target_id, 'fanfic_unbanned_by', $mod_id );
+						update_user_meta( $target_id, 'fanfic_unbanned_at', current_time( 'mysql' ) );
+						do_action( 'fanfic_user_unbanned', $target_id, $mod_id );
+					}
+				}
+				Fanfic_Moderation_Messages::update_status( $message_id, 'resolved', $mod_id, $moderator_note );
+				$new_status = 'resolved';
+
+				// Notify author.
+				if ( class_exists( 'Fanfic_Notifications' ) ) {
+					$title = 'user' === $target_type ? '' : get_the_title( $target_id );
+					$note  = $moderator_note ? ' ' . $moderator_note : '';
+					$notification_msg = $title
+						? sprintf(
+							__( 'Your %1$s "%2$s" has been unblocked.%3$s', 'fanfiction-manager' ),
+							$target_type,
+							$title,
+							$note
+						)
+						: sprintf( __( 'Your account has been unsuspended.%s', 'fanfiction-manager' ), $note );
+					Fanfic_Notifications::create_notification(
+						$author_id,
+						Fanfic_Notifications::TYPE_MOD_MESSAGE_UNBLOCKED,
+						$notification_msg,
+						array(),
+						true
+					);
+				}
+				break;
+
+			case 'ignore':
+				if ( 'ignored' === $msg['status'] ) {
+					wp_send_json_error( array( 'message' => __( 'This message is already ignored.', 'fanfiction-manager' ) ) );
+				}
+
+				Fanfic_Moderation_Messages::update_status( $message_id, 'ignored', $mod_id, $moderator_note );
+				$new_status = 'ignored';
+
+				// Notify author.
+				if ( class_exists( 'Fanfic_Notifications' ) ) {
+					$title = 'user' === $target_type ? '' : get_the_title( $target_id );
+					$notification_msg = $title
+						? sprintf(
+							__( 'Your message regarding "%s" has been reviewed. The restriction remains in place.', 'fanfiction-manager' ),
+							$title
+						)
+						: __( 'Your message regarding your account suspension has been reviewed. The restriction remains in place.', 'fanfiction-manager' );
+					Fanfic_Notifications::create_notification(
+						$author_id,
+						Fanfic_Notifications::TYPE_MOD_MESSAGE_IGNORED,
+						$notification_msg
+					);
+				}
+
+				// Log the action.
+				if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+					Fanfic_Moderation_Log::insert( $mod_id, 'message_ignored', $target_type, $target_id, $moderator_note );
+				}
+				break;
+
+			case 'delete':
+				Fanfic_Moderation_Messages::update_status( $message_id, 'deleted', $mod_id, $moderator_note );
+				$new_status = 'deleted';
+
+				// Log the action (no notification for delete).
+				if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+					Fanfic_Moderation_Log::insert( $mod_id, 'message_deleted', $target_type, $target_id, $moderator_note );
+				}
+				break;
+		}
+
+		$restriction_context = function_exists( 'fanfic_get_restriction_context' ) ? fanfic_get_restriction_context( $target_type, $target_id ) : array();
+		$status_labels = array(
+			'unread'   => __( 'Unread', 'fanfiction-manager' ),
+			'ignored'  => __( 'Ignored', 'fanfiction-manager' ),
+			'resolved' => __( 'Resolved', 'fanfiction-manager' ),
+			'deleted'  => __( 'Deleted', 'fanfiction-manager' ),
+		);
+
+		wp_send_json_success( array(
+			'message'            => __( 'Action completed successfully.', 'fanfiction-manager' ),
+			'action_type'        => $action_type,
+			'message_id'         => $message_id,
+			'new_status'         => $new_status,
+			'status_label'       => isset( $status_labels[ $new_status ] ) ? $status_labels[ $new_status ] : ucfirst( $new_status ),
+			'target_type'        => $target_type,
+			'target_id'          => $target_id,
+			'is_restricted'      => ! empty( $restriction_context['is_restricted'] ),
+			'reason_message'     => isset( $restriction_context['reason_message'] ) ? $restriction_context['reason_message'] : '',
+			'moderator_note'     => $moderator_note,
+		) );
 	}
 }

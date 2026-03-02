@@ -35,6 +35,7 @@ class Fanfic_Admin {
 		add_action( 'admin_menu', array( __CLASS__, 'add_admin_menu' ) );
 		add_action( 'admin_menu', array( __CLASS__, 'limit_fanfic_staff_admin_menu' ), 999 );
 		add_action( 'admin_init', array( __CLASS__, 'restrict_fanfic_staff_admin_pages' ), 1 );
+		add_action( 'admin_notices', array( __CLASS__, 'render_moderation_admin_notice' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
 		add_action( 'admin_footer', array( __CLASS__, 'add_external_link_target_blank' ) );
 	}
@@ -144,11 +145,11 @@ class Fanfic_Admin {
 		// Note: Fandoms menu item removed - now accessed via Taxonomies > Fandoms tab
 		// Note: URL Name Rules menu item removed - now accessed via Settings > URL Name tab
 
-		// Add Moderation Queue submenu
+		// Add Moderation submenu
 		add_submenu_page(
 			'fanfiction-manager',
-			__( 'Moderation Queue', 'fanfiction-manager' ),
-			__( 'Moderation Queue', 'fanfiction-manager' ),
+			__( 'Moderation', 'fanfiction-manager' ),
+			__( 'Moderation', 'fanfiction-manager' ),
 			'moderate_fanfiction',
 			'fanfiction-moderation',
 			array( __CLASS__, 'render_moderation_page' )
@@ -326,8 +327,33 @@ jQuery(document).ready(function($) {
 		// Prepare localization data
 		$localize_data = array(
 			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-			'nonce'   => wp_create_nonce( 'fanfiction_admin_nonce' ),
+			'nonce'   => wp_create_nonce( 'fanfic_ajax_nonce' ),
+			'strings' => array(
+				'confirmUnblock'      => __( 'Unblock this restricted item?', 'fanfiction-manager' ),
+				'confirmDelete'       => __( 'Delete this moderation message?', 'fanfiction-manager' ),
+				'actionSuccess'       => __( 'Action completed successfully.', 'fanfiction-manager' ),
+				'actionError'         => __( 'An error occurred. Please try again.', 'fanfiction-manager' ),
+				'unblockLabel'        => __( 'Unblock', 'fanfiction-manager' ),
+				'ignoreLabel'         => __( 'Ignore', 'fanfiction-manager' ),
+				'deleteLabel'         => __( 'Delete', 'fanfiction-manager' ),
+				'statusIgnored'       => __( 'Ignored', 'fanfiction-manager' ),
+				'statusResolved'      => __( 'Resolved', 'fanfiction-manager' ),
+				'alreadyUnblockedNote'=> __( 'This target is already unblocked. Unblock is unavailable, but the message remains for review.', 'fanfiction-manager' ),
+				'banUserTitle'        => __( 'Suspend User', 'fanfiction-manager' ),
+				'banUserDescription'  => __( 'Choose a suspension reason before confirming. This reason will be shown to the author.', 'fanfiction-manager' ),
+				'banReasonLabel'      => __( 'Suspension reason', 'fanfiction-manager' ),
+				'banReasonTextLabel'  => __( 'Additional details', 'fanfiction-manager' ),
+				'banReasonPlaceholder'=> __( 'Add optional context for the user.', 'fanfiction-manager' ),
+				'banReasonRequired'   => __( 'Please choose a suspension reason.', 'fanfiction-manager' ),
+				'banConfirm'          => __( 'Suspend User', 'fanfiction-manager' ),
+				'banCancel'           => __( 'Cancel', 'fanfiction-manager' ),
+				'banSubmitting'       => __( 'Suspending...', 'fanfiction-manager' ),
+			),
 		);
+
+		if ( function_exists( 'fanfic_get_suspension_reason_labels' ) ) {
+			$localize_data['suspensionReasons'] = fanfic_get_suspension_reason_labels();
+		}
 
 		// Add moderation-specific nonce if on moderation page
 		if ( strpos( $hook, 'fanfiction-moderation' ) !== false ) {
@@ -700,6 +726,74 @@ jQuery(document).ready(function($) {
 	public static function render_moderation_page() {
 		// Delegate to the Moderation class
 		Fanfic_Moderation::render();
+	}
+
+	/**
+	 * Get pending moderation counts for reports and author messages.
+	 *
+	 * @since 2.3.0
+	 * @return array{reports:int,messages:int,total:int}
+	 */
+	private static function get_pending_moderation_counts() {
+		global $wpdb;
+
+		$counts = array(
+			'reports'  => 0,
+			'messages' => 0,
+			'total'    => 0,
+		);
+
+		$reports_table = $wpdb->prefix . 'fanfic_reports';
+		$table_exists  = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $reports_table ) );
+		if ( $table_exists === $reports_table ) {
+			$counts['reports'] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$reports_table} WHERE status = %s", 'pending' ) );
+		}
+
+		if ( class_exists( 'Fanfic_Moderation_Messages' ) ) {
+			$counts['messages'] = (int) Fanfic_Moderation_Messages::count_messages( array( 'status' => 'unread' ) );
+		}
+
+		$counts['total'] = $counts['reports'] + $counts['messages'];
+		return $counts;
+	}
+
+	/**
+	 * Render a native WordPress admin notice when moderation attention is needed.
+	 *
+	 * @since 2.3.0
+	 * @return void
+	 */
+	public static function render_moderation_admin_notice() {
+		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+			return;
+		}
+
+		$counts = self::get_pending_moderation_counts();
+		if ( $counts['total'] < 1 ) {
+			return;
+		}
+
+		$moderation_url = admin_url( 'admin.php?page=fanfiction-moderation' );
+		?>
+		<div class="notice notice-warning">
+			<p><strong><?php esc_html_e( 'Moderation actions are needed.', 'fanfiction-manager' ); ?></strong></p>
+			<p>
+				<?php
+				printf(
+					/* translators: 1: pending reports count, 2: unread author messages count. */
+					esc_html__( '%1$d pending reports and %2$d unread author messages require review.', 'fanfiction-manager' ),
+					absint( $counts['reports'] ),
+					absint( $counts['messages'] )
+				);
+				?>
+			</p>
+			<p>
+				<a class="button button-primary" href="<?php echo esc_url( $moderation_url ); ?>">
+					<?php esc_html_e( 'Open Moderation', 'fanfiction-manager' ); ?>
+				</a>
+			</p>
+		</div>
+		<?php
 	}
 
 	/**

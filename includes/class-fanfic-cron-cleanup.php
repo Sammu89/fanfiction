@@ -158,6 +158,10 @@ class Fanfic_Cron_Cleanup {
 	 * @return array
 	 */
 	public static function start_anonymization_run() {
+		if ( class_exists( 'Fanfic_Moderation_Messages' ) ) {
+			Fanfic_Moderation_Messages::cleanup_old_messages();
+		}
+
 		wp_clear_scheduled_hook( self::CONTINUATION_HOOK );
 		$current_count = self::count_anonymous_interactions();
 		if ( $current_count <= self::ANON_ROWS_CAP ) {

@@ -37,6 +37,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_story_filter_map: Pre-computed filter facets map (NEW in 1.5.2)
  * - wp_fanfic_reports: Content reports queue
  * - wp_fanfic_moderation_log: Moderation action log (NEW in 1.2.0)
+ * - wp_fanfic_moderation_messages: Author moderation messages (NEW in 2.3.0)
  *
  * @since 1.0.0
  */
@@ -48,7 +49,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '2.2.2';
+	const DB_VERSION = '2.3.0';
 
 	/**
 	 * Option name for database version tracking
@@ -563,7 +564,7 @@ class Fanfic_Database_Setup {
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			actor_id bigint(20) UNSIGNED NOT NULL,
 			action varchar(50) NOT NULL,
-			target_type enum('user','story') NOT NULL,
+			target_type varchar(50) NOT NULL,
 			target_id bigint(20) UNSIGNED NOT NULL,
 			reason text DEFAULT NULL,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -577,6 +578,31 @@ class Fanfic_Database_Setup {
 		$result = dbDelta( $sql_moderation_log );
 		if ( empty( $result ) || ! self::verify_table_exists( $table_moderation_log ) ) {
 			$errors[] = 'Failed to create moderation_log table';
+		}
+
+		// 23. Moderation Messages Table
+		$table_mod_messages = $prefix . 'fanfic_moderation_messages';
+		$sql_mod_messages   = "CREATE TABLE IF NOT EXISTS {$table_mod_messages} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			author_id bigint(20) UNSIGNED NOT NULL,
+			target_type varchar(50) NOT NULL,
+			target_id bigint(20) UNSIGNED NOT NULL,
+			message text NOT NULL,
+			status varchar(20) NOT NULL DEFAULT 'unread',
+			moderator_id bigint(20) UNSIGNED DEFAULT NULL,
+			moderator_note text DEFAULT NULL,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime DEFAULT NULL,
+			PRIMARY KEY  (id),
+			KEY idx_author (author_id),
+			KEY idx_target (target_type, target_id),
+			KEY idx_status (status),
+			KEY idx_created (created_at)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_mod_messages );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_mod_messages ) ) {
+			$errors[] = 'Failed to create moderation_messages table';
 		}
 
 		// All tables created successfully, proceed to seed default data if needed.
@@ -997,6 +1023,18 @@ class Fanfic_Database_Setup {
 		// v2.2.2: Ensure reports table schema is current.
 		if ( version_compare( $current_version, '2.2.2', '<' ) ) {
 			self::ensure_reports_table();
+		}
+
+		// v2.3.0: Fix moderation_log target_type from enum to varchar(50) to support 'chapter'.
+		if ( version_compare( $current_version, '2.3.0', '<' ) ) {
+			global $wpdb;
+			$log_table = $wpdb->prefix . 'fanfic_moderation_log';
+			if ( self::verify_table_exists( $log_table ) ) {
+				$col = $wpdb->get_row( "SHOW COLUMNS FROM {$log_table} LIKE 'target_type'" );
+				if ( $col && false !== strpos( strtolower( $col->Type ), 'enum' ) ) {
+					$wpdb->query( "ALTER TABLE {$log_table} MODIFY COLUMN target_type varchar(50) NOT NULL" );
+				}
+			}
 		}
 
 	}
