@@ -49,7 +49,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '2.3.0';
+	const DB_VERSION = '2.3.1';
 
 	/**
 	 * Option name for database version tracking
@@ -591,6 +591,7 @@ class Fanfic_Database_Setup {
 			status varchar(20) NOT NULL DEFAULT 'unread',
 			moderator_id bigint(20) UNSIGNED DEFAULT NULL,
 			moderator_note text DEFAULT NULL,
+			author_reply text DEFAULT NULL,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT NULL,
 			PRIMARY KEY  (id),
@@ -1033,6 +1034,18 @@ class Fanfic_Database_Setup {
 				$col = $wpdb->get_row( "SHOW COLUMNS FROM {$log_table} LIKE 'target_type'" );
 				if ( $col && false !== strpos( strtolower( $col->Type ), 'enum' ) ) {
 					$wpdb->query( "ALTER TABLE {$log_table} MODIFY COLUMN target_type varchar(50) NOT NULL" );
+				}
+			}
+		}
+
+		// v2.3.1: Add separate author reply field to moderation messages.
+		if ( version_compare( $current_version, '2.3.1', '<' ) ) {
+			global $wpdb;
+			$messages_table = $wpdb->prefix . 'fanfic_moderation_messages';
+			if ( self::verify_table_exists( $messages_table ) ) {
+				$col = $wpdb->get_row( "SHOW COLUMNS FROM {$messages_table} LIKE 'author_reply'" );
+				if ( ! $col ) {
+					$wpdb->query( "ALTER TABLE {$messages_table} ADD COLUMN author_reply text DEFAULT NULL AFTER moderator_note" );
 				}
 			}
 		}

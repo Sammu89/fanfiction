@@ -34,9 +34,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function fanfic_get_validation_error_heading( $type = 'story' ) {
 	if ( 'chapter' === $type ) {
-		return __( 'Chapter cannot be published due to the following issues:', 'fanfiction-manager' );
+		return __( 'Chapter cannot be made visible due to the following issues:', 'fanfiction-manager' );
 	}
-	return __( 'Story cannot be published due to the following issues:', 'fanfiction-manager' );
+	return __( 'Story cannot be made visible due to the following issues:', 'fanfiction-manager' );
 }
 
 /**
@@ -438,14 +438,14 @@ var FanficMessages = {
 						// Re-enable button and show error
 						publishNowButton.disabled = false;
 						publishNowButton.textContent = FanficMessages.publishStoryYes;
-						showInlineModalMessage('error', data.data.message || '<?php echo esc_js( __( 'Failed to publish story.', 'fanfiction-manager' ) ); ?>', true);
+						showInlineModalMessage('error', data.data.message || '<?php echo esc_js( __( 'Failed to make story visible.', 'fanfiction-manager' ) ); ?>', true);
 					}
 				})
 				.catch(function(error) {
 					// Re-enable button and show error
 					publishNowButton.disabled = false;
 					publishNowButton.textContent = FanficMessages.publishStoryYes;
-					showInlineModalMessage('error', '<?php echo esc_js( __( 'An error occurred while publishing the story.', 'fanfiction-manager' ) ); ?>', true);
+					showInlineModalMessage('error', '<?php echo esc_js( __( 'An error occurred while making the story visible.', 'fanfiction-manager' ) ); ?>', true);
 					console.error('Error:', error);
 				});
 			});

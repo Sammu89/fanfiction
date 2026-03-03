@@ -794,15 +794,15 @@ class Fanfic_URL_Manager {
 			$user = $member_name ? get_user_by( 'login', $member_name ) : false;
 
 			if ( ! $user ) {
-				return '<div class="fanfic-error-notice" role="alert"><p>' .
+				return '<div class="fanfic-message fanfic-message-error" role="alert"><span class="fanfic-message-icon" aria-hidden="true">&#10007;</span><span class="fanfic-message-content">' .
 					esc_html__( 'User not found.', 'fanfiction-manager' ) .
-				'</p></div>';
+				'</span></div>';
 			}
 
 			if ( ! function_exists( 'fanfic_current_user_can_edit' ) || ! fanfic_current_user_can_edit( 'profile', $user->ID ) ) {
-				return '<div class="fanfic-error-notice" role="alert"><p>' .
+				return '<div class="fanfic-message fanfic-message-error" role="alert"><span class="fanfic-message-icon" aria-hidden="true">&#10007;</span><span class="fanfic-message-content">' .
 					esc_html__( 'You do not have permission to edit this profile.', 'fanfiction-manager' ) .
-				'</p></div>';
+				'</span></div>';
 			}
 
 			$template_path = FANFIC_PLUGIN_DIR . 'templates/template-edit-profile.php';

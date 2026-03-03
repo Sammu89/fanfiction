@@ -56,41 +56,44 @@ $coauthors_enabled = class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_
 $pending_invitations = $coauthors_enabled ? Fanfic_Coauthors::get_pending_invitations( $user_id ) : array();
 ?>
 
-<!-- Breadcrumb Navigation -->
-<?php fanfic_render_breadcrumb( 'dashboard' ); ?>
-
-<!-- Unified Messages Container -->
-<div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php
-// Display flash messages
-$flash_messages = Fanfic_Flash_Messages::get_messages();
-if ( ! empty( $flash_messages ) ) {
-    foreach ( $flash_messages as $msg ) {
-        $type = esc_attr( $msg['type'] );
-        $message = esc_html( $msg['message'] );
-        $icon = ( $type === 'success' ) ? '&#10003;' : '&#10007;'; // Simplified for example
-        $role = ( $type === 'error' ) ? 'alert' : 'status';
+// Inject flash messages and legacy URL errors into the dashboard alerts zone.
+add_action( 'fanfic_page_alerts', function( $context ) {
+	if ( 'dashboard' !== $context ) {
+		return;
+	}
 
-        echo "<div class='fanfic-message fanfic-message-{$type}' role='{$role}'>
-                <span class='fanfic-message-icon' aria-hidden='true'>{$icon}</span>
-                <span class='fanfic-message-content'>{$message}</span>
-                <button class='fanfic-message-close' aria-label='" . esc_attr__( 'Dismiss message', 'fanfiction-manager' ) . "'>&times;</button>
-              </div>";
-    }
-}
+	$flash_messages = class_exists( 'Fanfic_Flash_Messages' ) ? Fanfic_Flash_Messages::get_messages() : array();
+	foreach ( $flash_messages as $msg ) {
+		$type    = sanitize_key( $msg['type'] ?? 'info' );
+		$message = esc_html( $msg['message'] ?? '' );
+		if ( '' === $message ) {
+			continue;
+		}
+		$icon = ( 'success' === $type || 'info' === $type ) ? '&#10003;' : ( 'warning' === $type ? '&#9888;' : '&#10007;' );
+		$role = ( 'error' === $type ) ? 'alert' : 'status';
+		printf(
+			"<div class='fanfic-message fanfic-message-%1\$s' role='%2\$s'><span class='fanfic-message-icon' aria-hidden='true'>%3\$s</span><span class='fanfic-message-content'>%4\$s</span><button class='fanfic-message-close' aria-label='%5\$s'>&times;</button></div>",
+			esc_attr( $type ),
+			esc_attr( $role ),
+			$icon,
+			$message,
+			esc_attr__( 'Dismiss message', 'fanfiction-manager' )
+		);
+	}
 
-// Manually display a direct error from URL if it exists (for backward compatibility or specific cases)
-if ( isset( $_GET['error'] ) ) {
-    echo "<div class='fanfic-message fanfic-message-error' role='alert'>
-            <span class='fanfic-message-icon' aria-hidden='true'>&#10007;</span>
-            <span class='fanfic-message-content'>" . esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ) . "</span>
-            <button class='fanfic-message-close' aria-label='" . esc_attr__( 'Dismiss message', 'fanfiction-manager' ) . "'>&times;</button>
-          </div>";
-}
-?>
-</div>
+	if ( isset( $_GET['error'] ) ) {
+		printf(
+			"<div class='fanfic-message fanfic-message-error' role='alert'><span class='fanfic-message-icon' aria-hidden='true'>&#10007;</span><span class='fanfic-message-content'>%s</span><button class='fanfic-message-close' aria-label='%s'>&times;</button></div>",
+			esc_html( sanitize_text_field( wp_unslash( $_GET['error'] ) ) ),
+			esc_attr__( 'Dismiss message', 'fanfiction-manager' )
+		);
+	}
+} );
 
-<!-- Dashboard Header -->
+fanfic_render_page_header( 'dashboard' );
+
+<!-- Dashboard Header / Profile -->
 <header class="fanfic-dashboard-header">
 	<div class="fanfic-dashboard-hero">
 		<div class="fanfic-dashboard-avatar">
@@ -103,9 +106,31 @@ if ( isset( $_GET['error'] ) ) {
 				printf( esc_html__( 'Welcome back, %s!', 'fanfiction-manager' ), esc_html( $current_user->display_name ) );
 				?>
 			</h2>
-			<p class="fanfic-dashboard-subtitle">
-				<?php esc_html_e( 'Manage your stories, track your progress, and connect with readers.', 'fanfiction-manager' ); ?>
+			<?php if ( ! empty( $current_user->description ) ) : ?>
+				<p class="fanfic-dashboard-bio"><?php echo nl2br( esc_html( $current_user->description ) ); ?></p>
+			<?php endif; ?>
+			<p class="fanfic-dashboard-meta">
+				<?php
+				/* translators: %s: registration date */
+				printf( esc_html__( 'Joined %s', 'fanfiction-manager' ), esc_html( date_i18n( get_option( 'date_format' ), strtotime( $current_user->user_registered ) ) ) );
+				?>
 			</p>
+			<div class="fanfic-dashboard-profile-links">
+				<?php
+				$fanfic_public_profile_url = function_exists( 'fanfic_get_user_profile_url' ) ? fanfic_get_user_profile_url( $current_user ) : '';
+				$fanfic_edit_profile_url   = function_exists( 'fanfic_get_edit_profile_url' ) ? fanfic_get_edit_profile_url( $current_user->ID ) : '';
+				?>
+				<?php if ( $fanfic_public_profile_url ) : ?>
+					<a href="<?php echo esc_url( $fanfic_public_profile_url ); ?>" class="fanfic-button secondary">
+						<?php esc_html_e( 'View Profile', 'fanfiction-manager' ); ?>
+					</a>
+				<?php endif; ?>
+				<?php if ( $fanfic_edit_profile_url ) : ?>
+					<a href="<?php echo esc_url( $fanfic_edit_profile_url ); ?>" class="fanfic-button secondary">
+						<?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?>
+					</a>
+				<?php endif; ?>
+			</div>
 		</div>
 	</div>
 </header>
@@ -316,6 +341,8 @@ if ( isset( $_GET['error'] ) ) {
 									$views = class_exists( 'Fanfic_Interactions' ) ? Fanfic_Interactions::get_story_views( $story_id ) : 0;
 									$status_terms = wp_get_post_terms( $story_id, 'fanfiction_status' );
 									$status_name = ! empty( $status_terms ) ? $status_terms[0]->name : esc_html__( 'Unknown', 'fanfiction-manager' );
+									$post_status = get_post_status();
+									$post_status_label = 'draft' === $post_status ? __( 'Hidden', 'fanfiction-manager' ) : ucfirst( $post_status );
 									?>
 									<tr>
 										<td class="fanfic-story-title">
@@ -325,8 +352,8 @@ if ( isset( $_GET['error'] ) ) {
 											<?php else : ?>
 												<a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
 											<?php endif; ?>
-											<?php if ( 'publish' !== get_post_status() ) : ?>
-												<span class="fanfic-badge fanfic-badge-draft"><?php echo esc_html( ucfirst( get_post_status() ) ); ?></span>
+											<?php if ( 'publish' !== $post_status ) : ?>
+												<span class="fanfic-badge fanfic-badge-draft"><?php echo esc_html( $post_status_label ); ?></span>
 											<?php endif; ?>
 											<?php if ( $coauthors_enabled && ! $is_original_author ) : ?>
 												<span class="fanfic-badge fanfic-badge-coauthor"><?php esc_html_e( 'Co-author', 'fanfiction-manager' ); ?></span>

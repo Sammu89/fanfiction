@@ -233,6 +233,13 @@
 			// Hide initially for animation
 			$message.css({ opacity: 0, transform: 'translateY(-10px)' });
 
+			// Clear existing messages of same type before adding to prevent stacking
+			$container.find('.fanfic-message-' + type).each(function() {
+				const $old = $(this);
+				$old.css({ opacity: 0, transform: 'translateY(-10px)' });
+				setTimeout(() => $old.remove(), 300);
+			});
+
 			// Add to container
 			$container.append($message);
 
@@ -299,48 +306,34 @@
 			const $container = this.getContainer();
 			const self = this;
 
-			// Find existing messages and move them into the container
-			const existingSelectors = [
-				'.fanfic-info-box.box-success',
-				'.fanfic-info-box.fanfic-success',
-				'.fanfic-info-box.fanfic-error',
-				'.fanfic-info-box.fanfic-warning',
-				'.fanfic-info-box.fanfic-info',
-				'.fanfic-error-notice',
-				'.fanfic-validation-error-notice',
-				'.fanfic-blocked-notice'
-			];
+			// Adopt .fanfic-message elements already rendered by PHP
+			// Wire close buttons and schedule auto-dismiss based on message type
+			const typeDurations = { success: 5000, info: 6000, warning: 8000, error: 8000 };
+			$container.find('.fanfic-message').each(function() {
+				const $msg = $(this);
+				if ($msg.data('fanfic-adopted')) { return; }
+				$msg.data('fanfic-adopted', true);
 
-			$(existingSelectors.join(',')).each(function() {
-				const $existing = $(this);
-				// Skip if already in our container
-				if ($existing.closest('#' + self.containerId).length) {
-					return;
+				// Wire close button
+				$msg.find('.fanfic-message-close').on('click', function() {
+					$msg.css({ opacity: 0, transform: 'translateY(-10px)' });
+					setTimeout(function() { $msg.remove(); }, 300);
+				});
+
+				// Determine type from CSS class
+				let msgType = 'info';
+				['success', 'error', 'warning', 'info'].forEach(function(t) {
+					if ($msg.hasClass('fanfic-message-' + t)) { msgType = t; }
+				});
+
+				// Schedule auto-dismiss
+				const duration = typeof typeDurations[msgType] !== 'undefined' ? typeDurations[msgType] : self.defaultDuration;
+				if (duration > 0) {
+					setTimeout(function() {
+						$msg.css({ opacity: 0, transform: 'translateY(-10px)' });
+						setTimeout(function() { $msg.remove(); }, 300);
+					}, duration);
 				}
-
-				// Determine type from classes
-				let type = 'info';
-				if ($existing.hasClass('box-success') || $existing.hasClass('fanfic-success')) {
-					type = 'success';
-				} else if ($existing.hasClass('fanfic-error') || $existing.hasClass('fanfic-error-notice') || $existing.hasClass('fanfic-validation-error-notice')) {
-					type = 'error';
-				} else if ($existing.hasClass('fanfic-warning') || $existing.hasClass('fanfic-blocked-notice')) {
-					type = 'warning';
-				}
-
-				// Get content
-				const content = $existing.html();
-
-				// Remove the close button from content if it exists (we'll add our own)
-				const $temp = $('<div>').html(content);
-				$temp.find('.fanfic-notice-close').remove();
-				const cleanContent = $temp.html();
-
-				// Add to our container
-				self.add(type, cleanContent, { duration: type === 'error' ? 0 : self.defaultDuration });
-
-				// Remove original
-				$existing.remove();
 			});
 		}
 	};

@@ -40,6 +40,7 @@ class Fanfic_Moderation {
 					'chapter_block_manual',
 					'chapter_block_ban',
 					'chapter_block_rule',
+					'comment_blocked',
 				);
 			case 'unblock':
 				return array(
@@ -150,17 +151,17 @@ class Fanfic_Moderation {
 		// Count reports by status (using standardized status values)
 		$reports_table = $wpdb->prefix . 'fanfic_reports';
 		$pending_count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$reports_table} WHERE status = %s", 'pending' ) );
-		$reviewed_count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$reports_table} WHERE status = %s", 'reviewed' ) );
+		$blocked_count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$reports_table} WHERE status = %s", 'blocked' ) );
 		$dismissed_count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$reports_table} WHERE status = %s", 'dismissed' ) );
-		$total_count = $pending_count + $reviewed_count + $dismissed_count;
+		$total_count = $pending_count + $blocked_count + $dismissed_count;
 
 		// Get current status filter (standardized values)
 		$status_filter = isset( $_GET['status'] ) ? sanitize_text_field( wp_unslash( $_GET['status'] ) ) : 'pending';
-		$allowed_statuses = array( 'all', 'pending', 'reviewed', 'dismissed' );
+		$allowed_statuses = array( 'all', 'pending', 'blocked', 'dismissed' );
 		$status_filter = in_array( $status_filter, $allowed_statuses, true ) ? $status_filter : 'pending';
 
 		?>
-		<p><?php esc_html_e( 'Review and moderate reported content from users. Take action on reports to maintain community standards.', 'fanfiction-manager' ); ?></p>
+		<p><?php esc_html_e( 'Review reports from users and decide whether to block the content, dismiss the report, or delete the report entry.', 'fanfiction-manager' ); ?></p>
 
 		<!-- Status Filter Tabs -->
 		<ul class="subsubsub">
@@ -176,12 +177,12 @@ class Fanfic_Moderation {
 				</a> |
 			</li>
 			<li>
-				<a href="?page=fanfiction-moderation&tab=queue&status=reviewed" <?php echo 'reviewed' === $status_filter ? 'class="current"' : ''; ?>>
+				<a href="?page=fanfiction-moderation&tab=queue&status=blocked" <?php echo 'blocked' === $status_filter ? 'class="current"' : ''; ?>>
 					<?php
 					printf(
-						/* translators: %d: Number of reviewed reports */
-						esc_html__( 'Reviewed (%d)', 'fanfiction-manager' ),
-						absint( $reviewed_count )
+						/* translators: %d: Number of blocked reports */
+						esc_html__( 'Blocked (%d)', 'fanfiction-manager' ),
+						absint( $blocked_count )
 					);
 					?>
 				</a> |
@@ -231,9 +232,9 @@ class Fanfic_Moderation {
 			<h3><?php esc_html_e( 'Moderation Guidelines', 'fanfiction-manager' ); ?></h3>
 			<ul style="margin-left: 20px; list-style-type: disc;">
 				<li><?php esc_html_e( 'Review each report carefully before taking action.', 'fanfiction-manager' ); ?></li>
-				<li><?php esc_html_e( 'Mark reports as "Reviewed" after you have taken appropriate action on the content.', 'fanfiction-manager' ); ?></li>
+				<li><?php esc_html_e( 'Use Block when the reported content should be restricted or hidden from readers.', 'fanfiction-manager' ); ?></li>
 				<li><?php esc_html_e( 'Dismiss reports that are invalid or do not violate community guidelines.', 'fanfiction-manager' ); ?></li>
-				<li><?php esc_html_e( 'After reviewing a report, take appropriate action on the reported content (edit, delete, or suspend user).', 'fanfiction-manager' ); ?></li>
+				<li><?php esc_html_e( 'Delete report only removes the moderation entry. It does not restore or change the content.', 'fanfiction-manager' ); ?></li>
 				<li><?php esc_html_e( 'All moderation actions are logged with moderator stamps for accountability.', 'fanfiction-manager' ); ?></li>
 			</ul>
 		</div>
@@ -347,6 +348,7 @@ class Fanfic_Moderation {
 					<option value="user" <?php selected( $target_filter, 'user' ); ?>><?php esc_html_e( 'Users', 'fanfiction-manager' ); ?></option>
 					<option value="story" <?php selected( $target_filter, 'story' ); ?>><?php esc_html_e( 'Stories', 'fanfiction-manager' ); ?></option>
 					<option value="chapter" <?php selected( $target_filter, 'chapter' ); ?>><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></option>
+					<option value="comment" <?php selected( $target_filter, 'comment' ); ?>><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></option>
 				</select>
 
 				<button type="submit" class="button"><?php esc_html_e( 'Filter', 'fanfiction-manager' ); ?></button>
@@ -400,6 +402,14 @@ class Fanfic_Moderation {
 							if ( $chapter ) {
 								$target_link = get_edit_post_link( $log['target_id'] );
 							}
+						} elseif ( 'comment' === $log['target_type'] ) {
+							$comment = get_comment( $log['target_id'] );
+							$target_name = __( 'Unknown Comment', 'fanfiction-manager' );
+							if ( $comment ) {
+								$post = get_post( $comment->comment_post_ID );
+								$target_name = $post ? $post->post_title : __( 'Unknown Comment Context', 'fanfiction-manager' );
+								$target_link = get_edit_comment_link( $log['target_id'] );
+							}
 						}
 
 						// Format action badge
@@ -414,6 +424,9 @@ class Fanfic_Moderation {
 							'chapter_block_ban'    => array( 'label' => __( 'Chapter Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
 							'chapter_block_rule'   => array( 'label' => __( 'Chapter Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
 							'chapter_unblock'      => array( 'label' => __( 'Chapter Unblock', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unblock' ),
+							'comment_blocked'      => array( 'label' => __( 'Comment Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
+							'report_dismissed'     => array( 'label' => __( 'Report Dismissed', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
+							'report_deleted'       => array( 'label' => __( 'Report Deleted', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
 							'message_ignored'      => array( 'label' => __( 'Message Ignored', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
 							'message_deleted'      => array( 'label' => __( 'Message Deleted', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
 						);
@@ -642,7 +655,7 @@ class Fanfic_Moderation {
 
 		// Update report status (using standardized status values)
 		$reports_table = $wpdb->prefix . 'fanfic_reports';
-		$new_status = 'approve' === $mod_action ? 'reviewed' : 'dismissed';
+		$new_status = 'approve' === $mod_action ? 'blocked' : 'dismissed';
 		$current_user_id = get_current_user_id();
 
 		$result = $wpdb->update(
@@ -692,7 +705,7 @@ class Fanfic_Moderation {
 		if ( isset( $_GET['success'] ) ) {
 			$success_code = sanitize_text_field( wp_unslash( $_GET['success'] ) );
 			$messages = array(
-				'reviewed'         => __( 'Report marked as reviewed successfully.', 'fanfiction-manager' ),
+				'blocked'          => __( 'Report blocked successfully.', 'fanfiction-manager' ),
 				'dismissed'        => __( 'Report dismissed successfully.', 'fanfiction-manager' ),
 				'comment_approved' => __( 'Comment approved successfully.', 'fanfiction-manager' ),
 				'comment_rejected' => __( 'Comment rejected successfully.', 'fanfiction-manager' ),

@@ -142,9 +142,37 @@ if ( $is_edit_mode ) {
 <!-- Include Warning Modals Template -->
 <?php include( plugin_dir_path( __FILE__ ) . 'modal-warnings.php' ); ?>
 
-<!-- Breadcrumb Navigation -->
 <?php
-fanfic_render_breadcrumb( 'edit-story', array(
+$fanfic_story_blocked_owner_edit  = isset( $fanfic_story_blocked_owner_edit ) ? $fanfic_story_blocked_owner_edit : false;
+$fanfic_story_re_review_requested = isset( $fanfic_story_re_review_requested ) ? $fanfic_story_re_review_requested : false;
+
+add_action( 'fanfic_page_alerts', function( $context ) use ( $fanfic_story_blocked_owner_edit, $fanfic_story_re_review_requested, $story_id ) {
+	if ( 'edit-story' !== $context || ! $fanfic_story_blocked_owner_edit ) {
+		return;
+	}
+	?>
+	<div class="fanfic-message fanfic-message-warning" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+		<span class="fanfic-message-content">
+			<strong><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></strong><br>
+			<?php esc_html_e( 'Your edits stay hidden while this story is blocked. Save your changes below, then request re-review. Moderators will always review the latest version you have saved, including any newer changes you save after sending the request.', 'fanfiction-manager' ); ?>
+			<span class="fanfic-message-actions">
+				<?php if ( $fanfic_story_re_review_requested ) : ?>
+					<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
+						<?php esc_html_e( 'Re-review Submitted', 'fanfiction-manager' ); ?>
+					</span>
+				<?php else : ?>
+					<button type="button" class="fanfic-button secondary fanfic-submit-re-review-btn" data-story-id="<?php echo esc_attr( $story_id ); ?>">
+						<?php esc_html_e( 'Request Moderator Review', 'fanfiction-manager' ); ?>
+					</button>
+				<?php endif; ?>
+			</span>
+		</span>
+	</div>
+	<?php
+} );
+
+fanfic_render_page_header( 'edit-story', array(
 	'story_id'     => $story_id,
 	'story_title'  => $story_title,
 	'is_edit_mode' => $is_edit_mode,
@@ -152,7 +180,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 ?>
 
 <?php ob_start(); ?>
-<!-- Unified Messages Container -->
+<!-- [STATUS MESSAGES] Zone for form save/error feedback. Do not use for cross-page alerts. -->
 <div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php
 // Display flash messages from previous request.
@@ -413,26 +441,6 @@ if ( $is_edit_mode ) {
 
 			<!-- Story Form -->
 			<div class="fanfic-form-wrapper fanfic-story-form-<?php echo esc_attr( $form_mode ); ?>">
-				<?php if ( $fanfic_story_blocked_owner_edit ) : ?>
-					<div class="fanfic-message fanfic-message-warning" role="status">
-						<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
-						<span class="fanfic-message-content">
-							<strong><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></strong><br>
-								<?php esc_html_e( 'Your edits stay hidden while this story is blocked. Save your changes below, then request re-review. Moderators will always review the latest version you have saved, including any newer changes you save after sending the request.', 'fanfiction-manager' ); ?>
-							<span class="fanfic-message-actions">
-								<?php if ( $fanfic_story_re_review_requested ) : ?>
-									<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
-										<?php esc_html_e( 'Re-review Submitted', 'fanfiction-manager' ); ?>
-									</span>
-								<?php else : ?>
-									<button type="button" class="fanfic-button secondary fanfic-submit-re-review-btn" data-story-id="<?php echo esc_attr( $story_id ); ?>">
-										<?php esc_html_e( 'Request Moderator Review', 'fanfiction-manager' ); ?>
-									</button>
-								<?php endif; ?>
-							</span>
-						</span>
-					</div>
-				<?php endif; ?>
 				<div class="fanfic-form-header">
 					<h2><?php echo $is_edit_mode ? sprintf( esc_html__( 'Edit Story: "%s"', 'fanfiction-manager' ), esc_html( $story->post_title ) ) : esc_html__( 'Create New Story', 'fanfiction-manager' ); ?></h2>
 					<?php if ( $is_edit_mode ) : ?>
@@ -1211,7 +1219,7 @@ if ( $is_edit_mode ) {
 								<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
 							</button>
 							<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary">
-								<?php esc_html_e( 'Save as Draft', 'fanfiction-manager' ); ?>
+								<?php esc_html_e( 'Save as Hidden', 'fanfiction-manager' ); ?>
 							</button>
 							<a href="<?php echo esc_url( fanfic_get_dashboard_url() ); ?>" class="fanfic-button secondary">
 								<?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?>
@@ -1269,14 +1277,16 @@ if ( $is_edit_mode ) {
 
 							<!-- Warning: shown when story is hidden and has no published chapters -->
 							<?php if ( ! $is_published && ! $has_published_chapters ) : ?>
-								<div style="margin-top: 12px; padding: 8px 12px; background-color: #fff3cd; border-left: 3px solid #ffc107; font-size: 13px; color: #856404;">
-									<?php esc_html_e( 'To make the story visible, you need to publish at least one chapter.', 'fanfiction-manager' ); ?>
+								<div class="fanfic-message fanfic-message-warning">
+									<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+									<span class="fanfic-message-content"><?php esc_html_e( 'To make the story visible, you need to make at least one chapter visible.', 'fanfiction-manager' ); ?></span>
 								</div>
 							<?php endif; ?>
 						<?php endif; ?>
 					</div>
 				</form>
-				<?php echo $fanfic_story_messages_markup; ?>
+				<!-- [STATUS MESSAGES] Zone for form save/error feedback. Do not use for cross-page alerts. -->
+			<?php echo $fanfic_story_messages_markup; ?>
 			</div>
 		</section>
 	</div><!-- /.fanfic-content-primary -->
@@ -2649,7 +2659,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 								if (data.success) {
 									// If story was auto-drafted, reload page to update all button states and warnings
 									if (data.data.story_auto_drafted) {
-										queueStoryFormMessage('warning', '<?php echo esc_js( __( 'Chapter deleted. Your story has been set to DRAFT because it no longer has any chapters or prologues.', 'fanfiction-manager' ) ); ?>', true);
+										queueStoryFormMessage('warning', '<?php echo esc_js( __( 'Chapter deleted. Your story has been set to Hidden because it no longer has any chapters or prologues.', 'fanfiction-manager' ) ); ?>', true);
 										window.location.reload();
 										return;
 									}

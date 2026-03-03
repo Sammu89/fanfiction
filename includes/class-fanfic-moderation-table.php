@@ -50,10 +50,6 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 			'plural'   => __( 'Reports', 'fanfiction-manager' ),
 			'ajax'     => false,
 		) );
-
-		// Handle actions before headers are sent
-		$this->process_bulk_actions();
-		$this->process_single_actions();
 	}
 
 	/**
@@ -64,13 +60,11 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	 */
 	public function get_columns() {
 		return array(
-			'cb'            => '<input type="checkbox" />',
-			'view_report'   => __( 'View Report', 'fanfiction-manager' ),
-			'post_title'    => __( 'Post Title', 'fanfiction-manager' ),
-			'post_type'     => __( 'Post Type', 'fanfiction-manager' ),
-			'reported_by'   => __( 'Reported By', 'fanfiction-manager' ),
-			'date'          => __( 'Date', 'fanfiction-manager' ),
-			'status'        => __( 'Status', 'fanfiction-manager' ),
+			'title'        => __( 'Title', 'fanfiction-manager' ),
+			'reported_by'  => __( 'Reported by', 'fanfiction-manager' ),
+			'reason'       => __( 'Report reason', 'fanfiction-manager' ),
+			'view_message' => __( 'View message', 'fanfiction-manager' ),
+			'actions'      => __( 'Action', 'fanfiction-manager' ),
 		);
 	}
 
@@ -81,25 +75,7 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	 * @return array Associative array of column slug => array( db field, default sort ).
 	 */
 	protected function get_sortable_columns() {
-		return array(
-			'post_title' => array( 'post_title', false ),
-			'post_type'  => array( 'post_type', false ),
-			'date'       => array( 'date', true ), // true = already sorted by this column
-			'status'     => array( 'status', false ),
-		);
-	}
-
-	/**
-	 * Get bulk actions
-	 *
-	 * @since 1.0.0
-	 * @return array Associative array of bulk action slug => title.
-	 */
-	protected function get_bulk_actions() {
-		return array(
-			'bulk_dismiss' => __( 'Dismiss', 'fanfiction-manager' ),
-			'bulk_delete'  => __( 'Delete Reports', 'fanfiction-manager' ),
-		);
+		return array();
 	}
 
 	/**
@@ -110,6 +86,24 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	 */
 	public function no_items() {
 		esc_html_e( 'No reports found.', 'fanfiction-manager' );
+	}
+
+	public function single_row( $item ) {
+		$report_id = absint( $item['id'] );
+		$status    = isset( $item['status'] ) ? $item['status'] : 'pending';
+		$context   = self::get_report_target_context_data( $item );
+
+		echo '<tr id="fanfic-report-row-' . esc_attr( $report_id ) . '" data-report-id="' . esc_attr( $report_id ) . '" data-status="' . esc_attr( $status ) . '">';
+		$this->single_row_columns( $item );
+		echo '</tr>';
+
+		if ( 'pending' === $status && 'comment' !== $context['target_type'] ) {
+			echo '<tr id="fanfic-report-panel-row-' . esc_attr( $report_id ) . '" class="fanfic-report-detail-row" data-report-id="' . esc_attr( $report_id ) . '" style="display:none;">';
+			echo '<td colspan="' . esc_attr( count( $this->get_columns() ) ) . '">';
+			echo $this->render_block_panel( $item );
+			echo '</td>';
+			echo '</tr>';
+		}
 	}
 
 	/**
@@ -160,7 +154,7 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 		// Status filter
 		if ( isset( $_GET['status'] ) && 'all' !== $_GET['status'] ) {
 			$status = sanitize_text_field( wp_unslash( $_GET['status'] ) );
-			$allowed_statuses = array( 'pending', 'reviewed', 'dismissed' );
+			$allowed_statuses = array( 'pending', 'blocked', 'dismissed' );
 			if ( in_array( $status, $allowed_statuses, true ) ) {
 				$filters['status'] = $status;
 			}
@@ -169,7 +163,7 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 		// Post type filter
 		if ( ! empty( $_GET['post_type_filter'] ) ) {
 			$post_type = sanitize_text_field( wp_unslash( $_GET['post_type_filter'] ) );
-			$allowed_types = array( 'fanfiction_story', 'fanfiction_chapter' );
+			$allowed_types = array( 'fanfiction_story', 'fanfiction_chapter', 'comment' );
 			if ( in_array( $post_type, $allowed_types, true ) ) {
 				$filters['post_type'] = $post_type;
 			}
@@ -277,7 +271,9 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 				r.reported_item_id,
 				r.reported_item_type,
 				r.reporter_id,
+				r.reporter_ip,
 				r.reason,
+				r.details,
 				r.status,
 				r.moderator_id,
 				r.moderator_notes,
@@ -300,6 +296,117 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 			'items' => $items,
 			'total' => $total,
 		);
+	}
+
+	protected function get_default_primary_column_name() {
+		return 'title';
+	}
+
+	public static function get_status_label( $status ) {
+		$labels = array(
+			'pending'   => __( 'Pending', 'fanfiction-manager' ),
+			'blocked'   => __( 'Blocked', 'fanfiction-manager' ),
+			'dismissed' => __( 'Dismissed', 'fanfiction-manager' ),
+		);
+
+		return isset( $labels[ $status ] ) ? $labels[ $status ] : ucfirst( (string) $status );
+	}
+
+	public static function get_report_target_context_data( $report ) {
+		$report_type = isset( $report['reported_item_type'] ) ? (string) $report['reported_item_type'] : '';
+		$target_id   = isset( $report['reported_item_id'] ) ? absint( $report['reported_item_id'] ) : 0;
+		$context     = array(
+			'target_type'   => 'story',
+			'target_id'     => $target_id,
+			'title'         => __( '(Deleted)', 'fanfiction-manager' ),
+			'display_title' => __( '(Deleted)', 'fanfiction-manager' ),
+			'url'           => '',
+			'edit_url'      => '',
+			'author_id'     => 0,
+		);
+
+		if ( 'fanfiction_story' === $report_type ) {
+			$post                     = get_post( $target_id );
+			$context['target_type']   = 'story';
+			$context['title']         = $post ? $post->post_title : __( '(Deleted story)', 'fanfiction-manager' );
+			$context['title']         = '' !== $context['title'] ? $context['title'] : __( '(No Title)', 'fanfiction-manager' );
+			$context['display_title'] = sprintf( __( 'Story: %s', 'fanfiction-manager' ), $context['title'] );
+			$context['url']           = $post ? get_permalink( $target_id ) : '';
+			$context['edit_url']      = $post ? get_edit_post_link( $target_id ) : '';
+			$context['author_id']     = $post ? absint( $post->post_author ) : 0;
+			return $context;
+		}
+
+		if ( 'fanfiction_chapter' === $report_type ) {
+			$post                     = get_post( $target_id );
+			$context['target_type']   = 'chapter';
+			$context['title']         = $post ? $post->post_title : __( '(Deleted chapter)', 'fanfiction-manager' );
+			$context['title']         = '' !== $context['title'] ? $context['title'] : __( '(No Title)', 'fanfiction-manager' );
+			$context['display_title'] = sprintf( __( 'Chapter: %s', 'fanfiction-manager' ), $context['title'] );
+			$context['url']           = $post ? get_permalink( $target_id ) : '';
+			$context['edit_url']      = $post ? get_edit_post_link( $target_id ) : '';
+			$context['author_id']     = $post ? absint( $post->post_author ) : 0;
+			return $context;
+		}
+
+		$comment                   = get_comment( $target_id );
+		$context['target_type']    = 'comment';
+		$context['title']          = __( '(Deleted context)', 'fanfiction-manager' );
+		$context['display_title']  = sprintf( __( 'Comment on: %s', 'fanfiction-manager' ), $context['title'] );
+		$context['url']           = $comment ? get_comment_link( $target_id ) : '';
+		$context['edit_url']       = $comment ? get_edit_comment_link( $target_id ) : '';
+		$context['author_id']      = $comment ? absint( $comment->user_id ) : 0;
+
+		if ( $comment ) {
+			$post = get_post( $comment->comment_post_ID );
+			$context['title'] = $post ? $post->post_title : __( '(Deleted context)', 'fanfiction-manager' );
+			$context['title'] = '' !== $context['title'] ? $context['title'] : __( '(No Title)', 'fanfiction-manager' );
+			$context['display_title'] = sprintf( __( 'Comment on: %s', 'fanfiction-manager' ), $context['title'] );
+		}
+
+		return $context;
+	}
+
+	public static function get_default_block_reason( $report_reason ) {
+		$reason = strtolower( trim( wp_strip_all_tags( (string) $report_reason ) ) );
+
+		if ( false !== strpos( $reason, 'spam' ) ) {
+			return 'spam';
+		}
+		if ( false !== strpos( $reason, 'harassment' ) || false !== strpos( $reason, 'bully' ) ) {
+			return 'harassment';
+		}
+		if ( false !== strpos( $reason, 'inappropriate' ) ) {
+			return 'inappropriate';
+		}
+		if ( false !== strpos( $reason, 'copyright' ) ) {
+			return 'copyright';
+		}
+		if ( false !== strpos( $reason, 'illegal' ) ) {
+			return 'illegal';
+		}
+		if ( false !== strpos( $reason, 'minor' ) ) {
+			return 'underage';
+		}
+		if ( false !== strpos( $reason, 'other' ) ) {
+			return 'other';
+		}
+
+		return 'manual';
+	}
+
+	public static function get_block_reason_options() {
+		$labels = function_exists( 'fanfic_get_block_reason_labels' ) ? fanfic_get_block_reason_labels() : array();
+		$keys   = array( 'manual', 'tos_violation', 'copyright', 'inappropriate', 'spam', 'harassment', 'illegal', 'underage', 'rating_mismatch', 'other' );
+		$options = array();
+
+		foreach ( $keys as $key ) {
+			if ( isset( $labels[ $key ] ) ) {
+				$options[ $key ] = $labels[ $key ];
+			}
+		}
+
+		return $options;
 	}
 
 	/**
@@ -331,6 +438,42 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 			'<button type="button" class="button button-small fanfic-view-report-button" data-report-id="%d">%s</button>',
 			$report_id,
 			esc_html__( 'View Details', 'fanfiction-manager' )
+		);
+	}
+
+	protected function column_title( $item ) {
+		$context = self::get_report_target_context_data( $item );
+		$link    = ! empty( $context['url'] ) ? $context['url'] : $context['edit_url'];
+		$prefix  = '';
+
+		if ( 'story' === $context['target_type'] ) {
+			$prefix = __( 'Story:', 'fanfiction-manager' );
+		} elseif ( 'chapter' === $context['target_type'] ) {
+			$prefix = __( 'Chapter:', 'fanfiction-manager' );
+		} elseif ( 'comment' === $context['target_type'] ) {
+			$prefix = __( 'Comment on:', 'fanfiction-manager' );
+		}
+
+		if ( $link ) {
+			return sprintf(
+				'<strong>%1$s</strong> <a href="%2$s" target="_blank" rel="noopener noreferrer"><strong>%3$s</strong></a>',
+				esc_html( $prefix ),
+				esc_url( $link ),
+				esc_html( $context['title'] )
+			);
+		}
+
+		if ( $prefix ) {
+			return sprintf(
+				'<strong>%1$s</strong> <strong>%2$s</strong>',
+				esc_html( $prefix ),
+				esc_html( $context['title'] )
+			);
+		}
+
+		return sprintf(
+			'<strong>%s</strong>',
+			esc_html( $context['title'] )
 		);
 	}
 
@@ -411,8 +554,131 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 			}
 		}
 
-		// Anonymous reporter - could be extended to show IP from meta data
-		return '<em>' . esc_html__( 'Anonymous', 'fanfiction-manager' ) . '</em>';
+		if ( ! empty( $item['reporter_ip'] ) ) {
+			return esc_html( $item['reporter_ip'] );
+		}
+
+		return esc_html__( 'Guest', 'fanfiction-manager' );
+	}
+
+	protected function column_reason( $item ) {
+		return esc_html( $item['reason'] );
+	}
+
+	protected function column_view_message( $item ) {
+		$is_comment  = 'comment' === (string) $item['reported_item_type'];
+		$has_message = $is_comment || '' !== trim( (string) $item['details'] );
+		$label       = $is_comment ? __( 'View comment', 'fanfiction-manager' ) : __( 'View message', 'fanfiction-manager' );
+
+		return sprintf(
+			'<button type="button" class="button button-small fanfic-report-view-message" data-report-id="%1$d" %2$s>%3$s</button>',
+			absint( $item['id'] ),
+			$has_message ? '' : 'disabled aria-disabled="true"',
+			esc_html( $label )
+		);
+	}
+
+	private function get_handled_action_summary( $item ) {
+		$status          = isset( $item['status'] ) ? (string) $item['status'] : '';
+		$moderator_id    = isset( $item['moderator_id'] ) ? absint( $item['moderator_id'] ) : 0;
+		$moderator       = $moderator_id ? get_userdata( $moderator_id ) : false;
+		$moderator_name  = $moderator && ! empty( $moderator->display_name ) ? $moderator->display_name : __( 'Unknown moderator', 'fanfiction-manager' );
+		$summary_formats = array(
+			'blocked'   => __( 'Blocked by %s', 'fanfiction-manager' ),
+			'dismissed' => __( 'Dismissed by %s', 'fanfiction-manager' ),
+		);
+
+		if ( ! isset( $summary_formats[ $status ] ) ) {
+			return esc_html( self::get_status_label( $status ) );
+		}
+
+		return sprintf( $summary_formats[ $status ], esc_html( $moderator_name ) );
+	}
+
+	protected function column_actions( $item ) {
+		$report_id = absint( $item['id'] );
+		$status    = isset( $item['status'] ) ? $item['status'] : 'pending';
+		$context   = self::get_report_target_context_data( $item );
+		$output    = '<div class="fanfic-report-action-stack">';
+
+		if ( 'pending' === $status ) {
+			$output .= '<div class="fanfic-report-action-buttons">';
+
+			if ( 'comment' === $context['target_type'] ) {
+				$output .= sprintf(
+					'<button type="button" class="button button-primary fanfic-report-block-comment" data-report-id="%1$d">%2$s</button>',
+					$report_id,
+					esc_html__( 'Block', 'fanfiction-manager' )
+				);
+			} else {
+				$output .= sprintf(
+					'<button type="button" class="button button-primary fanfic-report-toggle-block" data-report-id="%1$d" aria-expanded="false">%2$s</button>',
+					$report_id,
+					esc_html__( 'Block', 'fanfiction-manager' )
+				);
+			}
+
+			$output .= sprintf(
+				'<button type="button" class="button fanfic-report-dismiss" data-report-id="%1$d">%2$s</button>',
+				$report_id,
+				esc_html__( 'Dismiss', 'fanfiction-manager' )
+			);
+			$output .= sprintf(
+				'<button type="button" class="button button-link-delete fanfic-report-delete" data-report-id="%1$d">%2$s</button>',
+				$report_id,
+				esc_html__( 'Delete report', 'fanfiction-manager' )
+			);
+			$output .= '</div>';
+		} else {
+			$output .= sprintf(
+				'<span class="fanfic-report-action-note status-%1$s">%2$s</span>',
+				esc_attr( $status ),
+				$this->get_handled_action_summary( $item )
+			);
+		}
+
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	private function render_block_panel( $item ) {
+		$report_id      = absint( $item['id'] );
+		$default_reason = self::get_default_block_reason( $item['reason'] );
+		$options_markup = '';
+
+		foreach ( self::get_block_reason_options() as $value => $label ) {
+			$options_markup .= sprintf(
+				'<option value="%1$s" %2$s>%3$s</option>',
+				esc_attr( $value ),
+				selected( $default_reason, $value, false ),
+				esc_html( $label )
+			);
+		}
+
+		return sprintf(
+			'<div class="fanfic-report-block-panel" data-report-id="%1$d">' .
+				'<p class="fanfic-report-block-panel-title">%2$s</p>' .
+				'<p><label for="fanfic-report-reason-%1$d">%3$s</label><select id="fanfic-report-reason-%1$d" class="fanfic-report-block-reason widefat">%4$s</select></p>' .
+				'<div class="fanfic-report-note-grid">' .
+					'<div class="fanfic-report-note-field"><label for="fanfic-report-note-%1$d">%5$s</label><textarea id="fanfic-report-note-%1$d" class="fanfic-report-internal-note" rows="4"></textarea></div>' .
+					'<div class="fanfic-report-note-field"><label for="fanfic-report-message-%1$d">%6$s</label><textarea id="fanfic-report-message-%1$d" class="fanfic-report-author-message" rows="4"></textarea></div>' .
+				'</div>' .
+				'<div class="fanfic-report-panel-actions">' .
+					'<button type="button" class="button button-primary fanfic-report-confirm-block" data-report-id="%1$d">%7$s</button>' .
+					'<button type="button" class="button fanfic-report-cancel-block" data-report-id="%1$d">%8$s</button>' .
+				'</div>' .
+				'<div class="fanfic-report-panel-message" aria-live="polite"></div>' .
+			'</div>',
+			$report_id,
+			esc_html__( 'Block content', 'fanfiction-manager' ),
+			esc_html__( 'Block reason', 'fanfiction-manager' ),
+			$options_markup,
+			esc_html__( 'Internal Note', 'fanfiction-manager' ),
+			esc_html__( 'Send Author Message', 'fanfiction-manager' ),
+			esc_html__( 'Confirm Block', 'fanfiction-manager' ),
+			esc_html__( 'Cancel', 'fanfiction-manager' )
+		);
 	}
 
 	/**
@@ -453,13 +719,13 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 
 		$status_labels = array(
 			'pending'   => __( 'Pending', 'fanfiction-manager' ),
-			'reviewed'  => __( 'Reviewed', 'fanfiction-manager' ),
+			'blocked'   => __( 'Blocked', 'fanfiction-manager' ),
 			'dismissed' => __( 'Dismissed', 'fanfiction-manager' ),
 		);
 
 		$status_classes = array(
 			'pending'   => 'status-badge status-warning',
-			'reviewed'  => 'status-badge status-success',
+			'blocked'   => 'status-badge status-blocked',
 			'dismissed' => 'status-badge status-info',
 		);
 
@@ -499,63 +765,7 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	 * @return string Row actions HTML.
 	 */
 	protected function handle_row_actions( $item, $column_name, $primary ) {
-		if ( $primary !== $column_name ) {
-			return '';
-		}
-
-		$report_id = absint( $item['id'] );
-		$status = $item['status'];
-		$actions = array();
-
-		// View report details
-		$actions['view'] = sprintf(
-			'<a href="#" class="fanfic-view-report-link" data-report-id="%d">%s</a>',
-			$report_id,
-			esc_html__( 'View Details', 'fanfiction-manager' )
-		);
-
-		// Resolve/Review action (only for pending reports)
-		if ( 'pending' === $status ) {
-			$actions['resolve'] = sprintf(
-				'<a href="#" class="fanfic-resolve-report" data-report-id="%d">%s</a>',
-				$report_id,
-				esc_html__( 'Mark Reviewed', 'fanfiction-manager' )
-			);
-		}
-
-		// Dismiss action (only for pending reports)
-		if ( 'pending' === $status ) {
-			$dismiss_url = wp_nonce_url(
-				add_query_arg( array(
-					'action'    => 'dismiss_report',
-					'report_id' => $report_id,
-				) ),
-				'dismiss_report_' . $report_id
-			);
-			$actions['dismiss'] = sprintf(
-				'<a href="%s" class="fanfic-dismiss-report" data-report-id="%d">%s</a>',
-				esc_url( $dismiss_url ),
-				$report_id,
-				esc_html__( 'Dismiss', 'fanfiction-manager' )
-			);
-		}
-
-		// Delete report action
-		$delete_url = wp_nonce_url(
-			add_query_arg( array(
-				'action'    => 'delete_report',
-				'report_id' => $report_id,
-			) ),
-			'delete_report_' . $report_id
-		);
-		$actions['delete'] = sprintf(
-			'<a href="%s" class="fanfic-delete-report submitdelete" data-report-id="%d">%s</a>',
-			esc_url( $delete_url ),
-			$report_id,
-			esc_html__( 'Delete Report', 'fanfiction-manager' )
-		);
-
-		return $this->row_actions( $actions );
+		return '';
 	}
 
 	/**
@@ -578,18 +788,21 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 		<div class="alignleft actions">
 			<!-- Post Type Filter -->
 			<select name="post_type_filter" id="post-type-filter">
-				<option value=""><?php esc_html_e( 'All Post Types', 'fanfiction-manager' ); ?></option>
+				<option value=""><?php esc_html_e( 'All types', 'fanfiction-manager' ); ?></option>
 				<option value="fanfiction_story" <?php selected( $current_post_type, 'fanfiction_story' ); ?>>
 					<?php esc_html_e( 'Stories', 'fanfiction-manager' ); ?>
 				</option>
 				<option value="fanfiction_chapter" <?php selected( $current_post_type, 'fanfiction_chapter' ); ?>>
 					<?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?>
 				</option>
+				<option value="comment" <?php selected( $current_post_type, 'comment' ); ?>>
+					<?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?>
+				</option>
 			</select>
 
 			<!-- Reporter Filter -->
 			<select name="reporter_filter" id="reporter-filter">
-				<option value=""><?php esc_html_e( 'All Reporters', 'fanfiction-manager' ); ?></option>
+				<option value=""><?php esc_html_e( 'All registered reporters', 'fanfiction-manager' ); ?></option>
 				<?php
 				// Get unique reporters
 				$reporters = $this->get_reporters();
@@ -818,45 +1031,20 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	}
 
 	/**
-	 * Resolve a report
-	 *
-	 * Marks a report as reviewed with moderator action description.
-	 * This is called via AJAX from the resolve modal.
+	 * Get a report row
 	 *
 	 * @since 1.0.0
-	 * @param int    $report_id Report ID.
-	 * @param string $action_description What action was taken.
-	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 * @param int $report_id Report ID.
+	 * @return array|null Report row.
 	 */
-	public static function resolve_report( $report_id, $action_description ) {
+	public static function get_report( $report_id ) {
 		global $wpdb;
-
-		// Verify capabilities
-		if ( ! current_user_can( 'moderate_fanfiction' ) && ! current_user_can( 'manage_options' ) ) {
-			return new WP_Error( 'no_permission', __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) );
-		}
-
 		$reports_table = $wpdb->prefix . 'fanfic_reports';
-		$current_user_id = get_current_user_id();
 
-		$result = $wpdb->update(
-			$reports_table,
-			array(
-				'status'          => 'reviewed',
-				'moderator_id'    => $current_user_id,
-				'moderator_notes' => sanitize_textarea_field( $action_description ),
-				'updated_at'      => current_time( 'mysql' ),
-			),
-			array( 'id' => absint( $report_id ) ),
-			array( '%s', '%d', '%s', '%s' ),
-			array( '%d' )
+		return $wpdb->get_row(
+			$wpdb->prepare( "SELECT * FROM {$reports_table} WHERE id = %d", absint( $report_id ) ),
+			ARRAY_A
 		);
-
-		if ( false === $result ) {
-			return new WP_Error( 'update_failed', __( 'Failed to update report.', 'fanfiction-manager' ) );
-		}
-
-		return true;
 	}
 
 	/**
@@ -869,26 +1057,67 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	 * @return array|null Report data or null if not found.
 	 */
 	public static function get_report_details( $report_id ) {
+		$report = self::get_report( $report_id );
+		if ( ! $report ) {
+			return null;
+		}
+
+		$context           = self::get_report_target_context_data( $report );
+		$reporter_id       = absint( $report['reporter_id'] );
+		$reporter          = $reporter_id ? get_userdata( $reporter_id ) : false;
+		$message           = (string) $report['details'];
+		$message_label     = __( 'Reporter message', 'fanfiction-manager' );
+		$secondary_message = '';
+
+		if ( 'comment' === $context['target_type'] ) {
+			$comment = get_comment( $context['target_id'] );
+			if ( $comment ) {
+				$message = (string) $comment->comment_content;
+			}
+			$message_label     = __( 'Comment content', 'fanfiction-manager' );
+			$secondary_message = (string) $report['details'];
+		}
+
+		return array(
+			'id'                => absint( $report['id'] ),
+			'title'             => $context['display_title'],
+			'target_type'       => $context['target_type'],
+			'reported_by'       => $reporter ? $reporter->display_name : ( ! empty( $report['reporter_ip'] ) ? $report['reporter_ip'] : __( 'Guest', 'fanfiction-manager' ) ),
+			'reason'            => (string) $report['reason'],
+			'message'           => $message,
+			'message_label'     => $message_label,
+			'secondary_message' => $secondary_message,
+			'status'            => (string) $report['status'],
+			'status_label'      => self::get_status_label( $report['status'] ),
+		);
+	}
+
+	public static function update_report_status( $report_id, $status, $moderator_id, $moderator_notes = '' ) {
 		global $wpdb;
 		$reports_table = $wpdb->prefix . 'fanfic_reports';
-		$posts_table = $wpdb->posts;
 
-		$query = $wpdb->prepare(
-			"
-			SELECT
-				r.*,
-				p.post_title,
-				p.post_content,
-				p.post_excerpt,
-				p.post_author
-			FROM {$reports_table} r
-			LEFT JOIN {$posts_table} p ON r.reported_item_id = p.ID
-			WHERE r.id = %d
-			",
-			absint( $report_id )
+		$result = $wpdb->update(
+			$reports_table,
+			array(
+				'status'          => sanitize_key( $status ),
+				'moderator_id'    => absint( $moderator_id ),
+				'moderator_notes' => sanitize_textarea_field( $moderator_notes ),
+				'updated_at'      => current_time( 'mysql' ),
+			),
+			array( 'id' => absint( $report_id ) ),
+			array( '%s', '%d', '%s', '%s' ),
+			array( '%d' )
 		);
 
-		return $wpdb->get_row( $query, ARRAY_A );
+		return false !== $result;
+	}
+
+	public static function delete_report_record( $report_id ) {
+		global $wpdb;
+		$reports_table = $wpdb->prefix . 'fanfic_reports';
+		$result        = $wpdb->delete( $reports_table, array( 'id' => absint( $report_id ) ), array( '%d' ) );
+
+		return ! empty( $result );
 	}
 
 	/**
@@ -901,7 +1130,7 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	 * @param string $message Notice message.
 	 * @return void
 	 */
-	private function add_admin_notice( $type, $message ) {
+	public static function add_admin_notice( $type, $message ) {
 		set_transient( 'fanfic_moderation_notice', array(
 			'type'    => $type,
 			'message' => $message,
@@ -936,44 +1165,26 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	}
 }
 
-/**
- * Initialize Moderation Table AJAX handlers
- *
- * Handles AJAX requests for report details and marking reports as reviewed.
- *
- * @since 1.0.0
- */
 class Fanfic_Moderation_Ajax {
 
-	/**
-	 * Initialize AJAX handlers
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
 	public static function init() {
 		add_action( 'wp_ajax_fanfic_get_report_details', array( __CLASS__, 'ajax_get_report_details' ) );
-		add_action( 'wp_ajax_fanfic_mark_reviewed', array( __CLASS__, 'ajax_mark_reviewed' ) );
+		add_action( 'wp_ajax_fanfic_block_report', array( __CLASS__, 'ajax_block_report' ) );
+		add_action( 'wp_ajax_fanfic_dismiss_report', array( __CLASS__, 'ajax_dismiss_report' ) );
+		add_action( 'wp_ajax_fanfic_delete_report', array( __CLASS__, 'ajax_delete_report' ) );
 	}
 
-	/**
-	 * AJAX handler to get report details
-	 *
-	 * Returns full report information for display in modal/expanded view.
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public static function ajax_get_report_details() {
-		// Verify nonce
+	private static function verify_request() {
 		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'fanfic_moderation_action' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
 		}
-
-		// Check capabilities
 		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'fanfiction-manager' ) ) );
 		}
+	}
+
+	public static function ajax_get_report_details() {
+		self::verify_request();
 
 		$report_id = isset( $_POST['report_id'] ) ? absint( $_POST['report_id'] ) : 0;
 
@@ -987,74 +1198,120 @@ class Fanfic_Moderation_Ajax {
 			wp_send_json_error( array( 'message' => __( 'Report not found.', 'fanfiction-manager' ) ) );
 		}
 
-		// Format report data
-		$reporter = get_user_by( 'id', $report['reporter_id'] );
-		$reporter_name = $reporter ? $reporter->display_name : __( 'Anonymous', 'fanfiction-manager' );
-
-		$moderator_name = '';
-		if ( ! empty( $report['moderator_id'] ) ) {
-			$moderator = get_user_by( 'id', $report['moderator_id'] );
-			$moderator_name = $moderator ? $moderator->display_name : '';
-		}
-
-		// Get content details
-		$post = get_post( $report['reported_item_id'] );
-		$content_title = $post ? $post->post_title : __( '[Deleted Content]', 'fanfiction-manager' );
-		$content_excerpt = $post && ! empty( $post->post_excerpt ) ? wp_trim_words( $post->post_excerpt, 50, '...' ) : '';
-		$content_link = $post ? get_permalink( $post->ID ) : '';
-
-		$data = array(
-			'id'              => $report['id'],
-			'post_title'      => $content_title,
-			'post_excerpt'    => $content_excerpt,
-			'post_link'       => $content_link,
-			'post_type'       => $report['reported_item_type'],
-			'reporter_name'   => $reporter_name,
-			'reason'          => $report['reason'],
-			'details'         => $report['details'],
-			'status'          => $report['status'],
-			'moderator_name'  => $moderator_name,
-			'moderator_notes' => $report['moderator_notes'],
-			'created_at'      => mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $report['created_at'] ),
-			'updated_at'      => mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $report['updated_at'] ),
-		);
-
-		wp_send_json_success( array( 'report' => $data ) );
+		wp_send_json_success( array( 'report' => $report ) );
 	}
 
-	/**
-	 * AJAX handler to mark report as reviewed
-	 *
-	 * Updates report status to 'reviewed' with moderator action description.
-	 *
-	 * @since 1.0.0
-	 * @return void
-	 */
-	public static function ajax_mark_reviewed() {
-		// Verify nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'fanfic_moderation_action' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'fanfiction-manager' ) ) );
+	private static function build_log_reason( $report, $block_reason = '', $internal_note = '', $author_message = '' ) {
+		$parts = array();
+		$parts[] = sprintf( __( 'Report: %s.', 'fanfiction-manager' ), (string) $report['reason'] );
+		if ( '' !== $block_reason ) {
+			$parts[] = sprintf( __( 'Block: %s.', 'fanfiction-manager' ), function_exists( 'fanfic_get_block_reason_label' ) ? fanfic_get_block_reason_label( $block_reason ) : $block_reason );
 		}
-
-		// Check capabilities
-		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'fanfiction-manager' ) ) );
+		if ( '' !== $internal_note ) {
+			$parts[] = sprintf( __( 'Internal note: %s', 'fanfiction-manager' ), $internal_note );
 		}
+		if ( '' !== $author_message ) {
+			$parts[] = sprintf( __( 'Author message: %s', 'fanfiction-manager' ), $author_message );
+		}
+		return implode( ' ', $parts );
+	}
 
+	public static function ajax_block_report() {
+		self::verify_request();
 		$report_id = isset( $_POST['report_id'] ) ? absint( $_POST['report_id'] ) : 0;
-		$notes = isset( $_POST['notes'] ) ? sanitize_textarea_field( wp_unslash( $_POST['notes'] ) ) : '';
+		$block_reason   = isset( $_POST['block_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['block_reason'] ) ) : 'manual';
+		$internal_note  = isset( $_POST['internal_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['internal_note'] ) ) : '';
+		$author_message = isset( $_POST['author_message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['author_message'] ) ) : '';
+		$moderator_id   = get_current_user_id();
+		$report         = Fanfic_Moderation_Table::get_report( $report_id );
 
-		if ( ! $report_id ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid report ID.', 'fanfiction-manager' ) ) );
+		if ( ! $report || 'pending' !== $report['status'] ) {
+			wp_send_json_error( array( 'message' => __( 'This report cannot be blocked.', 'fanfiction-manager' ) ) );
 		}
 
-		$result = Fanfic_Moderation_Table::resolve_report( $report_id, $notes );
+		$context = Fanfic_Moderation_Table::get_report_target_context_data( $report );
+		$notes   = '';
 
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		if ( 'comment' === $context['target_type'] ) {
+			$comment = get_comment( $context['target_id'] );
+			if ( ! $comment ) {
+				wp_send_json_error( array( 'message' => __( 'Comment not found.', 'fanfiction-manager' ) ) );
+			}
+			wp_spam_comment( $context['target_id'] );
+			update_comment_meta( $context['target_id'], 'fanfic_moderated_at', current_time( 'mysql' ) );
+			update_comment_meta( $context['target_id'], 'fanfic_moderated_by', $moderator_id );
+			update_comment_meta( $context['target_id'], 'fanfic_moderation_action', 'spam' );
+			$notes = self::build_log_reason( $report );
+			if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+				Fanfic_Moderation_Log::insert( $moderator_id, 'comment_blocked', 'comment', $context['target_id'], $notes );
+			}
+			Fanfic_Moderation_Table::update_report_status( $report_id, 'blocked', $moderator_id, $notes );
+			Fanfic_Moderation_Table::add_admin_notice( 'success', __( 'Comment blocked successfully.', 'fanfiction-manager' ) );
+			wp_send_json_success( array( 'message' => __( 'Comment blocked successfully.', 'fanfiction-manager' ) ) );
 		}
 
-		wp_send_json_success( array( 'message' => __( 'Report marked as reviewed.', 'fanfiction-manager' ) ) );
+		$normalized_reason = function_exists( 'fanfic_normalize_block_reason_code' ) ? fanfic_normalize_block_reason_code( $block_reason, Fanfic_Moderation_Table::get_default_block_reason( $report['reason'] ) ) : $block_reason;
+		$result = 'story' === $context['target_type']
+			? ( function_exists( 'fanfic_block_story' ) ? fanfic_block_story( $context['target_id'], $normalized_reason, $moderator_id, '' ) : false )
+			: ( function_exists( 'fanfic_block_chapter' ) ? fanfic_block_chapter( $context['target_id'], $normalized_reason, $moderator_id, '' ) : false );
+		if ( ! $result ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to block the reported content.', 'fanfiction-manager' ) ) );
+		}
+		if ( function_exists( 'fanfic_set_restriction_reply_message' ) ) {
+			fanfic_set_restriction_reply_message( $context['target_type'], $context['target_id'], $author_message );
+		}
+		if ( $author_message && $context['author_id'] > 0 && class_exists( 'Fanfic_Notifications' ) ) {
+			Fanfic_Notifications::create_notification( $context['author_id'], Fanfic_Notifications::TYPE_MOD_CONTENT_BLOCKED, sprintf( __( 'Your %1$s "%2$s" has been blocked. Moderator message: %3$s', 'fanfiction-manager' ), $context['target_type'], $context['title'], $author_message ), array(), true );
+		}
+		$notes = self::build_log_reason( $report, $normalized_reason, $internal_note, $author_message );
+		if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+			$log_action = 'story' === $context['target_type'] ? 'block_manual' : 'chapter_block_manual';
+			if ( ! Fanfic_Moderation_Log::update_latest_reason( $moderator_id, $log_action, $context['target_type'], $context['target_id'], $notes ) ) {
+				Fanfic_Moderation_Log::insert( $moderator_id, $log_action, $context['target_type'], $context['target_id'], $notes );
+			}
+		}
+		Fanfic_Moderation_Table::update_report_status( $report_id, 'blocked', $moderator_id, $notes );
+		$message = 'story' === $context['target_type'] ? __( 'Story blocked successfully.', 'fanfiction-manager' ) : __( 'Chapter blocked successfully.', 'fanfiction-manager' );
+		Fanfic_Moderation_Table::add_admin_notice( 'success', $message );
+		wp_send_json_success( array( 'message' => $message ) );
+	}
+
+	public static function ajax_dismiss_report() {
+		self::verify_request();
+		$report_id    = isset( $_POST['report_id'] ) ? absint( $_POST['report_id'] ) : 0;
+		$moderator_id = get_current_user_id();
+		$report       = Fanfic_Moderation_Table::get_report( $report_id );
+		if ( ! $report || 'pending' !== $report['status'] ) {
+			wp_send_json_error( array( 'message' => __( 'This report cannot be dismissed.', 'fanfiction-manager' ) ) );
+		}
+		$context = Fanfic_Moderation_Table::get_report_target_context_data( $report );
+		$notes   = self::build_log_reason( $report );
+		Fanfic_Moderation_Table::update_report_status( $report_id, 'dismissed', $moderator_id, $notes );
+		if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+			Fanfic_Moderation_Log::insert( $moderator_id, 'report_dismissed', $context['target_type'], $context['target_id'], $notes );
+		}
+		Fanfic_Moderation_Table::add_admin_notice( 'success', __( 'Report dismissed successfully.', 'fanfiction-manager' ) );
+		wp_send_json_success( array( 'message' => __( 'Report dismissed successfully.', 'fanfiction-manager' ) ) );
+	}
+
+	public static function ajax_delete_report() {
+		self::verify_request();
+		$report_id    = isset( $_POST['report_id'] ) ? absint( $_POST['report_id'] ) : 0;
+		$moderator_id = get_current_user_id();
+		$report       = Fanfic_Moderation_Table::get_report( $report_id );
+		if ( ! $report ) {
+			wp_send_json_error( array( 'message' => __( 'Report not found.', 'fanfiction-manager' ) ) );
+		}
+		$context = Fanfic_Moderation_Table::get_report_target_context_data( $report );
+		$notes   = self::build_log_reason( $report );
+		if ( ! Fanfic_Moderation_Table::delete_report_record( $report_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to delete the report.', 'fanfiction-manager' ) ) );
+		}
+		if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+			Fanfic_Moderation_Log::insert( $moderator_id, 'report_deleted', $context['target_type'], $context['target_id'], $notes );
+		}
+		Fanfic_Moderation_Table::add_admin_notice( 'success', __( 'Report deleted successfully.', 'fanfiction-manager' ) );
+		wp_send_json_success( array( 'message' => __( 'Report deleted successfully.', 'fanfiction-manager' ) ) );
 	}
 }
 

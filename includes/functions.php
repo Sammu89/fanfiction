@@ -68,7 +68,7 @@ function fanfic_get_blocked_story_message( $story_id = 0 ) {
 
 		case 'rule':
 			$message = sprintf(
-				__( 'This story was automatically set to draft%s because site content rules have changed. %s', 'fanfiction-manager' ),
+				__( 'This story was automatically set to hidden%s because site content rules have changed. %s', 'fanfiction-manager' ),
 				$timestamp_text,
 				$block_reason ? $block_reason : ''
 			);
@@ -1917,6 +1917,61 @@ function fanfic_get_parent_url( $post_id = 0 ) {
 		default:
 			return fanfic_get_main_url();
 	}
+}
+
+/**
+ * Render the general page alerts zone.
+ *
+ * Outputs a container for system-wide author alerts. Any feature that needs
+ * to surface a persistent alert to an author should hook into
+ * 'fanfic_page_alerts' and check $context to decide which pages to target.
+ *
+ * Context strings match the breadcrumb context names:
+ * 'dashboard', 'edit-story', 'edit-chapter', 'view-story', 'view-chapter',
+ * 'edit-profile', 'view-profile'.
+ *
+ * Prefer calling fanfic_render_page_header() instead of this function
+ * directly — it renders the breadcrumb and this zone together in one call.
+ *
+ * @since 1.0.0
+ * @param string $context The page context identifier.
+ * @return void
+ */
+function fanfic_render_page_alerts( $context = '' ) {
+	?>
+<!-- [GENERAL ALERTS] System-wide author alerts. Inject via: do_action( 'fanfic_page_alerts', $context ) -->
+<div id="fanfic-page-alerts" class="fanfic-page-alerts" aria-live="polite">
+	<?php do_action( 'fanfic_page_alerts', $context ); ?>
+</div>
+	<?php
+}
+
+/**
+ * Render the page header: breadcrumb navigation + general alerts zone.
+ *
+ * Single call that replaces separate fanfic_render_breadcrumb() +
+ * fanfic_render_page_alerts() calls. Use this in every template that has
+ * a breadcrumb. The $context string is shared between both so hooks and
+ * breadcrumb configuration use the same identifier.
+ *
+ * Context strings:
+ * 'dashboard'    — Author dashboard
+ * 'edit-story'   — Story create / edit form
+ * 'edit-chapter' — Chapter create / edit form
+ * 'view-story'   — Story reading page
+ * 'view-chapter' — Chapter reading page
+ * 'edit-profile' — Profile edit form
+ * 'view-profile' — Public author profile
+ * 'members'      — Members listing
+ *
+ * @since 1.0.0
+ * @param string $context       Page context identifier (see above).
+ * @param array  $breadcrumb_args Optional args forwarded to fanfic_render_breadcrumb().
+ * @return void
+ */
+function fanfic_render_page_header( $context, $breadcrumb_args = array() ) {
+	fanfic_render_breadcrumb( $context, $breadcrumb_args );
+	fanfic_render_page_alerts( $context );
 }
 
 /**
@@ -4999,6 +5054,7 @@ function fanfic_get_suspension_message( $user_id = 0 ) {
  *     @type string $reason_message
  *     @type bool   $has_active_message
  *     @type int    $owner_id
+ *     @type string $moderator_reply
  * }
  */
 function fanfic_get_restriction_context( $target_type, $target_id ) {
@@ -5010,6 +5066,7 @@ function fanfic_get_restriction_context( $target_type, $target_id ) {
 		'reason_message'     => '',
 		'has_active_message' => false,
 		'owner_id'           => 0,
+		'moderator_reply'    => '',
 	);
 
 	if ( 'story' === $target_type ) {
@@ -5049,9 +5106,96 @@ function fanfic_get_restriction_context( $target_type, $target_id ) {
 			$target_type,
 			$target_id
 		);
+		$context['moderator_reply'] = fanfic_get_restriction_reply_message( $target_type, $target_id );
 	}
 
 	return $context;
+}
+
+/**
+ * Get the moderator reply currently attached to a restricted target.
+ *
+ * @since 2.3.1
+ * @param string $target_type Restriction target type.
+ * @param int    $target_id   Target object ID.
+ * @return string
+ */
+function fanfic_get_restriction_reply_message( $target_type, $target_id ) {
+	$target_type = sanitize_key( $target_type );
+	$target_id   = absint( $target_id );
+
+	if ( ! $target_id ) {
+		return '';
+	}
+
+	if ( 'story' === $target_type || 'chapter' === $target_type ) {
+		return sanitize_textarea_field( (string) get_post_meta( $target_id, '_fanfic_moderation_reply_message', true ) );
+	}
+
+	if ( 'user' === $target_type ) {
+		return sanitize_textarea_field( (string) get_user_meta( $target_id, 'fanfic_moderation_reply_message', true ) );
+	}
+
+	return '';
+}
+
+/**
+ * Store or clear the current moderator reply for a restricted target.
+ *
+ * @since 2.3.1
+ * @param string $target_type Restriction target type.
+ * @param int    $target_id   Target object ID.
+ * @param string $reply       Reply text. Empty clears the stored reply.
+ * @return void
+ */
+function fanfic_set_restriction_reply_message( $target_type, $target_id, $reply ) {
+	$target_type = sanitize_key( $target_type );
+	$target_id   = absint( $target_id );
+	$reply       = sanitize_textarea_field( (string) $reply );
+
+	if ( ! $target_id ) {
+		return;
+	}
+
+	if ( '' === $reply ) {
+		fanfic_clear_restriction_reply_message( $target_type, $target_id );
+		return;
+	}
+
+	if ( 'story' === $target_type || 'chapter' === $target_type ) {
+		update_post_meta( $target_id, '_fanfic_moderation_reply_message', $reply );
+		return;
+	}
+
+	if ( 'user' === $target_type ) {
+		update_user_meta( $target_id, 'fanfic_moderation_reply_message', $reply );
+	}
+}
+
+/**
+ * Clear the stored moderator reply for a restricted target.
+ *
+ * @since 2.3.1
+ * @param string $target_type Restriction target type.
+ * @param int    $target_id   Target object ID.
+ * @return void
+ */
+function fanfic_clear_restriction_reply_message( $target_type, $target_id ) {
+	$target_type = sanitize_key( $target_type );
+	$target_id   = absint( $target_id );
+
+	if ( ! $target_id ) {
+		return;
+	}
+
+	if ( 'story' === $target_type || 'chapter' === $target_type ) {
+		delete_post_meta( $target_id, '_fanfic_moderation_reply_message' );
+		return;
+	}
+
+	if ( 'user' === $target_type ) {
+		delete_user_meta( $target_id, 'fanfic_moderation_reply_message' );
+	}
 }
 
 /**
@@ -5224,11 +5368,12 @@ function fanfic_render_restriction_banner( $context, $nav_buttons = array() ) {
 	$has_active       = ! empty( $context['has_active_message'] );
 	$target_type      = esc_attr( $context['target_type'] );
 	$target_id        = absint( $context['target_id'] );
+	$moderator_reply  = isset( $context['moderator_reply'] ) ? trim( (string) $context['moderator_reply'] ) : '';
 
 	switch ( $restriction_type ) {
 		case 'story_blocked':
 			$title = __( 'Story Blocked', 'fanfiction-manager' );
-			$info  = __( 'You can still view your story, but editing and publishing are disabled until the block is lifted.', 'fanfiction-manager' );
+			$info  = __( 'You can still view your story, but editing and visibility changes are disabled until the block is lifted.', 'fanfiction-manager' );
 			break;
 		case 'chapter_blocked':
 			$title = __( 'Chapter Blocked', 'fanfiction-manager' );
@@ -5244,11 +5389,17 @@ function fanfic_render_restriction_banner( $context, $nav_buttons = array() ) {
 	}
 
 	?>
-	<div class="fanfic-message fanfic-message-error fanfic-blocked-notice" role="alert" aria-live="assertive">
+	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
 		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
 		<span class="fanfic-message-content">
 			<strong><?php echo esc_html( $title ); ?></strong><br>
 			<?php echo esc_html( $context['reason_message'] ); ?><br>
+			<?php if ( '' !== $moderator_reply ) : ?>
+				<span class="fanfic-block-info">
+					<strong><?php esc_html_e( 'Moderator reply:', 'fanfiction-manager' ); ?></strong>
+					<?php echo wp_kses_post( nl2br( esc_html( $moderator_reply ) ) ); ?>
+				</span><br>
+			<?php endif; ?>
 			<?php if ( $info ) : ?>
 				<span class="fanfic-block-info"><?php echo esc_html( $info ); ?></span>
 			<?php endif; ?>

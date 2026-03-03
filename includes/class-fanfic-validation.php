@@ -75,7 +75,7 @@ class Fanfic_Validation {
 
 		// Check published chapters
 		if ( ! self::check_story_published_chapters( $story_id ) ) {
-			$missing_fields['published_chapters'] = __( 'Your story must have at least one published chapter or prologue.', 'fanfiction-manager' );
+			$missing_fields['published_chapters'] = __( 'Your story must have at least one visible chapter or prologue.', 'fanfiction-manager' );
 		}
 
 		// Check genre
@@ -469,13 +469,13 @@ class Fanfic_Validation {
 
 		if ( $is_valid ) {
 			return '<span class="fanfic-validation-status valid">' .
-				   esc_html__( 'Story is valid and can be published.', 'fanfiction-manager' ) .
+				   esc_html__( 'Story is valid and can be made visible.', 'fanfiction-manager' ) .
 				   '</span>';
 		}
 
 		$errors = self::get_validation_errors( $story_id );
 		$output = '<span class="fanfic-validation-status invalid">' .
-				  esc_html__( 'Story cannot be published:', 'fanfiction-manager' ) .
+				  esc_html__( 'Story cannot be made visible:', 'fanfiction-manager' ) .
 				  '</span><ul class="fanfic-validation-errors">';
 
 		foreach ( $errors as $error ) {

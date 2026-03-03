@@ -474,9 +474,37 @@ $page_description = $is_edit_mode
 <!-- Include Warning Modals Template -->
 <?php include( plugin_dir_path( __FILE__ ) . 'modal-warnings.php' ); ?>
 
-<!-- Breadcrumb Navigation -->
 <?php
-fanfic_render_breadcrumb( 'edit-chapter', array(
+$fanfic_blocked_chapter_owner_edit = isset( $fanfic_blocked_chapter_owner_edit ) ? $fanfic_blocked_chapter_owner_edit : false;
+$fanfic_story_re_review_requested  = isset( $fanfic_story_re_review_requested ) ? $fanfic_story_re_review_requested : false;
+
+add_action( 'fanfic_page_alerts', function( $context ) use ( $fanfic_blocked_chapter_owner_edit, $fanfic_story_re_review_requested, $story_id ) {
+	if ( 'edit-chapter' !== $context || ! $fanfic_blocked_chapter_owner_edit ) {
+		return;
+	}
+	?>
+	<div class="fanfic-message fanfic-message-warning" role="status">
+		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
+		<span class="fanfic-message-content">
+			<strong><?php esc_html_e( 'Blocked Content Edit', 'fanfiction-manager' ); ?></strong><br>
+			<?php esc_html_e( 'This chapter belongs to blocked content. Save your chapter changes below, then request re-review. Moderators will always review the latest saved version of the blocked story, including any newer changes you save after sending the request.', 'fanfiction-manager' ); ?>
+			<span class="fanfic-message-actions">
+				<?php if ( $fanfic_story_re_review_requested ) : ?>
+					<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
+						<?php esc_html_e( 'Re-review Submitted', 'fanfiction-manager' ); ?>
+					</span>
+				<?php else : ?>
+					<button type="button" class="fanfic-button secondary fanfic-submit-re-review-btn" data-story-id="<?php echo esc_attr( $story_id ); ?>">
+						<?php esc_html_e( 'Request Moderator Review', 'fanfiction-manager' ); ?>
+					</button>
+				<?php endif; ?>
+			</span>
+		</span>
+	</div>
+	<?php
+} );
+
+fanfic_render_page_header( 'edit-chapter', array(
 	'story_id'      => $story_id,
 	'story_title'   => $story_title,
 	'chapter_id'    => $chapter_id,
@@ -486,7 +514,7 @@ fanfic_render_breadcrumb( 'edit-chapter', array(
 ?>
 
 <?php ob_start(); ?>
-<!-- Unified Messages Container -->
+<!-- [STATUS MESSAGES] Zone for form save/error feedback. Do not use for cross-page alerts. -->
 <div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
 <?php
 // Display flash messages
@@ -546,33 +574,9 @@ if ( $validation_errors_transient && is_array( $validation_errors_transient ) ) 
 </div>
 <?php
 $fanfic_chapter_messages_markup = ob_get_clean();
-if ( ! $is_edit_mode ) {
-	echo $fanfic_chapter_messages_markup;
-}
 ?>
 
 <p class="fanfic-page-description"><?php echo esc_html( $page_description ); ?></p>
-
-<?php if ( $fanfic_blocked_chapter_owner_edit ) : ?>
-	<div class="fanfic-message fanfic-message-warning" role="status">
-		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
-		<span class="fanfic-message-content">
-			<strong><?php esc_html_e( 'Blocked Content Edit', 'fanfiction-manager' ); ?></strong><br>
-				<?php esc_html_e( 'This chapter belongs to blocked content. Save your chapter changes below, then request re-review. Moderators will always review the latest saved version of the blocked story, including any newer changes you save after sending the request.', 'fanfiction-manager' ); ?>
-			<span class="fanfic-message-actions">
-				<?php if ( $fanfic_story_re_review_requested ) : ?>
-					<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
-						<?php esc_html_e( 'Re-review Submitted', 'fanfiction-manager' ); ?>
-					</span>
-				<?php else : ?>
-					<button type="button" class="fanfic-button secondary fanfic-submit-re-review-btn" data-story-id="<?php echo esc_attr( $story_id ); ?>">
-						<?php esc_html_e( 'Request Moderator Review', 'fanfiction-manager' ); ?>
-					</button>
-				<?php endif; ?>
-			</span>
-		</span>
-	</div>
-<?php endif; ?>
 
 <!-- Chapter Form Section -->
 <section class="fanfic-content-section fanfic-form-section" aria-labelledby="form-heading">
@@ -956,9 +960,8 @@ if ( ! $is_edit_mode ) {
 				<?php endif; ?>
 			</div>
 		</form>
-		<?php if ( $is_edit_mode ) : ?>
-			<?php echo $fanfic_chapter_messages_markup; ?>
-		<?php endif; ?>
+		<!-- [STATUS MESSAGES] Zone for form save/error feedback. Do not use for cross-page alerts. -->
+		<?php echo $fanfic_chapter_messages_markup; ?>
 	</div>
 </section>
 

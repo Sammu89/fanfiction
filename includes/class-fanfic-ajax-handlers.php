@@ -1939,7 +1939,15 @@ class Fanfic_AJAX_Handlers {
 		$rows = function_exists( 'fanfic_get_block_comparison_rows' ) ? fanfic_get_block_comparison_rows( $story_id ) : array();
 		$snapshot = function_exists( 'fanfic_get_block_snapshot' ) ? fanfic_get_block_snapshot( $story_id ) : array();
 		$revision_url = function_exists( 'fanfic_get_revision_compare_url' ) ? fanfic_get_revision_compare_url( $story_id ) : '';
-		$changed_count = 0;
+		$changed_rows = array_values(
+			array_filter(
+				$rows,
+				static function ( $row ) {
+					return ! empty( $row['changed'] );
+				}
+			)
+		);
+		$changed_count = count( $changed_rows );
 
 		ob_start();
 		?>
@@ -1971,14 +1979,11 @@ class Fanfic_AJAX_Handlers {
 					</tr>
 				</thead>
 				<tbody>
-					<?php foreach ( $rows as $row ) : ?>
+					<?php foreach ( $changed_rows as $row ) : ?>
 						<?php
-						if ( ! empty( $row['changed'] ) ) {
-							$changed_count++;
-						}
-						$row_class = ! empty( $row['changed'] ) ? 'changed' : 'unchanged';
-						$old_class = ! empty( $row['changed'] ) ? 'snapshot-value' : '';
-						$new_class = ! empty( $row['changed'] ) ? 'current-value' : '';
+						$row_class = 'changed';
+						$old_class = 'snapshot-value';
+						$new_class = 'current-value';
 						?>
 						<tr class="comparison-row <?php echo esc_attr( $row_class ); ?>">
 							<th scope="row"><?php echo esc_html( $row['label'] ); ?></th>
@@ -2126,9 +2131,10 @@ class Fanfic_AJAX_Handlers {
 	 * @return void
 	 */
 	public static function ajax_mod_message_action() {
-		$message_id     = isset( $_POST['message_id'] ) ? absint( $_POST['message_id'] ) : 0;
-		$action_type    = isset( $_POST['action_type'] ) ? sanitize_text_field( wp_unslash( $_POST['action_type'] ) ) : '';
-		$moderator_note = isset( $_POST['moderator_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['moderator_note'] ) ) : '';
+		$message_id    = isset( $_POST['message_id'] ) ? absint( $_POST['message_id'] ) : 0;
+		$action_type   = isset( $_POST['action_type'] ) ? sanitize_text_field( wp_unslash( $_POST['action_type'] ) ) : '';
+		$internal_note = isset( $_POST['internal_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['internal_note'] ) ) : '';
+		$author_reply  = isset( $_POST['author_reply'] ) ? sanitize_textarea_field( wp_unslash( $_POST['author_reply'] ) ) : '';
 
 		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
 			wp_send_json_error( array( 'message' => __( 'You do not have permission to perform this action.', 'fanfiction-manager' ) ) );
@@ -2204,21 +2210,30 @@ class Fanfic_AJAX_Handlers {
 						do_action( 'fanfic_user_unbanned', $target_id, $mod_id );
 					}
 				}
-				Fanfic_Moderation_Messages::update_status( $message_id, 'resolved', $mod_id, $moderator_note );
+				Fanfic_Moderation_Messages::update_status( $message_id, 'resolved', $mod_id, $internal_note, $author_reply );
+				if ( function_exists( 'fanfic_clear_restriction_reply_message' ) ) {
+					fanfic_clear_restriction_reply_message( $target_type, $target_id );
+				}
 				$new_status = 'resolved';
 
 				// Notify author.
 				if ( class_exists( 'Fanfic_Notifications' ) ) {
 					$title = 'user' === $target_type ? '' : get_the_title( $target_id );
-					$note  = $moderator_note ? ' ' . $moderator_note : '';
+					$reply_suffix = $author_reply
+						? ' ' . sprintf(
+							/* translators: %s: moderator reply text */
+							__( 'Moderator reply: %s', 'fanfiction-manager' ),
+							$author_reply
+						)
+						: '';
 					$notification_msg = $title
 						? sprintf(
 							__( 'Your %1$s "%2$s" has been unblocked.%3$s', 'fanfiction-manager' ),
 							$target_type,
 							$title,
-							$note
+							$reply_suffix
 						)
-						: sprintf( __( 'Your account has been unsuspended.%s', 'fanfiction-manager' ), $note );
+						: sprintf( __( 'Your account has been unsuspended.%s', 'fanfiction-manager' ), $reply_suffix );
 					Fanfic_Notifications::create_notification(
 						$author_id,
 						Fanfic_Notifications::TYPE_MOD_MESSAGE_UNBLOCKED,
@@ -2234,7 +2249,10 @@ class Fanfic_AJAX_Handlers {
 					wp_send_json_error( array( 'message' => __( 'This message is already ignored.', 'fanfiction-manager' ) ) );
 				}
 
-				Fanfic_Moderation_Messages::update_status( $message_id, 'ignored', $mod_id, $moderator_note );
+				Fanfic_Moderation_Messages::update_status( $message_id, 'ignored', $mod_id, $internal_note, $author_reply );
+				if ( function_exists( 'fanfic_set_restriction_reply_message' ) ) {
+					fanfic_set_restriction_reply_message( $target_type, $target_id, $author_reply );
+				}
 				$new_status = 'ignored';
 				if ( 'story' === $target_type ) {
 					delete_post_meta( $target_id, '_fanfic_re_review_requested' );
@@ -2243,12 +2261,23 @@ class Fanfic_AJAX_Handlers {
 				// Notify author.
 				if ( class_exists( 'Fanfic_Notifications' ) ) {
 					$title = 'user' === $target_type ? '' : get_the_title( $target_id );
+					$reply_suffix = $author_reply
+						? ' ' . sprintf(
+							/* translators: %s: moderator reply text */
+							__( 'Moderator reply: %s', 'fanfiction-manager' ),
+							$author_reply
+						)
+						: '';
 					$notification_msg = $title
 						? sprintf(
-							__( 'Your message regarding "%s" has been reviewed. The restriction remains in place.', 'fanfiction-manager' ),
-							$title
+							__( 'Your message regarding "%1$s" has been reviewed. The restriction remains in place.%2$s', 'fanfiction-manager' ),
+							$title,
+							$reply_suffix
 						)
-						: __( 'Your message regarding your account suspension has been reviewed. The restriction remains in place.', 'fanfiction-manager' );
+						: sprintf(
+							__( 'Your message regarding your account suspension has been reviewed. The restriction remains in place.%s', 'fanfiction-manager' ),
+							$reply_suffix
+						);
 					Fanfic_Notifications::create_notification(
 						$author_id,
 						Fanfic_Notifications::TYPE_MOD_MESSAGE_IGNORED,
@@ -2258,20 +2287,42 @@ class Fanfic_AJAX_Handlers {
 
 				// Log the action.
 				if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
-					Fanfic_Moderation_Log::insert( $mod_id, 'message_ignored', $target_type, $target_id, $moderator_note );
+					Fanfic_Moderation_Log::insert( $mod_id, 'message_ignored', $target_type, $target_id, $internal_note );
 				}
 				break;
 
 			case 'delete':
-				Fanfic_Moderation_Messages::update_status( $message_id, 'deleted', $mod_id, $moderator_note );
+				Fanfic_Moderation_Messages::update_status( $message_id, 'deleted', $mod_id, $internal_note, $author_reply );
+				if ( function_exists( 'fanfic_set_restriction_reply_message' ) ) {
+					fanfic_set_restriction_reply_message( $target_type, $target_id, $author_reply );
+				}
 				$new_status = 'deleted';
 				if ( 'story' === $target_type ) {
 					delete_post_meta( $target_id, '_fanfic_re_review_requested' );
 				}
 
-				// Log the action (no notification for delete).
+				if ( $author_reply && class_exists( 'Fanfic_Notifications' ) ) {
+					$title = 'user' === $target_type ? '' : get_the_title( $target_id );
+					$notification_msg = $title
+						? sprintf(
+							__( 'A moderator replied regarding "%1$s": %2$s', 'fanfiction-manager' ),
+							$title,
+							$author_reply
+						)
+						: sprintf(
+							__( 'A moderator replied regarding your account suspension: %s', 'fanfiction-manager' ),
+							$author_reply
+						);
+					Fanfic_Notifications::create_notification(
+						$author_id,
+						Fanfic_Notifications::TYPE_MOD_MESSAGE_DELETED,
+						$notification_msg
+					);
+				}
+
+				// Log the action.
 				if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
-					Fanfic_Moderation_Log::insert( $mod_id, 'message_deleted', $target_type, $target_id, $moderator_note );
+					Fanfic_Moderation_Log::insert( $mod_id, 'message_deleted', $target_type, $target_id, $internal_note );
 				}
 				break;
 		}
@@ -2294,7 +2345,8 @@ class Fanfic_AJAX_Handlers {
 			'target_id'          => $target_id,
 			'is_restricted'      => ! empty( $restriction_context['is_restricted'] ),
 			'reason_message'     => isset( $restriction_context['reason_message'] ) ? $restriction_context['reason_message'] : '',
-			'moderator_note'     => $moderator_note,
+			'internal_note'      => $internal_note,
+			'author_reply'       => $author_reply,
 		) );
 	}
 }

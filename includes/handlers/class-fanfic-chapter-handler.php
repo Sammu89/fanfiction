@@ -348,14 +348,14 @@ class Fanfic_Chapter_Handler {
 			if ( ! $validation['can_publish'] ) {
 				if ( $is_ajax ) {
 					wp_send_json_error( array(
-						'message' => __( 'Chapter could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ),
+						'message' => __( 'Chapter could not be made visible due to validation errors. Please correct them.', 'fanfiction-manager' ),
 						'errors'  => array_values( $validation['missing_fields'] ),
 					) );
 				}
 				// Validation failed - keep as draft, show errors
 				$validation_errors = array_values( $validation['missing_fields'] );
 				set_transient( 'fanfic_chapter_validation_errors_' . $current_user->ID . '_' . $chapter_id, $validation_errors, 60 );
-				Fanfic_Flash_Messages::add_message( 'error', __( 'Chapter could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ) );
+				Fanfic_Flash_Messages::add_message( 'error', __( 'Chapter could not be made visible due to validation errors. Please correct them.', 'fanfiction-manager' ) );
 
 				// Redirect to chapter edit page
 				$chapter_url = get_permalink( $chapter_id );
@@ -407,7 +407,7 @@ class Fanfic_Chapter_Handler {
 
 		// Add message if this is first published chapter
 		if ( $is_first_published_chapter && ! $is_ajax ) {
-			Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first published chapter! Consider publishing your story now.', 'fanfiction-manager' ) );
+			Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first visible chapter! Consider making your story visible now.', 'fanfiction-manager' ) );
 		}
 
 		// Check if this is an AJAX request
@@ -652,14 +652,14 @@ class Fanfic_Chapter_Handler {
 			if ( ! $validation['can_publish'] ) {
 				if ( $is_ajax ) {
 					wp_send_json_error( array(
-						'message' => __( 'Chapter could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ),
+						'message' => __( 'Chapter could not be made visible due to validation errors. Please correct them.', 'fanfiction-manager' ),
 						'errors'  => array_values( $validation['missing_fields'] ),
 					) );
 				}
 				// Validation failed - keep as draft, show errors
 				$validation_errors = array_values( $validation['missing_fields'] );
 				set_transient( 'fanfic_chapter_validation_errors_' . $current_user->ID . '_' . $chapter_id, $validation_errors, 60 );
-				Fanfic_Flash_Messages::add_message( 'error', __( 'Chapter could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ) );
+				Fanfic_Flash_Messages::add_message( 'error', __( 'Chapter could not be made visible due to validation errors. Please correct them.', 'fanfiction-manager' ) );
 
 				// Redirect back with validation error
 				$chapter_url = get_permalink( $chapter_id );
@@ -737,12 +737,12 @@ class Fanfic_Chapter_Handler {
 
 			// Add warning message if story was auto-drafted
 			if ( $was_story_auto_drafted ) {
-				Fanfic_Flash_Messages::add_message( 'warning', __( 'Story was automatically set to draft status because this was its last published chapter/prologue.', 'fanfiction-manager' ) );
+				Fanfic_Flash_Messages::add_message( 'warning', __( 'Story was automatically set to hidden status because this was its last visible chapter/prologue.', 'fanfiction-manager' ) );
 			}
 
 			// Add info message if this is first published chapter
 			if ( $is_first_published_chapter ) {
-				Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first published chapter! Consider publishing your story now.', 'fanfiction-manager' ) );
+				Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first visible chapter! Consider making your story visible now.', 'fanfiction-manager' ) );
 			}
 		}
 

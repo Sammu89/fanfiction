@@ -971,7 +971,7 @@ class Fanfic_Users_Admin {
 						<h3><?php esc_html_e( 'User Roles', 'fanfiction-manager' ); ?></h3>
 						<ul>
 							<li><strong><?php esc_html_e( 'Reader:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Default role for registered users. Can follow stories, rate chapters, comment, and manage their profile.', 'fanfiction-manager' ); ?></li>
-							<li><strong><?php esc_html_e( 'Author:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Automatically assigned when a user publishes their first story (cannot be manually promoted). Can create, edit, and delete their own stories and chapters. Inherits all Reader permissions.', 'fanfiction-manager' ); ?></li>
+							<li><strong><?php esc_html_e( 'Author:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Automatically assigned when a user makes their first story visible (cannot be manually promoted). Can create, edit, and delete their own stories and chapters. Inherits all Reader permissions.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Moderator:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Can edit any story, access the moderation queue, suspend users, and manage the platform user list. Inherits all Author and Reader permissions.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Administrator:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Full access to plugin settings, custom taxonomies, notification templates, URL configuration, and custom CSS. Inherits all Moderator permissions.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Banned:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Suspended users can log in but cannot create/edit content. Their stories are marked as blocked and hidden from public view. A notice displays "Your account has been suspended."', 'fanfiction-manager' ); ?></li>
@@ -979,10 +979,10 @@ class Fanfic_Users_Admin {
 						<h3><?php esc_html_e( 'User Management Guidelines', 'fanfiction-manager' ); ?></h3>
 						<ul>
 							<li><strong><?php esc_html_e( 'Ban:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Banned users can still log in but cannot create/edit content. Their stories are marked as blocked and hidden from public view. Fanfiction admins cannot ban other admins; moderators cannot ban other moderators.', 'fanfiction-manager' ); ?></li>
-							<li><strong><?php esc_html_e( 'Unban:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Restores user role based on published story count. Users with stories become Authors; users without stories become Readers.', 'fanfiction-manager' ); ?></li>
-							<li><strong><?php esc_html_e( 'Promote:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Reader → Author promotion is automatic when a user publishes their first story. Only administrators can promote users to Moderator or Administrator roles.', 'fanfiction-manager' ); ?></li>
+							<li><strong><?php esc_html_e( 'Unban:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Restores user role based on visible story count. Users with stories become Authors; users without stories become Readers.', 'fanfiction-manager' ); ?></li>
+							<li><strong><?php esc_html_e( 'Promote:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Reader → Author promotion is automatic when a user makes their first story visible. Only administrators can promote users to Moderator or Administrator roles.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Remove Role:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Remove Administrator or Moderator roles. Only WordPress administrators can remove Administrator roles. Only administrators can remove Moderator roles.', 'fanfiction-manager' ); ?></li>
-							<li><strong><?php esc_html_e( 'Auto-Demotion:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Authors with 0 published stories are automatically demoted to Reader role daily via WP-Cron.', 'fanfiction-manager' ); ?></li>
+							<li><strong><?php esc_html_e( 'Auto-Demotion:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Authors with 0 visible stories are automatically demoted to Reader role daily via WP-Cron.', 'fanfiction-manager' ); ?></li>
 							<li><strong><?php esc_html_e( 'Content Preservation:', 'fanfiction-manager' ); ?></strong> <?php esc_html_e( 'Banning preserves all user content - it just hides stories from public view. Stories remain in the database.', 'fanfiction-manager' ); ?></li>
 						</ul>
 					</div>
@@ -1113,7 +1113,7 @@ class Fanfic_Users_Admin {
 				var userId = $(this).data('user-id');
 				var nonce = $(this).data('nonce');
 
-				if (!confirm('<?php echo esc_js( __( 'Are you sure you want to remove the moderator role from this user? They will become an author if they have published stories, otherwise they will become a reader.', 'fanfiction-manager' ) ); ?>')) {
+				if (!confirm('<?php echo esc_js( __( 'Are you sure you want to remove the moderator role from this user? They will become an author if they have visible stories, otherwise they will become a reader.', 'fanfiction-manager' ) ); ?>')) {
 					return;
 				}
 

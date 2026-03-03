@@ -37,9 +37,11 @@ $image_upload_enabled = ! empty( $image_upload_settings['enabled'] );
 
 ?>
 
-<!-- Unified Messages Container -->
-<div id="fanfic-messages" class="fanfic-messages-container" role="region" aria-label="<?php esc_attr_e( 'System Messages', 'fanfiction-manager' ); ?>" aria-live="polite">
+<?php fanfic_render_page_header( 'edit-profile' ); ?>
+
 <?php
+// Capture status messages to display below the form buttons.
+ob_start();
 // Success message from URL
 if ( isset( $_GET['updated'] ) && 'success' === $_GET['updated'] ) : ?>
 	<div class="fanfic-message fanfic-message-success" role="status">
@@ -75,8 +77,8 @@ if ( $errors ) {
  * @param WP_User $current_user The current user object.
  */
 do_action( 'fanfic_profile_form_messages', $current_user );
+$fanfic_profile_messages_markup = ob_get_clean();
 ?>
-</div>
 
 <p><?php esc_html_e( 'Update your author profile information.', 'fanfiction-manager' ); ?></p>
 
@@ -221,6 +223,8 @@ do_action( 'fanfic_profile_form_messages', $current_user );
 				</a>
 			</div>
 		</form>
+		<!-- [STATUS MESSAGES] Zone for form save/error feedback. Do not use for cross-page alerts. -->
+		<?php echo $fanfic_profile_messages_markup; ?>
 	</div>
 </section>
 

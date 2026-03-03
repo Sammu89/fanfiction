@@ -41,7 +41,7 @@ function fanfic_get_default_chapter_view_template() {
 	<!-- Meta information (dates) -->
 	<div class="fanfic-chapter-meta">
 		<span class="fanfic-published">
-			<?php esc_html_e( 'Published:', 'fanfiction-manager' ); ?> [fanfic-chapter-published]
+			<?php esc_html_e( 'Visible since:', 'fanfiction-manager' ); ?> [fanfic-chapter-published]
 		</span>
 		<?php
 		// Only show "Updated:" label if there's been an actual update
@@ -163,14 +163,16 @@ if ( ! $enable_comments ) {
 	$template = str_replace( '[chapter-comments]', '', (string) $template );
 }
 
-// Show a discreet warning if this chapter or its parent story is not published
-if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
-	$is_chapter_author = is_user_logged_in() && (int) $chapter_post->post_author === get_current_user_id();
-	$parent_story_id = absint( $chapter_post->post_parent );
-	$parent_story_blocked = $parent_story_id ? fanfic_is_story_blocked( $parent_story_id ) : false;
-	$chapter_blocked = fanfic_is_chapter_blocked( $chapter_post->ID );
-	$show_generic_warning = true;
+$is_chapter_author    = $chapter_post && is_user_logged_in() && (int) $chapter_post->post_author === get_current_user_id();
+$parent_story_id      = $chapter_post ? absint( $chapter_post->post_parent ) : 0;
+$parent_story_blocked = $parent_story_id ? fanfic_is_story_blocked( $parent_story_id ) : false;
+$chapter_blocked      = $chapter_post ? fanfic_is_chapter_blocked( $chapter_post->ID ) : false;
+$parent_story         = $parent_story_id ? get_post( $parent_story_id ) : null;
 
+add_action( 'fanfic_page_alerts', function( $context ) use ( $chapter_post, $is_chapter_author, $parent_story_id, $parent_story_blocked, $chapter_blocked, $parent_story ) {
+	if ( 'view-chapter' !== $context || ! $chapter_post || 'fanfiction_chapter' !== $chapter_post->post_type ) {
+		return;
+	}
 	if ( $is_chapter_author && $parent_story_blocked && function_exists( 'fanfic_render_restriction_banner' ) ) {
 		$story_context = fanfic_get_restriction_context( 'story', $parent_story_id );
 		fanfic_render_restriction_banner(
@@ -180,7 +182,6 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 				array( 'label' => __( 'Edit Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $parent_story_id ), 'class' => 'secondary' ),
 			)
 		);
-		$show_generic_warning = false;
 	} elseif ( $is_chapter_author && $chapter_blocked && function_exists( 'fanfic_render_restriction_banner' ) ) {
 		$chapter_context = fanfic_get_restriction_context( 'chapter', $chapter_post->ID );
 		fanfic_render_restriction_banner(
@@ -190,15 +191,18 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 				array( 'label' => __( 'Edit Chapter', 'fanfiction-manager' ), 'url' => fanfic_get_edit_chapter_url( $chapter_post->ID ), 'class' => 'secondary' ),
 			)
 		);
-		$show_generic_warning = false;
-	}
-
-	if ( $show_generic_warning ) {
+	} else {
 		$warning_parts = array();
 
 		if ( 'publish' !== $chapter_post->post_status ) {
-			$chapter_status_obj = get_post_status_object( $chapter_post->post_status );
-			$chapter_status_label = $chapter_status_obj && ! empty( $chapter_status_obj->label ) ? $chapter_status_obj->label : $chapter_post->post_status;
+			$chapter_status_labels = array(
+				'publish' => __( 'Visible', 'fanfiction-manager' ),
+				'draft'   => __( 'Hidden', 'fanfiction-manager' ),
+			);
+			$chapter_status_obj   = get_post_status_object( $chapter_post->post_status );
+			$chapter_status_label = isset( $chapter_status_labels[ $chapter_post->post_status ] )
+				? $chapter_status_labels[ $chapter_post->post_status ]
+				: ( $chapter_status_obj && ! empty( $chapter_status_obj->label ) ? $chapter_status_obj->label : $chapter_post->post_status );
 			$warning_parts[] = sprintf(
 				esc_html__( 'this chapter is %s', 'fanfiction-manager' ),
 				esc_html( $chapter_status_label )
@@ -209,9 +213,15 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 			$warning_parts[] = esc_html__( 'this chapter is blocked', 'fanfiction-manager' );
 		}
 
-		if ( ! empty( $story ) && 'publish' !== $story->post_status ) {
-			$story_status_obj = get_post_status_object( $story->post_status );
-			$story_status_label = $story_status_obj && ! empty( $story_status_obj->label ) ? $story_status_obj->label : $story->post_status;
+		if ( $parent_story && 'publish' !== $parent_story->post_status ) {
+			$story_status_labels = array(
+				'publish' => __( 'Visible', 'fanfiction-manager' ),
+				'draft'   => __( 'Hidden', 'fanfiction-manager' ),
+			);
+			$story_status_obj   = get_post_status_object( $parent_story->post_status );
+			$story_status_label = isset( $story_status_labels[ $parent_story->post_status ] )
+				? $story_status_labels[ $parent_story->post_status ]
+				: ( $story_status_obj && ! empty( $story_status_obj->label ) ? $story_status_obj->label : $parent_story->post_status );
 			$warning_parts[] = sprintf(
 				esc_html__( 'the parent story is %s', 'fanfiction-manager' ),
 				esc_html( $story_status_label )
@@ -234,17 +244,15 @@ if ( $chapter_post && 'fanfiction_chapter' === $chapter_post->post_type ) {
 			<?php
 		}
 	}
-}
+} );
 
-// Render breadcrumb navigation
-fanfic_render_breadcrumb( 'view-chapter', array(
-	'story_id'   => $chapter_post ? absint( $chapter_post->post_parent ) : 0,
+fanfic_render_page_header( 'view-chapter', array(
+	'story_id'   => $parent_story_id,
 	'chapter_id' => $chapter_post ? absint( $chapter_post->ID ) : 0,
 ) );
 
 // Process shortcodes in the template
 $rendered_template = do_shortcode( $template );
-$parent_story_id = $chapter_post ? absint( $chapter_post->post_parent ) : 0;
 echo function_exists( 'fanfic_wrap_story_age_confirmation_gate' )
 	? fanfic_wrap_story_age_confirmation_gate( $rendered_template, $parent_story_id, 'chapter' )
 	: $rendered_template;

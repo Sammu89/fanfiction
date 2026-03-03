@@ -274,10 +274,10 @@ class Fanfic_Shortcodes_Utility {
 		$status = $story->post_status;
 		$status_class = 'fanfic-status-badge fanfic-status-' . esc_attr( $status );
 		
-		// Only Draft or Published
+		// Only Hidden or Visible
 		$status_label = ( 'publish' === $status ) 
-			? __( 'Published', 'fanfiction-manager' )
-			: __( 'Draft', 'fanfiction-manager' );
+			? __( 'Visible', 'fanfiction-manager' )
+			: __( 'Hidden', 'fanfiction-manager' );
 
 		return sprintf(
 			'<span class="%s">%s</span>',
@@ -309,10 +309,10 @@ class Fanfic_Shortcodes_Utility {
 		$status = $chapter->post_status;
 		$status_class = 'fanfic-status-badge fanfic-status-' . esc_attr( $status );
 		
-		// Only Draft or Published
+		// Only Hidden or Visible
 		$status_label = ( 'publish' === $status ) 
-			? __( 'Published', 'fanfiction-manager' )
-			: __( 'Draft', 'fanfiction-manager' );
+			? __( 'Visible', 'fanfiction-manager' )
+			: __( 'Hidden', 'fanfiction-manager' );
 
 		return sprintf(
 			'<span class="%s">%s</span>',

@@ -42,6 +42,7 @@ class Fanfic_Notifications {
 	const TYPE_STORY_STATUS_CHANGE = 'story_status_change';
 	const TYPE_USER_BANNED = 'user_banned';
 	const TYPE_USER_UNBANNED = 'user_unbanned';
+	const TYPE_MOD_CONTENT_BLOCKED = 'mod_content_blocked';
 	const TYPE_MOD_MESSAGE_UNBLOCKED = 'mod_message_unblocked';
 	const TYPE_MOD_MESSAGE_IGNORED = 'mod_message_ignored';
 	const TYPE_MOD_MESSAGE_DELETED = 'mod_message_deleted';
@@ -157,6 +158,7 @@ class Fanfic_Notifications {
 			self::TYPE_STORY_STATUS_CHANGE,
 			self::TYPE_USER_BANNED,
 			self::TYPE_USER_UNBANNED,
+			self::TYPE_MOD_CONTENT_BLOCKED,
 			self::TYPE_MOD_MESSAGE_UNBLOCKED,
 			self::TYPE_MOD_MESSAGE_IGNORED,
 			self::TYPE_MOD_MESSAGE_DELETED,

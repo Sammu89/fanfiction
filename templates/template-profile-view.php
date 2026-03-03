@@ -112,5 +112,7 @@ $template = str_replace( '[author-bio]', '[author-bio author_id="' . $user_id . 
 $template = str_replace( '[author-story-list]', '[author-story-list author_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-coauthored-stories]', '[author-coauthored-stories author_id="' . $user_id . '"]', $template );
 
+fanfic_render_page_header( 'view-profile' );
+
 // Process shortcodes in the template
 echo do_shortcode( $template );

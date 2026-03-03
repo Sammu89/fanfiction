@@ -1802,7 +1802,7 @@ class Fanfic_Settings {
 									<?php
 									printf(
 										/* translators: 1: Number of candidates, 2: Total demoted */
-										esc_html__( 'Demote authors with 0 published stories to Reader role. Current candidates: %1$d. Total auto-demoted: %2$d', 'fanfiction-manager' ),
+										esc_html__( 'Demote authors with 0 visible stories to Reader role. Current candidates: %1$d. Total auto-demoted: %2$d', 'fanfiction-manager' ),
 										esc_html( $stats['candidates'] ),
 										esc_html( $stats['total_demoted'] )
 									);

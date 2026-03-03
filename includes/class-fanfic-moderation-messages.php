@@ -133,6 +133,10 @@ class Fanfic_Moderation_Messages {
 			);
 		}
 
+		if ( function_exists( 'fanfic_clear_restriction_reply_message' ) ) {
+			fanfic_clear_restriction_reply_message( $target_type, $target_id );
+		}
+
 		return (int) $wpdb->insert_id;
 	}
 
@@ -443,11 +447,12 @@ class Fanfic_Moderation_Messages {
 	 * @param int    $message_id  ID of the message to update.
 	 * @param string $new_status  New status: 'unread', 'ignored', 'resolved', or 'deleted'.
 	 * @param int    $moderator_id Optional. ID of the moderator performing the action. Default 0.
-	 * @param string $note         Optional. A moderator note. Default empty string.
+	 * @param string $note         Optional. An internal moderator note. Default empty string.
+	 * @param string $author_reply Optional. A reply visible to the author. Default empty string.
 	 *
 	 * @return bool True on success, false on failure.
 	 */
-	public static function update_status( $message_id, $new_status, $moderator_id = 0, $note = '' ) {
+	public static function update_status( $message_id, $new_status, $moderator_id = 0, $note = '', $author_reply = '' ) {
 		global $wpdb;
 
 		$message_id = (int) $message_id;
@@ -477,6 +482,12 @@ class Fanfic_Moderation_Messages {
 		if ( '' !== $note ) {
 			$data['moderator_note'] = $note;
 			$format[]               = '%s';
+		}
+
+		$author_reply = sanitize_textarea_field( $author_reply );
+		if ( '' !== $author_reply ) {
+			$data['author_reply'] = $author_reply;
+			$format[]             = '%s';
 		}
 
 		$result = $wpdb->update(

@@ -415,7 +415,7 @@ class Fanfic_Debug_Generator {
 							</button>
 						</form>
 						<p class="description">
-							<?php esc_html_e( 'Creates a random user (password: 123456) with fanfiction_author role, 1 published story with random taxonomies, and 3 chapters with gibberish content.', 'fanfiction-manager' ); ?>
+							<?php esc_html_e( 'Creates a random user (password: 123456) with fanfiction_author role, 1 visible story with random taxonomies, and 3 chapters with gibberish content.', 'fanfiction-manager' ); ?>
 						</p>
 					</td>
 				</tr>

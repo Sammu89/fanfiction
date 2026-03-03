@@ -52,7 +52,7 @@ class Fanfic_Input_Validation {
 		}
 
 		if ( 'publish' !== $chapter->post_status && ! current_user_can( 'edit_post', $chapter_id ) ) {
-			return new WP_Error( 'chapter_not_published', __( 'Chapter is not published.', 'fanfiction-manager' ) );
+			return new WP_Error( 'chapter_not_published', __( 'Chapter is not visible.', 'fanfiction-manager' ) );
 		}
 
 		// Check if user can read this chapter
@@ -91,7 +91,7 @@ class Fanfic_Input_Validation {
 		}
 
 		if ( 'publish' !== $story->post_status && ! current_user_can( 'edit_post', $story_id ) ) {
-			return new WP_Error( 'story_not_published', __( 'Story is not published.', 'fanfiction-manager' ) );
+			return new WP_Error( 'story_not_published', __( 'Story is not visible.', 'fanfiction-manager' ) );
 		}
 
 		// Check if user can read this story

@@ -1097,7 +1097,7 @@ class Fanfic_Shortcodes_Buttons {
 			<div class="fanfic-modal-content">
 				<button type="button" class="fanfic-modal-close" aria-label="<?php esc_attr_e( 'Close', 'fanfiction-manager' ); ?>">&times;</button>
 				<h2 id="fanfic-follow-email-modal-title"><?php esc_html_e( 'Would you like to receive email updates?', 'fanfiction-manager' ); ?></h2>
-				<p><?php esc_html_e( 'Get notified when new chapters are published for this story.', 'fanfiction-manager' ); ?></p>
+				<p><?php esc_html_e( 'Get notified when new chapters become visible for this story.', 'fanfiction-manager' ); ?></p>
 
 				<div class="form-group">
 					<label for="fanfic-follow-email-input">

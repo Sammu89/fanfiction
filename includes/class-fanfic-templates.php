@@ -1099,7 +1099,7 @@ class Fanfic_Templates {
 				$result['failed'][] = array(
 					'key'     => $failed_key,
 					'title'   => $page_title,
-					'message' => __( 'Page validation failed - page does not exist or is not published.', 'fanfiction-manager' ),
+					'message' => __( 'Page validation failed - page does not exist or is not visible.', 'fanfiction-manager' ),
 				);
 			}
 

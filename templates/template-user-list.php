@@ -100,7 +100,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 							<p class="fanfic-member-stats">
 								<?php
 								printf(
-									esc_html( _n( '%d published story', '%d published stories', $story_count, 'fanfiction-manager' ) ),
+									esc_html( _n( '%d visible story', '%d visible stories', $story_count, 'fanfiction-manager' ) ),
 									absint( $story_count )
 								);
 								?>

@@ -738,7 +738,7 @@ class Fanfic_Core {
 			Fanfic_Notifications::create_notification(
 				$user_id,
 				Fanfic_Notifications::TYPE_USER_BANNED,
-				__( 'Your account has been suspended. You can still read stories, but publishing and interactions are disabled.', 'fanfiction-manager' ),
+				__( 'Your account has been suspended. You can still read stories, but making stories and chapters visible and using interactions are disabled.', 'fanfiction-manager' ),
 				array( 'banned_by' => $moderator_id ),
 				true // persistent — user must see this regardless of cleanup
 			);
@@ -787,7 +787,7 @@ class Fanfic_Core {
 			Fanfic_Notifications::create_notification(
 				$user_id,
 				Fanfic_Notifications::TYPE_USER_UNBANNED,
-				__( 'Your account suspension has been lifted. You can now publish and interact again.', 'fanfiction-manager' ),
+				__( 'Your account suspension has been lifted. You can now make stories and chapters visible and interact again.', 'fanfiction-manager' ),
 				array( 'reinstated_by' => $moderator_id ),
 				true // persistent â user must see this regardless of cleanup
 			);

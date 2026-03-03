@@ -78,7 +78,7 @@ class Fanfic_Export_Import_Admin {
 									<?php
 									printf(
 										/* translators: %d: number of stories */
-										esc_html__( 'Stories: %d published', 'fanfiction-manager' ),
+										esc_html__( 'Stories: %d visible', 'fanfiction-manager' ),
 										absint( $stats['total_stories'] )
 									);
 									?>
@@ -87,7 +87,7 @@ class Fanfic_Export_Import_Admin {
 									<?php
 									printf(
 										/* translators: %d: number of chapters */
-										esc_html__( 'Chapters: %d published', 'fanfiction-manager' ),
+										esc_html__( 'Chapters: %d visible', 'fanfiction-manager' ),
 										absint( $stats['total_chapters'] )
 									);
 									?>
@@ -123,7 +123,7 @@ class Fanfic_Export_Import_Admin {
 								<?php esc_html_e( 'Export Stories', 'fanfiction-manager' ); ?>
 							</h3>
 							<p class="description" style="margin-bottom: 10px;">
-								<?php esc_html_e( 'Export all published stories with metadata, genres, status, views, and ratings.', 'fanfiction-manager' ); ?>
+								<?php esc_html_e( 'Export all visible stories with metadata, genres, status, views, and ratings.', 'fanfiction-manager' ); ?>
 							</p>
 							<?php submit_button( __( 'Download Stories CSV', 'fanfiction-manager' ), 'secondary', 'submit', false, array( 'style' => 'margin-top: 10px;' ) ); ?>
 						</form>
@@ -140,7 +140,7 @@ class Fanfic_Export_Import_Admin {
 								<?php esc_html_e( 'Export Chapters', 'fanfiction-manager' ); ?>
 							</h3>
 							<p class="description" style="margin-bottom: 10px;">
-								<?php esc_html_e( 'Export all published chapters with their content, metadata, views, and ratings.', 'fanfiction-manager' ); ?>
+								<?php esc_html_e( 'Export all visible chapters with their content, metadata, views, and ratings.', 'fanfiction-manager' ); ?>
 							</p>
 							<?php submit_button( __( 'Download Chapters CSV', 'fanfiction-manager' ), 'secondary', 'submit', false, array( 'style' => 'margin-top: 10px;' ) ); ?>
 						</form>

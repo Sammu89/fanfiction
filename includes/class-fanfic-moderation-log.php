@@ -85,6 +85,54 @@ class Fanfic_Moderation_Log {
 	}
 
 	/**
+	 * Update the latest matching log entry reason.
+	 *
+	 * @since 2.3.2
+	 * @param int          $actor_id    Moderator user ID.
+	 * @param string|array $action      Action name or list of action names.
+	 * @param string       $target_type Target type.
+	 * @param int          $target_id   Target ID.
+	 * @param string       $reason      Replacement reason text.
+	 * @return bool
+	 */
+	public static function update_latest_reason( $actor_id, $action, $target_type, $target_id, $reason ) {
+		if ( ! self::table_ready() ) {
+			return false;
+		}
+
+		$logs = self::get_logs(
+			array(
+				'actor_id'    => absint( $actor_id ),
+				'action'      => $action,
+				'target_type' => sanitize_key( $target_type ),
+				'target_id'   => absint( $target_id ),
+				'limit'       => 1,
+			)
+		);
+
+		if ( empty( $logs[0]['id'] ) ) {
+			return false;
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_moderation_log';
+
+		$result = $wpdb->update(
+			$table,
+			array(
+				'reason' => sanitize_text_field( $reason ),
+			),
+			array(
+				'id' => absint( $logs[0]['id'] ),
+			),
+			array( '%s' ),
+			array( '%d' )
+		);
+
+		return false !== $result;
+	}
+
+	/**
 	 * Get log entries
 	 *
 	 * @since 1.2.0
@@ -415,6 +463,14 @@ class Fanfic_Moderation_Log {
 		} elseif ( $log_entry['target_type'] === 'chapter' ) {
 			$chapter = get_post( $log_entry['target_id'] );
 			$target_name = $chapter ? $chapter->post_title : __( 'Unknown Chapter', 'fanfiction-manager' );
+		} elseif ( $log_entry['target_type'] === 'comment' ) {
+			$comment = get_comment( $log_entry['target_id'] );
+			if ( $comment ) {
+				$post = get_post( $comment->comment_post_ID );
+				$target_name = $post ? $post->post_title : __( 'Unknown Comment Context', 'fanfiction-manager' );
+			} else {
+				$target_name = __( 'Unknown Comment', 'fanfiction-manager' );
+			}
 		}
 
 		// Format action
@@ -454,6 +510,9 @@ class Fanfic_Moderation_Log {
 			'chapter_block_ban'    => __( 'Blocked Chapter (User Ban)', 'fanfiction-manager' ),
 			'chapter_block_rule'   => __( 'Blocked Chapter (Rule Change)', 'fanfiction-manager' ),
 			'chapter_unblock'      => __( 'Unblocked Chapter', 'fanfiction-manager' ),
+			'comment_blocked'      => __( 'Blocked Comment', 'fanfiction-manager' ),
+			'report_dismissed'     => __( 'Dismissed Report', 'fanfiction-manager' ),
+			'report_deleted'       => __( 'Deleted Report', 'fanfiction-manager' ),
 			'message_ignored' => __( 'Ignored Author Message', 'fanfiction-manager' ),
 			'message_deleted' => __( 'Deleted Author Message', 'fanfiction-manager' ),
 		);

@@ -784,13 +784,13 @@ class Fanfic_Story_Handler {
 				if ( ! empty( $validation_errors ) ) {
 					if ( $is_ajax ) {
 						wp_send_json_error( array(
-							'message' => __( 'Story could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ),
+							'message' => __( 'Story could not be made visible due to validation errors. Please correct them.', 'fanfiction-manager' ),
 							'errors'  => array_values( $validation_errors ),
 						) );
 					}
 					// Validation failed - story stays as draft, show errors
 					set_transient( 'fanfic_story_validation_errors_' . $current_user->ID . '_' . $story_id, $validation_errors, 60 );
-					Fanfic_Flash_Messages::add_message( 'error', __( 'Story could not be published due to validation errors. Please correct them.', 'fanfiction-manager' ) );
+					Fanfic_Flash_Messages::add_message( 'error', __( 'Story could not be made visible due to validation errors. Please correct them.', 'fanfiction-manager' ) );
 					// Redirect back to story with validation error, removing any success params
 					$fallback_url = self::get_story_edit_url( $story_id );
 					$redirect_url = self::get_safe_referer_url( $fallback_url );
@@ -1088,7 +1088,7 @@ class Fanfic_Story_Handler {
 
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'You must be logged in to publish stories.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'You must be logged in to make stories visible.', 'fanfiction-manager' ) ) );
 		}
 
 		$story_id = isset( $_POST['story_id'] ) ? absint( $_POST['story_id'] ) : 0;
@@ -1106,7 +1106,7 @@ class Fanfic_Story_Handler {
 
 		// Check permissions.
 		if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'You do not have permission to publish this story.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to make this story visible.', 'fanfiction-manager' ) ) );
 		}
 
 		// PRE-SAVE VALIDATION: Check if story can be published before saving
@@ -1114,7 +1114,7 @@ class Fanfic_Story_Handler {
 
 		if ( ! $validation_result['can_publish'] ) {
 			wp_send_json_error( array(
-				'message'         => __( 'Cannot publish story. Missing required fields:', 'fanfiction-manager' ),
+				'message'         => __( 'Cannot make story visible. Missing required fields:', 'fanfiction-manager' ),
 				'missing_fields'  => $validation_result['missing_fields'], // Array of field => message pairs
 				'errors'          => array_values( $validation_result['missing_fields'] ), // Just the messages
 			) );
@@ -1131,7 +1131,7 @@ class Fanfic_Story_Handler {
 		}
 
 		if ( ! $result || 0 === $result ) {
-			wp_send_json_error( array( 'message' => __( 'Failed to publish story. Please try again.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Failed to make story visible. Please try again.', 'fanfiction-manager' ) ) );
 		}
 
 		// Clear post cache to ensure fresh data

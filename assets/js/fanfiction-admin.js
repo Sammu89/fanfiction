@@ -153,65 +153,27 @@
 			};
 		}
 
-		function getActionMarkup(messageId, status, isRestricted) {
-			const actions = [];
-			const unblockLabel = strings.unblockLabel || 'Unblock';
-			const ignoreLabel = strings.ignoreLabel || 'Ignore';
-			const deleteLabel = strings.deleteLabel || 'Delete';
-			const compareLabel = strings.compareLabel || 'Compare Changes';
-			const hasComparison = getMessageRows(messageId).$detailRow.find('.fanfic-msg-compare-changes').length > 0;
-
-			if (hasComparison) {
-				actions.push('<a href="#" class="fanfic-msg-compare-changes" data-message-id="' + messageId + '">' + compareLabel + '</a>');
-			}
-
-			if (isRestricted && status !== 'resolved' && status !== 'deleted') {
-				actions.push('<a href="#" class="fanfic-msg-action-unblock" data-message-id="' + messageId + '">' + unblockLabel + '</a>');
-			}
-
-			if (status !== 'ignored' && status !== 'resolved' && status !== 'deleted') {
-				actions.push('<a href="#" class="fanfic-msg-action-ignore" data-message-id="' + messageId + '">' + ignoreLabel + '</a>');
-			}
-
-			if (status !== 'deleted') {
-				actions.push('<a href="#" class="fanfic-msg-action-delete submitdelete" data-message-id="' + messageId + '">' + deleteLabel + '</a>');
-			}
-
-			return actions.join(' | ');
+		function getMessagePrompt(messageId) {
+			return getMessageRows(messageId).$detailRow.find('.fanfic-message-action-prompt').first();
 		}
 
-		function updateMessageStatus($mainRow, status, label) {
-			$mainRow.attr('data-status', status);
-			$mainRow.find('.fanfic-msg-status-badge')
-				.attr('class', 'fanfic-msg-status-badge status-' + status)
-				.text(label);
-		}
-
-		function updateMessageActions(messageId, status, isRestricted) {
+		function openMessageModal(messageId) {
 			const rows = getMessageRows(messageId);
-			const inlineHtml = getActionMarkup(messageId, status, isRestricted);
-			rows.$mainRow.find('.fanfic-msg-actions-inline').html(inlineHtml);
+			const message = $.trim(rows.$detailRow.find('.fanfic-message-full-text').text() || '');
+			const title = $.trim(rows.$mainRow.find('.column-title').text() || '');
+			const author = $.trim(rows.$mainRow.find('.column-author').text() || '');
+			const emptyText = strings.reportMessageEmpty || 'This report does not include a message.';
+			const body = message ? '<div class="fanfic-report-message-copy">' + escapeHtml(message).replace(/\n/g, '<br>') + '</div>' : '<span class="fanfic-report-message-empty">' + escapeHtml(emptyText) + '</span>';
 
-			const $detailActions = rows.$detailRow.find('.fanfic-message-detail-actions');
-			$detailActions.find('.fanfic-msg-action-unblock').remove();
-			$detailActions.find('.fanfic-msg-action-ignore').remove();
-			if (status === 'deleted') {
-				$detailActions.find('.fanfic-msg-action-delete').remove();
-				return;
-			}
-
-			if (isRestricted && status !== 'resolved') {
-				$detailActions.prepend('<button type="button" class="button button-primary fanfic-msg-action-unblock" data-message-id="' + messageId + '">' + (strings.unblockLabel || 'Unblock') + '</button> ');
-			}
-
-			if (status !== 'ignored' && status !== 'resolved') {
-				const $deleteBtn = $detailActions.find('.fanfic-msg-action-delete');
-				if ($deleteBtn.length) {
-					$deleteBtn.before('<button type="button" class="button fanfic-msg-action-ignore" data-message-id="' + messageId + '">' + (strings.ignoreLabel || 'Ignore') + '</button> ');
-				} else {
-					$detailActions.append('<button type="button" class="button fanfic-msg-action-ignore" data-message-id="' + messageId + '">' + (strings.ignoreLabel || 'Ignore') + '</button>');
-				}
-			}
+			openAdminModal(
+				'<h2>' + escapeHtml(strings.authorMessageTitle || 'Author Message') + '</h2>' +
+				'<div class="fanfic-report-details"><table class="widefat"><tbody>' +
+				'<tr><th>Title</th><td>' + escapeHtml(title) + '</td></tr>' +
+				'<tr><th>Author</th><td>' + escapeHtml(author) + '</td></tr>' +
+				'<tr><th>' + escapeHtml(strings.authorMessageLabel || 'Message') + '</th><td>' + body + '</td></tr>' +
+				'</tbody></table></div>' +
+				'<div class="fanfic-admin-modal-actions"><button type="button" class="button fanfic-admin-modal-close">Close</button></div>'
+			);
 		}
 
 		function ensureAlreadyUnblockedNote($detailRow) {
@@ -244,16 +206,90 @@
 
 		function ensureDetailRowVisible(messageId) {
 			const rows = getMessageRows(messageId);
-			const $expandButton = rows.$mainRow.find('.fanfic-expand-message');
-
 			if (!rows.$detailRow.is(':visible')) {
 				rows.$detailRow.stop(true, true).slideDown(150);
 			}
-
-			$expandButton.addClass('is-expanded').attr('aria-expanded', 'true');
 		}
 
-		$(document).on('click', '.fanfic-msg-compare-changes', function(e) {
+		function closeMessagePrompt(messageId) {
+			const rows = getMessageRows(messageId);
+			const $prompt = getMessagePrompt(messageId);
+
+			$prompt.removeAttr('data-action-type').hide();
+
+			if (!rows.$detailRow.find('.fanfic-block-comparison-container').is(':visible')) {
+				rows.$detailRow.stop(true, true).slideUp(150);
+			}
+		}
+
+		function openMessagePrompt(messageId, actionType) {
+			const $prompt = getMessagePrompt(messageId);
+			const actionLabel = actionType === 'unblock'
+				? (strings.unblockPromptLabel || 'Unblock')
+				: (strings.ignorePromptLabel || 'Ignore');
+
+			ensureDetailRowVisible(messageId);
+			$prompt.attr('data-action-type', actionType);
+			$prompt.find('.fanfic-message-action-prompt-title').text((strings.messagePromptTitle || 'Before continuing, add moderator notes for:') + ' ' + actionLabel);
+			$prompt.find('.fanfic-msg-confirm-action').text((strings.confirmActionPrefix || 'Confirm') + ' ' + actionLabel);
+			$prompt.stop(true, true).slideDown(150);
+		}
+
+		function submitMessageAction(messageId, actionType, $busyTarget) {
+			const $detailRow = $('#fanfic-msg-detail-' + messageId);
+			const internalNote = $detailRow.find('.fanfic-msg-internal-note-input').val() || '';
+			const authorReply = $detailRow.find('.fanfic-msg-author-reply-input').val() || '';
+
+			setBusyState(messageId, true);
+			if ($busyTarget && $busyTarget.length) {
+				$busyTarget.prop('disabled', true);
+			}
+
+			$.ajax({
+				url: fanfictionAdmin.ajaxUrl || ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_mod_message_action',
+					nonce: fanfictionAdmin.nonce || '',
+					message_id: messageId,
+					action_type: actionType,
+					internal_note: internalNote,
+					author_reply: authorReply
+				}
+			}).done(function(response) {
+				if (response && response.success) {
+					const data = response.data || {};
+					if (!data.is_restricted) {
+						ensureAlreadyUnblockedNote(getMessageRows(messageId).$detailRow);
+					}
+					fadeOutMessage(messageId);
+					return;
+				}
+
+				window.alert((response && response.data && response.data.message) || (strings.actionError || 'An error occurred. Please try again.'));
+				setBusyState(messageId, false);
+				if ($busyTarget && $busyTarget.length) {
+					$busyTarget.prop('disabled', false);
+				}
+			}).fail(function() {
+				window.alert(strings.actionError || 'An error occurred. Please try again.');
+				setBusyState(messageId, false);
+				if ($busyTarget && $busyTarget.length) {
+					$busyTarget.prop('disabled', false);
+				}
+			}).always(function() {
+				if ($busyTarget && $busyTarget.length) {
+					$busyTarget.blur();
+				}
+			});
+		}
+
+		$(document).on('click', '.fanfic-msg-view-message', function(e) {
+			e.preventDefault();
+			openMessageModal(parseInt($(this).data('message-id'), 10) || 0);
+		});
+
+		$(document).on('click', '.fanfic-msg-review-changes', function(e) {
 			e.preventDefault();
 
 			const $button = $(this);
@@ -264,8 +300,8 @@
 			const messageId = parseInt($button.data('message-id'), 10) || 0;
 			const rows = getMessageRows(messageId);
 			const $container = rows.$detailRow.find('.fanfic-block-comparison-container').first();
-			const compareLabel = strings.compareLabel || 'Compare Changes';
-			const hideCompareLabel = strings.hideCompareLabel || 'Hide Comparison';
+			const compareLabel = strings.reviewChangesLabel || 'Review modifications';
+			const hideCompareLabel = strings.hideReviewLabel || 'Hide review';
 
 			if (!$container.length) {
 				return;
@@ -276,11 +312,11 @@
 			if ($container.data('loaded')) {
 				const isVisible = $container.is(':visible');
 				$container.stop(true, true).slideToggle(150);
-				rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-compare-changes[data-message-id="' + messageId + '"]').text(isVisible ? compareLabel : hideCompareLabel);
+				rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-review-changes[data-message-id="' + messageId + '"]').text(isVisible ? compareLabel : hideCompareLabel);
 				return;
 			}
 
-			$button.addClass('is-busy').prop('disabled', true).text(strings.compareLoading || 'Loading comparison...');
+			$button.addClass('is-busy').prop('disabled', true).text(strings.reviewLoading || 'Loading review...');
 
 			$.ajax({
 				url: fanfictionAdmin.ajaxUrl || ajaxurl,
@@ -293,7 +329,7 @@
 			}).done(function(response) {
 				if (response && response.success && response.data && response.data.html) {
 					$container.html(response.data.html).data('loaded', true).hide().slideDown(150);
-					rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-compare-changes[data-message-id="' + messageId + '"]').text(hideCompareLabel);
+					rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-review-changes[data-message-id="' + messageId + '"]').text(hideCompareLabel);
 					return;
 				}
 
@@ -303,25 +339,9 @@
 			}).always(function() {
 				$button.removeClass('is-busy').prop('disabled', false);
 				if (!$container.data('loaded')) {
-					rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-compare-changes[data-message-id="' + messageId + '"]').text(compareLabel);
+					rows.$mainRow.add(rows.$detailRow).find('.fanfic-msg-review-changes[data-message-id="' + messageId + '"]').text(compareLabel);
 				}
 			});
-		});
-
-		$(document).on('click', '.fanfic-expand-message', function(e) {
-			e.preventDefault();
-			const $button = $(this);
-			const rowId = $button.data('row-id');
-			const $detailRow = $('#fanfic-msg-detail-' + rowId);
-
-			if (!$detailRow.length) {
-				return;
-			}
-
-			const isExpanded = $button.hasClass('is-expanded');
-			$button.toggleClass('is-expanded', !isExpanded);
-			$button.attr('aria-expanded', !isExpanded ? 'true' : 'false');
-			$detailRow.stop(true, true).slideToggle(150);
 		});
 
 		$(document).on('click', '.fanfic-msg-action-unblock, .fanfic-msg-action-ignore, .fanfic-msg-action-delete', function(e) {
@@ -340,56 +360,39 @@
 				actionType = 'unblock';
 			}
 
-			if ('unblock' === actionType && !window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.confirmUnblock) || 'Unblock this restricted item?')) {
-				return;
-			}
-
 			if ('delete' === actionType && !window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.confirmDelete) || 'Delete this moderation message?')) {
 				return;
 			}
 
-			const $detailRow = $('#fanfic-msg-detail-' + messageId);
-			const moderatorNote = $detailRow.find('.fanfic-msg-note-input').val() || '';
+			if ('delete' !== actionType) {
+				openMessagePrompt(messageId, actionType);
+				return;
+			}
 
-			setBusyState(messageId, true);
+			submitMessageAction(messageId, actionType, $button);
+		});
 
-			$.ajax({
-				url: fanfictionAdmin.ajaxUrl || ajaxurl,
-				type: 'POST',
-				data: {
-					action: 'fanfic_mod_message_action',
-					nonce: fanfictionAdmin.nonce || '',
-					message_id: messageId,
-					action_type: actionType,
-					moderator_note: moderatorNote
-				}
-			}).done(function(response) {
-				if (response && response.success) {
-					const data = response.data || {};
-					const rows = getMessageRows(messageId);
+		$(document).on('click', '.fanfic-msg-confirm-action', function(e) {
+			e.preventDefault();
 
-					updateMessageStatus(rows.$mainRow, data.new_status || 'resolved', data.status_label || 'Resolved');
-					updateMessageActions(messageId, data.new_status || 'resolved', !!data.is_restricted);
+			const $button = $(this);
+			const messageId = parseInt($button.data('message-id'), 10) || 0;
+			const actionType = String(getMessagePrompt(messageId).attr('data-action-type') || '').trim();
 
-					if (!data.is_restricted) {
-						rows.$mainRow.find('.fanfic-restriction-badge').remove();
-						ensureAlreadyUnblockedNote(rows.$detailRow);
-					}
+			if (!actionType) {
+				return;
+			}
 
-					if ('delete' === actionType || 'ignore' === actionType || 'unblock' === actionType) {
-						fadeOutMessage(messageId);
-					}
-					return;
-				}
+			if ('unblock' === actionType && !window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.confirmUnblock) || 'Unblock this restricted item?')) {
+				return;
+			}
 
-				window.alert((response && response.data && response.data.message) || (strings.actionError || 'An error occurred. Please try again.'));
-				setBusyState(messageId, false);
-			}).fail(function() {
-				window.alert(strings.actionError || 'An error occurred. Please try again.');
-				setBusyState(messageId, false);
-			}).always(function() {
-				$button.blur();
-			});
+			submitMessageAction(messageId, actionType, $button);
+		});
+
+		$(document).on('click', '.fanfic-msg-cancel-action', function(e) {
+			e.preventDefault();
+			closeMessagePrompt(parseInt($(this).data('message-id'), 10) || 0);
 		});
 	}
 
@@ -691,24 +694,21 @@
 	 * Initialize moderation queue actions
 	 */
 	function initModerationActions() {
-		// Mark as Reviewed button (opens modal)
-		$(document).on('click', '.mark-reviewed-button', openReviewedModal);
-
-		// View Report button
-		$(document).on('click', '.view-report-button', viewReportDetails);
-
-		// Modal close handlers
+		$('.fanfic-report-detail-row').removeClass('is-open').hide();
+		$('.fanfic-report-toggle-block').attr('aria-expanded', 'false');
 		$(document).on('click', '.fanfic-admin-modal-close, .fanfic-admin-modal-cancel', closeModal);
 		$(document).on('click', '.fanfic-admin-modal-overlay', function(e) {
 			if (e.target === this) {
 				closeModal.call(this, e);
 			}
 		});
-
-		// Submit moderator notes
-		$(document).on('click', '.fanfic-admin-modal-submit', submitModeratorNotes);
-
-		// ESC key to close modal
+		$(document).on('click', '.fanfic-report-view-message', viewReportDetails);
+		$(document).on('click', '.fanfic-report-toggle-block', toggleReportBlockPanel);
+		$(document).on('click', '.fanfic-report-cancel-block', cancelReportBlockPanel);
+		$(document).on('click', '.fanfic-report-confirm-block', submitReportBlock);
+		$(document).on('click', '.fanfic-report-dismiss', dismissReport);
+		$(document).on('click', '.fanfic-report-delete', deleteReport);
+		$(document).on('click', '.fanfic-report-block-comment', blockCommentReport);
 		$(document).on('keydown', function(e) {
 			if (e.key === 'Escape' && $('.fanfic-admin-modal:visible').length) {
 				closeModal();
@@ -822,202 +822,133 @@
 		});
 	}
 
-	/**
-	 * Open modal for marking report as reviewed
-	 */
-	function openReviewedModal(e) {
-		e.preventDefault();
-
-		var $button = $(this);
-		var reportId = $button.data('report-id');
-		var nonce = $button.data('nonce');
-
-		// Create modal HTML
-		var modalHtml =
-			'<div class="fanfic-admin-modal" data-report-id="' + reportId + '" data-nonce="' + nonce + '">' +
-				'<div class="fanfic-admin-modal-overlay"></div>' +
-				'<div class="fanfic-admin-modal-content">' +
-					'<h2>Mark Report as Reviewed</h2>' +
-					'<p>Please describe what action you took to resolve this report:</p>' +
-					'<div class="fanfic-admin-modal-form">' +
-						'<label for="moderator-notes">Moderator Notes <span class="required">*</span></label>' +
-						'<textarea id="moderator-notes" rows="5" maxlength="500" placeholder="Describe the action taken (e.g., Content removed, Warning issued, No action needed, etc.)"></textarea>' +
-						'<p class="description">Maximum 500 characters. This will be stored in the moderation log.</p>' +
-						'<div class="fanfic-admin-modal-message"></div>' +
-					'</div>' +
-					'<div class="fanfic-admin-modal-actions">' +
-						'<button type="button" class="button fanfic-admin-modal-cancel">Cancel</button>' +
-						'<button type="button" class="button button-primary fanfic-admin-modal-submit">Submit</button>' +
-					'</div>' +
-				'</div>' +
-			'</div>';
-
-		// Append modal to body
-		$('body').append(modalHtml);
-
-		// Show modal with fade-in effect
-		$('.fanfic-admin-modal').fadeIn(200);
-		$('body').addClass('fanfic-admin-modal-open');
-
-		// Focus on textarea
-		$('#moderator-notes').focus();
+	function getModerationNonce() {
+		return (fanfictionAdmin && fanfictionAdmin.moderationNonce) || (fanfictionAdmin && fanfictionAdmin.nonce) || '';
 	}
 
-	/**
-	 * View report details modal
-	 */
+	function openAdminModal(contentHtml) {
+		var modalHtml = '<div class="fanfic-admin-modal" aria-hidden="false"><div class="fanfic-admin-modal-overlay"></div><div class="fanfic-admin-modal-content">' + contentHtml + '</div></div>';
+		$('body').append(modalHtml);
+		$('.fanfic-admin-modal').fadeIn(200);
+		$('body').addClass('fanfic-admin-modal-open');
+	}
+
+	function buildReportMessageHTML(report) {
+		var message = String(report.message || '').trim();
+		var messageLabel = String(report.message_label || 'Message');
+		var secondaryMessage = String(report.secondary_message || '').trim();
+		var secondaryRow = '';
+		if (secondaryMessage) {
+			secondaryRow = '<tr><th>Reporter message</th><td><div class="fanfic-report-message-copy">' + escapeHtml(secondaryMessage).replace(/\n/g, '<br>') + '</div></td></tr>';
+		}
+		return '<h2>' + escapeHtml((fanfictionAdmin.strings && fanfictionAdmin.strings.reportMessageTitle) || 'Report Message') + '</h2>' +
+			'<div class="fanfic-report-details"><table class="widefat"><tbody>' +
+			'<tr><th>Title</th><td>' + escapeHtml(report.title || '') + '</td></tr>' +
+			'<tr><th>Reported by</th><td>' + escapeHtml(report.reported_by || '') + '</td></tr>' +
+			'<tr><th>Reason</th><td>' + escapeHtml(report.reason || '') + '</td></tr>' +
+			'<tr><th>' + escapeHtml(messageLabel) + '</th><td>' + (message ? '<div class="fanfic-report-message-copy">' + escapeHtml(message).replace(/\n/g, '<br>') + '</div>' : '<span class="fanfic-report-message-empty">' + escapeHtml((fanfictionAdmin.strings && fanfictionAdmin.strings.reportMessageEmpty) || 'This report does not include a message.') + '</span>') + '</td></tr>' +
+			secondaryRow +
+			'</tbody></table></div><div class="fanfic-admin-modal-actions"><button type="button" class="button fanfic-admin-modal-close">Close</button></div>';
+	}
+
 	function viewReportDetails(e) {
 		e.preventDefault();
-
-		var $button = $(this);
-		var reportId = $button.data('report-id');
-		var nonce = $button.data('nonce');
-
-		// Show loading modal
-		var loadingModal =
-			'<div class="fanfic-admin-modal" data-report-id="' + reportId + '">' +
-				'<div class="fanfic-admin-modal-overlay"></div>' +
-				'<div class="fanfic-admin-modal-content">' +
-					'<h2>Report Details</h2>' +
-					'<div class="fanfic-admin-modal-loading">' +
-						'<p>Loading report details...</p>' +
-					'</div>' +
-				'</div>' +
-			'</div>';
-
-		$('body').append(loadingModal);
-		$('.fanfic-admin-modal').fadeIn(200);
-		$('body').addClass('fanfic-admin-modal-open');
-
-		// Fetch report details via AJAX
+		var reportId = parseInt($(this).data('report-id'), 10) || 0;
+		openAdminModal('<h2>' + escapeHtml((fanfictionAdmin.strings && fanfictionAdmin.strings.reportMessageTitle) || 'Report Message') + '</h2><div class="fanfic-admin-modal-loading"><p>' + escapeHtml((fanfictionAdmin.strings && fanfictionAdmin.strings.reportLoading) || 'Loading message...') + '</p></div>');
 		$.ajax({
-			url: fanfictionAdmin.ajaxUrl,
+			url: fanfictionAdmin.ajaxUrl || ajaxurl,
 			type: 'POST',
-			data: {
-				action: 'fanfic_get_report_details',
-				nonce: nonce,
-				report_id: reportId
-			},
-			success: function(response) {
-				if (response.success && response.data.report) {
-					var report = response.data.report;
-					var detailsHtml = buildReportDetailsHTML(report);
-					$('.fanfic-admin-modal-content').html(detailsHtml);
-				} else {
-					showModalError(response.data.message || 'Failed to load report details.');
-				}
-			},
-			error: function() {
-				showModalError('An error occurred while loading report details.');
+			data: { action: 'fanfic_get_report_details', nonce: getModerationNonce(), report_id: reportId }
+		}).done(function(response) {
+			if (response && response.success && response.data && response.data.report) {
+				$('.fanfic-admin-modal-content').html(buildReportMessageHTML(response.data.report));
+				return;
 			}
+			showModalError((response && response.data && response.data.message) || (fanfictionAdmin.strings && fanfictionAdmin.strings.actionError) || 'An error occurred. Please try again.');
+		}).fail(function() {
+			showModalError((fanfictionAdmin.strings && fanfictionAdmin.strings.actionError) || 'An error occurred. Please try again.');
 		});
 	}
 
-	/**
-	 * Build HTML for report details
-	 */
-	function buildReportDetailsHTML(report) {
-		var statusClass = 'status-' + report.status;
-		var moderatorInfo = '';
-
-		if (report.moderator_name) {
-			moderatorInfo = '<tr><th>Reviewed By:</th><td>' + escapeHtml(report.moderator_name) + '</td></tr>';
-		}
-
-		var moderatorNotes = '';
-		if (report.moderator_notes) {
-			moderatorNotes = '<tr><th>Moderator Notes:</th><td>' + escapeHtml(report.moderator_notes) + '</td></tr>';
-		}
-
-		var reportDetails = '';
-		if (report.details) {
-			reportDetails = '<tr><th>Details:</th><td>' + escapeHtml(report.details) + '</td></tr>';
-		}
-
-		var postLink = report.post_link ? '<a href="' + escapeHtml(report.post_link) + '" target="_blank">' + escapeHtml(report.post_title) + '</a>' : escapeHtml(report.post_title);
-
-		return '<h2>Report Details #' + report.id + '</h2>' +
-			'<div class="fanfic-report-details">' +
-				'<table class="widefat">' +
-					'<tbody>' +
-						'<tr><th>Reported Content:</th><td>' + postLink + '</td></tr>' +
-						'<tr><th>Content Type:</th><td>' + escapeHtml(report.post_type) + '</td></tr>' +
-						'<tr><th>Reported By:</th><td>' + escapeHtml(report.reporter_name) + '</td></tr>' +
-						'<tr><th>Reason:</th><td>' + escapeHtml(report.reason) + '</td></tr>' +
-						reportDetails +
-						'<tr><th>Status:</th><td><span class="status-badge ' + statusClass + '">' + escapeHtml(report.status) + '</span></td></tr>' +
-						'<tr><th>Reported On:</th><td>' + escapeHtml(report.created_at) + '</td></tr>' +
-						'<tr><th>Last Updated:</th><td>' + escapeHtml(report.updated_at) + '</td></tr>' +
-						moderatorInfo +
-						moderatorNotes +
-					'</tbody>' +
-				'</table>' +
-			'</div>' +
-			'<div class="fanfic-admin-modal-actions">' +
-				'<button type="button" class="button fanfic-admin-modal-close">Close</button>' +
-			'</div>';
-	}
-
-	/**
-	 * Submit moderator notes via AJAX
-	 */
-	function submitModeratorNotes(e) {
+	function toggleReportBlockPanel(e) {
 		e.preventDefault();
-
-		var $modal = $('.fanfic-admin-modal:visible');
-		var $submitBtn = $(this);
-		var $textarea = $('#moderator-notes');
-		var $message = $('.fanfic-admin-modal-message');
-		var notes = $textarea.val().trim();
-		var reportId = $modal.data('report-id');
-		var nonce = $modal.data('nonce');
-
-		// Validate notes
-		if (!notes) {
-			$message.html('<p class="error">Please provide moderator notes describing the action taken.</p>');
-			$textarea.focus();
+		var reportId = parseInt($(this).data('report-id'), 10) || 0;
+		var $button = $(this);
+		var $row = $('#fanfic-report-panel-row-' + reportId);
+		var expanded = $row.hasClass('is-open');
+		if (!$row.length) {
 			return;
 		}
-
-		if (notes.length > 500) {
-			$message.html('<p class="error">Moderator notes must be 500 characters or less.</p>');
-			$textarea.focus();
-			return;
+		$('.fanfic-report-detail-row').removeClass('is-open').hide();
+		$('.fanfic-report-toggle-block').attr('aria-expanded', 'false');
+		if (!expanded) {
+			$row.addClass('is-open').css('display', 'table-row');
 		}
+		$button.attr('aria-expanded', expanded ? 'false' : 'true');
+	}
 
-		// Disable submit button and show loading state
-		$submitBtn.prop('disabled', true).text('Submitting...');
-		$message.html('<p class="info">Submitting...</p>');
+	function cancelReportBlockPanel(e) {
+		e.preventDefault();
+		var reportId = parseInt($(this).data('report-id'), 10) || 0;
+		$('#fanfic-report-panel-row-' + reportId).removeClass('is-open').hide();
+		$('.fanfic-report-toggle-block[data-report-id="' + reportId + '"]').attr('aria-expanded', 'false');
+	}
 
-		// Submit via AJAX
-		$.ajax({
-			url: fanfictionAdmin.ajaxUrl,
-			type: 'POST',
-			data: {
-				action: 'fanfic_mark_reviewed',
-				nonce: nonce,
-				report_id: reportId,
-				notes: notes
-			},
-			success: function(response) {
-				if (response.success) {
-					$message.html('<p class="success">' + (response.data.message || 'Report marked as reviewed successfully.') + '</p>');
-
-					// Close modal and reload page after 1 second
-					setTimeout(function() {
-						closeModal();
-						location.reload();
-					}, 1000);
-				} else {
-					$message.html('<p class="error">' + (response.data.message || 'Failed to update report.') + '</p>');
-					$submitBtn.prop('disabled', false).text('Submit');
-				}
-			},
-			error: function() {
-				$message.html('<p class="error">An error occurred. Please try again.</p>');
-				$submitBtn.prop('disabled', false).text('Submit');
+	function submitReportAction(actionName, reportId, extraData, $busyTarget) {
+		var payload = $.extend({ action: actionName, nonce: getModerationNonce(), report_id: reportId }, extraData || {});
+		if ($busyTarget && $busyTarget.length) {
+			$busyTarget.prop('disabled', true);
+		}
+		$.ajax({ url: fanfictionAdmin.ajaxUrl || ajaxurl, type: 'POST', data: payload }).done(function(response) {
+			if (response && response.success) {
+				window.location.reload();
+				return;
+			}
+			window.alert((response && response.data && response.data.message) || ((fanfictionAdmin.strings && fanfictionAdmin.strings.actionError) || 'An error occurred. Please try again.'));
+			if ($busyTarget && $busyTarget.length) {
+				$busyTarget.prop('disabled', false);
+			}
+		}).fail(function() {
+			window.alert((fanfictionAdmin.strings && fanfictionAdmin.strings.actionError) || 'An error occurred. Please try again.');
+			if ($busyTarget && $busyTarget.length) {
+				$busyTarget.prop('disabled', false);
 			}
 		});
+	}
+
+	function submitReportBlock(e) {
+		e.preventDefault();
+		var reportId = parseInt($(this).data('report-id'), 10) || 0;
+		var $panel = $('.fanfic-report-block-panel[data-report-id="' + reportId + '"]');
+		submitReportAction('fanfic_block_report', reportId, {
+			block_reason: $panel.find('.fanfic-report-block-reason').val() || '',
+			internal_note: $panel.find('.fanfic-report-internal-note').val() || '',
+			author_message: $panel.find('.fanfic-report-author-message').val() || ''
+		}, $(this));
+	}
+
+	function dismissReport(e) {
+		e.preventDefault();
+		if (!window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.reportDismissConfirm) || 'Dismiss this report?')) {
+			return;
+		}
+		submitReportAction('fanfic_dismiss_report', parseInt($(this).data('report-id'), 10) || 0, {}, $(this));
+	}
+
+	function deleteReport(e) {
+		e.preventDefault();
+		if (!window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.reportDeleteConfirm) || 'Delete this report?')) {
+			return;
+		}
+		submitReportAction('fanfic_delete_report', parseInt($(this).data('report-id'), 10) || 0, {}, $(this));
+	}
+
+	function blockCommentReport(e) {
+		e.preventDefault();
+		if (!window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.reportCommentBlockConfirm) || 'Block this reported comment?')) {
+			return;
+		}
+		submitReportAction('fanfic_block_report', parseInt($(this).data('report-id'), 10) || 0, {}, $(this));
 	}
 
 	/**

@@ -726,7 +726,7 @@ class Fanfic_Shortcodes_Search {
 					</div>
 				<?php else : ?>
 					<div class="fanfic-no-results">
-						<p><?php esc_html_e( 'No terms found with published stories.', 'fanfiction-manager' ); ?></p>
+						<p><?php esc_html_e( 'No terms found with visible stories.', 'fanfiction-manager' ); ?></p>
 					</div>
 				<?php endif; ?>
 			</div>
@@ -772,14 +772,14 @@ class Fanfic_Shortcodes_Search {
 			);
 			$page_description = sprintf(
 				/* translators: %s: Taxonomy label */
-				esc_html__( 'Browse all %s that have published stories.', 'fanfiction-manager' ),
+				esc_html__( 'Browse all %s that have visible stories.', 'fanfiction-manager' ),
 				strtolower( esc_html( $taxonomy_config['label'] ) )
 			);
 		} else {
 			$page_title = esc_html__( 'Browse Stories', 'fanfiction-manager' );
 			$page_description = $has_filters
 				? esc_html__( 'Browse stories matching your selected filters.', 'fanfiction-manager' )
-				: esc_html__( 'Browse all published fanfiction stories.', 'fanfiction-manager' );
+				: esc_html__( 'Browse all visible fanfiction stories.', 'fanfiction-manager' );
 		}
 
 		$genres = get_terms( array(

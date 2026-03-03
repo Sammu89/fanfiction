@@ -82,7 +82,7 @@ class Fanfic_Auto_Draft_Warning {
 
 		// Check if chapter is published
 		if ( 'publish' !== $chapter->post_status ) {
-			wp_send_json_error( array( 'message' => __( 'Only published chapters can be hideed.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Only visible chapters can be hidden.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if story will auto-draft BEFORE hideing
@@ -120,7 +120,7 @@ class Fanfic_Auto_Draft_Warning {
 
 		// Check if user is logged in
 		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'You must be logged in to publish chapters.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'You must be logged in to make chapters visible.', 'fanfiction-manager' ) ) );
 		}
 
 		$chapter_id = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
@@ -144,7 +144,7 @@ class Fanfic_Auto_Draft_Warning {
 
 		// Check permissions
 		if ( ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'You do not have permission to publish this chapter.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to make this chapter visible.', 'fanfiction-manager' ) ) );
 		}
 
 		if ( fanfic_is_chapter_blocked( $chapter_id ) ) {
@@ -153,7 +153,7 @@ class Fanfic_Auto_Draft_Warning {
 
 		// Check if chapter is draft
 		if ( 'draft' !== $chapter->post_status ) {
-			wp_send_json_error( array( 'message' => __( 'Only draft chapters can be published.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Only hidden chapters can be made visible.', 'fanfiction-manager' ) ) );
 		}
 
 		// Validate chapter using validation helper
@@ -161,7 +161,7 @@ class Fanfic_Auto_Draft_Warning {
 
 		if ( ! $validation_result['can_publish'] ) {
 			wp_send_json_error( array(
-				'message'         => __( 'Cannot publish chapter. Missing required fields:', 'fanfiction-manager' ),
+				'message'         => __( 'Cannot make chapter visible. Missing required fields:', 'fanfiction-manager' ),
 				'missing_fields'  => $validation_result['missing_fields'], // Array of field => message pairs
 				'errors'          => array_values( $validation_result['missing_fields'] ), // Just the messages
 			) );
@@ -174,14 +174,14 @@ class Fanfic_Auto_Draft_Warning {
 		) );
 
 		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => __( 'Failed to publish chapter.', 'fanfiction-manager' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Failed to make chapter visible.', 'fanfiction-manager' ) ) );
 		}
 
 		// Check if story just became publishable
 		$story_became_publishable = Fanfic_Validation::did_story_become_publishable( $story->ID );
 
 		wp_send_json_success( array(
-			'message'                  => __( 'Chapter published successfully!', 'fanfiction-manager' ),
+			'message'                  => __( 'Chapter is now visible!', 'fanfiction-manager' ),
 			'chapter_url'              => get_permalink( $chapter_id ),
 			'chapter_id'               => $chapter_id,
 			'story_became_publishable' => $story_became_publishable,

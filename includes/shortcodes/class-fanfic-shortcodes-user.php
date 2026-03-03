@@ -517,7 +517,7 @@ class Fanfic_Shortcodes_User {
 			$story_url = get_permalink( $story_id );
 			$edit_url = fanfic_get_edit_story_url( $story_id );
 			$status = get_post_status( $story_id );
-			$status_label = ( 'publish' === $status ) ? __( 'Published', 'fanfiction-manager' ) : __( 'Draft', 'fanfiction-manager' );
+			$status_label = ( 'publish' === $status ) ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
 
 			// Get chapter count
 			$chapters = get_posts( array(

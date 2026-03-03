@@ -713,8 +713,8 @@ class Fanfic_Stories_Table extends WP_List_Table {
 
 		?>
 		<select name="publication_filter" id="publication-filter">
-			<option value="published_only" <?php selected( $current_filter, 'published_only' ); ?>><?php esc_html_e( 'Published Only', 'fanfiction-manager' ); ?></option>
-			<option value="include_drafts" <?php selected( $current_filter, 'include_drafts' ); ?>><?php esc_html_e( 'All (Published & Drafts)', 'fanfiction-manager' ); ?></option>
+			<option value="published_only" <?php selected( $current_filter, 'published_only' ); ?>><?php esc_html_e( 'Visible Only', 'fanfiction-manager' ); ?></option>
+			<option value="include_drafts" <?php selected( $current_filter, 'include_drafts' ); ?>><?php esc_html_e( 'All (Visible & Hidden)', 'fanfiction-manager' ); ?></option>
 		</select>
 		<?php
 	}

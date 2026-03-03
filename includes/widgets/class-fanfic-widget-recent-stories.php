@@ -34,7 +34,7 @@ class Fanfic_Widget_Recent_Stories extends WP_Widget {
 			'fanfic_widget_recent_stories',
 			__( 'Recent Fanfiction Stories', 'fanfiction-manager' ),
 			array(
-				'description' => __( 'Display recently published fanfiction stories', 'fanfiction-manager' ),
+				'description' => __( 'Display recent visible fanfiction stories', 'fanfiction-manager' ),
 				'classname'   => 'fanfic-widget fanfic-widget--recent',
 			)
 		);

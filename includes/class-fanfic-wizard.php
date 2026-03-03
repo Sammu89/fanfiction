@@ -1754,7 +1754,7 @@ class Fanfic_Wizard {
 			error_log( '[Fanfic Wizard Complete] Gate 3: Verifying all pages exist' );
 			if ( ! $this->all_pages_exist() ) {
 				$gates_passed = false;
-				$gate_errors[] = __( 'Some required pages are missing or not published', 'fanfiction-manager' );
+				$gate_errors[] = __( 'Some required pages are missing or not visible', 'fanfiction-manager' );
 				error_log( '[Fanfic Wizard Complete] Gate 3: FAILED (missing pages)' );
 
 				// Log detailed page status

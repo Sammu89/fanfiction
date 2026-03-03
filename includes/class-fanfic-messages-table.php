@@ -68,13 +68,12 @@ class Fanfic_Messages_Table extends WP_List_Table {
 	 */
 	public function get_columns() {
 		return array(
-			'expand'          => '',
-			'author'          => __( 'Author', 'fanfiction-manager' ),
-			'target'          => __( 'Blocked Item', 'fanfiction-manager' ),
-			'message_preview' => __( 'Message', 'fanfiction-manager' ),
-			'date'            => __( 'Date', 'fanfiction-manager' ),
-			'status'          => __( 'Status', 'fanfiction-manager' ),
-			'actions'         => __( 'Actions', 'fanfiction-manager' ),
+			'date'             => __( 'Date', 'fanfiction-manager' ),
+			'title'            => __( 'Title', 'fanfiction-manager' ),
+			'author'           => __( 'Author', 'fanfiction-manager' ),
+			'view_message'     => __( 'View message', 'fanfiction-manager' ),
+			'review_submitted' => __( 'Review submitted', 'fanfiction-manager' ),
+			'actions'          => __( 'Actions', 'fanfiction-manager' ),
 		);
 	}
 
@@ -86,9 +85,12 @@ class Fanfic_Messages_Table extends WP_List_Table {
 	 */
 	protected function get_sortable_columns() {
 		return array(
-			'date'   => array( 'created_at', true ),
-			'status' => array( 'status', false ),
+			'date' => array( 'created_at', true ),
 		);
+	}
+
+	protected function get_default_primary_column_name() {
+		return 'title';
 	}
 
 	/**
@@ -181,10 +183,9 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		}
 
 		$existing_note = isset( $item['moderator_note'] ) ? $item['moderator_note'] : '';
-		$can_take_actions = ! in_array( $status, array( 'resolved', 'deleted' ), true );
-		$restriction_context = function_exists( 'fanfic_get_restriction_context' ) ? fanfic_get_restriction_context( $target_type, $target_id ) : array();
+		$existing_reply = isset( $item['author_reply'] ) ? $item['author_reply'] : '';
+		$fields_readonly = 'unread' !== $status;
 		$admin_restriction_summary = function_exists( 'fanfic_get_admin_restriction_summary' ) ? fanfic_get_admin_restriction_summary( $target_type, $target_id ) : '';
-		$has_snapshot = $this->target_has_block_snapshot( $target_type, $target_id );
 
 		// Hidden detail row.
 		?>
@@ -192,12 +193,14 @@ class Fanfic_Messages_Table extends WP_List_Table {
 			id="fanfic-msg-detail-<?php echo esc_attr( $message_id ); ?>"
 			data-message-id="<?php echo esc_attr( $message_id ); ?>"
 			style="display:none;">
-			<td colspan="7">
+			<td colspan="<?php echo esc_attr( count( $this->get_columns() ) ); ?>">
 				<div class="fanfic-message-detail-inner">
 
-					<blockquote class="fanfic-message-full-text">
-						<?php echo esc_html( isset( $item['message'] ) ? $item['message'] : '' ); ?>
-					</blockquote>
+					<?php if ( '' !== trim( (string) ( isset( $item['message'] ) ? $item['message'] : '' ) ) ) : ?>
+						<blockquote class="fanfic-message-full-text">
+							<?php echo esc_html( isset( $item['message'] ) ? $item['message'] : '' ); ?>
+						</blockquote>
+					<?php endif; ?>
 
 					<?php if ( ! empty( $admin_restriction_summary ) ) : ?>
 						<p class="description fanfic-msg-restriction-reason">
@@ -211,50 +214,45 @@ class Fanfic_Messages_Table extends WP_List_Table {
 						</p>
 					<?php endif; ?>
 
-					<p>
-						<label for="fanfic-msg-note-<?php echo esc_attr( $message_id ); ?>">
-							<?php esc_html_e( 'Moderator Note:', 'fanfiction-manager' ); ?>
-						</label>
-					</p>
-					<textarea
-						id="fanfic-msg-note-<?php echo esc_attr( $message_id ); ?>"
-						name="moderator_note"
-						class="fanfic-msg-note-input"
-						data-message-id="<?php echo esc_attr( $message_id ); ?>"
-						rows="3"
-						style="width:100%;"
-					><?php echo esc_textarea( $existing_note ); ?></textarea>
+					<div class="fanfic-message-action-prompt<?php echo $fields_readonly ? ' is-readonly' : ''; ?>" data-message-id="<?php echo esc_attr( $message_id ); ?>" style="display:none;">
+						<p class="fanfic-message-action-prompt-title"></p>
+						<div class="fanfic-message-detail-notes-grid<?php echo $fields_readonly ? ' is-readonly' : ''; ?>">
+							<div class="fanfic-message-detail-note-field">
+								<p>
+									<label for="fanfic-msg-internal-note-<?php echo esc_attr( $message_id ); ?>">
+										<?php esc_html_e( 'Internal Note:', 'fanfiction-manager' ); ?>
+									</label>
+								</p>
+								<textarea
+									id="fanfic-msg-internal-note-<?php echo esc_attr( $message_id ); ?>"
+									name="internal_note"
+									class="fanfic-msg-internal-note-input"
+									data-message-id="<?php echo esc_attr( $message_id ); ?>"
+									rows="3"
+									<?php echo $fields_readonly ? ' readonly aria-readonly="true"' : ''; ?>
+								><?php echo esc_textarea( $existing_note ); ?></textarea>
+							</div>
 
-					<div class="fanfic-message-detail-actions" style="margin-top:8px;">
-						<?php if ( $has_snapshot ) : ?>
-							<button type="button"
-								class="button fanfic-msg-compare-changes"
-								data-message-id="<?php echo esc_attr( $message_id ); ?>"
-							><?php esc_html_e( 'Compare Changes', 'fanfiction-manager' ); ?></button>
-						<?php endif; ?>
-
-						<?php if ( $is_restricted && $can_take_actions ) : ?>
-							<button type="button"
-								class="button button-primary fanfic-msg-action-unblock"
-								data-message-id="<?php echo esc_attr( $message_id ); ?>"
-								data-target-type="<?php echo esc_attr( $target_type ); ?>"
-								data-target-id="<?php echo esc_attr( $target_id ); ?>"
-							><?php esc_html_e( 'Unblock', 'fanfiction-manager' ); ?></button>
-						<?php endif; ?>
-
-						<?php if ( 'ignored' !== $status && $can_take_actions ) : ?>
-							<button type="button"
-								class="button fanfic-msg-action-ignore"
-								data-message-id="<?php echo esc_attr( $message_id ); ?>"
-							><?php esc_html_e( 'Ignore', 'fanfiction-manager' ); ?></button>
-						<?php endif; ?>
-
-						<?php if ( 'deleted' !== $status ) : ?>
-							<button type="button"
-								class="button fanfic-msg-action-delete"
-								data-message-id="<?php echo esc_attr( $message_id ); ?>"
-							><?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?></button>
-						<?php endif; ?>
+							<div class="fanfic-message-detail-note-field">
+								<p>
+									<label for="fanfic-msg-author-reply-<?php echo esc_attr( $message_id ); ?>">
+										<?php esc_html_e( 'Reply to Author:', 'fanfiction-manager' ); ?>
+									</label>
+								</p>
+								<textarea
+									id="fanfic-msg-author-reply-<?php echo esc_attr( $message_id ); ?>"
+									name="author_reply"
+									class="fanfic-msg-author-reply-input"
+									data-message-id="<?php echo esc_attr( $message_id ); ?>"
+									rows="3"
+									<?php echo $fields_readonly ? ' readonly aria-readonly="true"' : ''; ?>
+								><?php echo esc_textarea( $existing_reply ); ?></textarea>
+							</div>
+						</div>
+						<div class="fanfic-report-action-buttons fanfic-msg-prompt-actions">
+							<button type="button" class="button button-primary fanfic-msg-confirm-action" data-message-id="<?php echo esc_attr( $message_id ); ?>"></button>
+							<button type="button" class="button fanfic-msg-cancel-action" data-message-id="<?php echo esc_attr( $message_id ); ?>"><?php esc_html_e( 'Cancel', 'fanfiction-manager' ); ?></button>
+						</div>
 					</div>
 
 					<div class="fanfic-block-comparison-container" data-message-id="<?php echo esc_attr( $message_id ); ?>"></div>
@@ -263,24 +261,6 @@ class Fanfic_Messages_Table extends WP_List_Table {
 			</td>
 		</tr>
 		<?php
-	}
-
-	/**
-	 * Renders the expand toggle column.
-	 *
-	 * Outputs a button that JavaScript uses to show/hide the detail row.
-	 *
-	 * @since 2.3.0
-	 *
-	 * @param array $item Message row.
-	 * @return string Column HTML.
-	 */
-	protected function column_expand( $item ) {
-		return sprintf(
-			'<button type="button" class="fanfic-expand-message button-link" data-row-id="%s" aria-expanded="false"><span class="dashicons dashicons-arrow-right-alt2 fanfic-expand-message-icon" aria-hidden="true"></span><span class="fanfic-expand-message-label">%s</span></button>',
-			esc_attr( $item['id'] ),
-			esc_html__( 'Expand', 'fanfiction-manager' )
-		);
 	}
 
 	/**
@@ -313,100 +293,95 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		);
 	}
 
-	/**
-	 * Renders the target column.
-	 *
-	 * Shows the blocked item type and title (or user name) with a link to the
-	 * relevant edit screen, plus a restriction-status badge.
-	 *
-	 * @since 2.3.0
-	 *
-	 * @param array $item Message row.
-	 * @return string Column HTML.
-	 */
-	protected function column_target( $item ) {
+	private function get_message_target_context( $item ) {
 		$target_type = isset( $item['target_type'] ) ? $item['target_type'] : '';
 		$target_id   = absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 );
-		$output      = '';
+		$context     = array(
+			'prefix'        => '',
+			'title'         => __( '(Deleted)', 'fanfiction-manager' ),
+			'url'           => '',
+			'edit_url'      => '',
+			'is_restricted' => false,
+			'badge_label'   => '',
+			'badge_class'   => '',
+		);
 
 		if ( 'story' === $target_type || 'chapter' === $target_type ) {
-			$post = get_post( $target_id );
-
-			if ( 'story' === $target_type ) {
-				$type_label = __( 'Story', 'fanfiction-manager' );
-			} else {
-				$type_label = __( 'Chapter', 'fanfiction-manager' );
-			}
-
-			if ( $post ) {
-				$edit_url = get_edit_post_link( $target_id );
-				$output  .= '<strong>' . esc_html( $type_label ) . ':</strong> ';
-				$output  .= sprintf(
-					'<a href="%s" target="_blank">%s</a>',
-					esc_url( $edit_url ),
-					esc_html( $post->post_title ? $post->post_title : __( '(No Title)', 'fanfiction-manager' ) )
-				);
-			} else {
-				$output .= '<strong>' . esc_html( $type_label ) . ':</strong> ';
-				$output .= '<em>' . esc_html__( '(Deleted)', 'fanfiction-manager' ) . '</em>';
-			}
-
-			// Restriction status badge.
-			$is_blocked = ( 'story' === $target_type )
+			$post                    = get_post( $target_id );
+			$context['prefix']       = 'story' === $target_type ? __( 'Story:', 'fanfiction-manager' ) : __( 'Chapter:', 'fanfiction-manager' );
+			$context['title']        = $post && '' !== $post->post_title ? $post->post_title : __( '(No Title)', 'fanfiction-manager' );
+			$context['url']          = $post ? get_permalink( $target_id ) : '';
+			$context['edit_url']     = $post ? get_edit_post_link( $target_id ) : '';
+			$context['is_restricted'] = ( 'story' === $target_type )
 				? fanfic_is_story_blocked( $target_id )
 				: fanfic_is_chapter_blocked( $target_id );
+			$context['badge_label'] = __( 'Blocked', 'fanfiction-manager' );
+			$context['badge_class'] = 'fanfic-badge-blocked';
 
-			if ( $is_blocked ) {
-				$output .= ' <span class="fanfic-restriction-badge fanfic-badge-blocked">' .
-					esc_html__( 'Blocked', 'fanfiction-manager' ) .
-					'</span>';
-			}
-		} elseif ( 'user' === $target_type ) {
+			return $context;
+		}
+
+		if ( 'user' === $target_type ) {
 			$user = get_userdata( $target_id );
 
-			$output .= '<strong>' . esc_html__( 'User:', 'fanfiction-manager' ) . '</strong> ';
+			$context['prefix']    = __( 'User:', 'fanfiction-manager' );
+			$context['title']     = $user ? $user->display_name : __( '(Deleted User)', 'fanfiction-manager' );
+			$context['edit_url']  = $user ? add_query_arg(
+				array( 'user_id' => $target_id ),
+				admin_url( 'user-edit.php' )
+			) : '';
+			$context['is_restricted'] = ( '1' === get_user_meta( $target_id, 'fanfic_banned', true ) );
+			$context['badge_label']   = __( 'Suspended', 'fanfiction-manager' );
+			$context['badge_class']   = 'fanfic-badge-suspended';
 
-			if ( $user ) {
-				$edit_url = add_query_arg(
-					array( 'user_id' => $target_id ),
-					admin_url( 'user-edit.php' )
-				);
-				$output  .= sprintf(
-					'<a href="%s">%s</a>',
-					esc_url( $edit_url ),
-					esc_html( $user->display_name )
-				);
-			} else {
-				$output .= '<em>' . esc_html__( '(Deleted User)', 'fanfiction-manager' ) . '</em>';
-			}
+			return $context;
+		}
 
-			// Suspension status badge.
-			$is_banned = ( '1' === get_user_meta( $target_id, 'fanfic_banned', true ) );
-			if ( $is_banned ) {
-				$output .= ' <span class="fanfic-restriction-badge fanfic-badge-suspended">' .
-					esc_html__( 'Suspended', 'fanfiction-manager' ) .
-					'</span>';
-			}
+		$context['prefix'] = ucfirst( $target_type ) . ':';
+		$context['title']  = '#' . $target_id;
+
+		return $context;
+	}
+
+	protected function column_title( $item ) {
+		$context = $this->get_message_target_context( $item );
+		$link    = $context['url'] ? $context['url'] : $context['edit_url'];
+		$output  = '<strong>' . esc_html( $context['prefix'] ) . '</strong> ';
+
+		if ( $link ) {
+			$output .= sprintf(
+				'<a href="%1$s" target="_blank" rel="noopener noreferrer"><strong>%2$s</strong></a>',
+				esc_url( $link ),
+				esc_html( $context['title'] )
+			);
 		} else {
-			$output = esc_html( $target_type ) . ' #' . esc_html( (string) $target_id );
+			$output .= '<strong>' . esc_html( $context['title'] ) . '</strong>';
+		}
+
+		if ( ! empty( $context['is_restricted'] ) && ! empty( $context['badge_label'] ) ) {
+			$output .= ' <span class="fanfic-restriction-badge ' . esc_attr( $context['badge_class'] ) . '">' . esc_html( $context['badge_label'] ) . '</span>';
 		}
 
 		return $output;
 	}
 
-	/**
-	 * Renders the message preview column.
-	 *
-	 * Displays a trimmed excerpt of the message body (15 words).
-	 *
-	 * @since 2.3.0
-	 *
-	 * @param array $item Message row.
-	 * @return string Column HTML.
-	 */
-	protected function column_message_preview( $item ) {
-		$full_message = isset( $item['message'] ) ? $item['message'] : '';
-		return esc_html( wp_trim_words( $full_message, 15 ) );
+	protected function column_view_message( $item ) {
+		$message_id  = absint( $item['id'] );
+		$has_message = '' !== trim( (string) ( isset( $item['message'] ) ? $item['message'] : '' ) );
+
+		return sprintf(
+			'<button type="button" class="button button-small fanfic-msg-view-message" data-message-id="%1$d" aria-expanded="false" %2$s>%3$s</button>',
+			$message_id,
+			$has_message ? '' : 'disabled aria-disabled="true"',
+			esc_html__( 'View message', 'fanfiction-manager' )
+		);
+	}
+
+	protected function column_review_submitted( $item ) {
+		return $this->target_has_block_snapshot(
+			isset( $item['target_type'] ) ? $item['target_type'] : '',
+			absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 )
+		) ? esc_html__( 'Yes', 'fanfiction-manager' ) : esc_html__( 'No', 'fanfiction-manager' );
 	}
 
 	/**
@@ -426,35 +401,6 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		}
 
 		return esc_html( wp_date( get_option( 'date_format' ), strtotime( $created_at ) ) );
-	}
-
-	/**
-	 * Renders the status column.
-	 *
-	 * Outputs a styled badge span reflecting the message's current status.
-	 *
-	 * @since 2.3.0
-	 *
-	 * @param array $item Message row.
-	 * @return string Column HTML.
-	 */
-	protected function column_status( $item ) {
-		$status = isset( $item['status'] ) ? $item['status'] : '';
-
-		$status_labels = array(
-			'unread'   => __( 'Unread', 'fanfiction-manager' ),
-			'ignored'  => __( 'Ignored', 'fanfiction-manager' ),
-			'resolved' => __( 'Resolved', 'fanfiction-manager' ),
-			'deleted'  => __( 'Deleted', 'fanfiction-manager' ),
-		);
-
-		$label = isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : ucfirst( $status );
-
-		return sprintf(
-			'<span class="fanfic-msg-status-badge status-%s">%s</span>',
-			esc_attr( $status ),
-			esc_html( $label )
-		);
 	}
 
 	/**
@@ -480,9 +426,9 @@ class Fanfic_Messages_Table extends WP_List_Table {
 
 		if ( $has_snapshot ) {
 			$actions[] = sprintf(
-				'<a href="#" class="fanfic-msg-compare-changes" data-message-id="%d">%s</a>',
+				'<button type="button" class="button fanfic-msg-review-changes" data-message-id="%d">%s</button>',
 				$message_id,
-				esc_html__( 'Compare Changes', 'fanfiction-manager' )
+				esc_html__( 'Review modifications', 'fanfiction-manager' )
 			);
 		}
 
@@ -496,7 +442,7 @@ class Fanfic_Messages_Table extends WP_List_Table {
 
 		if ( $is_restricted && ! in_array( $status, array( 'resolved', 'deleted' ), true ) ) {
 			$actions[] = sprintf(
-				'<a href="#" class="fanfic-msg-action-unblock" data-message-id="%d" data-target-type="%s" data-target-id="%d">%s</a>',
+				'<button type="button" class="button button-primary fanfic-msg-action-unblock" data-message-id="%d" data-target-type="%s" data-target-id="%d">%s</button>',
 				$message_id,
 				esc_attr( $target_type ),
 				$target_id,
@@ -506,7 +452,7 @@ class Fanfic_Messages_Table extends WP_List_Table {
 
 		if ( ! in_array( $status, array( 'ignored', 'resolved', 'deleted' ), true ) ) {
 			$actions[] = sprintf(
-				'<a href="#" class="fanfic-msg-action-ignore" data-message-id="%d">%s</a>',
+				'<button type="button" class="button fanfic-msg-action-ignore" data-message-id="%d">%s</button>',
 				$message_id,
 				esc_html__( 'Ignore', 'fanfiction-manager' )
 			);
@@ -514,13 +460,17 @@ class Fanfic_Messages_Table extends WP_List_Table {
 
 		if ( 'deleted' !== $status ) {
 			$actions[] = sprintf(
-				'<a href="#" class="fanfic-msg-action-delete submitdelete" data-message-id="%d">%s</a>',
+				'<button type="button" class="button button-link-delete fanfic-msg-action-delete" data-message-id="%d">%s</button>',
 				$message_id,
 				esc_html__( 'Delete', 'fanfiction-manager' )
 			);
 		}
 
-		return '<div class="fanfic-msg-actions-inline">' . implode( ' | ', $actions ) . '</div>';
+		if ( empty( $actions ) ) {
+			return '—';
+		}
+
+		return '<div class="fanfic-report-action-stack"><div class="fanfic-report-action-buttons fanfic-msg-action-buttons">' . implode( '', $actions ) . '</div></div>';
 	}
 
 	/**
