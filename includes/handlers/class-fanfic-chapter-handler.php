@@ -753,6 +753,9 @@ class Fanfic_Chapter_Handler {
 
 		if ( $is_blocked_edit && function_exists( 'fanfic_refresh_re_review_message' ) ) {
 			fanfic_refresh_re_review_message( $story_id );
+			if ( function_exists( 'fanfic_refresh_block_diff_revision_pair' ) ) {
+				fanfic_refresh_block_diff_revision_pair( $chapter_id );
+			}
 		}
 
 		if ( $is_ajax ) {

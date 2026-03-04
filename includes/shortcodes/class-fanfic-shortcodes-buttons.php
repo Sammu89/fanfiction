@@ -1029,6 +1029,7 @@ class Fanfic_Shortcodes_Buttons {
 		$content_id  = absint( $content_id );
 		$report_type = sanitize_key( (string) $report_type );
 		$extra_class = trim( (string) $extra_class );
+		$is_blacklisted = false;
 
 		if ( ! $content_id || '' === $report_type ) {
 			return '';
@@ -1041,6 +1042,20 @@ class Fanfic_Shortcodes_Buttons {
 
 		if ( '' === $aria_label ) {
 			$aria_label = __( 'Report this content', 'fanfiction-manager' );
+		}
+
+		if ( is_user_logged_in() ) {
+			$is_blacklisted = Fanfic_Blacklist::is_reporter_blacklisted( get_current_user_id() );
+		} else {
+			$reporter_ip = class_exists( 'Fanfic_Rate_Limit' ) ? Fanfic_Rate_Limit::get_ip_address() : '';
+			if ( '' !== $reporter_ip ) {
+				$is_blacklisted = Fanfic_Blacklist::is_reporter_blacklisted_by_ip( $reporter_ip );
+			}
+		}
+
+		if ( $is_blacklisted ) {
+			$classes[]   = 'fanfic-report-button-disabled';
+			$aria_label  = __( 'Reporting is unavailable', 'fanfiction-manager' );
 		}
 
 		$report_revision = fanfic_get_report_revision_token( $content_id, $report_type );
@@ -1067,7 +1082,11 @@ class Fanfic_Shortcodes_Buttons {
 		$output .= 'data-report-type="' . esc_attr( $report_type ) . '" ';
 		$output .= 'data-report-revision="' . esc_attr( $report_revision ) . '" ';
 		$output .= 'data-report-content-label="' . esc_attr( $content_label ) . '" ';
-		$output .= 'aria-label="' . esc_attr( $aria_label ) . '">';
+		$output .= 'aria-label="' . esc_attr( $aria_label ) . '"';
+		if ( $is_blacklisted ) {
+			$output .= ' disabled aria-disabled="true"';
+		}
+		$output .= '>';
 		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
 		$output .= '<span class="fanfic-button-text">' . esc_html__( 'Report', 'fanfiction-manager' ) . '</span>';
 		$output .= '</button>';

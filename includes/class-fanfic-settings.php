@@ -3803,40 +3803,24 @@ class Fanfic_Settings {
 
 		global $wpdb;
 
-		// Drop known plugin tables directly (avoid loading large result sets in memory).
+		// Drop all plugin tables directly by prefix to guarantee full cleanup.
 		self::log_delete_data_progress( 'dropping_tables' );
-		$table_names = array(
-			// Current tables
-			'fanfic_interactions',
-			'fanfic_reading_progress',
-			'fanfic_notifications',
-			'fanfic_email_subscriptions',
-			'fanfic_moderation_log',
-			'fanfic_story_filter_map',
-			'fanfic_story_search_index',
-			'fanfic_chapter_search_index',
-			'fanfic_daily_views',
-			'fanfic_story_custom_terms',
-			'fanfic_custom_terms',
-			'fanfic_custom_taxonomies',
-			'fanfic_story_languages',
-			'fanfic_languages',
-			'fanfic_story_translations',
-			'fanfic_story_warnings',
-			'fanfic_warnings',
-			'fanfic_story_fandoms',
-			'fanfic_fandoms',
-			// Legacy tables — safe to drop if they somehow exist.
-			'fanfic_likes',
-			'fanfic_ratings',
-			'fanfic_follows',
-			'fanfic_reports',
-			'fanfic_read_lists',
-			'fanfic_subscriptions',
+		$table_pattern = $wpdb->esc_like( $wpdb->prefix . 'fanfic_' ) . '%';
+		$fanfic_tables = $wpdb->get_col(
+			$wpdb->prepare(
+				'SHOW TABLES LIKE %s',
+				$table_pattern
+			)
 		);
 
-		foreach ( $table_names as $table_name ) {
-			$wpdb->query( "DROP TABLE IF EXISTS `{$wpdb->prefix}{$table_name}`" );
+		if ( is_array( $fanfic_tables ) && ! empty( $fanfic_tables ) ) {
+			foreach ( $fanfic_tables as $table_name ) {
+				$table_name = (string) $table_name;
+				if ( 0 !== strpos( $table_name, $wpdb->prefix . 'fanfic_' ) ) {
+					continue;
+				}
+				$wpdb->query( "DROP TABLE IF EXISTS `{$table_name}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			}
 		}
 		self::cleanup_memory();
 		self::log_delete_data_progress( 'tables_dropped' );
@@ -3909,13 +3893,15 @@ class Fanfic_Settings {
 
 		// Delete all options and transients with "fanfic" in the name in one query (memory-safe).
 		self::log_delete_data_progress( 'deleting_options' );
-		$options_like    = $wpdb->esc_like( 'fanfic' ) . '%';
-		$transient_like  = $wpdb->esc_like( '_transient_fanfic' ) . '%';
+		$options_like           = $wpdb->esc_like( 'fanfic' ) . '%';
+		$transient_like         = $wpdb->esc_like( '_transient_fanfic' ) . '%';
+		$transient_timeout_like = $wpdb->esc_like( '_transient_timeout_fanfic' ) . '%';
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
 				$options_like,
-				$transient_like
+				$transient_like,
+				$transient_timeout_like
 			)
 		);
 		self::cleanup_memory();

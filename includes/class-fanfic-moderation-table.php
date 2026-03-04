@@ -542,20 +542,55 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 	 */
 	protected function column_reported_by( $item ) {
 		$reporter_id = absint( $item['reporter_id'] );
+		$reporter_ip = isset( $item['reporter_ip'] ) ? sanitize_text_field( (string) $item['reporter_ip'] ) : '';
 
 		if ( $reporter_id > 0 ) {
 			$user = get_userdata( $reporter_id );
+			$output = '';
+
 			if ( $user ) {
-				return sprintf(
+				$output = sprintf(
 					'<a href="%s">%s</a>',
 					esc_url( get_edit_user_link( $reporter_id ) ),
 					esc_html( $user->display_name )
 				);
+			} else {
+				$output = sprintf(
+					'<span>%s</span>',
+					esc_html( sprintf( __( 'User #%d', 'fanfiction-manager' ), $reporter_id ) )
+				);
 			}
+
+			$is_blacklisted = Fanfic_Blacklist::is_reporter_blacklisted( $reporter_id );
+			if ( $is_blacklisted ) {
+				$output .= ' <span class="fanfic-blacklist-badge">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
+			} else {
+				$output .= sprintf(
+					' <button type="button" class="button button-small fanfic-blacklist-reporter" data-user-id="%1$d" data-ip="%2$s">%3$s</button>',
+					$reporter_id,
+					esc_attr( $reporter_ip ),
+					esc_html__( 'Blacklist', 'fanfiction-manager' )
+				);
+			}
+
+			return $output;
 		}
 
-		if ( ! empty( $item['reporter_ip'] ) ) {
-			return esc_html( $item['reporter_ip'] );
+		if ( '' !== $reporter_ip ) {
+			$output = esc_html( $reporter_ip );
+
+			$is_blacklisted = Fanfic_Blacklist::is_reporter_blacklisted_by_ip( $reporter_ip );
+			if ( $is_blacklisted ) {
+				$output .= ' <span class="fanfic-blacklist-badge">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
+			} else {
+				$output .= sprintf(
+					' <button type="button" class="button button-small fanfic-blacklist-reporter" data-user-id="0" data-ip="%1$s">%2$s</button>',
+					esc_attr( $reporter_ip ),
+					esc_html__( 'Blacklist', 'fanfiction-manager' )
+				);
+			}
+
+			return $output;
 		}
 
 		return esc_html__( 'Guest', 'fanfiction-manager' );
@@ -1172,6 +1207,10 @@ class Fanfic_Moderation_Ajax {
 		add_action( 'wp_ajax_fanfic_block_report', array( __CLASS__, 'ajax_block_report' ) );
 		add_action( 'wp_ajax_fanfic_dismiss_report', array( __CLASS__, 'ajax_dismiss_report' ) );
 		add_action( 'wp_ajax_fanfic_delete_report', array( __CLASS__, 'ajax_delete_report' ) );
+		add_action( 'wp_ajax_fanfic_blacklist_reporter', array( __CLASS__, 'ajax_blacklist_reporter' ) );
+		add_action( 'wp_ajax_fanfic_blacklist_message_sender', array( __CLASS__, 'ajax_blacklist_message_sender' ) );
+		add_action( 'wp_ajax_fanfic_remove_blacklist', array( __CLASS__, 'ajax_remove_blacklist' ) );
+		add_action( 'wp_ajax_fanfic_unblock_content', array( __CLASS__, 'ajax_unblock_content' ) );
 	}
 
 	private static function verify_request() {
@@ -1312,6 +1351,168 @@ class Fanfic_Moderation_Ajax {
 		}
 		Fanfic_Moderation_Table::add_admin_notice( 'success', __( 'Report deleted successfully.', 'fanfiction-manager' ) );
 		wp_send_json_success( array( 'message' => __( 'Report deleted successfully.', 'fanfiction-manager' ) ) );
+	}
+
+	public static function ajax_blacklist_reporter() {
+		self::verify_request();
+
+		$user_id      = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
+		$ip_address   = isset( $_POST['ip'] ) ? sanitize_text_field( wp_unslash( $_POST['ip'] ) ) : '';
+		$moderator_id = get_current_user_id();
+
+		if ( ! $user_id && '' === trim( $ip_address ) ) {
+			wp_send_json_error( array( 'message' => __( 'No reporter data was provided.', 'fanfiction-manager' ) ) );
+		}
+
+		$result = Fanfic_Blacklist::add( 'report', $user_id, $ip_address, $moderator_id, '' );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		$reason = $user_id
+			? sprintf( __( 'Reporter user ID: %d', 'fanfiction-manager' ), $user_id )
+			: sprintf( __( 'Reporter IP: %s', 'fanfiction-manager' ), $ip_address );
+		if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+			Fanfic_Moderation_Log::insert( $moderator_id, 'reporter_blacklisted', 'user', $user_id, $reason );
+		}
+
+		$message = __( 'Reporter blacklisted successfully.', 'fanfiction-manager' );
+		Fanfic_Moderation_Table::add_admin_notice( 'success', $message );
+		wp_send_json_success( array( 'message' => $message ) );
+	}
+
+	public static function ajax_blacklist_message_sender() {
+		self::verify_request();
+
+		$user_id      = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
+		$moderator_id = get_current_user_id();
+
+		if ( ! $user_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid user.', 'fanfiction-manager' ) ) );
+		}
+
+		$result = Fanfic_Blacklist::add( 'message', $user_id, '', $moderator_id, '' );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+			Fanfic_Moderation_Log::insert(
+				$moderator_id,
+				'message_sender_blacklisted',
+				'user',
+				$user_id,
+				sprintf( __( 'Message sender user ID: %d', 'fanfiction-manager' ), $user_id )
+			);
+		}
+
+		$message = __( 'Author blacklisted successfully.', 'fanfiction-manager' );
+		Fanfic_Moderation_Table::add_admin_notice( 'success', $message );
+		wp_send_json_success( array( 'message' => $message ) );
+	}
+
+	public static function ajax_remove_blacklist() {
+		self::verify_request();
+
+		$blacklist_id = isset( $_POST['blacklist_id'] ) ? absint( $_POST['blacklist_id'] ) : 0;
+		$moderator_id = get_current_user_id();
+
+		if ( ! $blacklist_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid blacklist entry.', 'fanfiction-manager' ) ) );
+		}
+
+		$entry = Fanfic_Blacklist::get_entry( $blacklist_id );
+		if ( ! $entry ) {
+			wp_send_json_error( array( 'message' => __( 'Blacklist entry not found.', 'fanfiction-manager' ) ) );
+		}
+
+		if ( ! Fanfic_Blacklist::remove( $blacklist_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to remove blacklist entry.', 'fanfiction-manager' ) ) );
+		}
+
+		$entry_type = isset( $entry['blacklist_type'] ) ? sanitize_key( $entry['blacklist_type'] ) : '';
+		$user_id    = isset( $entry['user_id'] ) ? absint( $entry['user_id'] ) : 0;
+		$ip_address = isset( $entry['ip_address'] ) ? sanitize_text_field( $entry['ip_address'] ) : '';
+
+		$log_action = 'report' === $entry_type ? 'reporter_unblacklisted' : 'message_sender_unblacklisted';
+		$message    = 'report' === $entry_type
+			? __( 'Reporter removed from blacklist.', 'fanfiction-manager' )
+			: __( 'Author removed from blacklist.', 'fanfiction-manager' );
+		$reason     = $user_id
+			? sprintf( __( 'User ID: %d', 'fanfiction-manager' ), $user_id )
+			: sprintf( __( 'IP: %s', 'fanfiction-manager' ), $ip_address );
+
+		if ( class_exists( 'Fanfic_Moderation_Log' ) ) {
+			Fanfic_Moderation_Log::insert( $moderator_id, $log_action, 'user', $user_id, $reason );
+		}
+
+		Fanfic_Moderation_Table::add_admin_notice( 'success', $message );
+		wp_send_json_success( array( 'message' => $message ) );
+	}
+
+	public static function ajax_unblock_content() {
+		self::verify_request();
+
+		$target_type  = isset( $_POST['target_type'] ) ? sanitize_key( wp_unslash( $_POST['target_type'] ) ) : '';
+		$target_id    = isset( $_POST['target_id'] ) ? absint( $_POST['target_id'] ) : 0;
+		$moderator_id = get_current_user_id();
+
+		if ( ! $target_id || ! in_array( $target_type, array( 'story', 'chapter', 'comment' ), true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid unblock target.', 'fanfiction-manager' ) ) );
+		}
+
+		$message = '';
+		if ( 'story' === $target_type ) {
+			$post = get_post( $target_id );
+			if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
+				wp_send_json_error( array( 'message' => __( 'Story not found.', 'fanfiction-manager' ) ) );
+			}
+
+			$result = function_exists( 'fanfic_remove_post_block' )
+				? fanfic_remove_post_block(
+					$target_id,
+					array(
+						'actor_id'       => $moderator_id,
+						'restore_status' => false,
+					)
+				)
+				: false;
+			if ( ! $result ) {
+				wp_send_json_error( array( 'message' => __( 'Failed to unblock story.', 'fanfiction-manager' ) ) );
+			}
+			$message = __( 'Story unblocked successfully.', 'fanfiction-manager' );
+		} elseif ( 'chapter' === $target_type ) {
+			$post = get_post( $target_id );
+			if ( ! $post || 'fanfiction_chapter' !== $post->post_type ) {
+				wp_send_json_error( array( 'message' => __( 'Chapter not found.', 'fanfiction-manager' ) ) );
+			}
+
+			$result = function_exists( 'fanfic_remove_post_block' )
+				? fanfic_remove_post_block(
+					$target_id,
+					array(
+						'actor_id'       => $moderator_id,
+						'restore_status' => false,
+					)
+				)
+				: false;
+			if ( ! $result ) {
+				wp_send_json_error( array( 'message' => __( 'Failed to unblock chapter.', 'fanfiction-manager' ) ) );
+			}
+			$message = __( 'Chapter unblocked successfully.', 'fanfiction-manager' );
+		} else {
+			$comment = get_comment( $target_id );
+			if ( ! $comment ) {
+				wp_send_json_error( array( 'message' => __( 'Comment not found.', 'fanfiction-manager' ) ) );
+			}
+
+			wp_set_comment_status( $target_id, 'approve' );
+			delete_comment_meta( $target_id, 'fanfic_moderation_action' );
+			$message = __( 'Comment unblocked successfully.', 'fanfiction-manager' );
+		}
+
+		Fanfic_Moderation_Table::add_admin_notice( 'success', $message );
+		wp_send_json_success( array( 'message' => $message ) );
 	}
 }
 

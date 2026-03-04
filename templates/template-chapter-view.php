@@ -173,19 +173,21 @@ add_action( 'fanfic_page_alerts', function( $context ) use ( $chapter_post, $is_
 	if ( 'view-chapter' !== $context || ! $chapter_post || 'fanfiction_chapter' !== $chapter_post->post_type ) {
 		return;
 	}
-	if ( $is_chapter_author && $parent_story_blocked && function_exists( 'fanfic_render_restriction_banner' ) ) {
-		$story_context = fanfic_get_restriction_context( 'story', $parent_story_id );
-		fanfic_render_restriction_banner(
-			$story_context,
+	if ( $is_chapter_author && $parent_story_blocked && function_exists( 'fanfic_render_restriction_notice' ) ) {
+		fanfic_render_restriction_notice(
+			'story',
+			$parent_story_id,
+			'view-chapter',
 			array(
 				array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
 				array( 'label' => __( 'Edit Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $parent_story_id ), 'class' => 'secondary' ),
 			)
 		);
-	} elseif ( $is_chapter_author && $chapter_blocked && function_exists( 'fanfic_render_restriction_banner' ) ) {
-		$chapter_context = fanfic_get_restriction_context( 'chapter', $chapter_post->ID );
-		fanfic_render_restriction_banner(
-			$chapter_context,
+	} elseif ( $is_chapter_author && $chapter_blocked && function_exists( 'fanfic_render_restriction_notice' ) ) {
+		fanfic_render_restriction_notice(
+			'chapter',
+			$chapter_post->ID,
+			'view-chapter',
 			array(
 				array( 'label' => __( 'Back to Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $parent_story_id ) ),
 				array( 'label' => __( 'Edit Chapter', 'fanfiction-manager' ), 'url' => fanfic_get_edit_chapter_url( $chapter_post->ID ), 'class' => 'secondary' ),

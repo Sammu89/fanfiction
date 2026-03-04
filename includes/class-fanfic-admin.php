@@ -35,7 +35,7 @@ class Fanfic_Admin {
 		add_action( 'admin_menu', array( __CLASS__, 'add_admin_menu' ) );
 		add_action( 'admin_menu', array( __CLASS__, 'limit_fanfic_staff_admin_menu' ), 999 );
 		add_action( 'admin_init', array( __CLASS__, 'restrict_fanfic_staff_admin_pages' ), 1 );
-		add_action( 'admin_notices', array( __CLASS__, 'render_moderation_admin_notice' ) );
+		add_action( 'all_admin_notices', array( __CLASS__, 'render_moderation_admin_notice' ), 1 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
 		add_action( 'admin_footer', array( __CLASS__, 'add_external_link_target_blank' ) );
 	}
@@ -305,12 +305,15 @@ jQuery(document).ready(function($) {
 			return;
 		}
 
+		$admin_css_file    = FANFIC_PLUGIN_DIR . 'assets/css/fanfiction-admin.css';
+		$admin_css_version = file_exists( $admin_css_file ) ? (string) filemtime( $admin_css_file ) : FANFIC_VERSION;
+
 		// Enqueue admin CSS
 		wp_enqueue_style(
 			'fanfiction-admin',
 			FANFIC_PLUGIN_URL . 'assets/css/fanfiction-admin.css',
 			array(),
-			FANFIC_VERSION,
+			$admin_css_version,
 			'all'
 		);
 
@@ -341,6 +344,13 @@ jQuery(document).ready(function($) {
 				'reviewLoading'       => __( 'Loading review...', 'fanfiction-manager' ),
 				'authorMessageTitle'  => __( 'Author Message', 'fanfiction-manager' ),
 				'authorMessageLabel'  => __( 'Message', 'fanfiction-manager' ),
+				'threadLoading'       => __( 'Loading conversation...', 'fanfiction-manager' ),
+				'threadEmpty'         => __( 'No messages in this conversation yet.', 'fanfiction-manager' ),
+				'threadReplyLabel'    => __( 'Reply to Author', 'fanfiction-manager' ),
+				'threadReplySend'     => __( 'Send Reply', 'fanfiction-manager' ),
+				'threadReplySending'  => __( 'Sending...', 'fanfiction-manager' ),
+				'threadReplyEmpty'    => __( 'Please enter a reply before sending.', 'fanfiction-manager' ),
+				'threadReplySent'     => __( 'Reply sent successfully.', 'fanfiction-manager' ),
 				'messagePromptTitle'  => __( 'Before continuing, add moderator notes for:', 'fanfiction-manager' ),
 				'confirmActionPrefix' => __( 'Confirm', 'fanfiction-manager' ),
 				'unblockPromptLabel'  => __( 'Unblock', 'fanfiction-manager' ),
@@ -364,6 +374,12 @@ jQuery(document).ready(function($) {
 				'reportDismissConfirm'=> __( 'Dismiss this report?', 'fanfiction-manager' ),
 				'reportDeleteConfirm' => __( 'Delete this report?', 'fanfiction-manager' ),
 				'reportCommentBlockConfirm' => __( 'Block this reported comment?', 'fanfiction-manager' ),
+				'blacklistReporterConfirm' => __( 'Blacklist this reporter? They will no longer be able to submit reports.', 'fanfiction-manager' ),
+				'blacklistMessageSenderConfirm' => __( 'Blacklist this author? They will no longer be able to send moderation messages.', 'fanfiction-manager' ),
+				'unblacklistConfirm' => __( 'Remove this blacklist entry?', 'fanfiction-manager' ),
+				'unblockConfirm' => __( 'Unblock this content?', 'fanfiction-manager' ),
+				'blacklistSuccess' => __( 'Blacklist updated successfully.', 'fanfiction-manager' ),
+				'unblacklistSuccess' => __( 'Blacklist entry removed successfully.', 'fanfiction-manager' ),
 			),
 		);
 
@@ -766,7 +782,9 @@ jQuery(document).ready(function($) {
 		}
 
 		if ( class_exists( 'Fanfic_Moderation_Messages' ) ) {
-			$counts['messages'] = (int) Fanfic_Moderation_Messages::count_messages( array( 'status' => 'unread' ) );
+			$counts['messages'] = method_exists( 'Fanfic_Moderation_Messages', 'count_needing_moderator' )
+				? (int) Fanfic_Moderation_Messages::count_needing_moderator()
+				: (int) Fanfic_Moderation_Messages::count_messages( array( 'status' => 'unread' ) );
 		}
 
 		$counts['total'] = $counts['reports'] + $counts['messages'];
@@ -784,29 +802,42 @@ jQuery(document).ready(function($) {
 			return;
 		}
 
+		$current_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+		if ( 'fanfiction-moderation' === $current_page ) {
+			return;
+		}
+
 		$counts = self::get_pending_moderation_counts();
 		if ( $counts['total'] < 1 ) {
 			return;
 		}
 
 		$moderation_url = admin_url( 'admin.php?page=fanfiction-moderation' );
+		$summary_parts  = array();
+
+		if ( $counts['reports'] > 0 ) {
+			$summary_parts[] = sprintf(
+				/* translators: %d: pending reports count. */
+				_n( '%d pending report', '%d pending reports', absint( $counts['reports'] ), 'fanfiction-manager' ),
+				absint( $counts['reports'] )
+			);
+		}
+
+		if ( $counts['messages'] > 0 ) {
+			$summary_parts[] = sprintf(
+				/* translators: %d: unread moderation messages count. */
+				_n( '%d unread message', '%d unread messages', absint( $counts['messages'] ), 'fanfiction-manager' ),
+				absint( $counts['messages'] )
+			);
+		}
+
+		$summary_text = implode( ' ' . __( 'and', 'fanfiction-manager' ) . ' ', $summary_parts );
 		?>
 		<div class="notice notice-warning">
-			<p><strong><?php esc_html_e( 'Moderation actions are needed.', 'fanfiction-manager' ); ?></strong></p>
 			<p>
-				<?php
-				printf(
-					/* translators: 1: pending reports count, 2: unread author messages count. */
-					esc_html__( '%1$d pending reports and %2$d unread author messages require review.', 'fanfiction-manager' ),
-					absint( $counts['reports'] ),
-					absint( $counts['messages'] )
-				);
-				?>
-			</p>
-			<p>
-				<a class="button button-primary" href="<?php echo esc_url( $moderation_url ); ?>">
-					<?php esc_html_e( 'Open Moderation', 'fanfiction-manager' ); ?>
-				</a>
+				<strong><?php esc_html_e( 'Fanfiction Manager:', 'fanfiction-manager' ); ?></strong>
+				<?php echo esc_html__( 'Moderation actions needed -', 'fanfiction-manager' ) . ' ' . esc_html( $summary_text ) . ' ' . esc_html__( 'require review.', 'fanfiction-manager' ); ?>
+				<a class="button button-primary" href="<?php echo esc_url( $moderation_url ); ?>"><?php esc_html_e( 'Open Moderation', 'fanfiction-manager' ); ?></a>
 			</p>
 		</div>
 		<?php

@@ -58,7 +58,6 @@ $story_id = $is_edit_mode ? get_the_ID() : 0;
 $story = null;
 $story_title = '';
 $fanfic_story_blocked_owner_edit = false;
-$fanfic_story_re_review_requested = false;
 
 // For edit mode, validate story exists and user has permission
 if ( $is_edit_mode ) {
@@ -96,22 +95,17 @@ if ( $is_edit_mode ) {
 	}
 
 	$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
-	if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+	if ( $is_blocked ) {
 		$fanfic_story_blocked_owner_edit = function_exists( 'fanfic_current_user_is_content_owner' ) && fanfic_current_user_is_content_owner( $story_id );
-		if ( ! $fanfic_story_blocked_owner_edit && function_exists( 'fanfic_render_restriction_banner' ) ) {
-			$ctx = fanfic_get_restriction_context( 'story', $story_id );
-			fanfic_render_restriction_banner( $ctx, array(
+		$is_moderator_view = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
+		if ( ! $fanfic_story_blocked_owner_edit && ! $is_moderator_view && function_exists( 'fanfic_render_restriction_notice' ) ) {
+			fanfic_render_restriction_notice( 'story', $story_id, 'edit-story', array(
 				array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
 				array( 'label' => __( 'View Story', 'fanfiction-manager' ), 'url' => get_permalink( $story_id ), 'class' => 'secondary' ),
 			) );
 		}
-		if ( ! $fanfic_story_blocked_owner_edit ) {
+		if ( ! $fanfic_story_blocked_owner_edit && ! $is_moderator_view ) {
 			return;
-		}
-
-		$fanfic_story_re_review_requested = (bool) get_post_meta( $story_id, '_fanfic_re_review_requested', true );
-		if ( ! $fanfic_story_re_review_requested && class_exists( 'Fanfic_Moderation_Messages' ) ) {
-			$fanfic_story_re_review_requested = Fanfic_Moderation_Messages::has_active_message( get_current_user_id(), 'story', $story_id );
 		}
 	}
 
@@ -144,32 +138,14 @@ if ( $is_edit_mode ) {
 
 <?php
 $fanfic_story_blocked_owner_edit  = isset( $fanfic_story_blocked_owner_edit ) ? $fanfic_story_blocked_owner_edit : false;
-$fanfic_story_re_review_requested = isset( $fanfic_story_re_review_requested ) ? $fanfic_story_re_review_requested : false;
 
-add_action( 'fanfic_page_alerts', function( $context ) use ( $fanfic_story_blocked_owner_edit, $fanfic_story_re_review_requested, $story_id ) {
+add_action( 'fanfic_page_alerts', function( $context ) use ( $fanfic_story_blocked_owner_edit, $story_id ) {
 	if ( 'edit-story' !== $context || ! $fanfic_story_blocked_owner_edit ) {
 		return;
 	}
-	?>
-	<div class="fanfic-message fanfic-message-warning" role="status">
-		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
-		<span class="fanfic-message-content">
-			<strong><?php esc_html_e( 'Story Blocked', 'fanfiction-manager' ); ?></strong><br>
-			<?php esc_html_e( 'Your edits stay hidden while this story is blocked. Save your changes below, then request re-review. Moderators will always review the latest version you have saved, including any newer changes you save after sending the request.', 'fanfiction-manager' ); ?>
-			<span class="fanfic-message-actions">
-				<?php if ( $fanfic_story_re_review_requested ) : ?>
-					<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
-						<?php esc_html_e( 'Re-review Submitted', 'fanfiction-manager' ); ?>
-					</span>
-				<?php else : ?>
-					<button type="button" class="fanfic-button secondary fanfic-submit-re-review-btn" data-story-id="<?php echo esc_attr( $story_id ); ?>">
-						<?php esc_html_e( 'Request Moderator Review', 'fanfiction-manager' ); ?>
-					</button>
-				<?php endif; ?>
-			</span>
-		</span>
-	</div>
-	<?php
+	if ( function_exists( 'fanfic_render_restriction_notice' ) ) {
+		fanfic_render_restriction_notice( 'story', $story_id, 'edit-story' );
+	}
 } );
 
 fanfic_render_page_header( 'edit-story', array(
@@ -2102,6 +2078,25 @@ fanfic_render_breadcrumb( 'edit-story', array(
 
 		reorderStoryFormFields();
 
+		function normalizeEditorContent(value) {
+			var html = (typeof value === 'string' ? value : '').replace(/\r\n/g, '\n').trim();
+			if (!html) {
+				return '';
+			}
+
+			var probe = document.createElement('div');
+			probe.innerHTML = html;
+
+			// Treat TinyMCE placeholder markup as empty content.
+			var text = (probe.textContent || '').replace(/\u00a0/g, ' ').trim();
+			var meaningfulNode = probe.querySelector('img,video,audio,iframe,object,embed,hr,table,ul,ol,li,blockquote,pre,code');
+			if (!text && !meaningfulNode) {
+				return '';
+			}
+
+			return html;
+		}
+
 		<?php if ( $is_edit_mode ) : ?>
 		// Change detection for Update buttons
 		var form = document.getElementById('fanfic-story-form');
@@ -2192,6 +2187,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				} else if (notesTextarea) {
 					currentNotesContent = notesTextarea.value;
 				}
+				currentNotesContent = normalizeEditorContent(currentNotesContent);
 				var currentCustomTaxonomies = getCustomTaxonomyState(form);
 				var originalTitle = form.getAttribute('data-original-title') || '';
 				var originalContent = form.getAttribute('data-original-content') || '';
@@ -2210,7 +2206,8 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				var originalCustomTaxonomies = form.getAttribute('data-original-custom-taxonomies');
 				var originalNotesEnabled = form.getAttribute('data-original-notes-enabled');
 				var originalNotesPosition = form.getAttribute('data-original-notes-position');
-				var originalNotesContent = form.getAttribute('data-original-notes-content');
+				var originalNotesContentAttr = form.getAttribute('data-original-notes-content');
+				var originalNotesContent = normalizeEditorContent(originalNotesContentAttr || '');
 				var originalCommentsEnabled = form.getAttribute('data-original-comments-enabled');
 
 				if (null === originalWarnings) {
@@ -2253,7 +2250,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					originalNotesPosition = currentNotesPosition;
 					form.setAttribute('data-original-notes-position', originalNotesPosition);
 				}
-				if (null === originalNotesContent) {
+				if (null === originalNotesContentAttr) {
 					originalNotesContent = currentNotesContent;
 					form.setAttribute('data-original-notes-content', originalNotesContent);
 				}
@@ -2326,6 +2323,11 @@ fanfic_render_breadcrumb( 'edit-story', array(
 					if (!editor || editor.id !== 'fanfic_story_author_notes' || editor.fanficDirtyEventsAttached) {
 						return;
 					}
+					editor.on('init', function() {
+						var initializedContent = normalizeEditorContent(editor.getContent());
+						form.setAttribute('data-original-notes-content', initializedContent);
+						checkForChanges();
+					});
 					editor.on('change keyup paste input NodeChange', function() {
 						checkForChanges();
 					});
@@ -2814,6 +2816,7 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				} else if (notesTextarea) {
 					notesContent = notesTextarea.value;
 				}
+				notesContent = normalizeEditorContent(notesContent);
 
 				var customTaxonomyValues = {};
 				customTaxonomyFields.forEach(function(field) {

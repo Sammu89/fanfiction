@@ -37,7 +37,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_story_filter_map: Pre-computed filter facets map (NEW in 1.5.2)
  * - wp_fanfic_reports: Content reports queue
  * - wp_fanfic_moderation_log: Moderation action log (NEW in 1.2.0)
- * - wp_fanfic_moderation_messages: Author moderation messages (NEW in 2.3.0)
+ * - wp_fanfic_moderation_messages: Author moderation message threads (NEW in 2.3.0)
+ * - wp_fanfic_moderation_message_entries: Chat entries for moderation threads (NEW in 2.4.0)
+ * - wp_fanfic_blacklist: Reporter/author blacklist entries (NEW in 2.4.0)
  *
  * @since 1.0.0
  */
@@ -49,7 +51,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '2.3.1';
+	const DB_VERSION = '2.4.0';
 
 	/**
 	 * Option name for database version tracking
@@ -589,21 +591,54 @@ class Fanfic_Database_Setup {
 			target_id bigint(20) UNSIGNED NOT NULL,
 			message text NOT NULL,
 			status varchar(20) NOT NULL DEFAULT 'unread',
+			unread_for_moderator tinyint(1) NOT NULL DEFAULT 1,
+			unread_for_author tinyint(1) NOT NULL DEFAULT 0,
 			moderator_id bigint(20) UNSIGNED DEFAULT NULL,
 			moderator_note text DEFAULT NULL,
 			author_reply text DEFAULT NULL,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			last_message_at datetime DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT NULL,
 			PRIMARY KEY  (id),
 			KEY idx_author (author_id),
 			KEY idx_target (target_type, target_id),
 			KEY idx_status (status),
+			KEY idx_unread_moderator (status, unread_for_moderator),
+			KEY idx_unread_author (status, unread_for_author),
+			KEY idx_last_message_at (last_message_at),
 			KEY idx_created (created_at)
 		) $charset_collate;";
 
 		$result = dbDelta( $sql_mod_messages );
 		if ( empty( $result ) || ! self::verify_table_exists( $table_mod_messages ) ) {
 			$errors[] = 'Failed to create moderation_messages table';
+		}
+
+		// 24. Moderation Message Entries Table
+		$table_mod_entries = $prefix . 'fanfic_moderation_message_entries';
+		$sql_mod_entries   = "CREATE TABLE IF NOT EXISTS {$table_mod_entries} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			message_id bigint(20) UNSIGNED NOT NULL,
+			sender_id bigint(20) UNSIGNED NOT NULL,
+			sender_role varchar(20) NOT NULL,
+			message text NOT NULL,
+			is_internal tinyint(1) NOT NULL DEFAULT 0,
+			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY idx_message (message_id, created_at),
+			KEY idx_sender (sender_id),
+			KEY idx_sender_role (sender_role)
+		) $charset_collate;";
+
+		$result = dbDelta( $sql_mod_entries );
+		if ( empty( $result ) || ! self::verify_table_exists( $table_mod_entries ) ) {
+			$errors[] = 'Failed to create moderation_message_entries table';
+		}
+
+		// 24. Moderation Blacklist Table
+		$result = self::ensure_blacklist_table();
+		if ( is_wp_error( $result ) ) {
+			$errors[] = $result->get_error_message();
 		}
 
 		// All tables created successfully, proceed to seed default data if needed.
@@ -1050,6 +1085,11 @@ class Fanfic_Database_Setup {
 			}
 		}
 
+		// v2.4.0: Add moderation blacklist table.
+		if ( version_compare( $current_version, '2.4.0', '<' ) ) {
+			self::ensure_blacklist_table();
+		}
+
 	}
 
 	/**
@@ -1072,6 +1112,32 @@ class Fanfic_Database_Setup {
 			return new WP_Error(
 				'reports_table_creation_failed',
 				__( 'Failed to create reports table.', 'fanfiction-manager' )
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Ensure the blacklist table exists.
+	 *
+	 * @since 2.4.0
+	 * @return bool|WP_Error True on success, WP_Error on failure.
+	 */
+	public static function ensure_blacklist_table() {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . 'fanfic_blacklist';
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset_collate = $wpdb->get_charset_collate();
+		$sql_blacklist   = self::get_blacklist_table_sql( $table_name, $charset_collate );
+		dbDelta( $sql_blacklist );
+
+		if ( ! self::verify_table_exists( $table_name ) ) {
+			return new WP_Error(
+				'blacklist_table_creation_failed',
+				__( 'Failed to create blacklist table.', 'fanfiction-manager' )
 			);
 		}
 
@@ -1110,6 +1176,30 @@ class Fanfic_Database_Setup {
 			KEY idx_status (status),
 			KEY idx_created_at (created_at),
 			KEY idx_updated_at (updated_at)
+		) {$charset_collate};";
+	}
+
+	/**
+	 * Get the blacklist table schema.
+	 *
+	 * @since 2.4.0
+	 * @param string $table_name Full blacklist table name.
+	 * @param string $charset_collate Database charset and collation clause.
+	 * @return string
+	 */
+	private static function get_blacklist_table_sql( $table_name, $charset_collate ) {
+		return "CREATE TABLE IF NOT EXISTS {$table_name} (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			blacklist_type varchar(30) NOT NULL,
+			user_id bigint(20) UNSIGNED NOT NULL DEFAULT 0,
+			ip_address varchar(100) NOT NULL DEFAULT '',
+			reason text DEFAULT NULL,
+			moderator_id bigint(20) UNSIGNED NOT NULL,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY idx_type_user (blacklist_type, user_id),
+			KEY idx_type_ip (blacklist_type, ip_address),
+			KEY idx_moderator (moderator_id)
 		) {$charset_collate};";
 	}
 
@@ -1156,7 +1246,10 @@ class Fanfic_Database_Setup {
 
 		$prefix = $wpdb->prefix;
 		$tables = array(
+			$prefix . 'fanfic_blacklist',
 			$prefix . 'fanfic_moderation_log',
+			$prefix . 'fanfic_moderation_message_entries',
+			$prefix . 'fanfic_moderation_messages',
 			$prefix . 'fanfic_reports',
 			$prefix . 'fanfic_story_filter_map',
 			$prefix . 'fanfic_story_search_index',
@@ -1205,6 +1298,9 @@ class Fanfic_Database_Setup {
 			$prefix . 'fanfic_reading_progress',
 			$prefix . 'fanfic_email_subscriptions',
 			$prefix . 'fanfic_notifications',
+			$prefix . 'fanfic_blacklist',
+			$prefix . 'fanfic_moderation_messages',
+			$prefix . 'fanfic_moderation_message_entries',
 			$prefix . 'fanfic_coauthors',
 			$prefix . 'fanfic_fandoms',
 			$prefix . 'fanfic_story_fandoms',

@@ -187,7 +187,6 @@
 			this.initShareButtons();
 			// Restriction messaging
 			this.initModerationMessage();
-			this.initReReviewRequests();
 			this.initChapterBlockControls();
 			// Report buttons
 			this.initReportButtons();
@@ -254,12 +253,19 @@
 
 			$modal.find('#fanfic-mod-target-type').val(String($button.data('target-type') || ''));
 			$modal.find('#fanfic-mod-target-id').val(parseInt($button.data('target-id'), 10) || 0);
+			$modal.find('#fanfic-mod-thread-id').val('');
 			$modal.find('#fanfic-mod-message-text').val('');
 			$modal.data('triggerButton', $button);
 			this.clearModerationMessageFormMessage();
+			this.showModerationThreadState('info', this.strings.modThreadLoading || 'Loading conversation...');
+			this.renderModerationThread([]);
 			this.updateModerationMessageCount();
 			$modal.fadeIn(200).attr('aria-hidden', 'false');
 			$('body').css('overflow', 'hidden');
+			this.loadModerationThread(
+				String($button.data('target-type') || ''),
+				parseInt($button.data('target-id'), 10) || 0
+			);
 
 			setTimeout(function() {
 				$modal.find('#fanfic-mod-message-text').trigger('focus');
@@ -276,10 +282,15 @@
 			$modal.fadeOut(200).attr('aria-hidden', 'true');
 			$modal.find('#fanfic-mod-target-type').val('');
 			$modal.find('#fanfic-mod-target-id').val('');
+			$modal.find('#fanfic-mod-thread-id').val('');
 			$modal.find('#fanfic-mod-message-text').val('');
+			$modal.find('#fanfic-mod-message-text').prop('disabled', false);
+			$modal.find('#fanfic-mod-modal-submit').prop('disabled', false);
 			$modal.removeData('triggerButton');
 			$('body').css('overflow', 'auto');
 			this.clearModerationMessageFormMessage();
+			this.clearModerationThreadState();
+			this.renderModerationThread([]);
 			this.updateModerationMessageCount();
 
 			if ($trigger && $trigger.length) {
@@ -309,6 +320,100 @@
 			$('#fanfic-mod-form-message').removeClass('success error').text('').hide();
 		},
 
+		showModerationThreadState: function(type, message) {
+			const $state = $('#fanfic-mod-thread-state');
+			if (!$state.length) {
+				return;
+			}
+
+			$state
+				.removeClass('success error info')
+				.addClass(type || 'info')
+				.text(message || '')
+				.show();
+		},
+
+		clearModerationThreadState: function() {
+			$('#fanfic-mod-thread-state').removeClass('success error info').text('').hide();
+		},
+
+		renderModerationThread: function(entries) {
+			const $history = $('#fanfic-mod-thread-history');
+			if (!$history.length) {
+				return;
+			}
+
+			const rows = Array.isArray(entries) ? entries : [];
+			if (!rows.length) {
+				$history.html('<p class="fanfic-mod-thread-empty">' + (this.strings.modThreadEmpty || 'No messages yet. Send the first message to moderation.') + '</p>');
+				return;
+			}
+
+			let html = '';
+			rows.forEach(function(entry) {
+				const role = String(entry && entry.sender_role ? entry.sender_role : 'system').trim();
+				const sender = $('<div>').text(String(entry && entry.sender_name ? entry.sender_name : '')).html();
+				const created = $('<div>').text(String(entry && entry.created_human ? entry.created_human : '')).html();
+				const message = $('<div>').text(String(entry && entry.message ? entry.message : '')).html().replace(/\n/g, '<br>');
+				const roleClass = role === 'author' ? 'author' : (role === 'moderator' ? 'moderator' : 'system');
+
+				html += '<div class="fanfic-mod-thread-entry fanfic-mod-thread-entry-' + roleClass + '">';
+				html += '<div class="fanfic-mod-thread-entry-meta"><strong>' + sender + '</strong><span>' + created + '</span></div>';
+				html += '<div class="fanfic-mod-thread-entry-message">' + message + '</div>';
+				html += '</div>';
+			});
+
+			$history.html(html);
+			$history.scrollTop($history.prop('scrollHeight') || 0);
+		},
+
+		loadModerationThread: function(targetType, targetId) {
+			const self = this;
+			const $modal = $('#fanfic-mod-message-modal');
+			const $input = $modal.find('#fanfic-mod-message-text');
+			const $submit = $modal.find('#fanfic-mod-modal-submit');
+
+			if (!targetType || !targetId) {
+				self.showModerationThreadState('error', self.strings.modMessageError || self.strings.error);
+				return;
+			}
+
+			$.ajax({
+				url: this.config.ajaxUrl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_get_moderation_thread',
+					nonce: this.config.nonce,
+					target_type: targetType,
+					target_id: targetId
+				}
+			}).done(function(response) {
+				if (!(response && response.success && response.data)) {
+					self.showModerationThreadState('error', (response && response.data && response.data.message) || self.strings.modMessageError || self.strings.error);
+					return;
+				}
+
+				const data = response.data || {};
+				const threadId = parseInt(data.thread_id, 10) || 0;
+				const canSend = !!data.can_send;
+				$modal.find('#fanfic-mod-thread-id').val(threadId ? String(threadId) : '');
+				self.renderModerationThread(data.entries || []);
+				self.clearModerationThreadState();
+
+				if (!canSend) {
+					self.showModerationThreadState('info', self.strings.modThreadClosed || 'This conversation is closed. You can start a new one while the restriction remains active.');
+				}
+
+				$input.prop('disabled', !canSend);
+				$submit.prop('disabled', !canSend);
+				if (threadId > 0) {
+					self.markModerationMessageSent(targetType, targetId, $modal.data('triggerButton'));
+				}
+			}).fail(function() {
+				self.showModerationThreadState('error', self.strings.modMessageError || self.strings.error);
+			});
+		},
+
 		submitModerationMessage: function(targetType, targetId, message, $trigger) {
 			const self = this;
 			const $submit = $('#fanfic-mod-modal-submit');
@@ -328,7 +433,10 @@
 			}).done(function(response) {
 				if (response && response.success) {
 					self.markModerationMessageSent(targetType, targetId, $trigger);
-					self.closeModerationMessageModal();
+					$('#fanfic-mod-message-text').val('');
+					self.updateModerationMessageCount();
+					self.showModerationMessageFormMessage('success', self.strings.modMessageSent || 'Message sent successfully.');
+					self.loadModerationThread(targetType, targetId);
 					return;
 				}
 
@@ -342,70 +450,23 @@
 
 		markModerationMessageSent: function(targetType, targetId, $trigger) {
 			const selector = '.fanfic-message-mod-btn[data-target-type="' + String(targetType) + '"][data-target-id="' + parseInt(targetId, 10) + '"]';
-			const sentLabel = this.strings.modMessageSentState || 'Message Sent - Awaiting Review';
+			const openLabel = this.strings.modMessageOpenState || 'Open Moderation Chat';
 
 			$(selector).each(function() {
-				$('<span class="fanfic-button secondary fanfic-message-sent-badge disabled"></span>')
-					.text(sentLabel)
-					.replaceAll($(this));
+				$(this)
+					.addClass('fanfic-message-chat-active')
+					.removeClass('fanfic-message-chat-has-unread')
+					.attr('data-has-unread', '0')
+					.text(openLabel);
 			});
 
 			if ($trigger && $trigger.length) {
-				$('<span class="fanfic-button secondary fanfic-message-sent-badge disabled"></span>')
-					.text(sentLabel)
-					.replaceAll($trigger);
+				$trigger
+					.addClass('fanfic-message-chat-active')
+					.removeClass('fanfic-message-chat-has-unread')
+					.attr('data-has-unread', '0')
+					.text(openLabel);
 			}
-		},
-
-		initReReviewRequests: function() {
-			const self = this;
-
-			$(document).on('click', '.fanfic-submit-re-review-btn', function(e) {
-				e.preventDefault();
-
-				const $button = $(this);
-				const storyId = parseInt($button.data('story-id'), 10) || 0;
-				const originalLabel = $button.text();
-
-				if (!storyId || $button.prop('disabled')) {
-					return;
-				}
-
-				$button.prop('disabled', true);
-
-				$.ajax({
-					url: self.config.ajaxUrl,
-					type: 'POST',
-					data: {
-						action: 'fanfic_submit_re_review',
-						nonce: self.config.nonce,
-						story_id: storyId
-					}
-				}).done(function(response) {
-					if (response && response.success) {
-						self.showSuccess($button, (response.data && response.data.message) || self.strings.reReviewSent || self.strings.error);
-						self.markReReviewSubmitted(storyId, (response.data && response.data.badge_label) || 'Re-review Submitted');
-						return;
-					}
-
-					$button.prop('disabled', false).text(originalLabel);
-					self.showError($button, (response && response.data && response.data.message) || self.strings.reReviewError || self.strings.error);
-				}).fail(function() {
-					$button.prop('disabled', false).text(originalLabel);
-					self.showError($button, self.strings.reReviewError || self.strings.error);
-				});
-			});
-		},
-
-		markReReviewSubmitted: function(storyId, badgeLabel) {
-			const label = badgeLabel || 'Re-review Submitted';
-			const selector = '.fanfic-submit-re-review-btn[data-story-id="' + parseInt(storyId, 10) + '"]';
-
-			$(selector).each(function() {
-				$('<span class="fanfic-button secondary fanfic-message-sent-badge disabled"></span>')
-					.text(label)
-					.replaceAll($(this));
-			});
 		},
 
 		initChapterBlockControls: function() {

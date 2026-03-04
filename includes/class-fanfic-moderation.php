@@ -52,6 +52,13 @@ class Fanfic_Moderation {
 					'message_ignored',
 					'message_deleted',
 				);
+			case 'blacklist':
+				return array(
+					'reporter_blacklisted',
+					'message_sender_blacklisted',
+					'reporter_unblacklisted',
+					'message_sender_unblacklisted',
+				);
 			case '':
 				return null;
 			default:
@@ -89,7 +96,7 @@ class Fanfic_Moderation {
 		}
 
 		// Get current main tab
-		$allowed_tabs = array( 'queue', 'messages', 'log' );
+		$allowed_tabs = array( 'queue', 'messages', 'log', 'blocks' );
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'queue';
 		$current_tab = in_array( $current_tab, $allowed_tabs, true ) ? $current_tab : 'queue';
 
@@ -106,7 +113,12 @@ class Fanfic_Moderation {
 					<?php esc_html_e( 'Reports', 'fanfiction-manager' ); ?>
 				</a>
 				<?php
-				$unread_msg_count = class_exists( 'Fanfic_Moderation_Messages' ) ? Fanfic_Moderation_Messages::count_messages( array( 'status' => 'unread' ) ) : 0;
+				$unread_msg_count = 0;
+				if ( class_exists( 'Fanfic_Moderation_Messages' ) ) {
+					$unread_msg_count = method_exists( 'Fanfic_Moderation_Messages', 'count_needing_moderator' )
+						? Fanfic_Moderation_Messages::count_needing_moderator()
+						: Fanfic_Moderation_Messages::count_messages( array( 'status' => 'unread' ) );
+				}
 				?>
 				<a href="?page=fanfiction-moderation&tab=messages" class="nav-tab <?php echo 'messages' === $current_tab ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Author Messages', 'fanfiction-manager' ); ?>
@@ -117,6 +129,9 @@ class Fanfic_Moderation {
 				<a href="?page=fanfiction-moderation&tab=log" class="nav-tab <?php echo 'log' === $current_tab ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Log', 'fanfiction-manager' ); ?>
 				</a>
+				<a href="?page=fanfiction-moderation&tab=blocks" class="nav-tab <?php echo 'blocks' === $current_tab ? 'nav-tab-active' : ''; ?>">
+					<?php esc_html_e( 'Blocks', 'fanfiction-manager' ); ?>
+				</a>
 			</nav>
 
 			<div class="tab-content">
@@ -124,6 +139,9 @@ class Fanfic_Moderation {
 				switch ( $current_tab ) {
 					case 'log':
 						self::render_log_tab();
+						break;
+					case 'blocks':
+						self::render_blocks_tab();
 						break;
 					case 'messages':
 						self::render_messages_tab();
@@ -326,7 +344,7 @@ class Fanfic_Moderation {
 		$total_pages = ceil( $total_logs / $per_page );
 
 		?>
-		<p><?php esc_html_e( 'View the history of moderation actions including bans, unbans, story and chapter restrictions, and author-message decisions.', 'fanfiction-manager' ); ?></p>
+		<p><?php esc_html_e( 'View the history of moderation actions including bans, unbans, story/chapter restrictions, blacklist changes, and author-message decisions.', 'fanfiction-manager' ); ?></p>
 
 		<!-- Filters -->
 		<div class="fanfic-log-filters" style="margin: 15px 0;">
@@ -340,6 +358,7 @@ class Fanfic_Moderation {
 					<option value="unban" <?php selected( $action_filter, 'unban' ); ?>><?php esc_html_e( 'Unban', 'fanfiction-manager' ); ?></option>
 					<option value="block" <?php selected( $action_filter, 'block' ); ?>><?php esc_html_e( 'Block', 'fanfiction-manager' ); ?></option>
 					<option value="unblock" <?php selected( $action_filter, 'unblock' ); ?>><?php esc_html_e( 'Unblock', 'fanfiction-manager' ); ?></option>
+					<option value="blacklist" <?php selected( $action_filter, 'blacklist' ); ?>><?php esc_html_e( 'Blacklist Actions', 'fanfiction-manager' ); ?></option>
 					<option value="message" <?php selected( $action_filter, 'message' ); ?>><?php esc_html_e( 'Message Actions', 'fanfiction-manager' ); ?></option>
 				</select>
 
@@ -425,6 +444,10 @@ class Fanfic_Moderation {
 							'chapter_block_rule'   => array( 'label' => __( 'Chapter Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
 							'chapter_unblock'      => array( 'label' => __( 'Chapter Unblock', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unblock' ),
 							'comment_blocked'      => array( 'label' => __( 'Comment Block', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-block' ),
+							'reporter_blacklisted' => array( 'label' => __( 'Reporter Blacklisted', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
+							'message_sender_blacklisted' => array( 'label' => __( 'Author Blacklisted', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
+							'reporter_unblacklisted' => array( 'label' => __( 'Reporter Unblacklisted', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unblock' ),
+							'message_sender_unblacklisted' => array( 'label' => __( 'Author Unblacklisted', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-unblock' ),
 							'report_dismissed'     => array( 'label' => __( 'Report Dismissed', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
 							'report_deleted'       => array( 'label' => __( 'Report Deleted', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
 							'message_ignored'      => array( 'label' => __( 'Message Ignored', 'fanfiction-manager' ), 'class' => 'fanfic-log-action-message' ),
@@ -564,6 +587,9 @@ class Fanfic_Moderation {
 		}
 
 		$counts = Fanfic_Moderation_Messages::get_status_counts();
+		if ( method_exists( 'Fanfic_Moderation_Messages', 'count_needing_moderator' ) ) {
+			$counts['unread'] = Fanfic_Moderation_Messages::count_needing_moderator();
+		}
 
 		// Get current sub-tab
 		$allowed_sub = array( 'unread', 'ignored', 'resolved', 'all' );
@@ -621,6 +647,60 @@ class Fanfic_Moderation {
 				vertical-align: middle;
 			}
 		</style>
+		<?php
+	}
+
+	/**
+	 * Render Blocks tab content.
+	 *
+	 * @since 2.4.0
+	 * @return void
+	 */
+	private static function render_blocks_tab() {
+		if ( ! class_exists( 'Fanfic_Blocks_Table' ) ) {
+			echo '<p>' . esc_html__( 'Blocks table is not available.', 'fanfiction-manager' ) . '</p>';
+			return;
+		}
+
+		$allowed_sub_tabs = array( 'reporters', 'authors', 'stories', 'chapters', 'comments' );
+		$sub_tab          = isset( $_GET['sub'] ) ? sanitize_key( wp_unslash( $_GET['sub'] ) ) : 'reporters';
+		$sub_tab          = in_array( $sub_tab, $allowed_sub_tabs, true ) ? $sub_tab : 'reporters';
+
+		$sub_tabs = array(
+			'reporters' => __( 'Blacklisted Reporters', 'fanfiction-manager' ),
+			'authors'   => __( 'Blacklisted Authors', 'fanfiction-manager' ),
+			'stories'   => __( 'Blocked Stories', 'fanfiction-manager' ),
+			'chapters'  => __( 'Blocked Chapters', 'fanfiction-manager' ),
+			'comments'  => __( 'Blocked Comments', 'fanfiction-manager' ),
+		);
+		$last_key = array_key_last( $sub_tabs );
+
+		?>
+		<p><?php esc_html_e( 'Central hub for blacklist and block management. Use this page to unblacklist reporters/authors or unblock stories, chapters, and comments.', 'fanfiction-manager' ); ?></p>
+
+		<ul class="subsubsub">
+			<?php foreach ( $sub_tabs as $key => $label ) : ?>
+				<?php $count = Fanfic_Blocks_Table::count_for_type( $key ); ?>
+				<li>
+					<a href="?page=fanfiction-moderation&tab=blocks&sub=<?php echo esc_attr( $key ); ?>" <?php echo $key === $sub_tab ? 'class="current"' : ''; ?>>
+						<?php echo esc_html( sprintf( '%s (%d)', $label, $count ) ); ?>
+					</a><?php echo $key !== $last_key ? ' |' : ''; ?>
+				</li>
+			<?php endforeach; ?>
+		</ul>
+
+		<div style="margin-top:20px; clear:both;">
+			<?php
+			$table = new Fanfic_Blocks_Table( $sub_tab );
+			$table->prepare_items();
+			?>
+			<form method="get">
+				<input type="hidden" name="page" value="fanfiction-moderation">
+				<input type="hidden" name="tab" value="blocks">
+				<input type="hidden" name="sub" value="<?php echo esc_attr( $sub_tab ); ?>">
+				<?php $table->display(); ?>
+			</form>
+		</div>
 		<?php
 	}
 

@@ -75,7 +75,6 @@ This list contains every shortcode tag registered in the plugin.
 | [fanfic-password-reset-form] | Shows password reset request form by email. |
 | [story-rating-form] | Shows read-only story average rating and rating count. |
 | [chapter-rating-form] | Shows interactive chapter star rating widget and rating totals. |
-| [report-content] | Shows content reporting form (reason, details, optional reCAPTCHA) for story/chapter/comment. |
 
 ## Search and Archive
 

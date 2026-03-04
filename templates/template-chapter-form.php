@@ -242,7 +242,8 @@ function fanfic_template_get_available_chapter_numbers( $story_id, $exclude_chap
 // ============================================================================
 
 $fanfic_blocked_chapter_owner_edit = false;
-$fanfic_story_re_review_requested = false;
+$fanfic_blocked_notice_target_type = '';
+$fanfic_blocked_notice_target_id   = 0;
 
 // Check if user is logged in
 if ( ! is_user_logged_in() ) {
@@ -345,37 +346,42 @@ if ( ! current_user_can( 'edit_fanfiction_story', $story_id ) ) {
 }
 
 $is_blocked = fanfic_is_story_blocked( $story_id );
-if ( $is_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+if ( $is_blocked ) {
 	$fanfic_blocked_chapter_owner_edit = $is_edit_mode && function_exists( 'fanfic_current_user_is_content_owner' ) && fanfic_current_user_is_content_owner( $chapter_id );
-	if ( ! $fanfic_blocked_chapter_owner_edit && function_exists( 'fanfic_render_restriction_banner' ) ) {
-		$ctx = fanfic_get_restriction_context( 'story', $story_id );
-		fanfic_render_restriction_banner( $ctx, array(
+	$is_moderator_view = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
+	if ( ! $fanfic_blocked_chapter_owner_edit && ! $is_moderator_view && function_exists( 'fanfic_render_restriction_notice' ) ) {
+		fanfic_render_restriction_notice( 'story', $story_id, 'edit-chapter', array(
 			array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
 			array( 'label' => __( 'View Story', 'fanfiction-manager' ), 'url' => get_permalink( $story_id ), 'class' => 'secondary' ),
 		) );
 	}
-	if ( ! $fanfic_blocked_chapter_owner_edit ) {
+	if ( ! $fanfic_blocked_chapter_owner_edit && ! $is_moderator_view ) {
 		return;
 	}
 
-	$fanfic_story_re_review_requested = (bool) get_post_meta( $story_id, '_fanfic_re_review_requested', true );
-	if ( ! $fanfic_story_re_review_requested && class_exists( 'Fanfic_Moderation_Messages' ) ) {
-		$fanfic_story_re_review_requested = Fanfic_Moderation_Messages::has_active_message( get_current_user_id(), 'story', $story_id );
+	if ( $fanfic_blocked_chapter_owner_edit ) {
+		$fanfic_blocked_notice_target_type = 'story';
+		$fanfic_blocked_notice_target_id   = $story_id;
 	}
 }
 
 $is_chapter_blocked = $is_edit_mode ? fanfic_is_chapter_blocked( $chapter_id ) : false;
-if ( $is_chapter_blocked && ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+if ( $is_chapter_blocked ) {
 	$fanfic_blocked_chapter_owner_edit = function_exists( 'fanfic_current_user_is_content_owner' ) && fanfic_current_user_is_content_owner( $chapter_id );
-	if ( ! $fanfic_blocked_chapter_owner_edit && function_exists( 'fanfic_render_restriction_banner' ) ) {
-		$ctx = fanfic_get_restriction_context( 'chapter', $chapter_id );
-		fanfic_render_restriction_banner( $ctx, array(
+	$is_moderator_view = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
+	if ( ! $fanfic_blocked_chapter_owner_edit && ! $is_moderator_view && function_exists( 'fanfic_render_restriction_notice' ) ) {
+		fanfic_render_restriction_notice( 'chapter', $chapter_id, 'edit-chapter', array(
 			array( 'label' => __( 'Back to Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $story_id ) ),
 			array( 'label' => __( 'View Chapter', 'fanfiction-manager' ), 'url' => get_permalink( $chapter_id ), 'class' => 'secondary' ),
 		) );
 	}
-	if ( ! $fanfic_blocked_chapter_owner_edit ) {
+	if ( ! $fanfic_blocked_chapter_owner_edit && ! $is_moderator_view ) {
 		return;
+	}
+
+	if ( $fanfic_blocked_chapter_owner_edit && ! $is_blocked ) {
+		$fanfic_blocked_notice_target_type = 'chapter';
+		$fanfic_blocked_notice_target_id   = $chapter_id;
 	}
 }
 
@@ -476,32 +482,16 @@ $page_description = $is_edit_mode
 
 <?php
 $fanfic_blocked_chapter_owner_edit = isset( $fanfic_blocked_chapter_owner_edit ) ? $fanfic_blocked_chapter_owner_edit : false;
-$fanfic_story_re_review_requested  = isset( $fanfic_story_re_review_requested ) ? $fanfic_story_re_review_requested : false;
+$fanfic_blocked_notice_target_type = isset( $fanfic_blocked_notice_target_type ) ? (string) $fanfic_blocked_notice_target_type : '';
+$fanfic_blocked_notice_target_id   = isset( $fanfic_blocked_notice_target_id ) ? absint( $fanfic_blocked_notice_target_id ) : 0;
 
-add_action( 'fanfic_page_alerts', function( $context ) use ( $fanfic_blocked_chapter_owner_edit, $fanfic_story_re_review_requested, $story_id ) {
+add_action( 'fanfic_page_alerts', function( $context ) use ( $fanfic_blocked_chapter_owner_edit, $fanfic_blocked_notice_target_type, $fanfic_blocked_notice_target_id ) {
 	if ( 'edit-chapter' !== $context || ! $fanfic_blocked_chapter_owner_edit ) {
 		return;
 	}
-	?>
-	<div class="fanfic-message fanfic-message-warning" role="status">
-		<span class="fanfic-message-icon" aria-hidden="true">&#9888;</span>
-		<span class="fanfic-message-content">
-			<strong><?php esc_html_e( 'Blocked Content Edit', 'fanfiction-manager' ); ?></strong><br>
-			<?php esc_html_e( 'This chapter belongs to blocked content. Save your chapter changes below, then request re-review. Moderators will always review the latest saved version of the blocked story, including any newer changes you save after sending the request.', 'fanfiction-manager' ); ?>
-			<span class="fanfic-message-actions">
-				<?php if ( $fanfic_story_re_review_requested ) : ?>
-					<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
-						<?php esc_html_e( 'Re-review Submitted', 'fanfiction-manager' ); ?>
-					</span>
-				<?php else : ?>
-					<button type="button" class="fanfic-button secondary fanfic-submit-re-review-btn" data-story-id="<?php echo esc_attr( $story_id ); ?>">
-						<?php esc_html_e( 'Request Moderator Review', 'fanfiction-manager' ); ?>
-					</button>
-				<?php endif; ?>
-			</span>
-		</span>
-	</div>
-	<?php
+	if ( function_exists( 'fanfic_render_restriction_notice' ) && '' !== $fanfic_blocked_notice_target_type && $fanfic_blocked_notice_target_id > 0 ) {
+		fanfic_render_restriction_notice( $fanfic_blocked_notice_target_type, $fanfic_blocked_notice_target_id, 'edit-chapter' );
+	}
 } );
 
 fanfic_render_page_header( 'edit-chapter', array(

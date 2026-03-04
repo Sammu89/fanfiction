@@ -89,7 +89,6 @@ Each shortcode is implemented as a class method in organized shortcode handler c
 - `[edit-story-button]` - Conditional edit button (visible only to story author, mods, admins).
 - `[edit-chapter-button]` - Conditional edit button for chapters.
 - `[edit-author-button]` - Conditional edit button for author profiles.
-- `[report-content]` - Standalone report form with reCAPTCHA v2 protection, can be placed anywhere.
 
 **URL Navigation Shortcodes:**
 - `[url-login]` - Link to login page.

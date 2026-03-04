@@ -2,7 +2,7 @@
 
 ## Overview
 
-The system provides three restriction levels for content and accounts, a structured author-to-moderation messaging workflow for blocked authors, a correction flow that lets blocked owners fix and resubmit their content, and a moderator compare view to review what changed before deciding whether to unblock.
+The system provides three restriction levels for content and accounts, a two-way author/moderator chat workflow for blocked authors, a correction flow that lets blocked owners fix and resubmit their content, and a moderator compare view to review what changed before deciding whether to unblock.
 
 ---
 
@@ -186,15 +186,15 @@ Compares `_fanfic_block_snapshot` against the current story state field by field
 
 `has_active_message()` prevents multiple simultaneous re-review requests for the same story. After a moderator ignores or deletes the message, `_fanfic_re_review_requested` is cleared, allowing the author to resubmit.
 
-**Key files**: `includes/class-fanfic-ajax-handlers.php` — `ajax_fanfic_submit_re_review()`, `assets/js/fanfiction-interactions.js`
+**Key files**: `includes/class-fanfic-ajax-handlers.php` — `ajax_submit_re_review()`, `assets/js/fanfiction-interactions.js`
 
 ---
 
 ## Moderation Messaging System
 
-The messaging system handles authenticated appeals from blocked or suspended authors. It is entirely separate from the public reports queue.
+The messaging system handles authenticated appeals from blocked or suspended authors through an open thread (chat) per restricted target. It is entirely separate from the public reports queue.
 
-### Database table: `wp_fanfic_moderation_messages`
+### Database table: `wp_fanfic_moderation_messages` (thread header)
 
 | Column | Type | Description |
 |---|---|---|
@@ -202,12 +202,28 @@ The messaging system handles authenticated appeals from blocked or suspended aut
 | `author_id` | int | Author who sent the message |
 | `target_type` | varchar(50) | `story`, `chapter`, or `user` |
 | `target_id` | int | ID of the blocked story, chapter, or user |
-| `message` | text | Author's message body (max 1000 chars) |
+| `message` | text | Latest author message preview (max 1000 chars) |
 | `status` | varchar(20) | `unread`, `ignored`, `resolved`, `deleted` |
+| `unread_for_moderator` | tinyint(1) | `1` when moderators have unread author messages |
+| `unread_for_author` | tinyint(1) | `1` when author has unread moderator replies |
 | `moderator_id` | int | Moderator who acted on the message |
 | `moderator_note` | text | Optional note left by moderator on action |
+| `author_reply` | text | Latest moderator reply preview |
 | `created_at` | datetime | Submission timestamp |
+| `last_message_at` | datetime | Last public chat activity timestamp |
 | `updated_at` | datetime | Last update timestamp |
+
+### Database table: `wp_fanfic_moderation_message_entries` (chat messages)
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | int | Primary key |
+| `message_id` | int | Parent thread ID (`wp_fanfic_moderation_messages.id`) |
+| `sender_id` | int | Sender user ID |
+| `sender_role` | varchar(20) | `author`, `moderator`, or `system` |
+| `message` | text | Entry body (max 1000 chars) |
+| `is_internal` | tinyint(1) | Internal-only flag (currently `0` for public chat entries) |
+| `created_at` | datetime | Entry timestamp |
 
 ### Message service: `Fanfic_Moderation_Messages`
 
@@ -217,24 +233,54 @@ Static methods:
 
 | Method | Description |
 |---|---|
-| `create_message()` | Insert a new moderation message |
+| `create_message()` | Create a new thread and insert first author entry |
+| `send_author_message()` | Append author entry to active thread or create a new one |
+| `send_moderator_message()` | Append moderator reply to open thread |
+| `get_active_message()` | Get the active `status = unread` thread for author + target |
 | `get_messages()` | List messages with status filter and pagination |
 | `get_message()` | Fetch a single message by ID |
+| `get_message_entries()` | Load ordered chat entries for a thread |
 | `has_active_message()` | Check whether an unread message already exists for a target |
+| `active_thread_has_unread_for_author()` | Check unread moderator reply flag for author UI |
+| `mark_thread_read_for_moderator()` | Clear moderator unread flag after thread view |
+| `mark_thread_read_for_author()` | Clear author unread flag after thread view |
+| `count_needing_moderator()` | Count open threads where `unread_for_moderator = 1` |
 | `update_status()` | Change message status (ignored, resolved, deleted) |
 | `count_messages()` | Count messages matching a filter |
 | `get_status_counts()` | Return counts by status for badge display |
-| `cleanup_old_messages()` | Delete resolved/deleted messages older than N days |
+| `cleanup_old_messages()` | Delete old closed threads and their entries |
 
 ### Author message submission
 
-**AJAX action**: `fanfic_submit_moderation_message`
+**AJAX action**: `fanfic_send_moderation_message`
 
 Rules:
 - Requires nonce and logged-in user.
 - User must own the blocked story or chapter, or be the suspended account holder.
 - Restriction must still be active at submit time.
 - Message must be non-empty and ≤ 1000 characters.
+- If an active thread exists for that target, message is appended to it.
+- If not, a new thread is created.
+
+### Thread load endpoint
+
+**AJAX action**: `fanfic_get_moderation_thread`
+
+Supports both contexts:
+- **Author side**: load active thread by `target_type` + `target_id`.
+- **Moderator side**: load specific thread by `message_id`.
+
+The response includes thread status, permissions (`can_send`), unread flags for each side, and ordered `entries`.
+
+### Moderator thread reply endpoint
+
+**AJAX action**: `fanfic_send_moderation_reply`
+
+Rules:
+- Requires nonce, login, and `moderate_fanfiction` capability.
+- Thread must exist and still be open (`status = unread`).
+- Reply must be 1..1000 chars.
+- Appends a `moderator` entry, updates unread flags, stores latest reply preview, and creates `TYPE_MOD_MESSAGE_REPLY` notification for the author.
 
 **File**: `includes/class-fanfic-ajax-handlers.php`
 
@@ -251,7 +297,10 @@ target_type        string
 target_id          int
 reason_message     string
 has_active_message bool
+active_message_id  int
+has_unread_moderator_reply bool
 owner_id           int
+moderator_reply    string
 ```
 
 This is used by templates to populate author-facing banners consistently across story view, chapter view, story form, chapter form, and the account suspension notice.
@@ -262,7 +311,9 @@ All restriction surfaces render through `fanfic_render_restriction_banner()`, wh
 - Restriction title and type
 - Human-readable reason text
 - Timestamp
-- "Message Moderation" button (hidden when an active message already exists)
+- `Message Moderation` when no active thread exists.
+- `Open Moderation Chat` when an active thread exists.
+- Unread visual state when moderator has replied and author has not opened the thread yet.
 
 Surfaces covered: story view, chapter view, story edit form, chapter edit form, account suspension notice in the site header area.
 
@@ -270,19 +321,19 @@ Surfaces covered: story view, chapter view, story edit form, chapter edit form, 
 
 ## Moderator Messages Tab
 
-The moderation page at `wp-admin` has three tabs: Queue (public reports), Messages (blocked-author messaging), and Log.
+The moderation page at `wp-admin` has four tabs: Reports, Author Messages, Log, and Blocks.
 
 ### Messages table: `Fanfic_Messages_Table`
 
 **File**: `includes/class-fanfic-messages-table.php`
 
-Extends `WP_List_Table`. Columns: status indicator, author, target, message preview, submission date, actions.
+Extends `WP_List_Table`. Columns: date, title, author, view message, review submitted, actions.
 
-Each row expands inline to show the full message, moderator note field, and action buttons.
+`View message` opens a modal that loads the full conversation via `fanfic_get_moderation_thread`. In that modal, moderators can send live replies through `fanfic_send_moderation_reply`.
 
 ### Moderator actions
 
-All actions flow through a single consolidated AJAX endpoint:
+Status-changing actions (Unblock, Ignore, Delete) flow through a single consolidated AJAX endpoint:
 
 **AJAX action**: `fanfic_mod_message_action`
 **Handler**: `ajax_mod_message_action()` — `includes/class-fanfic-ajax-handlers.php`
@@ -291,11 +342,11 @@ Requires `moderate_fanfiction` capability and nonce. Supported actions:
 
 | Action | Effect |
 |---|---|
-| `unblock` | Calls the real unblock function for the target story, chapter, or user. Clears `_fanfic_re_review_requested`. Stores optional moderator note. |
-| `ignore` | Marks message as ignored. Clears `_fanfic_re_review_requested` so author can resubmit. |
-| `delete` | Marks message as deleted. Clears `_fanfic_re_review_requested`. |
+| `unblock` | Calls the canonical unblock/unsuspend path for the target story, chapter, or user. Stores optional moderator note. |
+| `ignore` | Marks message as ignored. For story targets, clears `_fanfic_re_review_requested` so author can resubmit. |
+| `delete` | Marks message as deleted. For story targets, clears `_fanfic_re_review_requested`. |
 
-Every action writes a moderation log entry (`message_ignored`, `message_deleted`, `message_unblock_story`, `message_unblock_chapter`, `message_unsuspend_user`).
+Ignore/Delete actions write message-specific moderation log entries (`message_ignored`, `message_deleted`). Unblock uses the canonical unblock path for story/chapter/user.
 
 ---
 
@@ -306,7 +357,7 @@ When a re-review message exists and the blocked story has a snapshot, the modera
 ### Compare endpoint
 
 **AJAX action**: `fanfic_get_block_comparison`
-**Handler**: `ajax_fanfic_get_block_comparison()` — `includes/class-fanfic-ajax-handlers.php`
+**Handler**: `ajax_get_block_comparison()` — `includes/class-fanfic-ajax-handlers.php`
 
 Requires `moderate_fanfiction` capability. Loads the stored `_fanfic_block_snapshot`, reads the current story state, and returns an HTML comparison table.
 
@@ -324,7 +375,7 @@ The snapshot comparison is canonical for taxonomy, image, and meta field changes
 
 **File**: `assets/js/fanfiction-admin.js`
 
-Clicking `.fanfic-msg-compare-changes` sends a request to `fanfic_get_block_comparison`, appends the returned HTML into the expanded message row, and toggles it on subsequent clicks.
+Clicking `.fanfic-msg-review-changes` sends a request to `fanfic_get_block_comparison`, appends the returned HTML into the expanded message row, and toggles it on subsequent clicks.
 
 ### Admin CSS
 
@@ -337,24 +388,29 @@ Relevant selectors: `.fanfic-block-comparison`, `.fanfic-comparison-table`, `.sn
 ## Message Lifecycle
 
 ```
-[author submits message]
-        |
-        v
-    status: unread
-        |
-   +---------+---------+
-   |         |         |
-   v         v         v
-ignored   deleted   unblock action
-   |         |         |
-re_review   re_review  re_review cleared
-cleared     cleared    snapshot cleared
-author      author     restriction removed
-can         can        author notified
-resubmit    resubmit
+[author starts or continues chat]
+              |
+              v
+      thread status: unread
+              |
+      [chat entries append]
+ author -> moderator sets unread_for_moderator = 1
+ moderator -> author sets unread_for_author = 1
+              |
+              v
+        moderator decision
+      +---------+---------+---------+
+      |         |         |         |
+      v         v         v         v
+   continue   ignore    delete    unblock
+     chat      close     close     resolve
+      |         |         |         |
+      |         +---- restriction stays
+      |               author may re-message
+      +---- while open, both sides can reply
 ```
 
-- `unread`: awaiting moderator review
+- `unread`: open thread; chat is allowed
 - `ignored`: restriction stays; author may resubmit
 - `deleted`: dismissed; author may resubmit
 - `resolved` (via unblock): restriction removed, snapshot and re-review marker cleaned up
@@ -365,7 +421,7 @@ resubmit    resubmit
 
 The log table (`wp_fanfic_moderation_log`) uses `target_type varchar(50)` to support `user`, `story`, and `chapter` targets equally.
 
-Every moderator action in the messaging system writes a log entry. Log entries record the moderator ID, action type, target type, target ID, and an optional reason or note.
+Message ignore/delete actions write dedicated entries, while unblock actions use the normal unblock/suspension paths. Log rows record moderator ID, action type, target type, target ID, and optional reason/note.
 
 **File**: `includes/class-fanfic-moderation-log.php`
 
@@ -378,18 +434,18 @@ Every moderator action in the messaging system writes a log entry. Log entries r
 | `includes/functions.php` | `fanfic_apply_post_block()`, `fanfic_remove_post_block()`, `fanfic_create_block_snapshot()`, `fanfic_build_change_summary()`, `fanfic_current_user_can_edit()`, `fanfic_filter_revisions_to_keep()`, `fanfic_get_restriction_context()` |
 | `includes/class-fanfic-post-types.php` | Declares `revisions` support on both post types |
 | `includes/class-fanfic-core.php` | Registers `wp_revisions_to_keep` filter |
-| `includes/class-fanfic-moderation-messages.php` | Message CRUD service |
+| `includes/class-fanfic-moderation-messages.php` | Thread + entries service (chat CRUD + unread flags) |
 | `includes/class-fanfic-messages-table.php` | Admin messages list table |
 | `includes/class-fanfic-moderation.php` | Moderation page with Messages tab |
-| `includes/class-fanfic-ajax-handlers.php` | `fanfic_submit_re_review`, `fanfic_get_block_comparison`, `fanfic_submit_moderation_message`, `fanfic_mod_message_action` |
-| `includes/class-fanfic-database-setup.php` | `wp_fanfic_moderation_messages` table schema |
+| `includes/class-fanfic-ajax-handlers.php` | `fanfic_submit_re_review`, `fanfic_send_moderation_message`, `fanfic_get_moderation_thread`, `fanfic_send_moderation_reply`, `fanfic_get_block_comparison`, `fanfic_mod_message_action` |
+| `includes/class-fanfic-database-setup.php` | `wp_fanfic_moderation_messages` + `wp_fanfic_moderation_message_entries` schema |
 | `includes/class-fanfic-users-admin.php` | Suspension reason capture and storage |
 | `includes/handlers/class-fanfic-story-handler.php` | Blocked edit save path for stories |
 | `includes/handlers/class-fanfic-chapter-handler.php` | Blocked edit save path for chapters |
 | `templates/template-story-form.php` | Owner edit gate + re-review button |
 | `templates/template-chapter-form.php` | Owner edit gate for chapters |
-| `assets/js/fanfiction-interactions.js` | Re-review button + message modal JS |
-| `assets/js/fanfiction-admin.js` | Compare Changes toggle |
+| `assets/js/fanfiction-interactions.js` | Author moderation chat modal (load thread + send message) |
+| `assets/js/fanfiction-admin.js` | Moderator thread modal, send reply, and comparison toggle |
 | `assets/css/fanfiction-admin.css` | Comparison table styles |
 
 ---
@@ -398,7 +454,7 @@ Every moderator action in the messaging system writes a log entry. Log entries r
 
 The following are explicitly out of scope for this system:
 
-- Threaded back-and-forth conversations between author and moderator
+- Nested/branching thread trees (current model is one linear chat stream per active target)
 - Working-copy or shadow-post workflows
 - Separate correction submission tables
 - A dedicated Corrections moderation tab

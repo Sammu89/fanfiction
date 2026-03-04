@@ -34,6 +34,14 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 class Fanfic_Messages_Table extends WP_List_Table {
 
 	/**
+	 * Cache reviewable-change checks per target to avoid repeated comparisons.
+	 *
+	 * @since 2.3.0
+	 * @var array<string,bool>
+	 */
+	private $reviewable_changes_cache = array();
+
+	/**
 	 * Whether a message target has a stored blocked-story snapshot.
 	 *
 	 * @since 2.3.0
@@ -42,7 +50,48 @@ class Fanfic_Messages_Table extends WP_List_Table {
 	 * @return bool
 	 */
 	private function target_has_block_snapshot( $target_type, $target_id ) {
-		return 'story' === $target_type && ! empty( get_post_meta( $target_id, '_fanfic_block_snapshot', true ) );
+		$target_id = absint( $target_id );
+		if ( 'story' !== $target_type || $target_id <= 0 ) {
+			return false;
+		}
+
+		if ( ! empty( get_post_meta( $target_id, '_fanfic_block_snapshot', true ) ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a target has reviewable saved modifications vs snapshot.
+	 *
+	 * @since 2.3.0
+	 * @param string $target_type Target type.
+	 * @param int    $target_id Target ID.
+	 * @return bool
+	 */
+	private function target_has_reviewable_modifications( $target_type, $target_id ) {
+		$target_id = absint( $target_id );
+		$cache_key = sanitize_key( $target_type ) . ':' . $target_id;
+
+		if ( isset( $this->reviewable_changes_cache[ $cache_key ] ) ) {
+			return (bool) $this->reviewable_changes_cache[ $cache_key ];
+		}
+
+		$has_changes = false;
+		if (
+			'story' === $target_type
+			&& $target_id > 0
+		) {
+			if ( function_exists( 'fanfic_story_has_reviewable_modifications' ) ) {
+				$has_changes = fanfic_story_has_reviewable_modifications( $target_id );
+			} elseif ( function_exists( 'fanfic_story_has_block_snapshot_changes' ) ) {
+				$has_changes = fanfic_story_has_block_snapshot_changes( $target_id );
+			}
+		}
+
+		$this->reviewable_changes_cache[ $cache_key ] = (bool) $has_changes;
+		return (bool) $has_changes;
 	}
 
 	/**
@@ -133,6 +182,9 @@ class Fanfic_Messages_Table extends WP_List_Table {
 			'orderby' => $orderby,
 			'order'   => $order,
 		);
+		if ( 'unread' === $status_filter ) {
+			$filter_args['unread_for_moderator'] = 1;
+		}
 
 		$total = Fanfic_Moderation_Messages::count_messages( $filter_args );
 
@@ -286,11 +338,24 @@ class Fanfic_Messages_Table extends WP_List_Table {
 			admin_url( 'user-edit.php' )
 		);
 
-		return sprintf(
+		$output = sprintf(
 			'<a href="%s">%s</a>',
 			esc_url( $edit_url ),
 			esc_html( $user->display_name )
 		);
+
+		$is_blacklisted = Fanfic_Blacklist::is_message_sender_blacklisted( $author_id );
+		if ( $is_blacklisted ) {
+			$output .= ' <span class="fanfic-blacklist-badge">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
+		} else {
+			$output .= sprintf(
+				' <button type="button" class="button button-small fanfic-blacklist-message-sender" data-user-id="%1$d">%2$s</button>',
+				$author_id,
+				esc_html__( 'Blacklist', 'fanfiction-manager' )
+			);
+		}
+
+		return $output;
 	}
 
 	private function get_message_target_context( $item ) {
@@ -378,10 +443,12 @@ class Fanfic_Messages_Table extends WP_List_Table {
 	}
 
 	protected function column_review_submitted( $item ) {
-		return $this->target_has_block_snapshot(
-			isset( $item['target_type'] ) ? $item['target_type'] : '',
-			absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 )
-		) ? esc_html__( 'Yes', 'fanfiction-manager' ) : esc_html__( 'No', 'fanfiction-manager' );
+		$target_type = isset( $item['target_type'] ) ? $item['target_type'] : '';
+		$target_id   = absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 );
+
+		return $this->target_has_reviewable_modifications( $target_type, $target_id )
+			? esc_html__( 'Yes', 'fanfiction-manager' )
+			: esc_html__( 'No', 'fanfiction-manager' );
 	}
 
 	/**
@@ -421,13 +488,15 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		$status      = isset( $item['status'] ) ? $item['status'] : '';
 		$is_restricted = false;
 		$has_snapshot = $this->target_has_block_snapshot( $target_type, $target_id );
+		$has_reviewable_modifications = $this->target_has_reviewable_modifications( $target_type, $target_id );
 
 		$actions = array();
 
 		if ( $has_snapshot ) {
 			$actions[] = sprintf(
-				'<button type="button" class="button fanfic-msg-review-changes" data-message-id="%d">%s</button>',
+				'<button type="button" class="button fanfic-msg-review-changes" data-message-id="%d" %s>%s</button>',
 				$message_id,
+				$has_reviewable_modifications ? '' : 'disabled aria-disabled="true"',
 				esc_html__( 'Review modifications', 'fanfiction-manager' )
 			);
 		}

@@ -442,6 +442,28 @@ function fanfic_apply_post_block( $post_id, $args = array() ) {
 		fanfic_create_block_snapshot( $post_id );
 	}
 
+	// Canonical moderation review state keeps only snapshot + current content.
+	fanfic_delete_post_revisions( $post_id );
+	fanfic_ensure_block_diff_baseline_revision( $post_id );
+
+	if ( 'fanfiction_story' === $post->post_type ) {
+		$chapter_ids = get_posts(
+			array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $post_id,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			)
+		);
+		foreach ( array_map( 'absint', $chapter_ids ) as $chapter_id ) {
+			if ( $chapter_id > 0 ) {
+				fanfic_delete_post_revisions( $chapter_id );
+				fanfic_ensure_block_diff_baseline_revision( $chapter_id );
+			}
+		}
+	}
+
 	if ( $args['change_status'] && $current_status && $args['new_status'] !== $current_status ) {
 		wp_update_post(
 			array(
@@ -505,6 +527,27 @@ function fanfic_remove_post_block( $post_id, $args = array() ) {
 	delete_post_meta( $post_id, '_fanfic_story_blocked_prev_status' );
 	delete_post_meta( $post_id, '_fanfic_block_snapshot' );
 	delete_post_meta( $post_id, '_fanfic_re_review_requested' );
+	delete_post_meta( $post_id, '_fanfic_block_diff_baseline_revision_id' );
+	delete_post_meta( $post_id, '_fanfic_block_diff_latest_revision_id' );
+
+	if ( 'fanfiction_story' === $post->post_type ) {
+		$chapter_ids = get_posts(
+			array(
+				'post_type'      => 'fanfiction_chapter',
+				'post_parent'    => $post_id,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			)
+		);
+		foreach ( array_map( 'absint', $chapter_ids ) as $chapter_id ) {
+			if ( $chapter_id > 0 ) {
+				delete_post_meta( $chapter_id, '_fanfic_block_diff_baseline_revision_id' );
+				delete_post_meta( $chapter_id, '_fanfic_block_diff_latest_revision_id' );
+			}
+		}
+	}
+
 	fanfic_cleanup_unblocked_revisions( $post_id );
 
 	if ( 'fanfiction_story' === $post->post_type ) {
@@ -544,6 +587,146 @@ function fanfic_delete_post_revisions( $post_id ) {
 	}
 
 	return $deleted;
+}
+
+/**
+ * Validate a stored block-diff revision ID for a post.
+ *
+ * @since 2.3.0
+ * @param int    $post_id  Parent post ID.
+ * @param string $meta_key Meta key containing revision ID.
+ * @return int
+ */
+function fanfic_get_block_diff_revision_id( $post_id, $meta_key ) {
+	$post_id     = absint( $post_id );
+	$revision_id = absint( get_post_meta( $post_id, $meta_key, true ) );
+	if ( $post_id <= 0 || $revision_id <= 0 ) {
+		return 0;
+	}
+
+	$revision = get_post( $revision_id );
+	if ( ! $revision || 'revision' !== $revision->post_type || (int) $revision->post_parent !== $post_id ) {
+		return 0;
+	}
+
+	return $revision_id;
+}
+
+/**
+ * Force-create a revision for a fanfiction post even when default retention is 0.
+ *
+ * @since 2.3.0
+ * @param int $post_id Post ID.
+ * @return int Revision ID, or 0 on failure/no-op.
+ */
+function fanfic_force_create_post_revision( $post_id ) {
+	$post_id = absint( $post_id );
+	$post    = get_post( $post_id );
+	if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+		return 0;
+	}
+
+	$force_revisions_filter = static function ( $num, $candidate_post ) use ( $post_id ) {
+		$candidate_post = get_post( $candidate_post );
+		if ( $candidate_post && (int) $candidate_post->ID === $post_id ) {
+			return 50;
+		}
+
+		return $num;
+	};
+
+	add_filter( 'wp_revisions_to_keep', $force_revisions_filter, 9999, 2 );
+	$revision_id = wp_save_post_revision( $post_id );
+	remove_filter( 'wp_revisions_to_keep', $force_revisions_filter, 9999 );
+
+	return absint( $revision_id );
+}
+
+/**
+ * Keep only baseline and latest revisions for blocked-content diffing.
+ *
+ * @since 2.3.0
+ * @param int $post_id Post ID.
+ * @return void
+ */
+function fanfic_prune_block_diff_revisions( $post_id ) {
+	$post_id = absint( $post_id );
+	if ( $post_id <= 0 ) {
+		return;
+	}
+
+	$baseline_id = fanfic_get_block_diff_revision_id( $post_id, '_fanfic_block_diff_baseline_revision_id' );
+	$latest_id   = fanfic_get_block_diff_revision_id( $post_id, '_fanfic_block_diff_latest_revision_id' );
+	$keep_ids    = array_filter( array_unique( array( $baseline_id, $latest_id ) ) );
+
+	$revisions = wp_get_post_revisions(
+		$post_id,
+		array(
+			'posts_per_page' => -1,
+		)
+	);
+
+	foreach ( array_map( 'absint', array_keys( $revisions ) ) as $revision_id ) {
+		if ( $revision_id > 0 && ! in_array( $revision_id, $keep_ids, true ) ) {
+			wp_delete_post_revision( $revision_id );
+		}
+	}
+}
+
+/**
+ * Ensure the block-time baseline revision exists for diffing.
+ *
+ * @since 2.3.0
+ * @param int $post_id Post ID.
+ * @return int Baseline revision ID, or 0.
+ */
+function fanfic_ensure_block_diff_baseline_revision( $post_id ) {
+	$post_id     = absint( $post_id );
+	$baseline_id = fanfic_get_block_diff_revision_id( $post_id, '_fanfic_block_diff_baseline_revision_id' );
+	if ( $baseline_id > 0 ) {
+		return $baseline_id;
+	}
+
+	$baseline_id = fanfic_force_create_post_revision( $post_id );
+	if ( $baseline_id > 0 ) {
+		update_post_meta( $post_id, '_fanfic_block_diff_baseline_revision_id', $baseline_id );
+		update_post_meta( $post_id, '_fanfic_block_diff_latest_revision_id', $baseline_id );
+	}
+
+	return $baseline_id;
+}
+
+/**
+ * Refresh the latest revision in the block diff pair for a post.
+ *
+ * @since 2.3.0
+ * @param int $post_id Post ID.
+ * @return bool
+ */
+function fanfic_refresh_block_diff_revision_pair( $post_id ) {
+	$post_id = absint( $post_id );
+	$post    = get_post( $post_id );
+	if ( ! $post || ! in_array( $post->post_type, array( 'fanfiction_story', 'fanfiction_chapter' ), true ) ) {
+		return false;
+	}
+
+	$baseline_id = fanfic_ensure_block_diff_baseline_revision( $post_id );
+	if ( $baseline_id <= 0 ) {
+		return false;
+	}
+
+	$new_latest_id = fanfic_force_create_post_revision( $post_id );
+	if ( $new_latest_id > 0 ) {
+		update_post_meta( $post_id, '_fanfic_block_diff_latest_revision_id', $new_latest_id );
+	}
+
+	$latest_id = fanfic_get_block_diff_revision_id( $post_id, '_fanfic_block_diff_latest_revision_id' );
+	if ( $latest_id <= 0 ) {
+		update_post_meta( $post_id, '_fanfic_block_diff_latest_revision_id', $baseline_id );
+	}
+
+	fanfic_prune_block_diff_revisions( $post_id );
+	return true;
 }
 
 /**
@@ -596,6 +779,152 @@ function fanfic_cleanup_unblocked_revisions( $post_id ) {
 	}
 
 	return $deleted;
+}
+
+/**
+ * Capture a lightweight chapter-structure snapshot for a story.
+ *
+ * Snapshot contains only chapter IDs and titles to detect:
+ * - chapter added
+ * - chapter deleted
+ * - chapter title changed
+ *
+ * @since 2.4.1
+ * @param int $story_id Story ID.
+ * @return array<string,string> Map of chapter_id => chapter_title.
+ */
+function fanfic_get_story_chapter_structure_state( $story_id ) {
+	$story_id = absint( $story_id );
+	if ( $story_id <= 0 ) {
+		return array();
+	}
+
+	$chapters = get_posts(
+		array(
+			'post_type'      => 'fanfiction_chapter',
+			'post_parent'    => $story_id,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'orderby'        => 'ID',
+			'order'          => 'ASC',
+		)
+	);
+
+	$structure = array();
+	foreach ( (array) $chapters as $chapter ) {
+		if ( ! ( $chapter instanceof WP_Post ) ) {
+			continue;
+		}
+
+		$chapter_id = absint( $chapter->ID );
+		if ( $chapter_id <= 0 ) {
+			continue;
+		}
+
+		$structure[ (string) $chapter_id ] = trim( (string) $chapter->post_title );
+	}
+
+	ksort( $structure, SORT_NUMERIC );
+	return $structure;
+}
+
+/**
+ * Normalize chapter structure snapshot into a stable map.
+ *
+ * @since 2.4.1
+ * @param mixed $value Raw chapter structure value.
+ * @return array<string,string>
+ */
+function fanfic_normalize_story_chapter_structure( $value ) {
+	$normalized = array();
+
+	foreach ( (array) $value as $chapter_id => $chapter_title ) {
+		$chapter_id = absint( $chapter_id );
+		if ( $chapter_id <= 0 ) {
+			continue;
+		}
+
+		$normalized[ (string) $chapter_id ] = trim( (string) $chapter_title );
+	}
+
+	ksort( $normalized, SORT_NUMERIC );
+	return $normalized;
+}
+
+/**
+ * Build chapter-structure comparison details for the blocked-story table.
+ *
+ * @since 2.4.1
+ * @param array<string,string> $old_structure Baseline chapter map.
+ * @param array<string,string> $new_structure Current chapter map.
+ * @return array<string,mixed>
+ */
+function fanfic_build_story_chapter_structure_comparison( $old_structure, $new_structure ) {
+	$old_structure = fanfic_normalize_story_chapter_structure( $old_structure );
+	$new_structure = fanfic_normalize_story_chapter_structure( $new_structure );
+
+	$added_ids   = array_diff_key( $new_structure, $old_structure );
+	$removed_ids = array_diff_key( $old_structure, $new_structure );
+	$renamed_ids = array();
+
+	foreach ( array_intersect_key( $new_structure, $old_structure ) as $chapter_id => $current_title ) {
+		$baseline_title = isset( $old_structure[ $chapter_id ] ) ? (string) $old_structure[ $chapter_id ] : '';
+		if ( (string) $current_title !== $baseline_title ) {
+			$renamed_ids[] = $chapter_id;
+		}
+	}
+
+	$added_count   = count( $added_ids );
+	$removed_count = count( $removed_ids );
+	$renamed_count = count( $renamed_ids );
+
+	$old_count = count( $old_structure );
+	$new_count = count( $new_structure );
+
+	$old_display = sprintf(
+		/* translators: %d: chapter count */
+		_n( '%d chapter', '%d chapters', $old_count, 'fanfiction-manager' ),
+		$old_count
+	);
+
+	$new_lines   = array();
+	$new_lines[] = sprintf(
+		/* translators: %d: chapter count */
+		_n( '%d chapter', '%d chapters', $new_count, 'fanfiction-manager' ),
+		$new_count
+	);
+
+	if ( $added_count > 0 ) {
+		$new_lines[] = sprintf(
+			/* translators: %d: number of chapters */
+			_n( '%d chapter added', '%d chapters added', $added_count, 'fanfiction-manager' ),
+			$added_count
+		);
+	}
+
+	if ( $removed_count > 0 ) {
+		$new_lines[] = sprintf(
+			/* translators: %d: number of chapters */
+			_n( '%d chapter removed', '%d chapters removed', $removed_count, 'fanfiction-manager' ),
+			$removed_count
+		);
+	}
+
+	if ( $renamed_count > 0 ) {
+		$new_lines[] = sprintf(
+			/* translators: %d: number of chapters */
+			_n( '%d chapter title changed', '%d chapter titles changed', $renamed_count, 'fanfiction-manager' ),
+			$renamed_count
+		);
+	}
+
+	return array(
+		'changed'        => ( $added_count + $removed_count + $renamed_count ) > 0,
+		'old_normalized' => $old_structure,
+		'new_normalized' => $new_structure,
+		'old_display'    => $old_display,
+		'new_display'    => implode( "\n", $new_lines ),
+	);
 }
 
 /**
@@ -668,6 +997,7 @@ function fanfic_get_story_block_snapshot_state( $post_id ) {
 		'post_title'            => (string) $story->post_title,
 		'post_excerpt'          => (string) $story->post_excerpt,
 		'post_content'          => (string) $story->post_content,
+		'chapter_structure'     => fanfic_get_story_chapter_structure_state( $post_id ),
 		'genre_ids'             => $genre_ids,
 		'genre_names'           => $genre_names,
 		'status_ids'            => $status_ids,
@@ -807,6 +1137,7 @@ function fanfic_get_block_comparison_rows( $post_id ) {
 		'post_title'            => array( 'label' => __( 'Title', 'fanfiction-manager' ), 'type' => 'text' ),
 		'post_excerpt'          => array( 'label' => __( 'Introduction', 'fanfiction-manager' ), 'type' => 'longtext' ),
 		'post_content'          => array( 'label' => __( 'Content', 'fanfiction-manager' ), 'type' => 'longtext' ),
+		'chapter_structure'     => array( 'label' => __( 'Chapters', 'fanfiction-manager' ), 'type' => 'chapter_structure' ),
 		'genre_names'           => array( 'label' => __( 'Genres', 'fanfiction-manager' ), 'type' => 'list' ),
 		'status_names'          => array( 'label' => __( 'Statuses', 'fanfiction-manager' ), 'type' => 'list' ),
 		'fandom_labels'         => array( 'label' => __( 'Fandoms', 'fanfiction-manager' ), 'type' => 'list' ),
@@ -829,6 +1160,24 @@ function fanfic_get_block_comparison_rows( $post_id ) {
 		$new_value = isset( $current[ $field_key ] ) ? $current[ $field_key ] : '';
 
 		switch ( $type ) {
+			case 'chapter_structure':
+				if ( ! array_key_exists( $field_key, $snapshot ) ) {
+					$old_normalized = array();
+					$new_normalized = array();
+					$old_display = '';
+					$new_display = '';
+					$changed = false;
+					break;
+				}
+
+				$chapter_comparison = fanfic_build_story_chapter_structure_comparison( $old_value, $new_value );
+				$old_normalized = $chapter_comparison['old_normalized'];
+				$new_normalized = $chapter_comparison['new_normalized'];
+				$old_display = (string) $chapter_comparison['old_display'];
+				$new_display = (string) $chapter_comparison['new_display'];
+				$changed = ! empty( $chapter_comparison['changed'] );
+				break;
+
 			case 'list':
 				$old_normalized = fanfic_normalize_block_snapshot_list( $old_value );
 				$new_normalized = fanfic_normalize_block_snapshot_list( $new_value );
@@ -880,6 +1229,34 @@ function fanfic_get_block_comparison_rows( $post_id ) {
 	}
 
 	return $rows;
+}
+
+/**
+ * Determine whether a blocked story has saved modifications versus its snapshot.
+ *
+ * @since 2.3.0
+ * @param int $post_id Story ID.
+ * @return bool
+ */
+function fanfic_story_has_block_snapshot_changes( $post_id ) {
+	$post_id = absint( $post_id );
+	if ( $post_id <= 0 ) {
+		return false;
+	}
+
+	$snapshot = fanfic_get_block_snapshot( $post_id );
+	if ( empty( $snapshot ) ) {
+		return false;
+	}
+
+	$rows = fanfic_get_block_comparison_rows( $post_id );
+	foreach ( $rows as $row ) {
+		if ( ! empty( $row['changed'] ) ) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 /**
@@ -951,6 +1328,10 @@ function fanfic_build_change_summary( $post_id ) {
 		}
 
 		switch ( $row['type'] ) {
+			case 'chapter_structure':
+				$summary_parts[] = __( 'Chapters changed (added, removed, or renamed).', 'fanfiction-manager' );
+				break;
+
 			case 'list':
 				$summary_parts[] = fanfic_build_block_list_change_summary(
 					$row['label'],
@@ -997,15 +1378,14 @@ function fanfic_build_change_summary( $post_id ) {
 }
 
 /**
- * Refresh the active unread re-review message for a blocked story.
+ * Sync blocked-story review state after author saves edits.
  *
- * The moderation message body is generated when the author first requests
- * re-review, but blocked stories can keep changing afterward. This refreshes
- * the existing unread message so moderators see a current summary.
+ * Saving keeps comparison data current but does not notify moderators.
+ * Moderator unread state is only triggered by explicit author messages.
  *
  * @since 2.3.0
  * @param int $story_id Story ID.
- * @return bool
+ * @return bool True when an active moderation thread exists.
  */
 function fanfic_refresh_re_review_message( $story_id ) {
 	$story_id = absint( $story_id );
@@ -1023,49 +1403,72 @@ function fanfic_refresh_re_review_message( $story_id ) {
 		return false;
 	}
 
-	$active_message = Fanfic_Moderation_Messages::get_active_message( $author_id, 'story', $story_id );
-	if ( empty( $active_message['id'] ) ) {
-		return false;
+	// Keep only canonical moderation states: block snapshot + latest saved content.
+	fanfic_refresh_block_diff_revision_pair( $story_id );
+
+	$has_active_message = Fanfic_Moderation_Messages::has_active_message( $author_id, 'story', $story_id );
+	if ( $has_active_message ) {
+		update_post_meta( $story_id, '_fanfic_re_review_requested', 1 );
+		return true;
 	}
 
-	$change_summary = function_exists( 'fanfic_build_change_summary' )
-		? fanfic_build_change_summary( $story_id )
-		: __( 'Author requested a re-review after editing the blocked story.', 'fanfiction-manager' );
-	$message_text = '[Re-review Request] ' . $change_summary;
-
-	return Fanfic_Moderation_Messages::update_message_text( (int) $active_message['id'], $message_text );
+	delete_post_meta( $story_id, '_fanfic_re_review_requested' );
+	return false;
 }
 
 /**
- * Get the WordPress revision comparison URL for the latest retained revision.
+ * Get the WordPress revision comparison URL for blocked-content baseline/current pair.
  *
  * @since 2.3.0
  * @param int $post_id Post ID.
  * @return string
  */
 function fanfic_get_revision_compare_url( $post_id ) {
-	$revisions = wp_get_post_revisions(
-		$post_id,
-		array(
-			'posts_per_page' => 1,
-		)
-	);
+	$post_id     = absint( $post_id );
+	$baseline_id = fanfic_get_block_diff_revision_id( $post_id, '_fanfic_block_diff_baseline_revision_id' );
+	$latest_id   = fanfic_get_block_diff_revision_id( $post_id, '_fanfic_block_diff_latest_revision_id' );
 
-	if ( empty( $revisions ) ) {
+	if ( $baseline_id <= 0 ) {
 		return '';
 	}
 
-	$latest_revision = reset( $revisions );
-	if ( ! $latest_revision || empty( $latest_revision->ID ) ) {
-		return '';
+	if ( $latest_id > 0 && $latest_id !== $baseline_id ) {
+		return admin_url(
+			add_query_arg(
+				array(
+					'from' => $baseline_id,
+					'to'   => $latest_id,
+				),
+				'revision.php'
+			)
+		);
 	}
 
-	return admin_url( 'revision.php?revision=' . absint( $latest_revision->ID ) );
+	return admin_url( 'revision.php?revision=' . $baseline_id );
 }
 
 /**
- * Filter revision retention so blocked stories and chapters keep revisions,
- * while normal fanfiction saves retain none.
+ * Determine whether a blocked story has any moderator-reviewable saved changes.
+ *
+ * Uses only story snapshot differences (including chapter structure changes).
+ *
+ * @since 2.4.0
+ * @param int $story_id Story ID.
+ * @return bool
+ */
+function fanfic_story_has_reviewable_modifications( $story_id ) {
+	$story_id = absint( $story_id );
+	if ( $story_id <= 0 ) {
+		return false;
+	}
+
+	return fanfic_story_has_block_snapshot_changes( $story_id );
+}
+
+/**
+ * Disable WordPress revisions for fanfiction stories and chapters.
+ *
+ * Blocked moderation review uses the block snapshot plus current saved content.
  *
  * @since 2.3.0
  * @param int         $num  Number of revisions to keep.
@@ -1079,15 +1482,10 @@ function fanfic_filter_revisions_to_keep( $num, $post ) {
 	}
 
 	if ( 'fanfiction_story' === $post->post_type ) {
-		return fanfic_is_story_blocked( $post->ID ) ? 25 : 0;
+		return 0;
 	}
 
 	if ( 'fanfiction_chapter' === $post->post_type ) {
-		$story_id = (int) $post->post_parent;
-		if ( fanfic_is_chapter_blocked( $post->ID ) || ( $story_id > 0 && fanfic_is_story_blocked( $story_id ) ) ) {
-			return 25;
-		}
-
 		return 0;
 	}
 
@@ -5065,6 +5463,8 @@ function fanfic_get_restriction_context( $target_type, $target_id ) {
 		'target_id'          => absint( $target_id ),
 		'reason_message'     => '',
 		'has_active_message' => false,
+		'active_message_id'  => 0,
+		'has_unread_moderator_reply' => false,
 		'owner_id'           => 0,
 		'moderator_reply'    => '',
 	);
@@ -5101,12 +5501,27 @@ function fanfic_get_restriction_context( $target_type, $target_id ) {
 	}
 
 	if ( $context['is_restricted'] && class_exists( 'Fanfic_Moderation_Messages' ) ) {
-		$context['has_active_message'] = Fanfic_Moderation_Messages::has_active_message(
+		$active_message = Fanfic_Moderation_Messages::get_active_message(
 			$context['owner_id'],
 			$target_type,
 			$target_id
 		);
+		$context['has_active_message'] = ! empty( $active_message['id'] );
+		$context['active_message_id']  = ! empty( $active_message['id'] ) ? absint( $active_message['id'] ) : 0;
+		$context['has_unread_moderator_reply'] = ! empty( $active_message['unread_for_author'] );
 		$context['moderator_reply'] = fanfic_get_restriction_reply_message( $target_type, $target_id );
+
+		if ( '' === $context['moderator_reply'] && $context['active_message_id'] > 0 && method_exists( 'Fanfic_Moderation_Messages', 'get_message_entries' ) ) {
+			$entries = Fanfic_Moderation_Messages::get_message_entries( $context['active_message_id'], false );
+			if ( ! empty( $entries ) ) {
+				for ( $i = count( $entries ) - 1; $i >= 0; $i-- ) {
+					if ( isset( $entries[ $i ]['sender_role'] ) && 'moderator' === $entries[ $i ]['sender_role'] ) {
+						$context['moderator_reply'] = sanitize_textarea_field( (string) $entries[ $i ]['message'] );
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	return $context;
@@ -5320,19 +5735,22 @@ function fanfic_render_moderation_message_modal() {
 	<div id="fanfic-mod-message-modal" class="fanfic-modal" style="display:none;" aria-hidden="true" aria-modal="true" role="dialog" aria-labelledby="fanfic-mod-modal-title">
 		<div class="fanfic-modal-overlay"></div>
 		<div class="fanfic-modal-content">
-			<h2 id="fanfic-mod-modal-title"><?php esc_html_e( 'Message Moderation', 'fanfiction-manager' ); ?></h2>
-			<p class="fanfic-modal-description"><?php esc_html_e( 'Send a message to the moderation team about this restriction. Be respectful and provide any relevant context.', 'fanfiction-manager' ); ?></p>
+			<h2 id="fanfic-mod-modal-title"><?php esc_html_e( 'Moderation Chat', 'fanfiction-manager' ); ?></h2>
+			<p class="fanfic-modal-description"><?php esc_html_e( 'Use this chat to discuss the current restriction with moderators.', 'fanfiction-manager' ); ?></p>
 			<form id="fanfic-mod-message-form">
 				<input type="hidden" name="target_type" id="fanfic-mod-target-type" value="">
 				<input type="hidden" name="target_id" id="fanfic-mod-target-id" value="">
+				<input type="hidden" name="message_id" id="fanfic-mod-thread-id" value="">
+				<div id="fanfic-mod-thread-state" class="fanfic-form-message" style="display:none;"></div>
+				<div id="fanfic-mod-thread-history" class="fanfic-mod-thread-history" aria-live="polite"></div>
 				<div class="fanfic-form-group">
-					<label for="fanfic-mod-message-text"><?php esc_html_e( 'Your message:', 'fanfiction-manager' ); ?></label>
+					<label for="fanfic-mod-message-text"><?php esc_html_e( 'Send message:', 'fanfiction-manager' ); ?></label>
 					<textarea
 						id="fanfic-mod-message-text"
 						name="message"
 						rows="5"
 						maxlength="1000"
-						placeholder="<?php esc_attr_e( 'Describe your situation...', 'fanfiction-manager' ); ?>"
+						placeholder="<?php esc_attr_e( 'Write your message to moderation...', 'fanfiction-manager' ); ?>"
 					></textarea>
 					<span class="fanfic-char-counter"><span id="fanfic-mod-char-count">0</span>/1000</span>
 				</div>
@@ -5352,6 +5770,34 @@ function fanfic_render_moderation_message_modal() {
 }
 
 /**
+ * Render the shared restriction notice for story/chapter view and edit contexts.
+ *
+ * @since 2.4.0
+ * @param string $target_type Restriction target type.
+ * @param int    $target_id   Target object ID.
+ * @param string $page_context UI context (view-story, view-chapter, edit-story, edit-chapter).
+ * @param array  $nav_buttons Optional nav buttons.
+ * @return void
+ */
+function fanfic_render_restriction_notice( $target_type, $target_id, $page_context, $nav_buttons = array() ) {
+	$target_type  = sanitize_key( (string) $target_type );
+	$target_id    = absint( $target_id );
+	$page_context = sanitize_key( (string) $page_context );
+
+	if ( ! $target_id || '' === $target_type || ! function_exists( 'fanfic_get_restriction_context' ) ) {
+		return;
+	}
+
+	$context = fanfic_get_restriction_context( $target_type, $target_id );
+	if ( empty( $context['is_restricted'] ) ) {
+		return;
+	}
+
+	$context['page_context'] = $page_context;
+	fanfic_render_restriction_banner( $context, $nav_buttons );
+}
+
+/**
  * Render a restriction banner for blocked stories/chapters or suspended accounts.
  *
  * @since 2.3.0
@@ -5366,18 +5812,40 @@ function fanfic_render_restriction_banner( $context, $nav_buttons = array() ) {
 
 	$restriction_type = $context['restriction_type'];
 	$has_active       = ! empty( $context['has_active_message'] );
+	$has_unread_reply = ! empty( $context['has_unread_moderator_reply'] );
 	$target_type      = esc_attr( $context['target_type'] );
 	$target_id        = absint( $context['target_id'] );
-	$moderator_reply  = isset( $context['moderator_reply'] ) ? trim( (string) $context['moderator_reply'] ) : '';
+	$page_context     = isset( $context['page_context'] ) ? sanitize_key( (string) $context['page_context'] ) : '';
+	$current_user_id  = get_current_user_id();
+	$is_owner_view    = $current_user_id > 0 && ! empty( $context['owner_id'] ) && (int) $context['owner_id'] === (int) $current_user_id;
+	$message_blacklisted = is_user_logged_in() && class_exists( 'Fanfic_Blacklist' )
+		? Fanfic_Blacklist::is_message_sender_blacklisted( get_current_user_id() )
+		: false;
 
 	switch ( $restriction_type ) {
 		case 'story_blocked':
 			$title = __( 'Story Blocked', 'fanfiction-manager' );
-			$info  = __( 'You can still view your story, but editing and visibility changes are disabled until the block is lifted.', 'fanfiction-manager' );
+			if ( 'edit-story' === $page_context && $is_owner_view ) {
+				$info = __( 'Your edits stay hidden while this story is blocked. Saving lets moderation access your latest saved modifications. To prompt moderators to review them, send a moderation message after saving.', 'fanfiction-manager' );
+			} elseif ( 'edit-chapter' === $page_context && $is_owner_view ) {
+				$info = __( 'This chapter belongs to blocked story content. Saving lets moderation access your latest saved modifications. To prompt moderators to review them, send a moderation message after saving.', 'fanfiction-manager' );
+			} else {
+				$info = __( 'You can still view your story, but editing and visibility changes are disabled until the block is lifted.', 'fanfiction-manager' );
+				if ( $is_owner_view ) {
+					$info .= ' ' . __( 'Moderation can access your latest saved version. Send a moderation message to prompt review.', 'fanfiction-manager' );
+				}
+			}
 			break;
 		case 'chapter_blocked':
 			$title = __( 'Chapter Blocked', 'fanfiction-manager' );
-			$info  = __( 'You can still view this chapter, but editing and visibility actions are disabled until the block is lifted.', 'fanfiction-manager' );
+			if ( 'edit-chapter' === $page_context && $is_owner_view ) {
+				$info = __( 'This chapter is blocked. Saving lets moderation access your latest saved modifications. To prompt moderators to review them, send a moderation message after saving.', 'fanfiction-manager' );
+			} else {
+				$info = __( 'You can still view this chapter, but editing and visibility actions are disabled until the block is lifted.', 'fanfiction-manager' );
+				if ( $is_owner_view ) {
+					$info .= ' ' . __( 'Moderation can access your latest saved version. Send a moderation message to prompt review.', 'fanfiction-manager' );
+				}
+			}
 			break;
 		case 'user_suspended':
 			$title = __( 'Account Suspended', 'fanfiction-manager' );
@@ -5394,12 +5862,6 @@ function fanfic_render_restriction_banner( $context, $nav_buttons = array() ) {
 		<span class="fanfic-message-content">
 			<strong><?php echo esc_html( $title ); ?></strong><br>
 			<?php echo esc_html( $context['reason_message'] ); ?><br>
-			<?php if ( '' !== $moderator_reply ) : ?>
-				<span class="fanfic-block-info">
-					<strong><?php esc_html_e( 'Moderator reply:', 'fanfiction-manager' ); ?></strong>
-					<?php echo wp_kses_post( nl2br( esc_html( $moderator_reply ) ) ); ?>
-				</span><br>
-			<?php endif; ?>
 			<?php if ( $info ) : ?>
 				<span class="fanfic-block-info"><?php echo esc_html( $info ); ?></span>
 			<?php endif; ?>
@@ -5410,16 +5872,17 @@ function fanfic_render_restriction_banner( $context, $nav_buttons = array() ) {
 					</a>
 				<?php endforeach; ?>
 				<?php if ( is_user_logged_in() && class_exists( 'Fanfic_Moderation_Messages' ) ) : ?>
-					<?php if ( $has_active ) : ?>
-						<span class="fanfic-button secondary fanfic-message-sent-badge disabled">
-							<?php esc_html_e( 'Message Sent - Awaiting Review', 'fanfiction-manager' ); ?>
-						</span>
+					<?php if ( $message_blacklisted && ! $has_active ) : ?>
+						<button type="button" class="fanfic-button secondary" disabled aria-disabled="true">
+							<?php esc_html_e( 'Messaging Unavailable', 'fanfiction-manager' ); ?>
+						</button>
 					<?php else : ?>
 						<button type="button"
-							class="fanfic-button secondary fanfic-message-mod-btn"
+							class="fanfic-button secondary fanfic-message-mod-btn<?php echo $has_active ? ' fanfic-message-chat-active' : ''; ?><?php echo $has_unread_reply ? ' fanfic-message-chat-has-unread' : ''; ?>"
 							data-target-type="<?php echo esc_attr( $target_type ); ?>"
-							data-target-id="<?php echo esc_attr( $target_id ); ?>">
-							<?php esc_html_e( 'Message Moderation', 'fanfiction-manager' ); ?>
+							data-target-id="<?php echo esc_attr( $target_id ); ?>"
+							data-has-unread="<?php echo $has_unread_reply ? '1' : '0'; ?>">
+							<?php echo esc_html( $has_active ? __( 'Open Moderation Chat', 'fanfiction-manager' ) : __( 'Message Moderation', 'fanfiction-manager' ) ); ?>
 						</button>
 					<?php endif; ?>
 				<?php endif; ?>

@@ -92,6 +92,7 @@ add_action( 'fanfic_page_alerts', function( $context ) {
 } );
 
 fanfic_render_page_header( 'dashboard' );
+?>
 
 <!-- Dashboard Header / Profile -->
 <header class="fanfic-dashboard-header">
@@ -382,6 +383,12 @@ fanfic_render_page_header( 'dashboard' );
 												$has_active_message = class_exists( 'Fanfic_Moderation_Messages' )
 													? Fanfic_Moderation_Messages::has_active_message( $current_user->ID, 'story', $story_id )
 													: false;
+												$has_unread_reply = ( class_exists( 'Fanfic_Moderation_Messages' ) && method_exists( 'Fanfic_Moderation_Messages', 'active_thread_has_unread_for_author' ) )
+													? Fanfic_Moderation_Messages::active_thread_has_unread_for_author( $current_user->ID, 'story', $story_id )
+													: false;
+												$message_blacklisted = class_exists( 'Fanfic_Blacklist' )
+													? Fanfic_Blacklist::is_message_sender_blacklisted( $current_user->ID )
+													: false;
 												?>
 												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
 													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
@@ -393,17 +400,18 @@ fanfic_render_page_header( 'dashboard' );
 													<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 												</span>
 												<?php if ( class_exists( 'Fanfic_Moderation_Messages' ) ) : ?>
-													<?php if ( $has_active_message ) : ?>
-														<span class="fanfic-button small secondary fanfic-message-sent-badge disabled">
-															<?php esc_html_e( 'Message Sent - Awaiting Review', 'fanfiction-manager' ); ?>
-														</span>
+													<?php if ( $message_blacklisted && ! $has_active_message ) : ?>
+														<button type="button" class="fanfic-button small secondary" disabled aria-disabled="true">
+															<?php esc_html_e( 'Messaging Unavailable', 'fanfiction-manager' ); ?>
+														</button>
 													<?php else : ?>
 														<button
 															type="button"
-															class="fanfic-button small secondary fanfic-message-mod-btn"
+															class="fanfic-button small secondary fanfic-message-mod-btn<?php echo $has_active_message ? ' fanfic-message-chat-active' : ''; ?><?php echo $has_unread_reply ? ' fanfic-message-chat-has-unread' : ''; ?>"
 															data-target-type="story"
-															data-target-id="<?php echo esc_attr( $story_id ); ?>">
-															<?php esc_html_e( 'Message Moderation', 'fanfiction-manager' ); ?>
+															data-target-id="<?php echo esc_attr( $story_id ); ?>"
+															data-has-unread="<?php echo $has_unread_reply ? '1' : '0'; ?>">
+															<?php esc_html_e( 'Open Moderation Chat', 'fanfiction-manager' ); ?>
 														</button>
 													<?php endif; ?>
 												<?php endif; ?>

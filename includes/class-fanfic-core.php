@@ -256,6 +256,7 @@ class Fanfic_Core {
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-search-index.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-log.php';
 		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-messages.php';
+		require_once FANFIC_INCLUDES_DIR . 'class-fanfic-blacklist.php';
 		require_once FANFIC_INCLUDES_DIR . 'functions.php';
 		require_once FANFIC_INCLUDES_DIR . 'fanfic-story-card.php';
 
@@ -281,6 +282,7 @@ class Fanfic_Core {
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation.php';
 			// Load WP_List_Table implementation for moderation queue
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-table.php';
+			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-blocks-table.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-messages-table.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-moderation-stamps.php';
 			require_once FANFIC_INCLUDES_DIR . 'class-fanfic-users-admin.php';
@@ -1195,6 +1197,10 @@ class Fanfic_Core {
 		$has_active_message = class_exists( 'Fanfic_Moderation_Messages' )
 			? Fanfic_Moderation_Messages::has_active_message( $current_user->ID, 'user', $current_user->ID )
 			: false;
+		$has_unread_reply = class_exists( 'Fanfic_Moderation_Messages' ) && method_exists( 'Fanfic_Moderation_Messages', 'active_thread_has_unread_for_author' )
+			? Fanfic_Moderation_Messages::active_thread_has_unread_for_author( $current_user->ID, 'user', $current_user->ID )
+			: false;
+		$message_blacklisted = Fanfic_Blacklist::is_message_sender_blacklisted( $current_user->ID );
 
 		?>
 		<div id="fanfic-suspension-notice" style="position: fixed; top: 0; left: 0; right: 0; background: #dc3232; color: #fff; padding: 15px 20px; text-align: center; z-index: 999999; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
@@ -1204,18 +1210,24 @@ class Fanfic_Core {
 					<?php esc_html_e( 'You can view your content but cannot create or edit stories.', 'fanfiction-manager' ); ?>
 				</span>
 				<?php if ( class_exists( 'Fanfic_Moderation_Messages' ) ) : ?>
-					<?php if ( $has_active_message ) : ?>
-						<span class="fanfic-button secondary fanfic-message-sent-badge disabled" style="margin-left:12px;">
-							<?php esc_html_e( 'Message Sent - Awaiting Review', 'fanfiction-manager' ); ?>
-						</span>
+					<?php if ( $message_blacklisted && ! $has_active_message ) : ?>
+						<button
+							type="button"
+							class="fanfic-button secondary"
+							style="margin-left:12px;"
+							disabled
+							aria-disabled="true">
+							<?php esc_html_e( 'Messaging Unavailable', 'fanfiction-manager' ); ?>
+						</button>
 					<?php else : ?>
 						<button
 							type="button"
-							class="fanfic-button secondary fanfic-message-mod-btn"
+							class="fanfic-button secondary fanfic-message-mod-btn<?php echo $has_active_message ? ' fanfic-message-chat-active' : ''; ?><?php echo $has_unread_reply ? ' fanfic-message-chat-has-unread' : ''; ?>"
 							style="margin-left:12px;"
 							data-target-type="user"
-							data-target-id="<?php echo esc_attr( $current_user->ID ); ?>">
-							<?php esc_html_e( 'Message Moderation', 'fanfiction-manager' ); ?>
+							data-target-id="<?php echo esc_attr( $current_user->ID ); ?>"
+							data-has-unread="<?php echo $has_unread_reply ? '1' : '0'; ?>">
+							<?php echo esc_html( $has_active_message ? __( 'Open Moderation Chat', 'fanfiction-manager' ) : __( 'Message Moderation', 'fanfiction-manager' ) ); ?>
 						</button>
 					<?php endif; ?>
 				<?php endif; ?>
@@ -1411,12 +1423,14 @@ class Fanfic_Core {
 						'featureStory'       => __( 'Feature', 'fanfiction-manager' ),
 						'unfeatureStory'     => __( 'Unfeature', 'fanfiction-manager' ),
 						'modMessageSent'     => __( 'Message sent successfully.', 'fanfiction-manager' ),
-						'modMessageSentState'=> __( 'Message Sent - Awaiting Review', 'fanfiction-manager' ),
+						'modMessageOpenState'=> __( 'Open Moderation Chat', 'fanfiction-manager' ),
 						'modMessageError'    => __( 'Failed to send message. Please try again.', 'fanfiction-manager' ),
 						'modMessageTooLong'  => __( 'Message must be between 1 and 1000 characters.', 'fanfiction-manager' ),
 						'modMessageEmpty'    => __( 'Please enter a message before sending.', 'fanfiction-manager' ),
-						'reReviewSent'       => __( 'Re-review request sent successfully.', 'fanfiction-manager' ),
-						'reReviewError'      => __( 'Failed to submit the re-review request. Please try again.', 'fanfiction-manager' ),
+						'modThreadLoading'   => __( 'Loading conversation...', 'fanfiction-manager' ),
+						'modThreadEmpty'     => __( 'No messages yet. Send the first message to moderation.', 'fanfiction-manager' ),
+						'modThreadUnread'    => __( 'New moderator reply', 'fanfiction-manager' ),
+						'modThreadClosed'    => __( 'This conversation is closed. You can start a new one while the restriction remains active.', 'fanfiction-manager' ),
 						'chapterBlockReasonRequired' => __( 'Please choose a block reason.', 'fanfiction-manager' ),
 						'chapterBlockConfirm' => __( 'Block this chapter? Authors will be limited to view-only access.', 'fanfiction-manager' ),
 						'chapterUnblockConfirm' => __( 'Unblock this chapter?', 'fanfiction-manager' ),

@@ -14,6 +14,7 @@
 	function init() {
 		// Handle moderation actions
 		initModerationActions();
+		initBlacklistActions();
 		initMessageActions();
 		initBanReasonModal();
 		initTaxonomyFilter();
@@ -157,23 +158,87 @@
 			return getMessageRows(messageId).$detailRow.find('.fanfic-message-action-prompt').first();
 		}
 
-		function openMessageModal(messageId) {
-			const rows = getMessageRows(messageId);
-			const message = $.trim(rows.$detailRow.find('.fanfic-message-full-text').text() || '');
-			const title = $.trim(rows.$mainRow.find('.column-title').text() || '');
-			const author = $.trim(rows.$mainRow.find('.column-author').text() || '');
-			const emptyText = strings.reportMessageEmpty || 'This report does not include a message.';
-			const body = message ? '<div class="fanfic-report-message-copy">' + escapeHtml(message).replace(/\n/g, '<br>') + '</div>' : '<span class="fanfic-report-message-empty">' + escapeHtml(emptyText) + '</span>';
+		function renderThreadEntries(entries) {
+			const rows = Array.isArray(entries) ? entries : [];
+			if (!rows.length) {
+				return '<p class="fanfic-report-message-empty">' + escapeHtml(strings.threadEmpty || 'No messages in this conversation yet.') + '</p>';
+			}
 
-			openAdminModal(
-				'<h2>' + escapeHtml(strings.authorMessageTitle || 'Author Message') + '</h2>' +
+			let html = '<div class="fanfic-admin-thread-list">';
+			rows.forEach(function(entry) {
+				const role = String(entry && entry.sender_role ? entry.sender_role : 'system').trim();
+				const roleClass = role === 'author' ? 'author' : (role === 'moderator' ? 'moderator' : 'system');
+				const senderName = escapeHtml(String(entry && entry.sender_name ? entry.sender_name : ''));
+				const created = escapeHtml(String(entry && entry.created_human ? entry.created_human : ''));
+				const message = escapeHtml(String(entry && entry.message ? entry.message : '')).replace(/\n/g, '<br>');
+
+				html += '<div class="fanfic-admin-thread-entry fanfic-admin-thread-entry-' + roleClass + '">';
+				html += '<div class="fanfic-admin-thread-entry-meta"><strong>' + senderName + '</strong><span>' + created + '</span></div>';
+				html += '<div class="fanfic-admin-thread-entry-message">' + message + '</div>';
+				html += '</div>';
+			});
+			html += '</div>';
+			return html;
+		}
+
+		function buildMessageThreadModalHtml(messageId, title, author, threadData) {
+			const entriesHtml = renderThreadEntries(threadData && threadData.entries ? threadData.entries : []);
+			const canSend = !!(threadData && threadData.can_send);
+			const status = String(threadData && threadData.status ? threadData.status : '').trim();
+			const replyLabel = strings.threadReplyLabel || 'Reply to Author';
+			const sendLabel = strings.threadReplySend || 'Send Reply';
+			const disabledAttr = canSend ? '' : ' disabled aria-disabled="true"';
+			const closedLabel = status === 'ignored'
+				? (strings.statusIgnored || 'Ignored')
+				: (status === 'deleted' ? 'Deleted' : (strings.statusResolved || 'Resolved'));
+			const statusInfo = canSend
+				? ''
+				: '<p class="description">' + escapeHtml(closedLabel) + '</p>';
+
+			return '<h2>' + escapeHtml(strings.authorMessageTitle || 'Author Message') + '</h2>' +
 				'<div class="fanfic-report-details"><table class="widefat"><tbody>' +
 				'<tr><th>Title</th><td>' + escapeHtml(title) + '</td></tr>' +
 				'<tr><th>Author</th><td>' + escapeHtml(author) + '</td></tr>' +
-				'<tr><th>' + escapeHtml(strings.authorMessageLabel || 'Message') + '</th><td>' + body + '</td></tr>' +
+				'<tr><th>' + escapeHtml(strings.authorMessageLabel || 'Message') + '</th><td>' + entriesHtml + '</td></tr>' +
 				'</tbody></table></div>' +
-				'<div class="fanfic-admin-modal-actions"><button type="button" class="button fanfic-admin-modal-close">Close</button></div>'
+				statusInfo +
+				'<div class="fanfic-admin-modal-form fanfic-admin-thread-reply-form">' +
+				'<label for="fanfic-thread-reply-' + messageId + '">' + escapeHtml(replyLabel) + '</label>' +
+				'<textarea id="fanfic-thread-reply-' + messageId + '" class="fanfic-thread-reply-input" rows="4" maxlength="1000"' + disabledAttr + '></textarea>' +
+				'<div class="fanfic-admin-modal-actions">' +
+				'<button type="button" class="button button-primary fanfic-thread-send-reply" data-message-id="' + messageId + '"' + disabledAttr + '>' + escapeHtml(sendLabel) + '</button>' +
+				'<button type="button" class="button fanfic-admin-modal-close">Close</button>' +
+				'</div>' +
+				'</div>';
+		}
+
+		function openMessageModal(messageId) {
+			const rows = getMessageRows(messageId);
+			const title = $.trim(rows.$mainRow.find('.column-title').text() || '');
+			const author = $.trim(rows.$mainRow.find('.column-author').text() || '');
+			openAdminModal(
+				'<h2>' + escapeHtml(strings.authorMessageTitle || 'Author Message') + '</h2>' +
+				'<div class="fanfic-admin-modal-loading"><p>' + escapeHtml(strings.threadLoading || 'Loading conversation...') + '</p></div>'
 			);
+
+			$.ajax({
+				url: fanfictionAdmin.ajaxUrl || ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_get_moderation_thread',
+					nonce: fanfictionAdmin.nonce || '',
+					message_id: messageId
+				}
+			}).done(function(response) {
+				if (response && response.success && response.data) {
+					$('.fanfic-admin-modal-content').html(buildMessageThreadModalHtml(messageId, title, author, response.data));
+					return;
+				}
+
+				showModalError((response && response.data && response.data.message) || (strings.actionError || 'An error occurred. Please try again.'));
+			}).fail(function() {
+				showModalError(strings.actionError || 'An error occurred. Please try again.');
+			});
 		}
 
 		function ensureAlreadyUnblockedNote($detailRow) {
@@ -287,6 +352,52 @@
 		$(document).on('click', '.fanfic-msg-view-message', function(e) {
 			e.preventDefault();
 			openMessageModal(parseInt($(this).data('message-id'), 10) || 0);
+		});
+
+		$(document).on('click', '.fanfic-thread-send-reply', function(e) {
+			e.preventDefault();
+
+			const $button = $(this);
+			const messageId = parseInt($button.data('message-id'), 10) || 0;
+			const $textarea = $('#fanfic-thread-reply-' + messageId);
+			const reply = String($textarea.val() || '').trim();
+			const originalLabel = $button.text();
+
+			if (!messageId) {
+				return;
+			}
+
+			if (!reply) {
+				window.alert(strings.threadReplyEmpty || 'Please enter a reply before sending.');
+				return;
+			}
+
+			$button.prop('disabled', true).text(strings.threadReplySending || 'Sending...');
+
+			$.ajax({
+				url: fanfictionAdmin.ajaxUrl || ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_send_moderation_reply',
+					nonce: fanfictionAdmin.nonce || '',
+					message_id: messageId,
+					reply: reply
+				}
+			}).done(function(response) {
+				if (response && response.success) {
+					$textarea.val('');
+					$('.fanfic-admin-modal').remove();
+					$('body').removeClass('fanfic-admin-modal-open');
+					openMessageModal(messageId);
+					return;
+				}
+
+				window.alert((response && response.data && response.data.message) || (strings.actionError || 'An error occurred. Please try again.'));
+				$button.prop('disabled', false).text(originalLabel);
+			}).fail(function() {
+				window.alert(strings.actionError || 'An error occurred. Please try again.');
+				$button.prop('disabled', false).text(originalLabel);
+			});
 		});
 
 		$(document).on('click', '.fanfic-msg-review-changes', function(e) {
@@ -949,6 +1060,107 @@
 			return;
 		}
 		submitReportAction('fanfic_block_report', parseInt($(this).data('report-id'), 10) || 0, {}, $(this));
+	}
+
+	function initBlacklistActions() {
+		function submitAction(action, payload, $button) {
+			if ($button && $button.length) {
+				$button.prop('disabled', true);
+			}
+
+			$.ajax({
+				url: fanfictionAdmin.ajaxUrl || ajaxurl,
+				type: 'POST',
+				data: $.extend(
+					{
+						action: action,
+						nonce: getModerationNonce()
+					},
+					payload || {}
+				)
+			}).done(function(response) {
+				if (response && response.success) {
+					window.location.reload();
+					return;
+				}
+
+				window.alert((response && response.data && response.data.message) || ((fanfictionAdmin.strings && fanfictionAdmin.strings.actionError) || 'An error occurred. Please try again.'));
+				if ($button && $button.length) {
+					$button.prop('disabled', false);
+				}
+			}).fail(function() {
+				window.alert((fanfictionAdmin.strings && fanfictionAdmin.strings.actionError) || 'An error occurred. Please try again.');
+				if ($button && $button.length) {
+					$button.prop('disabled', false);
+				}
+			});
+		}
+
+		$(document).on('click', '.fanfic-blacklist-reporter', function(e) {
+			e.preventDefault();
+			var $button = $(this);
+			if (!window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.blacklistReporterConfirm) || 'Blacklist this reporter? They will no longer be able to submit reports.')) {
+				return;
+			}
+
+			submitAction(
+				'fanfic_blacklist_reporter',
+				{
+					user_id: parseInt($button.data('user-id'), 10) || 0,
+					ip: String($button.data('ip') || '').trim()
+				},
+				$button
+			);
+		});
+
+		$(document).on('click', '.fanfic-blacklist-message-sender', function(e) {
+			e.preventDefault();
+			var $button = $(this);
+			if (!window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.blacklistMessageSenderConfirm) || 'Blacklist this author? They will no longer be able to send moderation messages.')) {
+				return;
+			}
+
+			submitAction(
+				'fanfic_blacklist_message_sender',
+				{
+					user_id: parseInt($button.data('user-id'), 10) || 0
+				},
+				$button
+			);
+		});
+
+		$(document).on('click', '.fanfic-unblacklist', function(e) {
+			e.preventDefault();
+			var $button = $(this);
+			if (!window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.unblacklistConfirm) || 'Remove this blacklist entry?')) {
+				return;
+			}
+
+			submitAction(
+				'fanfic_remove_blacklist',
+				{
+					blacklist_id: parseInt($button.data('blacklist-id'), 10) || 0
+				},
+				$button
+			);
+		});
+
+		$(document).on('click', '.fanfic-unblock-content', function(e) {
+			e.preventDefault();
+			var $button = $(this);
+			if (!window.confirm((fanfictionAdmin.strings && fanfictionAdmin.strings.unblockConfirm) || 'Unblock this content?')) {
+				return;
+			}
+
+			submitAction(
+				'fanfic_unblock_content',
+				{
+					target_type: String($button.data('target-type') || '').trim(),
+					target_id: parseInt($button.data('target-id'), 10) || 0
+				},
+				$button
+			);
+		});
 	}
 
 	/**

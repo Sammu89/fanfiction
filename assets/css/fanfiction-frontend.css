@@ -6600,6 +6600,83 @@ body.fanfic-member-profile .wp-block-post-title {
 	border: 1px solid #abefc6;
 }
 
+.fanfic-form-message.info {
+	display: block;
+	background: #eef4ff;
+	color: #1d4ed8;
+	border: 1px solid #bfdbfe;
+}
+
+.fanfic-message-chat-has-unread {
+	position: relative;
+}
+
+.fanfic-message-chat-has-unread::after {
+	content: '';
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #dc2626;
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-history {
+	max-height: 280px;
+	overflow-y: auto;
+	border: 1px solid var(--color-border, #d0d7de);
+	border-radius: 8px;
+	background: #fff;
+	padding: 10px;
+	margin: 0 0 12px;
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-empty {
+	margin: 0;
+	color: var(--color-text-muted, #666);
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-entry {
+	padding: 10px;
+	border-radius: 8px;
+	margin-bottom: 10px;
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-entry:last-child {
+	margin-bottom: 0;
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-entry-author {
+	background: #eff6ff;
+	border: 1px solid #dbeafe;
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-entry-moderator {
+	background: #f5f3ff;
+	border: 1px solid #ddd6fe;
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-entry-system {
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-entry-meta {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	font-size: 12px;
+	margin-bottom: 6px;
+	color: var(--color-text-muted, #666);
+}
+
+#fanfic-mod-message-modal .fanfic-mod-thread-entry-message {
+	font-size: 14px;
+	line-height: 1.5;
+}
+
 /* Empty state placeholder */
 .fanfic-empty-state {
 	padding: 40px 20px;
@@ -8596,4 +8673,89 @@ input:checked + .fanfic-slider:before {
 
 .fanfic-lightbox-trigger img {
 	cursor: zoom-in;
+}
+
+/* Blocked-story comparison native diff (moderation modal). */
+.fanfic-comparison-table .fanfic-native-diff-row th,
+.fanfic-comparison-table .fanfic-native-diff-row td {
+	background: #f6f7f7;
+}
+
+.fanfic-native-diff-cell {
+	padding: 12px;
+}
+
+.fanfic-native-diff-cell .diff {
+	margin-top: 8px;
+	overflow: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	background: #fff;
+}
+
+.fanfic-native-diff-cell .diff table {
+	width: 100%;
+	table-layout: fixed;
+	border-collapse: collapse;
+	background: #fff;
+}
+
+.fanfic-native-diff-cell .diff tr {
+	background: transparent !important;
+}
+
+.fanfic-native-diff-cell .diff td {
+	position: relative;
+	padding: 10px 12px 10px 32px !important;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 13px;
+	line-height: 1.5;
+	vertical-align: top;
+	word-break: break-word;
+}
+
+.fanfic-native-diff-cell .diff td.diff-deletedline {
+	background: #fcf0f1 !important;
+	color: #5a1a1b;
+}
+
+.fanfic-native-diff-cell .diff td.diff-addedline {
+	background: #edfaef !important;
+	color: #0f4f2a;
+}
+
+/* Use text markers instead of icon glyphs to avoid font-loading glitches. */
+.fanfic-native-diff-cell .diff td.diff-deletedline .dashicons,
+.fanfic-native-diff-cell .diff td.diff-addedline .dashicons {
+	display: none;
+}
+
+.fanfic-native-diff-cell .diff td.diff-deletedline::before,
+.fanfic-native-diff-cell .diff td.diff-addedline::before {
+	position: absolute;
+	top: 10px;
+	left: 12px;
+	font-size: 14px;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.fanfic-native-diff-cell .diff td.diff-deletedline::before {
+	content: "-";
+	color: #b32d2e;
+}
+
+.fanfic-native-diff-cell .diff td.diff-addedline::before {
+	content: "+";
+	color: #1e8e3e;
+}
+
+.fanfic-native-diff-cell .diff td.diff-deletedline del {
+	background: #f4c2c7;
+	text-decoration: none;
+}
+
+.fanfic-native-diff-cell .diff td.diff-addedline ins {
+	background: #9ce6aa;
+	text-decoration: none;
 }

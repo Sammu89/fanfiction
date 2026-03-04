@@ -140,9 +140,8 @@ add_action( 'fanfic_page_alerts', function( $context ) use ( $story_post, $is_st
 	if ( 'view-story' !== $context || ! $story_post || 'fanfiction_story' !== $story_post->post_type ) {
 		return;
 	}
-	if ( $is_story_author && $is_story_blocked && function_exists( 'fanfic_render_restriction_banner' ) ) {
-		$ctx = fanfic_get_restriction_context( 'story', $story_post->ID );
-		fanfic_render_restriction_banner( $ctx, array(
+	if ( $is_story_author && $is_story_blocked && function_exists( 'fanfic_render_restriction_notice' ) ) {
+		fanfic_render_restriction_notice( 'story', $story_post->ID, 'view-story', array(
 			array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
 			array( 'label' => __( 'Edit Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $story_post->ID ), 'class' => 'secondary' ),
 		) );
