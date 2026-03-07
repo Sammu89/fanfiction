@@ -308,7 +308,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			$reason_labels = self::get_block_reason_labels();
 			$reason_label = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : $block_reason;
 
-			$output = '<span class="status-badge status-blocked"><span class="dashicons dashicons-lock"></span> ' . __( 'Blocked', 'fanfiction-manager' ) . '</span>';
+			$output = '<span class="fanfic-badge fanfic-badge--status is-danger fanfic-status-blocked" data-badge-type="status" data-badge-scope="stories-table-status" data-status="blocked"><span class="dashicons dashicons-lock"></span> ' . __( 'Blocked', 'fanfiction-manager' ) . '</span>';
 			if ( $block_reason && 'manual' !== $block_reason ) {
 				$output .= '<br><small class="block-reason" title="' . esc_attr( $reason_label ) . '">' . esc_html( $reason_label ) . '</small>';
 			}
@@ -316,10 +316,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 		}
 
 		if ( 'publish' === $post_status ) {
-			return '<span class="status-badge status-visible"><span class="dashicons dashicons-yes-alt"></span> ' . __( 'Visible', 'fanfiction-manager' ) . '</span>';
+			return '<span class="fanfic-badge fanfic-badge--status is-success fanfic-status-visible" data-badge-type="status" data-badge-scope="stories-table-status" data-status="visible"><span class="dashicons dashicons-yes-alt"></span> ' . __( 'Visible', 'fanfiction-manager' ) . '</span>';
 		}
 
-		return '<span class="status-badge status-hidden"><span class="dashicons dashicons-edit"></span> ' . __( 'Hidden', 'fanfiction-manager' ) . '</span>';
+		return '<span class="fanfic-badge fanfic-badge--status is-muted fanfic-status-hidden" data-badge-type="status" data-badge-scope="stories-table-status" data-status="hidden"><span class="dashicons dashicons-edit"></span> ' . __( 'Hidden', 'fanfiction-manager' ) . '</span>';
 	}
 
 	/**

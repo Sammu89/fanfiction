@@ -419,10 +419,10 @@ class Fanfic_Warnings {
 	 * @param string $prefix Class prefix.
 	 * @return string CSS class.
 	 */
-	public static function get_age_badge_class( $value, $prefix = 'fanfic-age-badge-' ) {
+	public static function get_age_badge_class( $value, $prefix = 'is-age-' ) {
 		$prefix = trim( (string) $prefix );
 		if ( '' === $prefix ) {
-			$prefix = 'fanfic-age-badge-';
+			$prefix = 'is-age-';
 		}
 
 		return $prefix . self::get_age_badge_range_key( $value );
@@ -1166,4 +1166,3 @@ class Fanfic_Warnings {
 		return $new_warning_id;
 	}
 }
-

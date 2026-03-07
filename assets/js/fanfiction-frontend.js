@@ -2184,7 +2184,7 @@
 	 * Update notification badge with new count
 	 */
 	function updateNotificationBadge(count) {
-		const badge = $('.fanfic-notification-badge');
+		const badge = $('[data-badge-type="count"][data-badge-scope="notifications"]');
 		const heading = $('#notifications-heading');
 
 		if (count > 0) {
@@ -2192,7 +2192,7 @@
 				badge.text(count);
 			} else {
 				// Create badge if it doesn't exist
-				heading.append(`<span class="fanfic-notification-badge" aria-label="${count} unread notifications">${count}</span>`);
+				heading.append(`<span class="fanfic-badge fanfic-badge--count" data-badge-type="count" data-badge-scope="notifications" aria-label="${count} unread notifications">${count}</span>`);
 			}
 		} else {
 			// Remove badge if count is 0

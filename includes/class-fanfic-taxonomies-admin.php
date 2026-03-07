@@ -426,9 +426,9 @@ class Fanfic_Taxonomies_Admin {
 										</td>
 										<td class="column-status">
 											<?php if ( $is_active ) : ?>
-												<span class="fanfic-status-badge fanfic-status-active"><?php esc_html_e( 'Active', 'fanfiction-manager' ); ?></span>
+												<span class="fanfic-badge fanfic-badge--status is-success fanfic-status-active" data-badge-type="status" data-badge-scope="admin-taxonomy-status" data-status="active"><?php esc_html_e( 'Active', 'fanfiction-manager' ); ?></span>
 											<?php else : ?>
-												<span class="fanfic-status-badge fanfic-status-inactive"><?php esc_html_e( 'Inactive', 'fanfiction-manager' ); ?></span>
+												<span class="fanfic-badge fanfic-badge--status is-muted fanfic-status-inactive" data-badge-type="status" data-badge-scope="admin-taxonomy-status" data-status="inactive"><?php esc_html_e( 'Inactive', 'fanfiction-manager' ); ?></span>
 											<?php endif; ?>
 										</td>
 										<td class="column-actions">

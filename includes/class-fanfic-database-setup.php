@@ -40,6 +40,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - wp_fanfic_moderation_messages: Author moderation message threads (NEW in 2.3.0)
  * - wp_fanfic_moderation_message_entries: Chat entries for moderation threads (NEW in 2.4.0)
  * - wp_fanfic_blacklist: Reporter/author blacklist entries (NEW in 2.4.0)
+ * - moderation thread contexts (restriction/direct_profile) (NEW in 2.5.0)
  *
  * @since 1.0.0
  */
@@ -51,7 +52,7 @@ class Fanfic_Database_Setup {
 	 * @since 1.0.0
 	 * @var string
 	 */
-	const DB_VERSION = '2.4.0';
+	const DB_VERSION = '2.5.0';
 
 	/**
 	 * Option name for database version tracking
@@ -589,6 +590,7 @@ class Fanfic_Database_Setup {
 			author_id bigint(20) UNSIGNED NOT NULL,
 			target_type varchar(50) NOT NULL,
 			target_id bigint(20) UNSIGNED NOT NULL,
+			thread_context varchar(30) NOT NULL DEFAULT 'restriction',
 			message text NOT NULL,
 			status varchar(20) NOT NULL DEFAULT 'unread',
 			unread_for_moderator tinyint(1) NOT NULL DEFAULT 1,
@@ -602,6 +604,8 @@ class Fanfic_Database_Setup {
 			PRIMARY KEY  (id),
 			KEY idx_author (author_id),
 			KEY idx_target (target_type, target_id),
+			KEY idx_target_context (target_type, target_id, thread_context),
+			KEY idx_author_context_status (author_id, thread_context, status),
 			KEY idx_status (status),
 			KEY idx_unread_moderator (status, unread_for_moderator),
 			KEY idx_unread_author (status, unread_for_author),
@@ -1088,6 +1092,28 @@ class Fanfic_Database_Setup {
 		// v2.4.0: Add moderation blacklist table.
 		if ( version_compare( $current_version, '2.4.0', '<' ) ) {
 			self::ensure_blacklist_table();
+		}
+
+		// v2.5.0: Add moderation thread context column.
+		if ( version_compare( $current_version, '2.5.0', '<' ) ) {
+			global $wpdb;
+			$messages_table = $wpdb->prefix . 'fanfic_moderation_messages';
+			if ( self::verify_table_exists( $messages_table ) ) {
+				$col = $wpdb->get_row( "SHOW COLUMNS FROM {$messages_table} LIKE 'thread_context'" );
+				if ( ! $col ) {
+					$wpdb->query( "ALTER TABLE {$messages_table} ADD COLUMN thread_context varchar(30) NOT NULL DEFAULT 'restriction' AFTER target_id" );
+				}
+
+				$has_target_context_index = $wpdb->get_var( "SHOW INDEX FROM {$messages_table} WHERE Key_name = 'idx_target_context'" );
+				if ( ! $has_target_context_index ) {
+					$wpdb->query( "ALTER TABLE {$messages_table} ADD KEY idx_target_context (target_type, target_id, thread_context)" );
+				}
+
+				$has_author_context_status_index = $wpdb->get_var( "SHOW INDEX FROM {$messages_table} WHERE Key_name = 'idx_author_context_status'" );
+				if ( ! $has_author_context_status_index ) {
+					$wpdb->query( "ALTER TABLE {$messages_table} ADD KEY idx_author_context_status (author_id, thread_context, status)" );
+				}
+			}
 		}
 
 	}

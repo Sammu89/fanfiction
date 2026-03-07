@@ -271,8 +271,10 @@ class Fanfic_Shortcodes_Utility {
 			return '';
 		}
 
-		$status = $story->post_status;
-		$status_class = 'fanfic-status-badge fanfic-status-' . esc_attr( $status );
+		$status      = sanitize_key( (string) $story->post_status );
+		$status_tone = function_exists( 'fanfic_get_badge_tone_for_status' ) ? fanfic_get_badge_tone_for_status( $status ) : 'is-muted';
+		$status_class = 'fanfic-badge fanfic-badge--status ' .
+			sanitize_html_class( $status_tone ) . ' fanfic-status-' . sanitize_html_class( $status );
 		
 		// Only Hidden or Visible
 		$status_label = ( 'publish' === $status ) 
@@ -280,8 +282,9 @@ class Fanfic_Shortcodes_Utility {
 			: __( 'Hidden', 'fanfiction-manager' );
 
 		return sprintf(
-			'<span class="%s">%s</span>',
+			'<span class="%s" data-badge-type="status" data-badge-scope="story-shortcode-status" data-status="%s">%s</span>',
 			esc_attr( $status_class ),
+			esc_attr( $status ),
 			esc_html( $status_label )
 		);
 	}
@@ -306,8 +309,10 @@ class Fanfic_Shortcodes_Utility {
 			return '';
 		}
 
-		$status = $chapter->post_status;
-		$status_class = 'fanfic-status-badge fanfic-status-' . esc_attr( $status );
+		$status      = sanitize_key( (string) $chapter->post_status );
+		$status_tone = function_exists( 'fanfic_get_badge_tone_for_status' ) ? fanfic_get_badge_tone_for_status( $status ) : 'is-muted';
+		$status_class = 'fanfic-badge fanfic-badge--status ' .
+			sanitize_html_class( $status_tone ) . ' fanfic-status-' . sanitize_html_class( $status );
 		
 		// Only Hidden or Visible
 		$status_label = ( 'publish' === $status ) 
@@ -315,8 +320,9 @@ class Fanfic_Shortcodes_Utility {
 			: __( 'Hidden', 'fanfiction-manager' );
 
 		return sprintf(
-			'<span class="%s">%s</span>',
+			'<span class="%s" data-badge-type="status" data-badge-scope="chapter-shortcode-status" data-status="%s">%s</span>',
 			esc_attr( $status_class ),
+			esc_attr( $status ),
 			esc_html( $status_label )
 		);
 	}

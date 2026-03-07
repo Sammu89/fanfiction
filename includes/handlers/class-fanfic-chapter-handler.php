@@ -485,7 +485,7 @@ class Fanfic_Chapter_Handler {
 		}
 
 		// Check permissions
-		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || $story_id <= 0 || ! fanfic_current_user_can_edit( 'chapter', $chapter_id, 'blocked_edit' ) ) {
+		if ( ! $chapter || 'fanfiction_chapter' !== $chapter->post_type || $story_id <= 0 || ! fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
 			if ( $is_ajax ) {
 				wp_send_json_error( array(
 					'message' => __( 'You do not have permission to edit this chapter.', 'fanfiction-manager' ),
@@ -595,13 +595,6 @@ class Fanfic_Chapter_Handler {
 		// Get old status BEFORE updating
 		$old_status = get_post_status( $chapter_id );
 		$story = get_post( $story_id );
-		$is_moderator_edit = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
-		$is_blocked_edit = ! $is_moderator_edit && ( fanfic_is_chapter_blocked( $chapter_id ) || fanfic_is_story_blocked( $story_id ) );
-
-		if ( $is_blocked_edit ) {
-			$chapter_status = $old_status;
-		}
-
 		// Update chapter - keep as draft if trying to publish, so we can validate first
 		$update_status = ( 'publish' === $chapter_status && 'publish' !== $old_status ) ? 'draft' : $chapter_status;
 		$update_data = array(
@@ -646,7 +639,7 @@ class Fanfic_Chapter_Handler {
 		update_post_meta( $chapter_id, '_fanfic_chapter_comments_enabled', $chapter_comments_enabled );
 
 		// If user wants to publish (and it wasn't already published), validate chapter first
-		if ( 'publish' === $chapter_status && 'publish' !== $old_status && ! $is_blocked_edit ) {
+		if ( 'publish' === $chapter_status && 'publish' !== $old_status ) {
 			$validation = Fanfic_Validation::can_publish_chapter( $chapter_id );
 
 			if ( ! $validation['can_publish'] ) {
@@ -749,13 +742,6 @@ class Fanfic_Chapter_Handler {
 		// Anti-cheat guard: chapter publish date edits must not count as content updates.
 		if ( $preserve_content_updated_meta ) {
 			update_post_meta( $story_id, '_fanfic_content_updated_date', $existing_content_updated_date );
-		}
-
-		if ( $is_blocked_edit && function_exists( 'fanfic_refresh_re_review_message' ) ) {
-			fanfic_refresh_re_review_message( $story_id );
-			if ( function_exists( 'fanfic_refresh_block_diff_revision_pair' ) ) {
-				fanfic_refresh_block_diff_revision_pair( $chapter_id );
-			}
 		}
 
 		if ( $is_ajax ) {

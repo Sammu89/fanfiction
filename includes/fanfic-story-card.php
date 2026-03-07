@@ -890,9 +890,10 @@ function fanfic_get_story_card_html( $story_id ) {
 		$highest_age_label = fanfic_get_age_display_label( $highest_age, true );
 		if ( '' !== $highest_age_label ) {
 			$highest_age_class = fanfic_get_age_badge_class( $highest_age );
+			$highest_age_modifier = function_exists( 'fanfic_get_badge_age_modifier_class' ) ? fanfic_get_badge_age_modifier_class( $highest_age_class ) : 'is-age-18-plus';
 			$age_badge = sprintf(
-				'<span class="fanfic-age-badge %1$s" aria-label="%2$s">%3$s</span>',
-				esc_attr( $highest_age_class ),
+				'<span class="fanfic-badge fanfic-badge--age %1$s" aria-label="%2$s">%3$s</span>',
+				esc_attr( $highest_age_modifier ),
 				esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age_label ) ),
 				esc_html( $highest_age_label )
 			);
@@ -1026,7 +1027,7 @@ function fanfic_get_story_card_html( $story_id ) {
 		<header class="search-story-card-title-row">
 			<h2 class="fanfic-story-card-title search-story-card-title">
 				<?php echo Fanfic_Featured_Stories::render_star_badge( $story_id ); ?>
-				<span class="fanfic-badge fanfic-badge-following" data-badge-story-id="<?php echo esc_attr( $story_id ); ?>" style="display:none;" aria-label="<?php esc_attr_e( 'Following', 'fanfiction-manager' ); ?>" title="<?php esc_attr_e( 'Following', 'fanfiction-manager' ); ?>">
+				<span class="fanfic-badge fanfic-badge--icon" data-badge-type="icon" data-badge-icon="following" data-badge-story-id="<?php echo esc_attr( $story_id ); ?>" style="display:none;" aria-label="<?php esc_attr_e( 'Following', 'fanfiction-manager' ); ?>" title="<?php esc_attr_e( 'Following', 'fanfiction-manager' ); ?>">
 					<span class="dashicons dashicons-heart" aria-hidden="true"></span>
 					<span class="screen-reader-text"><?php esc_html_e( 'Following', 'fanfiction-manager' ); ?></span>
 				</span>

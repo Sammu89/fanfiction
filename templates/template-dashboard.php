@@ -260,6 +260,119 @@ fanfic_render_page_header( 'dashboard' );
 			</section>
 		<?php endif; ?>
 
+		<?php
+		$dashboard_threads = class_exists( 'Fanfic_Moderation_Messages' )
+			? Fanfic_Moderation_Messages::get_messages(
+				array(
+					'author_id' => $current_user->ID,
+					'orderby'   => 'last_message_at',
+					'order'     => 'DESC',
+					'limit'     => 20,
+				)
+			)
+			: array();
+		$dashboard_unread_threads = 0;
+		foreach ( $dashboard_threads as $dashboard_thread ) {
+			if ( ! empty( $dashboard_thread['unread_for_author'] ) ) {
+				$dashboard_unread_threads++;
+			}
+		}
+		?>
+		<section class="fanfic-dashboard-messages" id="moderation-messages" aria-labelledby="moderation-messages-heading">
+			<h2 id="moderation-messages-heading">
+				<?php esc_html_e( 'Moderation Messages', 'fanfiction-manager' ); ?>
+				<?php if ( $dashboard_unread_threads > 0 ) : ?>
+					<span class="fanfic-badge fanfic-badge--count" data-badge-type="count" data-badge-scope="moderation-messages-unread" aria-label="<?php echo esc_attr( sprintf( _n( '%d unread conversation', '%d unread conversations', $dashboard_unread_threads, 'fanfiction-manager' ), $dashboard_unread_threads ) ); ?>">
+						<?php echo esc_html( $dashboard_unread_threads ); ?>
+					</span>
+				<?php endif; ?>
+			</h2>
+
+			<?php if ( ! empty( $dashboard_threads ) ) : ?>
+				<div class="fanfic-stories-table-wrapper">
+					<table class="fanfic-stories-table">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'Context', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Latest message', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Updated', 'fanfiction-manager' ); ?></th>
+								<th><?php esc_html_e( 'Actions', 'fanfiction-manager' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $dashboard_threads as $thread ) : ?>
+								<?php
+								$thread_id      = isset( $thread['id'] ) ? absint( $thread['id'] ) : 0;
+								$thread_status  = isset( $thread['status'] ) ? sanitize_key( $thread['status'] ) : '';
+								$target_type    = isset( $thread['target_type'] ) ? sanitize_key( $thread['target_type'] ) : '';
+								$target_id      = isset( $thread['target_id'] ) ? absint( $thread['target_id'] ) : 0;
+								$thread_context = isset( $thread['thread_context'] ) ? sanitize_key( $thread['thread_context'] ) : 'restriction';
+								$has_unread     = ! empty( $thread['unread_for_author'] );
+								$is_open_thread = ( 'unread' === $thread_status );
+
+								$context_label = __( 'Moderation conversation', 'fanfiction-manager' );
+								$open_label    = __( 'Open Moderation Chat', 'fanfiction-manager' );
+								if ( 'direct_profile' === $thread_context ) {
+									$context_label = __( 'Direct message from moderation', 'fanfiction-manager' );
+									$open_label    = __( 'Open Conversation', 'fanfiction-manager' );
+								} elseif ( 'story' === $target_type || 'chapter' === $target_type ) {
+									$target_post = get_post( $target_id );
+									$type_label  = 'story' === $target_type ? __( 'Story', 'fanfiction-manager' ) : __( 'Chapter', 'fanfiction-manager' );
+									$post_title  = $target_post ? $target_post->post_title : __( '(Deleted)', 'fanfiction-manager' );
+									$context_label = sprintf( '%1$s: %2$s', $type_label, $post_title );
+								} elseif ( 'user' === $target_type ) {
+									$context_label = __( 'Account suspension', 'fanfiction-manager' );
+								}
+
+								$latest_message = isset( $thread['message'] ) ? wp_trim_words( wp_strip_all_tags( (string) $thread['message'] ), 16, '...' ) : '';
+								$updated_raw    = ! empty( $thread['last_message_at'] ) ? $thread['last_message_at'] : ( isset( $thread['created_at'] ) ? $thread['created_at'] : '' );
+								$updated_ts     = $updated_raw ? strtotime( $updated_raw ) : 0;
+								$status_labels  = array(
+									'unread'   => __( 'Open', 'fanfiction-manager' ),
+									'ignored'  => __( 'Ignored', 'fanfiction-manager' ),
+									'resolved' => __( 'Resolved', 'fanfiction-manager' ),
+									'deleted'  => __( 'Deleted', 'fanfiction-manager' ),
+								);
+								$status_label = isset( $status_labels[ $thread_status ] ) ? $status_labels[ $thread_status ] : ucfirst( $thread_status );
+								?>
+								<tr>
+									<td><?php echo esc_html( $context_label ); ?></td>
+									<td><?php echo esc_html( $latest_message ); ?></td>
+									<td>
+										<?php echo esc_html( $status_label ); ?>
+										<?php if ( $has_unread ) : ?>
+											<span class="fanfic-badge is-info fanfic-badge-featured"><?php esc_html_e( 'New', 'fanfiction-manager' ); ?></span>
+										<?php endif; ?>
+									</td>
+									<td>
+										<time datetime="<?php echo esc_attr( $updated_raw ? mysql2date( 'c', $updated_raw, false ) : '' ); ?>">
+											<?php echo esc_html( $updated_ts ? wp_date( get_option( 'date_format' ), $updated_ts ) : '' ); ?>
+										</time>
+									</td>
+									<td>
+										<button
+											type="button"
+											class="fanfic-button small secondary fanfic-message-mod-btn<?php echo $is_open_thread ? ' fanfic-message-chat-active' : ''; ?><?php echo $has_unread ? ' fanfic-message-chat-has-unread' : ''; ?>"
+											data-message-id="<?php echo esc_attr( $thread_id ); ?>"
+											data-target-type="<?php echo esc_attr( $target_type ); ?>"
+											data-target-id="<?php echo esc_attr( $target_id ); ?>"
+											data-thread-context="<?php echo esc_attr( $thread_context ); ?>"
+											data-open-label="<?php echo esc_attr( $open_label ); ?>"
+											data-has-unread="<?php echo $has_unread ? '1' : '0'; ?>">
+											<?php esc_html_e( 'View Messages', 'fanfiction-manager' ); ?>
+										</button>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				</div>
+			<?php else : ?>
+				<p><?php esc_html_e( 'No moderation conversations yet.', 'fanfiction-manager' ); ?></p>
+			<?php endif; ?>
+		</section>
+
 		<!-- Manage Stories Section -->
 		<section class="fanfic-dashboard-stories" id="my-stories" aria-labelledby="stories-heading">
 			<h2 id="stories-heading"><?php esc_html_e( 'Your Stories', 'fanfiction-manager' ); ?></h2>
@@ -349,15 +462,15 @@ fanfic_render_page_header( 'dashboard' );
 										<td class="fanfic-story-title">
 											<?php if ( $is_blocked ) : ?>
 												<span><?php the_title(); ?></span>
-												<span class="fanfic-badge fanfic-badge-blocked"><?php esc_html_e( 'Blocked', 'fanfiction-manager' ); ?></span>
+												<span class="fanfic-badge is-danger fanfic-badge-blocked"><?php esc_html_e( 'Blocked', 'fanfiction-manager' ); ?></span>
 											<?php else : ?>
 												<a href="<?php the_permalink(); ?>"><?php the_title(); ?></a>
 											<?php endif; ?>
 											<?php if ( 'publish' !== $post_status ) : ?>
-												<span class="fanfic-badge fanfic-badge-draft"><?php echo esc_html( $post_status_label ); ?></span>
+												<span class="fanfic-badge is-warning fanfic-badge-draft"><?php echo esc_html( $post_status_label ); ?></span>
 											<?php endif; ?>
 											<?php if ( $coauthors_enabled && ! $is_original_author ) : ?>
-												<span class="fanfic-badge fanfic-badge-coauthor"><?php esc_html_e( 'Co-author', 'fanfiction-manager' ); ?></span>
+												<span class="fanfic-badge is-info fanfic-badge-coauthor"><?php esc_html_e( 'Co-author', 'fanfiction-manager' ); ?></span>
 											<?php endif; ?>
 										</td>
 										<td><?php echo esc_html( $is_blocked ? __( 'Blocked', 'fanfiction-manager' ) : $status_name ); ?></td>
@@ -374,7 +487,7 @@ fanfic_render_page_header( 'dashboard' );
 										</td>
 										<td class="fanfic-story-actions">
 											<?php if ( $is_banned_user ) : ?>
-												<span class="fanfic-badge fanfic-badge-blocked">
+												<span class="fanfic-badge is-danger fanfic-badge-blocked">
 													<?php esc_html_e( 'Suspended (read-only)', 'fanfiction-manager' ); ?>
 												</span>
 											<?php elseif ( $is_blocked ) : ?>
@@ -389,6 +502,9 @@ fanfic_render_page_header( 'dashboard' );
 												$message_blacklisted = class_exists( 'Fanfic_Blacklist' )
 													? Fanfic_Blacklist::is_message_sender_blacklisted( $current_user->ID )
 													: false;
+												$is_story_chat_closed = function_exists( 'fanfic_is_mod_chat_closed' )
+													? fanfic_is_mod_chat_closed( 'story', $story_id )
+													: false;
 												?>
 												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
 													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
@@ -400,7 +516,11 @@ fanfic_render_page_header( 'dashboard' );
 													<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
 												</span>
 												<?php if ( class_exists( 'Fanfic_Moderation_Messages' ) ) : ?>
-													<?php if ( $message_blacklisted && ! $has_active_message ) : ?>
+													<?php if ( $is_story_chat_closed ) : ?>
+														<button type="button" class="fanfic-button small secondary" disabled aria-disabled="true">
+															<?php esc_html_e( 'Chat Closed', 'fanfiction-manager' ); ?>
+														</button>
+													<?php elseif ( $message_blacklisted && ! $has_active_message ) : ?>
 														<button type="button" class="fanfic-button small secondary" disabled aria-disabled="true">
 															<?php esc_html_e( 'Messaging Unavailable', 'fanfiction-manager' ); ?>
 														</button>
@@ -410,6 +530,8 @@ fanfic_render_page_header( 'dashboard' );
 															class="fanfic-button small secondary fanfic-message-mod-btn<?php echo $has_active_message ? ' fanfic-message-chat-active' : ''; ?><?php echo $has_unread_reply ? ' fanfic-message-chat-has-unread' : ''; ?>"
 															data-target-type="story"
 															data-target-id="<?php echo esc_attr( $story_id ); ?>"
+															data-thread-context="restriction"
+															data-open-label="<?php echo esc_attr( __( 'Open Moderation Chat', 'fanfiction-manager' ) ); ?>"
 															data-has-unread="<?php echo $has_unread_reply ? '1' : '0'; ?>">
 															<?php esc_html_e( 'Open Moderation Chat', 'fanfiction-manager' ); ?>
 														</button>
@@ -441,12 +563,6 @@ fanfic_render_page_header( 'dashboard' );
 					</div>
 
 					<?php
-					if ( $has_moderation_message_target && function_exists( 'fanfic_render_moderation_message_modal' ) ) {
-						fanfic_render_moderation_message_modal();
-					}
-					?>
-
-					<?php
 					// Pagination
 					if ( $query->max_num_pages > 1 ) {
 						echo '<div class="fanfic-pagination">';
@@ -475,6 +591,12 @@ fanfic_render_page_header( 'dashboard' );
 
 			<?php wp_reset_postdata(); ?>
 		</section>
+
+		<?php
+		if ( function_exists( 'fanfic_render_moderation_message_modal' ) ) {
+			fanfic_render_moderation_message_modal();
+		}
+		?>
 	</div>
 
 	<!-- Sidebar -->
@@ -493,7 +615,7 @@ fanfic_render_page_header( 'dashboard' );
 			<h3 id="notifications-heading">
 				<?php esc_html_e( 'Notifications', 'fanfiction-manager' ); ?>
 				<?php if ( $notif_unread > 0 ) : ?>
-					<span class="fanfic-notification-badge" aria-label="<?php echo esc_attr( sprintf( _n( '%d unread notification', '%d unread notifications', $notif_unread, 'fanfiction-manager' ), $notif_unread ) ); ?>">
+					<span class="fanfic-badge fanfic-badge--count" data-badge-type="count" data-badge-scope="notifications" aria-label="<?php echo esc_attr( sprintf( _n( '%d unread notification', '%d unread notifications', $notif_unread, 'fanfiction-manager' ), $notif_unread ) ); ?>">
 						<?php echo esc_html( $notif_unread ); ?>
 					</span>
 				<?php endif; ?>

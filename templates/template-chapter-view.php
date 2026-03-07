@@ -70,10 +70,6 @@ function fanfic_get_default_chapter_view_template() {
 <div class="fanfic-chapter-content" itemprop="text">
 	[fanfic-chapter-content]
 </div>
-<!-- Action buttons (like, follow, mark-read, share, report, edit) -->
-<div class="fanfic-chapter-actions">
-[fanfiction-action-buttons]
-</div>
 <!-- Visual separator -->
 <hr class="fanfic-content-separator" aria-hidden="true">
 <!-- Rating & Like/Dislike section -->
@@ -162,9 +158,18 @@ if ( ! $enable_comments ) {
 	$template = preg_replace( '/<section[^>]*fanfic-chapter-comments[^>]*>.*?<\/section>/is', '', (string) $template );
 	$template = str_replace( '[chapter-comments]', '', (string) $template );
 }
+$template = str_replace( '[fanfiction-action-buttons]', '', (string) $template );
+$template = preg_replace( '/<div[^>]*fanfic-chapter-actions[^>]*>\s*<\/div>/is', '', (string) $template );
 
-$is_chapter_author    = $chapter_post && is_user_logged_in() && (int) $chapter_post->post_author === get_current_user_id();
 $parent_story_id      = $chapter_post ? absint( $chapter_post->post_parent ) : 0;
+$is_chapter_author    = false;
+$current_user_id      = get_current_user_id();
+if ( $chapter_post && is_user_logged_in() ) {
+	$is_chapter_author = (int) $chapter_post->post_author === $current_user_id;
+	if ( ! $is_chapter_author && $parent_story_id && function_exists( 'fanfic_user_is_story_author_or_coauthor' ) ) {
+		$is_chapter_author = fanfic_user_is_story_author_or_coauthor( $parent_story_id, $current_user_id );
+	}
+}
 $parent_story_blocked = $parent_story_id ? fanfic_is_story_blocked( $parent_story_id ) : false;
 $chapter_blocked      = $chapter_post ? fanfic_is_chapter_blocked( $chapter_post->ID ) : false;
 $parent_story         = $parent_story_id ? get_post( $parent_story_id ) : null;
@@ -180,7 +185,6 @@ add_action( 'fanfic_page_alerts', function( $context ) use ( $chapter_post, $is_
 			'view-chapter',
 			array(
 				array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
-				array( 'label' => __( 'Edit Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $parent_story_id ), 'class' => 'secondary' ),
 			)
 		);
 	} elseif ( $is_chapter_author && $chapter_blocked && function_exists( 'fanfic_render_restriction_notice' ) ) {
@@ -189,8 +193,7 @@ add_action( 'fanfic_page_alerts', function( $context ) use ( $chapter_post, $is_
 			$chapter_post->ID,
 			'view-chapter',
 			array(
-				array( 'label' => __( 'Back to Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $parent_story_id ) ),
-				array( 'label' => __( 'Edit Chapter', 'fanfiction-manager' ), 'url' => fanfic_get_edit_chapter_url( $chapter_post->ID ), 'class' => 'secondary' ),
+				array( 'label' => __( 'Back to Story', 'fanfiction-manager' ), 'url' => get_permalink( $parent_story_id ) ),
 			)
 		);
 	} else {
@@ -252,6 +255,11 @@ fanfic_render_page_header( 'view-chapter', array(
 	'story_id'   => $parent_story_id,
 	'chapter_id' => $chapter_post ? absint( $chapter_post->ID ) : 0,
 ) );
+fanfic_render_moderation_controls( 'view-chapter', array(
+	'story_id'   => $parent_story_id,
+	'chapter_id' => $chapter_post ? absint( $chapter_post->ID ) : 0,
+) );
+fanfic_render_dynamic_action_buttons();
 
 // Process shortcodes in the template
 $rendered_template = do_shortcode( $template );

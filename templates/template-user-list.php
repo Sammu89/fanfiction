@@ -92,7 +92,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 									<?php echo esc_html( $author->display_name ); ?>
 								</a>
 								<?php if ( $special_role ) : ?>
-									<span class="fanfic-role-badge fanfic-role-<?php echo esc_attr( strtolower( $special_role ) ); ?>">
+									<span class="fanfic-badge is-info fanfic-role-<?php echo esc_attr( strtolower( $special_role ) ); ?>" data-badge-type="status" data-badge-scope="user-role">
 										<?php echo esc_html( $special_role ); ?>
 									</span>
 								<?php endif; ?>

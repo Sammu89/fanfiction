@@ -346,7 +346,7 @@ class Fanfic_Shortcodes_User {
 		$output .= '<h2>' . esc_html__( 'Notifications', 'fanfiction-manager' );
 
 		if ( $unread_count > 0 ) {
-			$output .= ' <span class="fanfic-unread-badge">' . esc_html( $unread_count ) . '</span>';
+			$output .= ' <span class="fanfic-badge fanfic-badge--count" data-badge-type="count" data-badge-scope="user-notifications-unread">' . esc_html( $unread_count ) . '</span>';
 		}
 
 		$output .= '</h2>';

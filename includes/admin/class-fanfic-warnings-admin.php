@@ -205,7 +205,8 @@ class Fanfic_Warnings_Admin {
 								$is_sexual = ! empty( $warning['is_sexual'] );
 								$is_pornographic = ! empty( $warning['is_pornographic'] );
 								$row_class = $is_enabled ? '' : 'fanfic-warning-disabled';
-								$age_badge_class = $warnings_class_ready ? Fanfic_Warnings::get_age_badge_class( $warning['min_age'] ?? '' ) : 'fanfic-age-badge-18-plus';
+								$age_badge_class = $warnings_class_ready ? Fanfic_Warnings::get_age_badge_class( $warning['min_age'] ?? '' ) : 'is-age-18-plus';
+								$age_badge_modifier = function_exists( 'fanfic_get_badge_age_modifier_class' ) ? fanfic_get_badge_age_modifier_class( $age_badge_class ) : 'is-age-18-plus';
 								$age_badge_label = $warnings_class_ready ? Fanfic_Warnings::format_age_label_for_display( $warning['min_age'] ?? '', false ) : (string) ( $warning['min_age'] ?? '' );
 								if ( '' === $age_badge_label ) {
 									$age_badge_label = (string) ( $warning['min_age'] ?? '' );
@@ -238,7 +239,7 @@ class Fanfic_Warnings_Admin {
 										<?php endif; ?>
 									</td>
 									<td class="column-age">
-										<span class="fanfic-age-badge <?php echo esc_attr( $age_badge_class ); ?>">
+										<span class="fanfic-badge fanfic-badge--age <?php echo esc_attr( $age_badge_modifier ); ?>">
 											<?php echo esc_html( $age_badge_label ); ?>
 										</span>
 									</td>
@@ -258,9 +259,9 @@ class Fanfic_Warnings_Admin {
 									</td>
 									<td class="column-status">
 										<?php if ( $is_enabled ) : ?>
-											<span class="fanfic-status-badge fanfic-status-enabled"><?php esc_html_e( 'Enabled', 'fanfiction-manager' ); ?></span>
+											<span class="fanfic-badge fanfic-badge--status is-success fanfic-status-enabled" data-badge-type="status" data-badge-scope="admin-warning-status" data-status="enabled"><?php esc_html_e( 'Enabled', 'fanfiction-manager' ); ?></span>
 										<?php else : ?>
-											<span class="fanfic-status-badge fanfic-status-disabled"><?php esc_html_e( 'Disabled', 'fanfiction-manager' ); ?></span>
+											<span class="fanfic-badge fanfic-badge--status is-muted fanfic-status-disabled" data-badge-type="status" data-badge-scope="admin-warning-status" data-status="disabled"><?php esc_html_e( 'Disabled', 'fanfiction-manager' ); ?></span>
 										<?php endif; ?>
 									</td>
 									<td class="column-actions">
@@ -424,18 +425,6 @@ class Fanfic_Warnings_Admin {
 			.fanfic-warning-disabled td {
 				opacity: 0.6;
 			}
-			.fanfic-age-badge {
-				display: inline-block;
-				padding: 2px 8px;
-				border-radius: 3px;
-				font-size: 12px;
-				font-weight: 600;
-			}
-			.fanfic-age-badge-3-9 { background: #e8f5e9; color: #2e7d32; }
-			.fanfic-age-badge-10-12 { background: #f1f8e9; color: #558b2f; }
-			.fanfic-age-badge-13-15 { background: #fff8e1; color: #ef6c00; }
-			.fanfic-age-badge-16-17 { background: #fff3e0; color: #e65100; }
-			.fanfic-age-badge-18-plus { background: #ffebee; color: #c62828; }
 			.fanfic-flag {
 				display: inline-block;
 				width: 20px;
@@ -450,15 +439,6 @@ class Fanfic_Warnings_Admin {
 			.fanfic-flag-sexual { background: #e3f2fd; color: #1565c0; }
 			.fanfic-flag-pornographic { background: #fce4ec; color: #c2185b; }
 			.fanfic-flag-restricted { background: #ffecb3; color: #ff6f00; }
-			.fanfic-status-badge {
-				display: inline-block;
-				padding: 2px 8px;
-				border-radius: 3px;
-				font-size: 11px;
-				font-weight: 600;
-			}
-			.fanfic-status-enabled { background: #e8f5e9; color: #2e7d32; }
-			.fanfic-status-disabled { background: #f5f5f5; color: #757575; }
 			.fanfic-admin-modal {
 				display: none;
 				position: fixed;

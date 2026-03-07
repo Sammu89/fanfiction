@@ -563,7 +563,7 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 
 			$is_blacklisted = Fanfic_Blacklist::is_reporter_blacklisted( $reporter_id );
 			if ( $is_blacklisted ) {
-				$output .= ' <span class="fanfic-blacklist-badge">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
+				$output .= ' <span class="fanfic-badge is-muted" data-badge-type="status" data-badge-scope="blacklist-status">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
 			} else {
 				$output .= sprintf(
 					' <button type="button" class="button button-small fanfic-blacklist-reporter" data-user-id="%1$d" data-ip="%2$s">%3$s</button>',
@@ -581,7 +581,7 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 
 			$is_blacklisted = Fanfic_Blacklist::is_reporter_blacklisted_by_ip( $reporter_ip );
 			if ( $is_blacklisted ) {
-				$output .= ' <span class="fanfic-blacklist-badge">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
+				$output .= ' <span class="fanfic-badge is-muted" data-badge-type="status" data-badge-scope="blacklist-status">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
 			} else {
 				$output .= sprintf(
 					' <button type="button" class="button button-small fanfic-blacklist-reporter" data-user-id="0" data-ip="%1$s">%2$s</button>',
@@ -759,17 +759,18 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 		);
 
 		$status_classes = array(
-			'pending'   => 'status-badge status-warning',
-			'blocked'   => 'status-badge status-blocked',
-			'dismissed' => 'status-badge status-info',
+			'pending'   => 'fanfic-badge fanfic-badge--status is-warning fanfic-status-pending',
+			'blocked'   => 'fanfic-badge fanfic-badge--status is-danger fanfic-status-blocked',
+			'dismissed' => 'fanfic-badge fanfic-badge--status is-info fanfic-status-dismissed',
 		);
 
 		$label = isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : ucfirst( $status );
-		$class = isset( $status_classes[ $status ] ) ? $status_classes[ $status ] : 'status-badge';
+		$class = isset( $status_classes[ $status ] ) ? $status_classes[ $status ] : 'fanfic-badge fanfic-badge--status is-muted fanfic-status-unknown';
 
 		return sprintf(
-			'<span class="%s">%s</span>',
+			'<span class="%s" data-badge-type="status" data-badge-scope="moderation-report-status" data-status="%s">%s</span>',
 			esc_attr( $class ),
+			esc_attr( $status ),
 			esc_html( $label )
 		);
 	}

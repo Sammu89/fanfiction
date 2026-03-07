@@ -18,6 +18,103 @@
 	width: 100%;
 }
 
+/* Unified Badge System */
+.fanfic-badge,
+.fanfic-todo-badge,
+.fanfic-badge--age {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3em;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.3;
+	white-space: nowrap;
+}
+
+.fanfic-badge--status {
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.fanfic-badge.is-warning,
+.fanfic-badge--status.is-warning {
+	background: #fff8e5;
+	color: #8a6d1f;
+	border: 1px solid #f0d889;
+}
+
+.fanfic-badge.is-success,
+.fanfic-badge--status.is-success {
+	background: #edfaef;
+	color: #136333;
+	border: 1px solid #cce8d4;
+}
+
+.fanfic-badge.is-info,
+.fanfic-badge--status.is-info {
+	background: #e5f5fa;
+	color: #0a5d7a;
+	border: 1px solid #b7dfee;
+}
+
+.fanfic-badge.is-muted,
+.fanfic-badge--status.is-muted {
+	background: #fff3cd;
+	color: #7a5a00;
+	border: 1px solid #ffe69c;
+}
+
+.fanfic-badge.is-danger,
+.fanfic-badge--status.is-danger {
+	background: #fbeaea;
+	color: #b32d2e;
+	border: 1px solid #f5c6cb;
+}
+
+.fanfic-badge--age.is-age-3-9 { background: #e8f5e9; color: #2e7d32; }
+.fanfic-badge--age.is-age-10-12 { background: #f1f8e9; color: #558b2f; }
+.fanfic-badge--age.is-age-13-15 { background: #fff8e1; color: #ef6c00; }
+.fanfic-badge--age.is-age-16-17 { background: #fff3e0; color: #e65100; }
+.fanfic-badge--age.is-age-18-plus { background: #ffebee; color: #c62828; }
+
+.fanfic-badge[data-badge-scope="user-role"] {
+	background: #e5f5fa;
+	color: #0a5d7a;
+	border: 1px solid #b7dfee;
+}
+
+.fanfic-badge[data-badge-scope="restriction-status"] {
+	background: #f0f0f1;
+	color: #50575e;
+	border: 1px solid #dcdcde;
+}
+
+.fanfic-todo-badge {
+	background: #fcf9e8;
+	color: #997404;
+	border: 1px solid #f0e9c5;
+	text-transform: uppercase;
+	margin-left: 8px;
+}
+
+.fanfic-badge--count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 18px;
+	height: 18px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: #d63638;
+	color: #fff;
+	font-size: 11px;
+	font-weight: 700;
+	line-height: 1;
+	vertical-align: middle;
+}
+
 /* Admin Modal Styles */
 .fanfic-admin-modal {
 	position: fixed;
@@ -206,29 +303,8 @@
 }
 
 /* Status Badges in Modal */
-.fanfic-report-details .status-badge {
-	display: inline-block;
-	padding: 4px 12px;
-	border-radius: 3px;
-	font-weight: 600;
-	font-size: 12px;
-	text-transform: uppercase;
-}
-
-.fanfic-report-details .status-badge.status-pending {
-	background: var(--color-warning-bg);
-	color: var(--color-warning-text);
-}
-
-.fanfic-report-details .status-badge.status-dismissed {
-	background: var(--color-info-bg);
-	color: var(--color-info-text);
-}
-
-.status-badge.status-blocked {
-	background: #fbeaea;
-	color: #b32d2e;
-	border: 1px solid #f5c6cb;
+.fanfic-report-details .fanfic-badge--status {
+	vertical-align: middle;
 }
 
 .fanfic-report-action-stack {
@@ -312,15 +388,11 @@
 	font-style: italic;
 }
 
-.fanfic-blacklist-badge {
-	display: inline-block;
+.fanfic-badge[data-badge-scope="blacklist-status"] {
 	margin-left: 8px;
-	padding: 2px 8px;
-	border-radius: 999px;
 	background: #ffebee;
 	color: #c62828;
-	font-size: 11px;
-	font-weight: 600;
+	border: 1px solid #f5c6cb;
 	vertical-align: middle;
 }
 
@@ -467,34 +539,6 @@ body.fanfic-admin-modal-open {
 	.fanfic-report-note-grid {
 		grid-template-columns: 1fr;
 	}
-}
-
-.fanfic-msg-status-badge {
-	display: inline-block;
-	padding: 3px 8px;
-	border-radius: 999px;
-	font-size: 12px;
-	font-weight: 600;
-}
-
-.fanfic-msg-status-badge.status-unread {
-	background: #fcf9e8;
-	color: #8a6d1f;
-}
-
-.fanfic-msg-status-badge.status-ignored {
-	background: #f0f0f1;
-	color: #50575e;
-}
-
-.fanfic-msg-status-badge.status-resolved {
-	background: #edfaef;
-	color: #136333;
-}
-
-.fanfic-msg-status-badge.status-deleted {
-	background: #fbeaea;
-	color: #b32d2e;
 }
 
 .fanfic-block-comparison-container {
@@ -663,7 +707,7 @@ body.fanfic-admin-modal-open {
 	}
 
 	.fanfic-validation-status,
-	.status-badge {
+	.fanfic-badge--status {
 		border: 2px solid #000;
 	}
 

@@ -123,7 +123,7 @@ class Fanfic_Moderation {
 				<a href="?page=fanfiction-moderation&tab=messages" class="nav-tab <?php echo 'messages' === $current_tab ? 'nav-tab-active' : ''; ?>">
 					<?php esc_html_e( 'Author Messages', 'fanfiction-manager' ); ?>
 					<?php if ( $unread_msg_count > 0 ) : ?>
-						<span class="fanfic-msg-badge"><?php echo absint( $unread_msg_count ); ?></span>
+						<span class="fanfic-badge fanfic-badge--count" data-badge-type="count" data-badge-scope="moderation-tab-unread"><?php echo absint( $unread_msg_count ); ?></span>
 					<?php endif; ?>
 				</a>
 				<a href="?page=fanfiction-moderation&tab=log" class="nav-tab <?php echo 'log' === $current_tab ? 'nav-tab-active' : ''; ?>">
@@ -275,33 +275,6 @@ class Fanfic_Moderation {
 
 			.fanfic-info-box.box-warning li {
 				margin-bottom: 8px;
-			}
-
-			/* Status badge styles */
-			.status-badge {
-				display: inline-block;
-				padding: 4px 10px;
-				border-radius: 3px;
-				font-size: 12px;
-				font-weight: 600;
-			}
-
-			.status-badge.status-warning {
-				background: #fff8e5;
-				color: #f0b429;
-				border: 1px solid #f0b429;
-			}
-
-			.status-badge.status-success {
-				background: #e7f7ec;
-				color: #46b450;
-				border: 1px solid #46b450;
-			}
-
-			.status-badge.status-info {
-				background: #e5f5fa;
-				color: #00a0d2;
-				border: 1px solid #00a0d2;
 			}
 		</style>
 		<?php
@@ -597,7 +570,7 @@ class Fanfic_Moderation {
 		$sub_tab     = in_array( $sub_tab, $allowed_sub, true ) ? $sub_tab : 'unread';
 
 		?>
-		<p><?php esc_html_e( 'Author messages about blocked content or account suspensions. Take action to help resolve restrictions or archive messages.', 'fanfiction-manager' ); ?></p>
+		<p><?php esc_html_e( 'Author conversations about blocked content, account suspensions, and direct profile outreach from moderation. Take action to resolve restrictions or archive messages.', 'fanfiction-manager' ); ?></p>
 
 		<ul class="subsubsub">
 			<?php
@@ -632,21 +605,6 @@ class Fanfic_Moderation {
 				<?php $table->display(); ?>
 			</form>
 		</div>
-
-		<style>
-			.fanfic-msg-badge {
-				display: inline-block;
-				background: #d63638;
-				color: #fff;
-				border-radius: 10px;
-				padding: 0 6px;
-				font-size: 11px;
-				font-weight: 700;
-				line-height: 18px;
-				margin-left: 4px;
-				vertical-align: middle;
-			}
-		</style>
 		<?php
 	}
 

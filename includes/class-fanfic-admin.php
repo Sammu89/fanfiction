@@ -357,6 +357,7 @@ jQuery(document).ready(function($) {
 				'ignorePromptLabel'   => __( 'Ignore', 'fanfiction-manager' ),
 				'statusIgnored'       => __( 'Ignored', 'fanfiction-manager' ),
 				'statusResolved'      => __( 'Resolved', 'fanfiction-manager' ),
+				'chatClosedLabel'     => __( 'Chat closed', 'fanfiction-manager' ),
 				'alreadyUnblockedNote'=> __( 'This target is already unblocked. Unblock is unavailable, but the message remains for review.', 'fanfiction-manager' ),
 				'banUserTitle'        => __( 'Suspend User', 'fanfiction-manager' ),
 				'banUserDescription'  => __( 'Choose a suspension reason before confirming. This reason will be shown to the author.', 'fanfiction-manager' ),
@@ -380,6 +381,9 @@ jQuery(document).ready(function($) {
 				'unblockConfirm' => __( 'Unblock this content?', 'fanfiction-manager' ),
 				'blacklistSuccess' => __( 'Blacklist updated successfully.', 'fanfiction-manager' ),
 				'unblacklistSuccess' => __( 'Blacklist entry removed successfully.', 'fanfiction-manager' ),
+				'endChatLabel'      => __( 'End Chat', 'fanfiction-manager' ),
+				'enableChatLabel'   => __( 'Enable Chat', 'fanfiction-manager' ),
+				'confirmEndChat'    => __( 'End the chat for this item? The author will no longer be able to send messages about it.', 'fanfiction-manager' ),
 			),
 		);
 

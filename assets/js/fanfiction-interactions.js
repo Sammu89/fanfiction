@@ -188,6 +188,7 @@
 			// Restriction messaging
 			this.initModerationMessage();
 			this.initChapterBlockControls();
+			this.initProfileModerationControls();
 			// Report buttons
 			this.initReportButtons();
 			// Login-required buttons
@@ -225,6 +226,8 @@
 				const $modal = $('#fanfic-mod-message-modal');
 				const targetType = String($modal.find('#fanfic-mod-target-type').val() || '').trim();
 				const targetId = parseInt($modal.find('#fanfic-mod-target-id').val(), 10) || 0;
+				const threadContext = String($modal.find('#fanfic-mod-thread-context').val() || 'restriction').trim();
+				const messageId = parseInt($modal.find('#fanfic-mod-thread-id').val(), 10) || 0;
 				const message = String($modal.find('#fanfic-mod-message-text').val() || '').trim();
 				const $trigger = $modal.data('triggerButton');
 
@@ -240,7 +243,7 @@
 					return;
 				}
 
-				self.submitModerationMessage(targetType, targetId, message, $trigger);
+				self.submitModerationMessage(targetType, targetId, message, $trigger, threadContext, messageId);
 			});
 		},
 
@@ -251,25 +254,68 @@
 				return;
 			}
 
-			$modal.find('#fanfic-mod-target-type').val(String($button.data('target-type') || ''));
-			$modal.find('#fanfic-mod-target-id').val(parseInt($button.data('target-id'), 10) || 0);
-			$modal.find('#fanfic-mod-thread-id').val('');
+			const targetType = String($button.data('target-type') || '').trim();
+			const targetId = parseInt($button.data('target-id'), 10) || 0;
+			const threadContext = String($button.data('thread-context') || 'restriction').trim();
+			const messageId = parseInt($button.data('message-id'), 10) || 0;
+			const isModeratorView = String($button.data('is-moderator') || '0') === '1';
+
+			$modal.find('#fanfic-mod-target-type').val(targetType);
+			$modal.find('#fanfic-mod-target-id').val(targetId);
+			$modal.find('#fanfic-mod-thread-id').val(messageId ? String(messageId) : '');
+			$modal.find('#fanfic-mod-thread-context').val(threadContext);
 			$modal.find('#fanfic-mod-message-text').val('');
 			$modal.data('triggerButton', $button);
 			this.clearModerationMessageFormMessage();
 			this.showModerationThreadState('info', this.strings.modThreadLoading || 'Loading conversation...');
 			this.renderModerationThread([]);
+			this.updateModerationModalCopy(threadContext, isModeratorView);
 			this.updateModerationMessageCount();
 			$modal.fadeIn(200).attr('aria-hidden', 'false');
 			$('body').css('overflow', 'hidden');
 			this.loadModerationThread(
-				String($button.data('target-type') || ''),
-				parseInt($button.data('target-id'), 10) || 0
+				targetType,
+				targetId,
+				threadContext,
+				messageId
 			);
 
 			setTimeout(function() {
 				$modal.find('#fanfic-mod-message-text').trigger('focus');
 			}, 220);
+		},
+
+		updateModerationModalCopy: function(threadContext, isModeratorView) {
+			const $modal = $('#fanfic-mod-message-modal');
+			if (!$modal.length) {
+				return;
+			}
+
+			const normalizedContext = String(threadContext || 'restriction').trim();
+			const isDirect = normalizedContext === 'direct_profile';
+			const title = isDirect
+				? (this.strings.modModalTitleDirect || 'Direct Moderation Message')
+				: (this.strings.modModalTitleRestriction || 'Moderation Chat');
+			const description = isDirect
+				? (isModeratorView
+					? (this.strings.modModalDescriptionDirectModerator || 'Use this chat to send direct messages to this user.')
+					: (this.strings.modModalDescriptionDirectAuthor || 'Use this chat to reply to a moderator-initiated conversation.'))
+				: (this.strings.modModalDescriptionRestriction || 'Use this chat to discuss a restriction with moderators.');
+			const sendLabel = isDirect
+				? (this.strings.modModalSendLabelDirect || 'Send message:')
+				: (this.strings.modModalSendLabelRestriction || 'Send message:');
+			const placeholder = isDirect
+				? (this.strings.modModalPlaceholderDirect || 'Write your message...')
+				: (this.strings.modModalPlaceholderRestriction || 'Write your message to moderation...');
+			const submitLabel = isDirect
+				? (this.strings.modModalSubmitDirect || 'Send Message')
+				: (this.strings.modModalSubmitRestriction || 'Send Message');
+
+			$modal.find('#fanfic-mod-modal-title').text(title);
+			$modal.find('.fanfic-modal-description').text(description);
+			$modal.find('label[for="fanfic-mod-message-text"]').text(sendLabel);
+			$modal.find('#fanfic-mod-message-text').attr('placeholder', placeholder);
+			$modal.find('#fanfic-mod-modal-submit').text(submitLabel);
 		},
 
 		closeModerationMessageModal: function() {
@@ -283,6 +329,7 @@
 			$modal.find('#fanfic-mod-target-type').val('');
 			$modal.find('#fanfic-mod-target-id').val('');
 			$modal.find('#fanfic-mod-thread-id').val('');
+			$modal.find('#fanfic-mod-thread-context').val('restriction');
 			$modal.find('#fanfic-mod-message-text').val('');
 			$modal.find('#fanfic-mod-message-text').prop('disabled', false);
 			$modal.find('#fanfic-mod-modal-submit').prop('disabled', false);
@@ -291,6 +338,7 @@
 			this.clearModerationMessageFormMessage();
 			this.clearModerationThreadState();
 			this.renderModerationThread([]);
+			this.updateModerationModalCopy('restriction', false);
 			this.updateModerationMessageCount();
 
 			if ($trigger && $trigger.length) {
@@ -345,7 +393,11 @@
 
 			const rows = Array.isArray(entries) ? entries : [];
 			if (!rows.length) {
-				$history.html('<p class="fanfic-mod-thread-empty">' + (this.strings.modThreadEmpty || 'No messages yet. Send the first message to moderation.') + '</p>');
+				const threadContext = String($('#fanfic-mod-thread-context').val() || 'restriction').trim();
+				const emptyLabel = threadContext === 'direct_profile'
+					? (this.strings.modThreadEmptyDirect || 'No messages yet in this conversation.')
+					: (this.strings.modThreadEmpty || 'No messages yet. Send the first message to moderation.');
+				$history.html('<p class="fanfic-mod-thread-empty">' + emptyLabel + '</p>');
 				return;
 			}
 
@@ -367,26 +419,34 @@
 			$history.scrollTop($history.prop('scrollHeight') || 0);
 		},
 
-		loadModerationThread: function(targetType, targetId) {
+		loadModerationThread: function(targetType, targetId, threadContext, messageId) {
 			const self = this;
 			const $modal = $('#fanfic-mod-message-modal');
 			const $input = $modal.find('#fanfic-mod-message-text');
 			const $submit = $modal.find('#fanfic-mod-modal-submit');
+			const normalizedContext = String(threadContext || 'restriction').trim();
+			const normalizedMessageId = parseInt(messageId, 10) || 0;
 
 			if (!targetType || !targetId) {
 				self.showModerationThreadState('error', self.strings.modMessageError || self.strings.error);
 				return;
 			}
 
+			const payload = {
+				action: 'fanfic_get_moderation_thread',
+				nonce: this.config.nonce,
+				target_type: targetType,
+				target_id: targetId,
+				thread_context: normalizedContext
+			};
+			if (normalizedMessageId > 0) {
+				payload.message_id = normalizedMessageId;
+			}
+
 			$.ajax({
 				url: this.config.ajaxUrl,
 				type: 'POST',
-				data: {
-					action: 'fanfic_get_moderation_thread',
-					nonce: this.config.nonce,
-					target_type: targetType,
-					target_id: targetId
-				}
+				data: payload
 			}).done(function(response) {
 				if (!(response && response.success && response.data)) {
 					self.showModerationThreadState('error', (response && response.data && response.data.message) || self.strings.modMessageError || self.strings.error);
@@ -395,48 +455,75 @@
 
 				const data = response.data || {};
 				const threadId = parseInt(data.thread_id, 10) || 0;
+				const resolvedTargetType = String(data.target_type || targetType).trim();
+				const resolvedTargetId = parseInt(data.target_id, 10) || targetId;
+				const resolvedContext = String(data.thread_context || normalizedContext).trim();
 				const canSend = !!data.can_send;
+				const isModeratorView = !!data.is_moderator_view;
+				const isDirectContext = resolvedContext === 'direct_profile';
 				$modal.find('#fanfic-mod-thread-id').val(threadId ? String(threadId) : '');
+				$modal.find('#fanfic-mod-target-type').val(resolvedTargetType);
+				$modal.find('#fanfic-mod-target-id').val(String(resolvedTargetId));
+				$modal.find('#fanfic-mod-thread-context').val(resolvedContext);
+				self.updateModerationModalCopy(resolvedContext, isModeratorView);
 				self.renderModerationThread(data.entries || []);
 				self.clearModerationThreadState();
 
 				if (!canSend) {
-					self.showModerationThreadState('info', self.strings.modThreadClosed || 'This conversation is closed. You can start a new one while the restriction remains active.');
+					const closedMessage = (isDirectContext && threadId === 0 && !isModeratorView)
+						? (self.strings.modThreadNotStarted || 'Moderation has not started this conversation yet.')
+						: (self.strings.modThreadClosed || 'This conversation is closed.');
+					self.showModerationThreadState('info', closedMessage);
 				}
 
 				$input.prop('disabled', !canSend);
 				$submit.prop('disabled', !canSend);
 				if (threadId > 0) {
-					self.markModerationMessageSent(targetType, targetId, $modal.data('triggerButton'));
+					self.markModerationMessageSent(resolvedTargetType, resolvedTargetId, $modal.data('triggerButton'), resolvedContext, threadId);
 				}
 			}).fail(function() {
 				self.showModerationThreadState('error', self.strings.modMessageError || self.strings.error);
 			});
 		},
 
-		submitModerationMessage: function(targetType, targetId, message, $trigger) {
+		submitModerationMessage: function(targetType, targetId, message, $trigger, threadContext, messageId) {
 			const self = this;
 			const $submit = $('#fanfic-mod-modal-submit');
+			const normalizedContext = String(threadContext || 'restriction').trim();
+			const normalizedMessageId = parseInt(messageId, 10) || 0;
 
 			$submit.prop('disabled', true);
+
+			const payload = {
+				action: 'fanfic_send_moderation_message',
+				nonce: this.config.nonce,
+				target_type: targetType,
+				target_id: targetId,
+				thread_context: normalizedContext,
+				message: message
+			};
+			if (normalizedMessageId > 0) {
+				payload.message_id = normalizedMessageId;
+			}
 
 			$.ajax({
 				url: this.config.ajaxUrl,
 				type: 'POST',
-				data: {
-					action: 'fanfic_send_moderation_message',
-					nonce: this.config.nonce,
-					target_type: targetType,
-					target_id: targetId,
-					message: message
-				}
+				data: payload
 			}).done(function(response) {
 				if (response && response.success) {
-					self.markModerationMessageSent(targetType, targetId, $trigger);
+					const responseData = response.data || {};
+					const resolvedThreadId = parseInt(responseData.thread_id, 10) || 0;
+					const resolvedContext = String(responseData.thread_context || normalizedContext).trim();
+					if (resolvedThreadId > 0) {
+						$('#fanfic-mod-thread-id').val(String(resolvedThreadId));
+					}
+					$('#fanfic-mod-thread-context').val(resolvedContext);
+					self.markModerationMessageSent(targetType, targetId, $trigger, resolvedContext, resolvedThreadId);
 					$('#fanfic-mod-message-text').val('');
 					self.updateModerationMessageCount();
 					self.showModerationMessageFormMessage('success', self.strings.modMessageSent || 'Message sent successfully.');
-					self.loadModerationThread(targetType, targetId);
+					self.loadModerationThread(targetType, targetId, resolvedContext, resolvedThreadId);
 					return;
 				}
 
@@ -448,24 +535,36 @@
 			});
 		},
 
-		markModerationMessageSent: function(targetType, targetId, $trigger) {
-			const selector = '.fanfic-message-mod-btn[data-target-type="' + String(targetType) + '"][data-target-id="' + parseInt(targetId, 10) + '"]';
-			const openLabel = this.strings.modMessageOpenState || 'Open Moderation Chat';
+		markModerationMessageSent: function(targetType, targetId, $trigger, threadContext, messageId) {
+			const normalizedContext = String(threadContext || 'restriction').trim();
+			const normalizedMessageId = parseInt(messageId, 10) || 0;
+			let selector = '.fanfic-message-mod-btn[data-target-type="' + String(targetType) + '"][data-target-id="' + parseInt(targetId, 10) + '"]';
+			if (normalizedContext) {
+				selector += '[data-thread-context="' + normalizedContext + '"]';
+			}
+			if (normalizedMessageId > 0) {
+				selector = selector + ':not([data-message-id]),' + selector + '[data-message-id="' + normalizedMessageId + '"]';
+			}
+			const defaultOpenLabel = normalizedContext === 'direct_profile'
+				? (this.strings.modMessageOpenStateDirect || 'Open Conversation')
+				: (this.strings.modMessageOpenState || 'Open Moderation Chat');
 
 			$(selector).each(function() {
+				const perButtonOpenLabel = String($(this).data('open-label') || defaultOpenLabel);
 				$(this)
 					.addClass('fanfic-message-chat-active')
 					.removeClass('fanfic-message-chat-has-unread')
 					.attr('data-has-unread', '0')
-					.text(openLabel);
+					.text(perButtonOpenLabel);
 			});
 
 			if ($trigger && $trigger.length) {
+				const triggerOpenLabel = String($trigger.data('open-label') || defaultOpenLabel);
 				$trigger
 					.addClass('fanfic-message-chat-active')
 					.removeClass('fanfic-message-chat-has-unread')
 					.attr('data-has-unread', '0')
-					.text(openLabel);
+					.text(triggerOpenLabel);
 			}
 		},
 
@@ -539,12 +638,50 @@
 			});
 		},
 
+		getBadgeToneClass: function(status) {
+			const normalized = String(status || '').toLowerCase();
+			const success = ['publish', 'published', 'visible', 'active', 'enabled', 'resolved', 'success'];
+			const warning = ['draft', 'hidden', 'pending', 'warning', 'unread'];
+			const danger = ['blocked', 'suspended', 'deleted', 'danger', 'error'];
+			const info = ['info', 'dismissed'];
+			const muted = ['inactive', 'disabled', 'private', 'ignored', 'muted'];
+
+			if (success.indexOf(normalized) !== -1) {
+				return 'is-success';
+			}
+			if (warning.indexOf(normalized) !== -1) {
+				return 'is-warning';
+			}
+			if (danger.indexOf(normalized) !== -1) {
+				return 'is-danger';
+			}
+			if (info.indexOf(normalized) !== -1) {
+				return 'is-info';
+			}
+			if (muted.indexOf(normalized) !== -1) {
+				return 'is-muted';
+			}
+
+			return 'is-muted';
+		},
+
+		getInlineStatusBadgeClass: function(status) {
+			const normalized = String(status || 'draft').toLowerCase();
+			return 'fanfic-badge fanfic-badge--status ' + this.getBadgeToneClass(normalized) + ' fanfic-status-' + normalized;
+		},
+
+		getChapterFormStatusBadgeClass: function(status) {
+			const normalized = String(status || 'draft').toLowerCase();
+			return 'fanfic-badge fanfic-badge--status fanfic-badge--status-lg ' + this.getBadgeToneClass(normalized) + ' fanfic-status-' + normalized;
+		},
+
 		applyChapterBlockState: function(chapterId, payload) {
 			const isBlocked = !!payload.is_blocked;
 			const postStatus = String(payload.post_status || 'draft');
 			const visibleLabel = this.strings.chapterVisible || 'Visible';
 			const hiddenLabel = this.strings.chapterHidden || 'Hidden';
 			const blockedLabel = this.strings.chapterBlocked || 'Blocked';
+			const self = this;
 
 			$('.fanfic-chapter-block-controls[data-chapter-id="' + chapterId + '"]').each(function() {
 				const $controls = $(this);
@@ -564,15 +701,28 @@
 				const badgeText = isBlocked ? blockedLabel : (postStatus === 'publish' ? visibleLabel : hiddenLabel);
 				const badgeClass = isBlocked ? 'blocked' : postStatus;
 				$row.attr('data-post-status', postStatus);
-				$row.find('.fanfic-status-badge').attr('class', 'fanfic-status-badge fanfic-status-' + badgeClass).text(badgeText);
+				$row.find('[data-badge-type="status"][data-badge-scope="chapter-row-status"]')
+					.attr('class', self.getInlineStatusBadgeClass(badgeClass))
+					.attr('data-status', badgeClass)
+					.text(badgeText);
 				$row.find('.fanfic-hide-chapter').prop('hidden', isBlocked || postStatus !== 'publish');
 				$row.find('.fanfic-publish-chapter').prop('hidden', isBlocked || postStatus !== 'draft');
 			});
 
-			$('.fanfic-form-actions').has('.fanfic-chapter-block-controls[data-chapter-id="' + chapterId + '"]').each(function() {
+			$('.fanfic-form-actions').each(function() {
 				const $actions = $(this);
-				const $statusBadge = $('.fanfic-chapter-status-badge').first();
+				const $statusBadge = $('[data-badge-type="status"][data-badge-scope="chapter-form-status"]').first();
 				const isPublished = postStatus === 'publish';
+				const actionChapterId = parseInt(
+					$actions.find('#hide-chapter-button').data('chapter-id')
+					|| $actions.closest('form').find('input[name="fanfic_chapter_id"]').val()
+					|| 0,
+					10
+				) || 0;
+
+				if (actionChapterId !== chapterId) {
+					return;
+				}
 
 				$actions.find('#hide-chapter-button').prop('hidden', isBlocked || !isPublished);
 				$actions.find('#make-chapter-visible-button').prop('hidden', isBlocked || isPublished);
@@ -583,18 +733,93 @@
 				}
 
 				if (isBlocked) {
-					$statusBadge.attr('class', 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-blocked');
+					$statusBadge.attr('class', self.getChapterFormStatusBadgeClass('blocked'));
+					$statusBadge.attr('data-status', 'blocked');
 					$statusBadge.html('<span class="dashicons dashicons-lock"></span>' + blockedLabel);
 					return;
 				}
 
 				if (isPublished) {
-					$statusBadge.attr('class', 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-published');
+					$statusBadge.attr('class', self.getChapterFormStatusBadgeClass('published'));
+					$statusBadge.attr('data-status', 'published');
 					$statusBadge.text(visibleLabel);
 				} else {
-					$statusBadge.attr('class', 'fanfic-chapter-status-badge fanfic-story-status-badge fanfic-status-draft');
+					$statusBadge.attr('class', self.getChapterFormStatusBadgeClass('draft'));
+					$statusBadge.attr('data-status', 'draft');
 					$statusBadge.html('<span class="dashicons dashicons-hidden"></span>' + hiddenLabel);
 				}
+			});
+		},
+
+		initProfileModerationControls: function() {
+			const self = this;
+
+			$(document).on('click', '.fanfic-profile-ban-toggle', function(e) {
+				e.preventDefault();
+
+				const $button = $(this);
+				if ($button.prop('disabled')) {
+					return;
+				}
+
+				const userId = parseInt($button.data('user-id'), 10) || 0;
+				const nonce = String($button.data('nonce') || '').trim();
+				const isBanned = String($button.attr('data-is-banned') || $button.data('is-banned') || '0') === '1';
+				const targetName = String($button.data('target-name') || '').trim();
+
+				if (!userId || !nonce) {
+					self.showError($button, self.strings.error);
+					return;
+				}
+
+				const confirmTemplate = isBanned
+					? (self.strings.profileUnbanConfirm || 'Unblock this user?')
+					: (self.strings.profileBanConfirm || 'Block this user?');
+				const confirmMessage = targetName ? confirmTemplate.replace('%s', targetName) : confirmTemplate;
+
+				if (!window.confirm(confirmMessage)) {
+					return;
+				}
+
+				const action = isBanned ? 'fanfic_unban_user' : 'fanfic_ban_user';
+				const loadingLabel = isBanned
+					? (self.strings.profileUnblocking || 'Unblocking...')
+					: (self.strings.profileBlocking || 'Blocking...');
+				const originalLabel = $button.text();
+
+				$button.prop('disabled', true).text(loadingLabel);
+
+				$.ajax({
+					url: self.config.ajaxUrl,
+					type: 'POST',
+					data: {
+						action: action,
+						user_id: userId,
+						nonce: nonce
+					}
+				}).done(function(response) {
+					if (response && response.success) {
+						const nextBanned = !isBanned;
+						const banLabel = String($button.data('ban-label') || self.strings.profileBlockUser || 'Block User');
+						const unbanLabel = String($button.data('unban-label') || self.strings.profileUnblockUser || 'Unblock User');
+
+						$button
+							.attr('data-is-banned', nextBanned ? '1' : '0')
+							.data('is-banned', nextBanned ? 1 : 0)
+							.toggleClass('is-banned', nextBanned)
+							.prop('disabled', false)
+							.text(nextBanned ? unbanLabel : banLabel);
+
+						self.showSuccess($button, (response.data && response.data.message) || (nextBanned ? 'User blocked.' : 'User unblocked.'));
+						return;
+					}
+
+					$button.prop('disabled', false).text(originalLabel);
+					self.showError($button, (response && response.data && response.data.message) || self.strings.error);
+				}).fail(function(xhr) {
+					$button.prop('disabled', false).text(originalLabel);
+					self.handleAjaxError(xhr, $button);
+				});
 			});
 		},
 
@@ -879,7 +1104,7 @@
 		 */
 		updateBadges: function() {
 			// Following badges (story-level: chapter_id = 0)
-			$('.fanfic-badge-following[data-badge-story-id]').each(function() {
+			$('.fanfic-badge--icon[data-badge-icon="following"][data-badge-story-id]').each(function() {
 				var storyId = parseInt($(this).data('badge-story-id'), 10);
 				var entry = FanficLocalStore.getChapter(storyId, 0);
 				$(this).toggle(!!(entry && entry.follow));
@@ -903,7 +1128,7 @@
 				return entryCache[key];
 			};
 
-			$('.fanfic-read-indicator[data-story-id][data-chapter-id], .fanfic-badge-bookmarked[data-badge-story-id][data-badge-chapter-id]').each(function() {
+			$('.fanfic-read-indicator[data-story-id][data-chapter-id], .fanfic-badge--icon[data-badge-icon="bookmarked"][data-badge-story-id][data-badge-chapter-id]').each(function() {
 				var $node = $(this);
 				var isReadIndicator = $node.hasClass('fanfic-read-indicator');
 				var storyId = isReadIndicator

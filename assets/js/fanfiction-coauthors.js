@@ -79,7 +79,10 @@
 
 			if (status === 'pending') {
 				var badge = document.createElement('span');
-				badge.className = 'fanfic-coauthor-status-badge';
+				badge.className = 'fanfic-badge is-muted';
+				badge.setAttribute('data-badge-type', 'status');
+				badge.setAttribute('data-badge-scope', 'coauthor-status');
+				badge.setAttribute('data-status', 'pending');
 				badge.textContent = (fanficCoauthors.strings && fanficCoauthors.strings.pending) ? fanficCoauthors.strings.pending : 'Pending';
 				wrapper.appendChild(badge);
 			}

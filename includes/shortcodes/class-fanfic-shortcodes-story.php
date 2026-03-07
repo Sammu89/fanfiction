@@ -834,8 +834,9 @@ class Fanfic_Shortcodes_Story {
 					if ( '' === $warning_age_label ) {
 						$warning_age_label = (string) $warning['min_age'];
 					}
-					$warning_age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $warning['min_age'] ) : 'fanfic-age-badge-18-plus';
-					$item .= ' <span class="story-warning-age-badge ' . esc_attr( $warning_age_class ) . '">' . esc_html( $warning_age_label ) . '</span>';
+					$warning_age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $warning['min_age'] ) : 'is-age-18-plus';
+					$warning_age_modifier = function_exists( 'fanfic_get_badge_age_modifier_class' ) ? fanfic_get_badge_age_modifier_class( $warning_age_class ) : 'is-age-18-plus';
+					$item .= ' <span class="fanfic-badge fanfic-badge--age ' . esc_attr( $warning_age_modifier ) . '">' . esc_html( $warning_age_label ) . '</span>';
 				}
 				$item .= '</span>';
 				$warning_items[] = $item;
@@ -995,8 +996,9 @@ class Fanfic_Shortcodes_Story {
 		if ( '' === $highest_age_label ) {
 			$highest_age_label = (string) $highest_age;
 		}
-		$highest_age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $highest_age ) : 'fanfic-age-badge-18-plus';
-		$age_class = 'fanfic-age-badge ' . $highest_age_class;
+		$highest_age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $highest_age ) : 'is-age-18-plus';
+		$age_modifier_class = function_exists( 'fanfic_get_badge_age_modifier_class' ) ? fanfic_get_badge_age_modifier_class( $highest_age_class ) : 'is-age-18-plus';
+		$age_class = 'fanfic-badge fanfic-badge--age ' . $age_modifier_class;
 		$output .= '<span class="' . esc_attr( $age_class ) . '" aria-label="' . esc_attr( sprintf( __( 'Age rating: %s', 'fanfiction-manager' ), $highest_age_label ) ) . '">' . esc_html( $highest_age_label ) . '</span>';
 
 		$output .= '</span>';

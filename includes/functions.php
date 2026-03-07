@@ -1707,10 +1707,9 @@ function fanfic_get_profile_edit_url( $user_id = 0 ) {
  * @since 1.0.0
  * @param string $content_type Type of content: 'story', 'chapter', or 'profile'
  * @param int    $content_id   ID of the content to edit
- * @param string $context      Optional edit context. Use 'blocked_edit' for owner edits on blocked content.
  * @return bool True if user can edit
  */
-function fanfic_current_user_can_edit( $content_type, $content_id, $context = '' ) {
+function fanfic_current_user_can_edit( $content_type, $content_id ) {
 	$user_id = get_current_user_id();
 
 	if ( ! $user_id ) {
@@ -1728,8 +1727,7 @@ function fanfic_current_user_can_edit( $content_type, $content_id, $context = ''
 			if ( ! $post || 'fanfiction_story' !== $post->post_type ) {
 				return false;
 			}
-			$is_blocked_story_edit = 'blocked_edit' === $context && fanfic_current_user_is_content_owner( $content_id );
-			if ( fanfic_is_story_blocked( $content_id ) && ! $is_blocked_story_edit ) {
+			if ( fanfic_is_story_blocked( $content_id ) ) {
 				return false;
 			}
 			return current_user_can( 'edit_fanfiction_story', $content_id );
@@ -1739,8 +1737,7 @@ function fanfic_current_user_can_edit( $content_type, $content_id, $context = ''
 			if ( ! $post || 'fanfiction_chapter' !== $post->post_type ) {
 				return false;
 			}
-			$is_blocked_chapter_edit = 'blocked_edit' === $context && fanfic_current_user_is_content_owner( $content_id );
-			if ( ( fanfic_is_chapter_blocked( $content_id ) || fanfic_is_story_blocked( (int) $post->post_parent ) ) && ! $is_blocked_chapter_edit ) {
+			if ( fanfic_is_chapter_blocked( $content_id ) || fanfic_is_story_blocked( (int) $post->post_parent ) ) {
 				return false;
 			}
 			return current_user_can( 'edit_fanfiction_chapter', $content_id ) || current_user_can( 'edit_fanfiction_story', (int) $post->post_parent );
@@ -2370,6 +2367,436 @@ function fanfic_render_page_alerts( $context = '' ) {
 function fanfic_render_page_header( $context, $breadcrumb_args = array() ) {
 	fanfic_render_breadcrumb( $context, $breadcrumb_args );
 	fanfic_render_page_alerts( $context );
+}
+
+/**
+ * Check whether a user account is suspended.
+ *
+ * @since 1.0.0
+ * @param int $user_id User ID.
+ * @return bool
+ */
+function fanfic_is_user_suspended( $user_id = 0 ) {
+	$user_id = absint( $user_id );
+	if ( $user_id <= 0 ) {
+		return false;
+	}
+
+	$user = get_userdata( $user_id );
+	if ( ! $user ) {
+		return false;
+	}
+
+	return in_array( 'fanfiction_banned_user', (array) $user->roles, true );
+}
+
+/**
+ * Check whether a user is the story author or an accepted co-author.
+ *
+ * @since 1.0.0
+ * @param int $story_id Story ID.
+ * @param int $user_id  User ID.
+ * @return bool
+ */
+function fanfic_user_is_story_author_or_coauthor( $story_id, $user_id = 0 ) {
+	$story_id = absint( $story_id );
+	$user_id  = absint( $user_id );
+	if ( $story_id <= 0 || $user_id <= 0 ) {
+		return false;
+	}
+
+	$story = get_post( $story_id );
+	if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+		return false;
+	}
+
+	if ( (int) $story->post_author === $user_id ) {
+		return true;
+	}
+
+	if ( class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled() ) {
+		return Fanfic_Coauthors::is_coauthor( $story_id, $user_id );
+	}
+
+	return false;
+}
+
+/**
+ * Build story block/unblock controls.
+ *
+ * @since 1.0.0
+ * @param int $story_id Story ID.
+ * @return string
+ */
+function fanfic_get_story_block_controls_markup( $story_id ) {
+	$story_id = absint( $story_id );
+	if ( $story_id <= 0 ) {
+		return '';
+	}
+
+	$is_story_blocked = fanfic_is_story_blocked( $story_id );
+	$block_endpoint   = admin_url( 'admin-post.php' );
+	$block_reasons    = function_exists( 'fanfic_get_block_reason_labels' ) ? fanfic_get_block_reason_labels() : array();
+
+	ob_start();
+	?>
+	<div class="fanfic-inline-block-form fanfic-inline-block-form-with-reason fanfic-story-block-controls" data-story-id="<?php echo absint( $story_id ); ?>">
+		<form method="post" action="<?php echo esc_url( $block_endpoint ); ?>" class="fanfic-chapter-block-panel fanfic-story-block-panel fanfic-story-block-panel-block"<?php echo $is_story_blocked ? ' hidden' : ''; ?>>
+			<input type="hidden" name="action" value="fanfic_toggle_story_block">
+			<input type="hidden" name="story_id" value="<?php echo esc_attr( $story_id ); ?>">
+			<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( 'fanfic_toggle_story_block_' . $story_id ) ); ?>">
+			<label class="screen-reader-text" for="fanfic-story-block-reason-<?php echo esc_attr( $story_id ); ?>">
+				<?php esc_html_e( 'Block reason', 'fanfiction-manager' ); ?>
+			</label>
+			<select name="block_reason" id="fanfic-story-block-reason-<?php echo esc_attr( $story_id ); ?>" class="fanfic-block-reason-select" aria-label="<?php esc_attr_e( 'Select a reason before blocking this story', 'fanfiction-manager' ); ?>">
+				<?php foreach ( $block_reasons as $reason_key => $reason_label ) : ?>
+					<option value="<?php echo esc_attr( $reason_key ); ?>" <?php selected( 'manual', $reason_key ); ?>>
+						<?php echo esc_html( $reason_label ); ?>
+					</option>
+				<?php endforeach; ?>
+			</select>
+			<label class="screen-reader-text" for="fanfic-story-block-reason-text-<?php echo esc_attr( $story_id ); ?>">
+				<?php esc_html_e( 'Additional block details', 'fanfiction-manager' ); ?>
+			</label>
+			<textarea id="fanfic-story-block-reason-text-<?php echo esc_attr( $story_id ); ?>" name="block_reason_text" class="fanfic-block-reason-text" rows="2" maxlength="500" placeholder="<?php esc_attr_e( 'Optional details for the author.', 'fanfiction-manager' ); ?>"></textarea>
+			<button type="submit" class="fanfic-button secondary">
+				<?php esc_html_e( 'Block Story', 'fanfiction-manager' ); ?>
+			</button>
+		</form>
+		<form method="post" action="<?php echo esc_url( $block_endpoint ); ?>" class="fanfic-chapter-block-panel fanfic-story-block-panel fanfic-story-block-panel-unblock"<?php echo $is_story_blocked ? '' : ' hidden'; ?>>
+			<input type="hidden" name="action" value="fanfic_toggle_story_block">
+			<input type="hidden" name="story_id" value="<?php echo esc_attr( $story_id ); ?>">
+			<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( 'fanfic_toggle_story_block_' . $story_id ) ); ?>">
+			<button type="submit" class="fanfic-button secondary">
+				<?php esc_html_e( 'Unblock Story', 'fanfiction-manager' ); ?>
+			</button>
+		</form>
+	</div>
+	<?php
+
+	return trim( (string) ob_get_clean() );
+}
+
+/**
+ * Build chapter block/unblock controls.
+ *
+ * @since 1.0.0
+ * @param int $chapter_id Chapter ID.
+ * @return string
+ */
+function fanfic_get_chapter_block_controls_markup( $chapter_id ) {
+	$chapter_id = absint( $chapter_id );
+	if ( $chapter_id <= 0 ) {
+		return '';
+	}
+
+	$is_chapter_blocked = fanfic_is_chapter_blocked( $chapter_id );
+	$block_endpoint     = admin_url( 'admin-post.php' );
+	$block_reasons      = function_exists( 'fanfic_get_block_reason_labels' ) ? fanfic_get_block_reason_labels() : array();
+
+	ob_start();
+	?>
+	<div class="fanfic-inline-block-form fanfic-inline-block-form-with-reason fanfic-chapter-block-controls" data-chapter-id="<?php echo absint( $chapter_id ); ?>">
+		<form method="post" action="<?php echo esc_url( $block_endpoint ); ?>" class="fanfic-chapter-block-panel fanfic-chapter-block-panel-block"<?php echo $is_chapter_blocked ? ' hidden' : ''; ?>>
+			<input type="hidden" name="action" value="fanfic_toggle_chapter_block">
+			<input type="hidden" name="chapter_id" value="<?php echo esc_attr( $chapter_id ); ?>">
+			<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( 'fanfic_toggle_chapter_block_' . $chapter_id ) ); ?>">
+			<label class="screen-reader-text" for="fanfic-page-block-reason-<?php echo esc_attr( $chapter_id ); ?>">
+				<?php esc_html_e( 'Block reason', 'fanfiction-manager' ); ?>
+			</label>
+			<select name="block_reason" id="fanfic-page-block-reason-<?php echo esc_attr( $chapter_id ); ?>" class="fanfic-block-reason-select" aria-label="<?php esc_attr_e( 'Select a reason before blocking this chapter', 'fanfiction-manager' ); ?>">
+				<?php foreach ( $block_reasons as $reason_key => $reason_label ) : ?>
+					<option value="<?php echo esc_attr( $reason_key ); ?>" <?php selected( 'manual', $reason_key ); ?>>
+						<?php echo esc_html( $reason_label ); ?>
+					</option>
+				<?php endforeach; ?>
+			</select>
+			<label class="screen-reader-text" for="fanfic-page-block-reason-text-<?php echo esc_attr( $chapter_id ); ?>">
+				<?php esc_html_e( 'Additional block details', 'fanfiction-manager' ); ?>
+			</label>
+			<textarea id="fanfic-page-block-reason-text-<?php echo esc_attr( $chapter_id ); ?>" name="block_reason_text" class="fanfic-block-reason-text" rows="2" maxlength="500" placeholder="<?php esc_attr_e( 'Optional details for the author.', 'fanfiction-manager' ); ?>"></textarea>
+			<button type="submit" class="fanfic-button secondary fanfic-block-chapter-submit" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>">
+				<?php esc_html_e( 'Block', 'fanfiction-manager' ); ?>
+			</button>
+		</form>
+		<form method="post" action="<?php echo esc_url( $block_endpoint ); ?>" class="fanfic-chapter-block-panel fanfic-chapter-block-panel-unblock"<?php echo $is_chapter_blocked ? '' : ' hidden'; ?>>
+			<input type="hidden" name="action" value="fanfic_toggle_chapter_block">
+			<input type="hidden" name="chapter_id" value="<?php echo esc_attr( $chapter_id ); ?>">
+			<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( wp_create_nonce( 'fanfic_toggle_chapter_block_' . $chapter_id ) ); ?>">
+			<button type="submit" class="fanfic-button secondary fanfic-unblock-chapter-submit" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-chapter-title="<?php echo esc_attr( get_the_title( $chapter_id ) ); ?>">
+				<?php esc_html_e( 'Unblock', 'fanfiction-manager' ); ?>
+			</button>
+		</form>
+	</div>
+	<?php
+
+	return trim( (string) ob_get_clean() );
+}
+
+/**
+ * Render shared moderation controls below page header alerts.
+ *
+ * @since 1.0.0
+ * @param string $context Context key.
+ * @param array  $args    Optional IDs.
+ * @return void
+ */
+function fanfic_render_moderation_controls( $context, $args = array() ) {
+	if ( ! is_user_logged_in() ) {
+		return;
+	}
+
+	$context = sanitize_key( (string) $context );
+	$args    = wp_parse_args(
+		(array) $args,
+		array(
+			'story_id'   => 0,
+			'chapter_id' => 0,
+			'user_id'    => 0,
+		)
+	);
+
+	$current_user_id        = get_current_user_id();
+	$is_moderator           = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
+	$is_current_user_banned = fanfic_is_user_suspended( $current_user_id );
+	$buttons                = array();
+	$should_render_message_modal = false;
+
+	if ( in_array( $context, array( 'view-story', 'edit-story' ), true ) ) {
+		$story_id = absint( $args['story_id'] );
+		if ( ! $story_id || 'fanfiction_story' !== get_post_type( $story_id ) ) {
+			return;
+		}
+
+		$is_story_blocked = fanfic_is_story_blocked( $story_id );
+
+		if ( 'view-story' === $context && ! $is_current_user_banned && fanfic_current_user_can_edit( 'story', $story_id ) ) {
+			$buttons[] = sprintf(
+				'<a href="%1$s" class="fanfic-button fanfic-edit-button"><span class="dashicons dashicons-edit" aria-hidden="true"></span><span class="fanfic-button-text">%2$s</span></a>',
+				esc_url( fanfic_get_edit_story_url( $story_id ) ),
+				esc_html__( 'Edit Story', 'fanfiction-manager' )
+			);
+		}
+
+		if ( ! $is_current_user_banned && ! $is_story_blocked && fanfic_user_is_story_author_or_coauthor( $story_id, $current_user_id ) ) {
+			$buttons[] = sprintf(
+				'<a href="%1$s" class="fanfic-button fanfic-edit-button fanfic-add-chapter-button"><span class="dashicons dashicons-plus-alt" aria-hidden="true"></span><span class="fanfic-button-text">%2$s</span></a>',
+				esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ),
+				esc_html__( 'Add Chapter', 'fanfiction-manager' )
+			);
+		}
+
+		if ( $is_moderator ) {
+			if ( 'view-story' === $context ) {
+				$story_author_id = (int) get_post_field( 'post_author', $story_id );
+				if ( $story_author_id > 0 && $story_author_id !== $current_user_id ) {
+					$direct_thread = class_exists( 'Fanfic_Moderation_Messages' )
+						? Fanfic_Moderation_Messages::get_active_message( $story_author_id, 'user', $story_author_id, 'direct_profile' )
+						: null;
+					$has_active_direct_thread = ! empty( $direct_thread['id'] );
+					$has_unread_for_moderator = ! empty( $direct_thread['unread_for_moderator'] );
+					$is_profile_chat_closed   = function_exists( 'fanfic_is_mod_chat_closed' )
+						? fanfic_is_mod_chat_closed( 'user', $story_author_id )
+						: false;
+					$open_label = esc_html__( 'Open Conversation', 'fanfiction-manager' );
+
+					if ( $is_profile_chat_closed ) {
+						$buttons[] = sprintf(
+							'<button type="button" class="fanfic-button secondary" disabled aria-disabled="true">%s</button>',
+							esc_html__( 'Chat Closed', 'fanfiction-manager' )
+						);
+					} else {
+						$buttons[] = sprintf(
+							'<button type="button" class="fanfic-button secondary fanfic-message-mod-btn%1$s%2$s" data-target-type="user" data-target-id="%3$d" data-thread-context="direct_profile" data-is-moderator="1" data-has-unread="%4$s" data-open-label="%5$s">%6$s</button>',
+							$has_active_direct_thread ? ' fanfic-message-chat-active' : '',
+							$has_unread_for_moderator ? ' fanfic-message-chat-has-unread' : '',
+							absint( $story_author_id ),
+							$has_unread_for_moderator ? '1' : '0',
+							esc_attr( $open_label ),
+							$has_active_direct_thread ? $open_label : esc_html__( 'Message Author', 'fanfiction-manager' )
+						);
+						$should_render_message_modal = true;
+					}
+				}
+			}
+
+			if ( class_exists( 'Fanfic_Featured_Stories' ) ) {
+				$feature_button = trim( (string) Fanfic_Featured_Stories::render_feature_button( $story_id ) );
+				if ( '' !== $feature_button ) {
+					$buttons[] = $feature_button;
+				}
+			}
+
+			$story_block_controls = fanfic_get_story_block_controls_markup( $story_id );
+			if ( '' !== $story_block_controls ) {
+				$buttons[] = $story_block_controls;
+			}
+		}
+	} elseif ( in_array( $context, array( 'view-chapter', 'edit-chapter' ), true ) ) {
+		$chapter_id = absint( $args['chapter_id'] );
+		if ( ! $chapter_id || 'fanfiction_chapter' !== get_post_type( $chapter_id ) ) {
+			return;
+		}
+		$story_id = absint( $args['story_id'] );
+		if ( ! $story_id ) {
+			$story_id = absint( wp_get_post_parent_id( $chapter_id ) );
+		}
+
+		if ( 'view-chapter' === $context ) {
+			if ( ! $is_current_user_banned && fanfic_current_user_can_edit( 'chapter', $chapter_id ) ) {
+				$buttons[] = sprintf(
+					'<a href="%1$s" class="fanfic-button fanfic-edit-button"><span class="dashicons dashicons-edit" aria-hidden="true"></span><span class="fanfic-button-text">%2$s</span></a>',
+					esc_url( fanfic_get_edit_chapter_url( $chapter_id, $story_id ) ),
+					esc_html__( 'Edit Chapter', 'fanfiction-manager' )
+				);
+			}
+
+			if ( $story_id && ! $is_current_user_banned && fanfic_current_user_can_edit( 'story', $story_id ) ) {
+				$buttons[] = sprintf(
+					'<a href="%1$s" class="fanfic-button fanfic-edit-button"><span class="dashicons dashicons-edit" aria-hidden="true"></span><span class="fanfic-button-text">%2$s</span></a>',
+					esc_url( fanfic_get_edit_story_url( $story_id ) ),
+					esc_html__( 'Edit Story', 'fanfiction-manager' )
+				);
+			}
+		}
+
+		if ( $is_moderator ) {
+			if ( 'view-chapter' === $context ) {
+				$chapter_author_id = (int) get_post_field( 'post_author', $chapter_id );
+				if ( $chapter_author_id > 0 && $chapter_author_id !== $current_user_id ) {
+					$direct_thread = class_exists( 'Fanfic_Moderation_Messages' )
+						? Fanfic_Moderation_Messages::get_active_message( $chapter_author_id, 'user', $chapter_author_id, 'direct_profile' )
+						: null;
+					$has_active_direct_thread = ! empty( $direct_thread['id'] );
+					$has_unread_for_moderator = ! empty( $direct_thread['unread_for_moderator'] );
+					$is_profile_chat_closed   = function_exists( 'fanfic_is_mod_chat_closed' )
+						? fanfic_is_mod_chat_closed( 'user', $chapter_author_id )
+						: false;
+					$open_label = esc_html__( 'Open Conversation', 'fanfiction-manager' );
+
+					if ( $is_profile_chat_closed ) {
+						$buttons[] = sprintf(
+							'<button type="button" class="fanfic-button secondary" disabled aria-disabled="true">%s</button>',
+							esc_html__( 'Chat Closed', 'fanfiction-manager' )
+						);
+					} else {
+						$buttons[] = sprintf(
+							'<button type="button" class="fanfic-button secondary fanfic-message-mod-btn%1$s%2$s" data-target-type="user" data-target-id="%3$d" data-thread-context="direct_profile" data-is-moderator="1" data-has-unread="%4$s" data-open-label="%5$s">%6$s</button>',
+							$has_active_direct_thread ? ' fanfic-message-chat-active' : '',
+							$has_unread_for_moderator ? ' fanfic-message-chat-has-unread' : '',
+							absint( $chapter_author_id ),
+							$has_unread_for_moderator ? '1' : '0',
+							esc_attr( $open_label ),
+							$has_active_direct_thread ? $open_label : esc_html__( 'Message Author', 'fanfiction-manager' )
+						);
+						$should_render_message_modal = true;
+					}
+				}
+			}
+
+			$chapter_block_controls = fanfic_get_chapter_block_controls_markup( $chapter_id );
+			if ( '' !== $chapter_block_controls ) {
+				$buttons[] = $chapter_block_controls;
+			}
+		}
+	} elseif ( 'view-profile' === $context ) {
+		$target_user_id = absint( $args['user_id'] );
+		if ( ! $is_moderator || $target_user_id <= 0 ) {
+			return;
+		}
+
+		$target_user = get_userdata( $target_user_id );
+		if ( ! $target_user ) {
+			return;
+		}
+
+		$direct_thread = class_exists( 'Fanfic_Moderation_Messages' )
+			? Fanfic_Moderation_Messages::get_active_message( $target_user_id, 'user', $target_user_id, 'direct_profile' )
+			: null;
+		$has_active_direct_thread = ! empty( $direct_thread['id'] );
+		$has_unread_for_moderator = ! empty( $direct_thread['unread_for_moderator'] );
+		$is_profile_chat_closed   = function_exists( 'fanfic_is_mod_chat_closed' )
+			? fanfic_is_mod_chat_closed( 'user', $target_user_id )
+			: false;
+		$open_label = esc_html__( 'Open Conversation', 'fanfiction-manager' );
+
+		if ( $is_profile_chat_closed ) {
+			$buttons[] = sprintf(
+				'<button type="button" class="fanfic-button secondary" disabled aria-disabled="true">%s</button>',
+				esc_html__( 'Chat Closed', 'fanfiction-manager' )
+			);
+		} else {
+			$buttons[] = sprintf(
+				'<button type="button" class="fanfic-button secondary fanfic-message-mod-btn%1$s%2$s" data-target-type="user" data-target-id="%3$d" data-thread-context="direct_profile" data-is-moderator="1" data-has-unread="%4$s" data-open-label="%5$s">%6$s</button>',
+				$has_active_direct_thread ? ' fanfic-message-chat-active' : '',
+				$has_unread_for_moderator ? ' fanfic-message-chat-has-unread' : '',
+				absint( $target_user_id ),
+				$has_unread_for_moderator ? '1' : '0',
+				esc_attr( $open_label ),
+				$has_active_direct_thread ? $open_label : esc_html__( 'Message User', 'fanfiction-manager' )
+			);
+			$should_render_message_modal = true;
+		}
+
+		if ( $target_user_id !== $current_user_id ) {
+			$is_target_banned = in_array( 'fanfiction_banned_user', (array) $target_user->roles, true );
+			$block_label      = esc_html__( 'Block User', 'fanfiction-manager' );
+			$unblock_label    = esc_html__( 'Unblock User', 'fanfiction-manager' );
+
+			$buttons[] = sprintf(
+				'<button type="button" class="fanfic-button secondary fanfic-profile-ban-toggle%1$s" data-user-id="%2$d" data-nonce="%3$s" data-is-banned="%4$s" data-ban-label="%5$s" data-unban-label="%6$s" data-target-name="%7$s">%8$s</button>',
+				$is_target_banned ? ' is-banned' : '',
+				absint( $target_user_id ),
+				esc_attr( wp_create_nonce( 'fanfic_user_action_' . $target_user_id ) ),
+				$is_target_banned ? '1' : '0',
+				esc_attr( $block_label ),
+				esc_attr( $unblock_label ),
+				esc_attr( $target_user->display_name ),
+				$is_target_banned ? $unblock_label : $block_label
+			);
+		}
+	}
+
+	if ( empty( $buttons ) ) {
+		return;
+	}
+	?>
+	<section class="fanfic-content-section fanfic-page-moderation-controls fanfic-page-moderation-controls-<?php echo esc_attr( $context ); ?>" aria-label="<?php esc_attr_e( 'Content actions', 'fanfiction-manager' ); ?>">
+		<h2 class="screen-reader-text"><?php esc_html_e( 'Content actions', 'fanfiction-manager' ); ?></h2>
+		<div class="fanfic-buttons">
+			<?php foreach ( $buttons as $button ) : ?>
+				<?php echo $button; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Content is escaped at build time. ?>
+			<?php endforeach; ?>
+		</div>
+	</section>
+	<?php
+
+	if ( $should_render_message_modal && function_exists( 'fanfic_render_moderation_message_modal' ) ) {
+		fanfic_render_moderation_message_modal();
+	}
+}
+
+/**
+ * Render dynamic interaction buttons without shortcode placeholders.
+ *
+ * @since 1.0.0
+ * @return void
+ */
+function fanfic_render_dynamic_action_buttons() {
+	if ( ! class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
+		return;
+	}
+
+	$buttons_markup = trim( (string) Fanfic_Shortcodes_Buttons::action_buttons( array() ) );
+	if ( '' === $buttons_markup ) {
+		return;
+	}
+	?>
+	<section class="fanfic-content-section fanfic-page-dynamic-actions" aria-label="<?php esc_attr_e( 'Page actions', 'fanfiction-manager' ); ?>">
+		<h2 class="screen-reader-text"><?php esc_html_e( 'Page actions', 'fanfiction-manager' ); ?></h2>
+		<?php echo $buttons_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markup is escaped by shortcode renderer. ?>
+	</section>
+	<?php
 }
 
 /**
@@ -3139,6 +3566,27 @@ function fanfic_is_story_blocked( $story_id ) {
 }
 
 /**
+ * Check whether the moderation chat is closed for a given blocked target.
+ *
+ * When chat is closed, authors cannot send new messages about this target.
+ * Moderators can reopen it at any time.
+ *
+ * @since 2.3.0
+ * @param string $target_type One of 'story', 'chapter', or 'user'.
+ * @param int    $target_id   Post ID (story/chapter) or user ID.
+ * @return bool True if chat is closed.
+ */
+function fanfic_is_mod_chat_closed( $target_type, $target_id ) {
+	if ( 'story' === $target_type || 'chapter' === $target_type ) {
+		return '1' === get_post_meta( (int) $target_id, '_fanfic_mod_chat_closed', true );
+	}
+	if ( 'user' === $target_type ) {
+		return '1' === get_user_meta( (int) $target_id, 'fanfic_mod_chat_closed', true );
+	}
+	return false;
+}
+
+/**
  * Get block information for a story
  *
  * @since 1.2.0
@@ -3426,10 +3874,10 @@ function fanfic_get_age_display_label( $value, $infer_default = true ) {
  * @param string $prefix Class prefix.
  * @return string CSS class name.
  */
-function fanfic_get_age_badge_class( $value, $prefix = 'fanfic-age-badge-' ) {
+function fanfic_get_age_badge_class( $value, $prefix = 'is-age-' ) {
 	$prefix = trim( (string) $prefix );
 	if ( '' === $prefix ) {
-		$prefix = 'fanfic-age-badge-';
+		$prefix = 'is-age-';
 	}
 
 	if ( class_exists( 'Fanfic_Warnings' ) ) {
@@ -3456,6 +3904,61 @@ function fanfic_get_age_badge_class( $value, $prefix = 'fanfic-age-badge-' ) {
 	}
 
 	return $prefix . '18-plus';
+}
+
+/**
+ * Map a status slug to canonical badge tone class.
+ *
+ * @since 1.0.0
+ * @param string $status Status key (for example publish, draft, blocked).
+ * @return string Tone class without leading dot.
+ */
+function fanfic_get_badge_tone_for_status( $status ) {
+	$status = sanitize_key( (string) $status );
+
+	$success = array( 'publish', 'published', 'visible', 'active', 'enabled', 'resolved', 'success' );
+	$warning = array( 'draft', 'hidden', 'pending', 'warning', 'unread' );
+	$danger  = array( 'blocked', 'suspended', 'deleted', 'danger', 'error' );
+	$info    = array( 'info', 'dismissed' );
+	$muted   = array( 'inactive', 'disabled', 'private', 'ignored', 'muted' );
+
+	if ( in_array( $status, $success, true ) ) {
+		return 'is-success';
+	}
+	if ( in_array( $status, $warning, true ) ) {
+		return 'is-warning';
+	}
+	if ( in_array( $status, $danger, true ) ) {
+		return 'is-danger';
+	}
+	if ( in_array( $status, $info, true ) ) {
+		return 'is-info';
+	}
+	if ( in_array( $status, $muted, true ) ) {
+		return 'is-muted';
+	}
+
+	return 'is-muted';
+}
+
+/**
+ * Normalize age class name to canonical `is-age-*` modifier.
+ *
+ * @since 1.0.0
+ * @param string $age_badge_class Age class (for example is-age-18-plus).
+ * @return string Canonical modifier (for example is-age-18-plus).
+ */
+function fanfic_get_badge_age_modifier_class( $age_badge_class ) {
+	$age_badge_class = sanitize_html_class( (string) $age_badge_class );
+	if ( '' === $age_badge_class ) {
+		return 'is-age-18-plus';
+	}
+
+	if ( 0 === strpos( $age_badge_class, 'is-age-' ) ) {
+		return $age_badge_class;
+	}
+
+	return 'is-age-18-plus';
 }
 
 /**
@@ -5736,11 +6239,12 @@ function fanfic_render_moderation_message_modal() {
 		<div class="fanfic-modal-overlay"></div>
 		<div class="fanfic-modal-content">
 			<h2 id="fanfic-mod-modal-title"><?php esc_html_e( 'Moderation Chat', 'fanfiction-manager' ); ?></h2>
-			<p class="fanfic-modal-description"><?php esc_html_e( 'Use this chat to discuss the current restriction with moderators.', 'fanfiction-manager' ); ?></p>
+			<p class="fanfic-modal-description"><?php esc_html_e( 'Use this chat to communicate with the moderation team.', 'fanfiction-manager' ); ?></p>
 			<form id="fanfic-mod-message-form">
 				<input type="hidden" name="target_type" id="fanfic-mod-target-type" value="">
 				<input type="hidden" name="target_id" id="fanfic-mod-target-id" value="">
 				<input type="hidden" name="message_id" id="fanfic-mod-thread-id" value="">
+				<input type="hidden" name="thread_context" id="fanfic-mod-thread-context" value="restriction">
 				<div id="fanfic-mod-thread-state" class="fanfic-form-message" style="display:none;"></div>
 				<div id="fanfic-mod-thread-history" class="fanfic-mod-thread-history" aria-live="polite"></div>
 				<div class="fanfic-form-group">
@@ -5750,7 +6254,7 @@ function fanfic_render_moderation_message_modal() {
 						name="message"
 						rows="5"
 						maxlength="1000"
-						placeholder="<?php esc_attr_e( 'Write your message to moderation...', 'fanfiction-manager' ); ?>"
+						placeholder="<?php esc_attr_e( 'Write your message...', 'fanfiction-manager' ); ?>"
 					></textarea>
 					<span class="fanfic-char-counter"><span id="fanfic-mod-char-count">0</span>/1000</span>
 				</div>
@@ -5881,6 +6385,8 @@ function fanfic_render_restriction_banner( $context, $nav_buttons = array() ) {
 							class="fanfic-button secondary fanfic-message-mod-btn<?php echo $has_active ? ' fanfic-message-chat-active' : ''; ?><?php echo $has_unread_reply ? ' fanfic-message-chat-has-unread' : ''; ?>"
 							data-target-type="<?php echo esc_attr( $target_type ); ?>"
 							data-target-id="<?php echo esc_attr( $target_id ); ?>"
+							data-thread-context="restriction"
+							data-open-label="<?php echo esc_attr( __( 'Open Moderation Chat', 'fanfiction-manager' ) ); ?>"
 							data-has-unread="<?php echo $has_unread_reply ? '1' : '0'; ?>">
 							<?php echo esc_html( $has_active ? __( 'Open Moderation Chat', 'fanfiction-manager' ) : __( 'Message Moderation', 'fanfiction-manager' ) ); ?>
 						</button>

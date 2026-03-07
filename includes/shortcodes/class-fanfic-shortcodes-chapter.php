@@ -113,7 +113,7 @@ class Fanfic_Shortcodes_Chapter {
 		$badge = '';
 		if ( $show_badge ) {
 			$badge = sprintf(
-				'<span class="fanfic-badge fanfic-badge-following" data-badge-story-id="%1$d" style="display:none;" aria-label="%2$s" title="%2$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%3$s</span></span>',
+				'<span class="fanfic-badge fanfic-badge--icon" data-badge-type="icon" data-badge-icon="following" data-badge-story-id="%1$d" style="display:none;" aria-label="%2$s" title="%2$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%3$s</span></span>',
 				absint( $story_id ),
 				esc_attr__( 'Following', 'fanfiction-manager' ),
 				esc_html__( 'Following', 'fanfiction-manager' )
@@ -190,30 +190,6 @@ class Fanfic_Shortcodes_Chapter {
 	private static function build_story_title_side_content( $story_id, $is_story_view, $is_chapter_view ) {
 		$actions = '';
 
-		if ( $is_story_view ) {
-			if ( class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
-				$actions = Fanfic_Shortcodes_Buttons::render_context_management_buttons(
-					'story',
-					array(
-						'story_id' => absint( $story_id ),
-					)
-				);
-			}
-		}
-
-		if ( $is_chapter_view ) {
-			$chapter_id = Fanfic_Shortcodes::get_current_chapter_id();
-			if ( $chapter_id && class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
-				$actions = Fanfic_Shortcodes_Buttons::render_context_management_buttons(
-					'chapter',
-					array(
-						'chapter_id' => absint( $chapter_id ),
-						'story_id'   => absint( $story_id ),
-					)
-				);
-			}
-		}
-
 		$status_badge = '';
 		if ( $is_story_view ) {
 			$statuses = get_the_terms( $story_id, 'fanfiction_status' );
@@ -270,7 +246,7 @@ class Fanfic_Shortcodes_Chapter {
 			if ( $story_id ) {
 				// Bookmark badge — hidden by default, shown via JS localStorage
 				$badges .= sprintf(
-					'<span class="fanfic-badge fanfic-badge-bookmarked" data-badge-story-id="%1$d" data-badge-chapter-id="%2$d" style="display:none;" aria-label="%3$s" title="%3$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%4$s</span></span>',
+					'<span class="fanfic-badge fanfic-badge--icon" data-badge-type="icon" data-badge-icon="bookmarked" data-badge-story-id="%1$d" data-badge-chapter-id="%2$d" style="display:none;" aria-label="%3$s" title="%3$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%4$s</span></span>',
 					absint( $story_id ),
 					absint( $chapter_id ),
 					esc_attr__( 'Bookmarked', 'fanfiction-manager' ),

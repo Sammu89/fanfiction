@@ -217,6 +217,7 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		$target_type = isset( $item['target_type'] ) ? $item['target_type'] : '';
 		$target_id   = absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 );
 		$status      = isset( $item['status'] ) ? $item['status'] : '';
+		$thread_context = isset( $item['thread_context'] ) ? sanitize_key( $item['thread_context'] ) : 'restriction';
 
 		// Standard data row.
 		echo '<tr id="fanfic-msg-row-' . esc_attr( $message_id ) . '" class="fanfic-message-row" data-message-id="' . esc_attr( $message_id ) . '" data-status="' . esc_attr( $status ) . '">';
@@ -226,18 +227,23 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		// Determine whether the target is still restricted so we know
 		// whether to show the Unblock button.
 		$is_restricted = false;
-		if ( 'story' === $target_type ) {
-			$is_restricted = fanfic_is_story_blocked( $target_id );
-		} elseif ( 'chapter' === $target_type ) {
-			$is_restricted = fanfic_is_chapter_blocked( $target_id );
-		} elseif ( 'user' === $target_type ) {
-			$is_restricted = ( '1' === get_user_meta( $target_id, 'fanfic_banned', true ) );
+		if ( 'restriction' === $thread_context ) {
+			if ( 'story' === $target_type ) {
+				$is_restricted = fanfic_is_story_blocked( $target_id );
+			} elseif ( 'chapter' === $target_type ) {
+				$is_restricted = fanfic_is_chapter_blocked( $target_id );
+			} elseif ( 'user' === $target_type ) {
+				$is_restricted = ( '1' === get_user_meta( $target_id, 'fanfic_banned', true ) );
+			}
 		}
 
 		$existing_note = isset( $item['moderator_note'] ) ? $item['moderator_note'] : '';
 		$existing_reply = isset( $item['author_reply'] ) ? $item['author_reply'] : '';
 		$fields_readonly = 'unread' !== $status;
-		$admin_restriction_summary = function_exists( 'fanfic_get_admin_restriction_summary' ) ? fanfic_get_admin_restriction_summary( $target_type, $target_id ) : '';
+		$admin_restriction_summary = ( 'restriction' === $thread_context && function_exists( 'fanfic_get_admin_restriction_summary' ) )
+			? fanfic_get_admin_restriction_summary( $target_type, $target_id )
+			: '';
+		$show_unblocked_note = ( 'restriction' === $thread_context && ! $is_restricted );
 
 		// Hidden detail row.
 		?>
@@ -260,7 +266,7 @@ class Fanfic_Messages_Table extends WP_List_Table {
 						</p>
 					<?php endif; ?>
 
-					<?php if ( ! $is_restricted ) : ?>
+					<?php if ( $show_unblocked_note ) : ?>
 						<p class="description fanfic-msg-already-unblocked-note">
 							<?php esc_html_e( 'This target is already unblocked. Unblock is unavailable, but the message remains for review.', 'fanfiction-manager' ); ?>
 						</p>
@@ -346,7 +352,7 @@ class Fanfic_Messages_Table extends WP_List_Table {
 
 		$is_blacklisted = Fanfic_Blacklist::is_message_sender_blacklisted( $author_id );
 		if ( $is_blacklisted ) {
-			$output .= ' <span class="fanfic-blacklist-badge">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
+			$output .= ' <span class="fanfic-badge is-muted" data-badge-type="status" data-badge-scope="blacklist-status">' . esc_html__( 'Blacklisted', 'fanfiction-manager' ) . '</span>';
 		} else {
 			$output .= sprintf(
 				' <button type="button" class="button button-small fanfic-blacklist-message-sender" data-user-id="%1$d">%2$s</button>',
@@ -361,15 +367,34 @@ class Fanfic_Messages_Table extends WP_List_Table {
 	private function get_message_target_context( $item ) {
 		$target_type = isset( $item['target_type'] ) ? $item['target_type'] : '';
 		$target_id   = absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 );
+		$thread_context = isset( $item['thread_context'] ) ? sanitize_key( $item['thread_context'] ) : 'restriction';
 		$context     = array(
 			'prefix'        => '',
 			'title'         => __( '(Deleted)', 'fanfiction-manager' ),
 			'url'           => '',
 			'edit_url'      => '',
 			'is_restricted' => false,
+			'show_badge'    => false,
 			'badge_label'   => '',
 			'badge_class'   => '',
 		);
+
+		if ( 'direct_profile' === $thread_context ) {
+			$user_id = $target_id > 0 ? $target_id : absint( isset( $item['author_id'] ) ? $item['author_id'] : 0 );
+			$user    = $user_id ? get_userdata( $user_id ) : false;
+
+			$context['prefix']      = __( 'Direct message:', 'fanfiction-manager' );
+			$context['title']       = $user ? $user->display_name : __( '(Deleted User)', 'fanfiction-manager' );
+			$context['edit_url']    = $user ? add_query_arg(
+				array( 'user_id' => $user_id ),
+				admin_url( 'user-edit.php' )
+			) : '';
+			$context['show_badge']  = true;
+			$context['badge_label'] = __( 'Profile chat', 'fanfiction-manager' );
+			$context['badge_class'] = 'fanfic-badge is-info';
+
+			return $context;
+		}
 
 		if ( 'story' === $target_type || 'chapter' === $target_type ) {
 			$post                    = get_post( $target_id );
@@ -381,7 +406,7 @@ class Fanfic_Messages_Table extends WP_List_Table {
 				? fanfic_is_story_blocked( $target_id )
 				: fanfic_is_chapter_blocked( $target_id );
 			$context['badge_label'] = __( 'Blocked', 'fanfiction-manager' );
-			$context['badge_class'] = 'fanfic-badge-blocked';
+			$context['badge_class'] = 'fanfic-badge is-danger';
 
 			return $context;
 		}
@@ -397,7 +422,7 @@ class Fanfic_Messages_Table extends WP_List_Table {
 			) : '';
 			$context['is_restricted'] = ( '1' === get_user_meta( $target_id, 'fanfic_banned', true ) );
 			$context['badge_label']   = __( 'Suspended', 'fanfiction-manager' );
-			$context['badge_class']   = 'fanfic-badge-suspended';
+			$context['badge_class']   = 'fanfic-badge is-danger';
 
 			return $context;
 		}
@@ -423,8 +448,8 @@ class Fanfic_Messages_Table extends WP_List_Table {
 			$output .= '<strong>' . esc_html( $context['title'] ) . '</strong>';
 		}
 
-		if ( ! empty( $context['is_restricted'] ) && ! empty( $context['badge_label'] ) ) {
-			$output .= ' <span class="fanfic-restriction-badge ' . esc_attr( $context['badge_class'] ) . '">' . esc_html( $context['badge_label'] ) . '</span>';
+		if ( ! empty( $context['badge_label'] ) && ( ! empty( $context['is_restricted'] ) || ! empty( $context['show_badge'] ) ) ) {
+			$output .= ' <span class="' . esc_attr( $context['badge_class'] ) . '" data-badge-type="status" data-badge-scope="restriction-status">' . esc_html( $context['badge_label'] ) . '</span>';
 		}
 
 		return $output;
@@ -445,6 +470,11 @@ class Fanfic_Messages_Table extends WP_List_Table {
 	protected function column_review_submitted( $item ) {
 		$target_type = isset( $item['target_type'] ) ? $item['target_type'] : '';
 		$target_id   = absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 );
+		$thread_context = isset( $item['thread_context'] ) ? sanitize_key( $item['thread_context'] ) : 'restriction';
+
+		if ( 'restriction' !== $thread_context || 'story' !== $target_type ) {
+			return '—';
+		}
 
 		return $this->target_has_reviewable_modifications( $target_type, $target_id )
 			? esc_html__( 'Yes', 'fanfiction-manager' )
@@ -486,9 +516,11 @@ class Fanfic_Messages_Table extends WP_List_Table {
 		$target_type = isset( $item['target_type'] ) ? $item['target_type'] : '';
 		$target_id   = absint( isset( $item['target_id'] ) ? $item['target_id'] : 0 );
 		$status      = isset( $item['status'] ) ? $item['status'] : '';
+		$thread_context = isset( $item['thread_context'] ) ? sanitize_key( $item['thread_context'] ) : 'restriction';
 		$is_restricted = false;
-		$has_snapshot = $this->target_has_block_snapshot( $target_type, $target_id );
-		$has_reviewable_modifications = $this->target_has_reviewable_modifications( $target_type, $target_id );
+		$has_snapshot = ( 'restriction' === $thread_context ) ? $this->target_has_block_snapshot( $target_type, $target_id ) : false;
+		$has_reviewable_modifications = ( 'restriction' === $thread_context ) ? $this->target_has_reviewable_modifications( $target_type, $target_id ) : false;
+		$is_chat_closed = function_exists( 'fanfic_is_mod_chat_closed' ) ? fanfic_is_mod_chat_closed( $target_type, $target_id ) : false;
 
 		$actions = array();
 
@@ -501,12 +533,14 @@ class Fanfic_Messages_Table extends WP_List_Table {
 			);
 		}
 
-		if ( 'story' === $target_type ) {
-			$is_restricted = fanfic_is_story_blocked( $target_id );
-		} elseif ( 'chapter' === $target_type ) {
-			$is_restricted = fanfic_is_chapter_blocked( $target_id );
-		} elseif ( 'user' === $target_type ) {
-			$is_restricted = ( '1' === get_user_meta( $target_id, 'fanfic_banned', true ) );
+		if ( 'restriction' === $thread_context ) {
+			if ( 'story' === $target_type ) {
+				$is_restricted = fanfic_is_story_blocked( $target_id );
+			} elseif ( 'chapter' === $target_type ) {
+				$is_restricted = fanfic_is_chapter_blocked( $target_id );
+			} elseif ( 'user' === $target_type ) {
+				$is_restricted = ( '1' === get_user_meta( $target_id, 'fanfic_banned', true ) );
+			}
 		}
 
 		if ( $is_restricted && ! in_array( $status, array( 'resolved', 'deleted' ), true ) ) {
@@ -532,6 +566,20 @@ class Fanfic_Messages_Table extends WP_List_Table {
 				'<button type="button" class="button button-link-delete fanfic-msg-action-delete" data-message-id="%d">%s</button>',
 				$message_id,
 				esc_html__( 'Delete', 'fanfiction-manager' )
+			);
+		}
+
+		if ( ( $is_restricted || 'direct_profile' === $thread_context ) && ! in_array( $status, array( 'resolved', 'deleted' ), true ) ) {
+			$toggle_label = $is_chat_closed
+				? esc_html__( 'Enable Chat', 'fanfiction-manager' )
+				: esc_html__( 'End Chat', 'fanfiction-manager' );
+			$actions[] = sprintf(
+				'<button type="button" class="button fanfic-msg-toggle-chat%s" data-target-type="%s" data-target-id="%d" data-chat-closed="%s">%s</button>',
+				$is_chat_closed ? ' fanfic-chat-is-closed' : '',
+				esc_attr( $target_type ),
+				$target_id,
+				$is_chat_closed ? '1' : '0',
+				$toggle_label
 			);
 		}
 

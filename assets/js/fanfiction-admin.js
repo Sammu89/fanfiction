@@ -188,9 +188,11 @@
 			const replyLabel = strings.threadReplyLabel || 'Reply to Author';
 			const sendLabel = strings.threadReplySend || 'Send Reply';
 			const disabledAttr = canSend ? '' : ' disabled aria-disabled="true"';
-			const closedLabel = status === 'ignored'
-				? (strings.statusIgnored || 'Ignored')
-				: (status === 'deleted' ? 'Deleted' : (strings.statusResolved || 'Resolved'));
+			const closedLabel = (!canSend && status === 'unread')
+				? (strings.chatClosedLabel || 'Chat closed')
+				: (status === 'ignored'
+					? (strings.statusIgnored || 'Ignored')
+					: (status === 'deleted' ? 'Deleted' : (strings.statusResolved || 'Resolved')));
 			const statusInfo = canSend
 				? ''
 				: '<p class="description">' + escapeHtml(closedLabel) + '</p>';
@@ -504,6 +506,51 @@
 		$(document).on('click', '.fanfic-msg-cancel-action', function(e) {
 			e.preventDefault();
 			closeMessagePrompt(parseInt($(this).data('message-id'), 10) || 0);
+		});
+
+		$(document).on('click', '.fanfic-msg-toggle-chat', function(e) {
+			e.preventDefault();
+
+			const $button = $(this);
+			if ($button.hasClass('is-busy')) {
+				return;
+			}
+
+			const isClosed = $button.data('chat-closed') === '1' || $button.data('chat-closed') === 1;
+
+			if (!isClosed && !window.confirm(strings.confirmEndChat || 'End the chat for this item? The author will no longer be able to send messages about it.')) {
+				return;
+			}
+
+			const targetType = String($button.data('target-type') || '');
+			const targetId   = parseInt($button.data('target-id'), 10) || 0;
+
+			$button.addClass('is-busy').prop('disabled', true);
+
+			$.ajax({
+				url: fanfictionAdmin.ajaxUrl || ajaxurl,
+				type: 'POST',
+				data: {
+					action: 'fanfic_toggle_mod_chat',
+					nonce: fanfictionAdmin.nonce || '',
+					target_type: targetType,
+					target_id: targetId
+				}
+			}).done(function(response) {
+				if (response && response.success) {
+					const newClosed = !!response.data.chat_closed;
+					$button
+						.data('chat-closed', newClosed ? '1' : '0')
+						.toggleClass('fanfic-chat-is-closed', newClosed)
+						.text(newClosed ? (strings.enableChatLabel || 'Enable Chat') : (strings.endChatLabel || 'End Chat'));
+					return;
+				}
+				window.alert((response && response.data && response.data.message) || (strings.actionError || 'An error occurred. Please try again.'));
+			}).fail(function() {
+				window.alert(strings.actionError || 'An error occurred. Please try again.');
+			}).always(function() {
+				$button.removeClass('is-busy').prop('disabled', false);
+			});
 		});
 	}
 

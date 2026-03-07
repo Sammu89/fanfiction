@@ -319,7 +319,7 @@ class Fanfic_Shortcodes_Navigation {
 			// Chapter title + inline badges (read checkmark + bookmarked, JS-driven).
 			$output .= '<td class="fanfic-col-chapter"><div class="fanfic-cht-cell">';
 			$output .= sprintf(
-				'<span class="fanfic-badge fanfic-badge-bookmarked fanfic-badge-table" data-badge-story-id="%1$d" data-badge-chapter-id="%2$d" style="display:none;" aria-label="%3$s" title="%3$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%4$s</span></span>',
+				'<span class="fanfic-badge fanfic-badge--icon fanfic-badge-table" data-badge-type="icon" data-badge-icon="bookmarked" data-badge-story-id="%1$d" data-badge-chapter-id="%2$d" style="display:none;" aria-label="%3$s" title="%3$s"><span class="dashicons dashicons-heart" aria-hidden="true"></span><span class="screen-reader-text">%4$s</span></span>',
 				absint( $story_id ),
 				absint( $chapter_id ),
 				esc_attr__( 'Bookmarked', 'fanfiction-manager' ),

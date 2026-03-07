@@ -31,7 +31,6 @@ class Fanfic_Shortcodes_Buttons {
 	 * @return void
 	 */
 	public static function register() {
-		add_shortcode( 'fanfiction-action-buttons', array( __CLASS__, 'action_buttons' ) );
 		add_shortcode( 'fanfic-like-dislike', array( __CLASS__, 'like_dislike_buttons' ) );
 	}
 
@@ -93,8 +92,6 @@ class Fanfic_Shortcodes_Buttons {
 
 			$output .= self::render_button( $action, $context, $context_ids, $nonce );
 		}
-
-		$output .= self::render_context_management_buttons( $context, $context_ids );
 
 		$output .= '</div>';
 
@@ -225,71 +222,6 @@ class Fanfic_Shortcodes_Buttons {
 		}
 
 		return apply_filters( 'fanfic_action_buttons_actions', $actions, $context );
-	}
-
-	/**
-	 * Render context-specific management controls shared by title rows and action bars.
-	 *
-	 * @since 2.3.0
-	 * @param string $context Context (story, chapter, author).
-	 * @param array  $context_ids Optional resolved context IDs.
-	 * @return string
-	 */
-	public static function render_context_management_buttons( $context, $context_ids = array() ) {
-		$context = is_string( $context ) ? trim( $context ) : '';
-		if ( '' === $context ) {
-			return '';
-		}
-
-		if ( empty( $context_ids ) || ! is_array( $context_ids ) ) {
-			$context_ids = self::get_context_ids( $context );
-		}
-
-		if ( empty( $context_ids ) || ! is_array( $context_ids ) ) {
-			return '';
-		}
-
-		$buttons = '';
-
-		if ( 'story' === $context ) {
-			$story_id = isset( $context_ids['story_id'] ) ? absint( $context_ids['story_id'] ) : 0;
-			if ( ! $story_id ) {
-				return '';
-			}
-
-			$buttons .= trim( (string) do_shortcode( '[edit-story-button story_id="' . $story_id . '"]' ) );
-			$buttons .= trim( (string) do_shortcode( '[add-chapter-button story_id="' . $story_id . '"]' ) );
-
-			if ( class_exists( 'Fanfic_Featured_Stories' ) ) {
-				$buttons .= trim( (string) Fanfic_Featured_Stories::render_feature_button( $story_id ) );
-			}
-		} elseif ( 'chapter' === $context ) {
-			$chapter_id = isset( $context_ids['chapter_id'] ) ? absint( $context_ids['chapter_id'] ) : 0;
-			$story_id   = isset( $context_ids['story_id'] ) ? absint( $context_ids['story_id'] ) : 0;
-
-			if (
-				$chapter_id &&
-				! current_user_can( 'manage_options' ) &&
-				! current_user_can( 'moderate_fanfiction' ) &&
-				( fanfic_is_chapter_blocked( $chapter_id ) || ( $story_id && fanfic_is_story_blocked( $story_id ) ) )
-			) {
-				return '';
-			}
-
-			if ( $chapter_id ) {
-				$buttons .= trim( (string) do_shortcode( '[edit-chapter-button chapter_id="' . $chapter_id . '"]' ) );
-			}
-
-			if ( $story_id ) {
-				$buttons .= trim( (string) do_shortcode( '[edit-story-button story_id="' . $story_id . '"]' ) );
-			}
-		}
-
-		if ( '' === $buttons ) {
-			return '';
-		}
-
-		return '<div class="fanfic-context-management-buttons fanfic-context-management-buttons-' . esc_attr( $context ) . '">' . $buttons . '</div>';
 	}
 
 	/**

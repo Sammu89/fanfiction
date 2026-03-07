@@ -85,10 +85,6 @@ function fanfic_get_default_story_view_template() {
 		[chapters-list]
 	</section>
 
-	<div class="fanfic-story-actions">
-		[fanfiction-action-buttons]
-	</div>
-
 	<?php if ( $enable_comments ) : ?>
 		<section class="fanfic-story-comments" aria-labelledby="comments-heading">
 			[story-comments]
@@ -132,8 +128,10 @@ if ( ! $enable_comments ) {
 	$template = str_replace( '[story-comments]', '', (string) $template );
 }
 
+$template = str_replace( '[fanfiction-action-buttons]', '', (string) $template );
+
 $story_post       = get_post();
-$is_story_author  = $story_post && is_user_logged_in() && (int) $story_post->post_author === get_current_user_id();
+$is_story_author  = $story_post && is_user_logged_in() && function_exists( 'fanfic_user_is_story_author_or_coauthor' ) && fanfic_user_is_story_author_or_coauthor( $story_post->ID, get_current_user_id() );
 $is_story_blocked = $story_post && fanfic_is_story_blocked( $story_post->ID );
 
 add_action( 'fanfic_page_alerts', function( $context ) use ( $story_post, $is_story_author, $is_story_blocked ) {
@@ -143,7 +141,6 @@ add_action( 'fanfic_page_alerts', function( $context ) use ( $story_post, $is_st
 	if ( $is_story_author && $is_story_blocked && function_exists( 'fanfic_render_restriction_notice' ) ) {
 		fanfic_render_restriction_notice( 'story', $story_post->ID, 'view-story', array(
 			array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
-			array( 'label' => __( 'Edit Story', 'fanfiction-manager' ), 'url' => fanfic_get_edit_story_url( $story_post->ID ), 'class' => 'secondary' ),
 		) );
 	} elseif ( 'publish' !== $story_post->post_status ) {
 		?>
@@ -158,6 +155,8 @@ add_action( 'fanfic_page_alerts', function( $context ) use ( $story_post, $is_st
 } );
 
 fanfic_render_page_header( 'view-story', array( 'story_id' => get_the_ID() ) );
+fanfic_render_moderation_controls( 'view-story', array( 'story_id' => get_the_ID() ) );
+fanfic_render_dynamic_action_buttons();
 
 // Process shortcodes in the template
 $rendered_template = do_shortcode( $template );

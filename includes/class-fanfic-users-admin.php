@@ -207,7 +207,7 @@ class Fanfic_Users_List_Table extends WP_List_Table {
 		$role_display = implode( ', ', $pretty_roles );
 
 		return sprintf(
-			'<span class="fanfic-role-badge">%s</span>',
+			'<span class="fanfic-badge is-info" data-badge-type="status" data-badge-scope="user-role">%s</span>',
 			esc_html( $role_display )
 		);
 	}

@@ -44,10 +44,6 @@ function fanfic_get_default_profile_view_template() {
 		</div>
 	</header>
 
-	<div class="fanfic-profile-actions">
-		[fanfiction-action-buttons]
-	</div>
-
 	<div class="fanfic-profile-bio">
 		<h2><?php esc_html_e( 'About', 'fanfiction-manager' ); ?></h2>
 		[author-bio]
@@ -112,7 +108,11 @@ $template = str_replace( '[author-bio]', '[author-bio author_id="' . $user_id . 
 $template = str_replace( '[author-story-list]', '[author-story-list author_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-coauthored-stories]', '[author-coauthored-stories author_id="' . $user_id . '"]', $template );
 
-fanfic_render_page_header( 'view-profile' );
+fanfic_render_page_header( 'view-profile', array(
+	'user_id'  => $user_id,
+	'username' => $user->display_name,
+) );
+fanfic_render_moderation_controls( 'view-profile', array( 'user_id' => $user_id ) );
 
 // Process shortcodes in the template
 echo do_shortcode( $template );

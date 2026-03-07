@@ -485,6 +485,7 @@ class Fanfic_Core {
 		add_action( 'template_redirect', array( $this, 'handle_chapter_query_vars' ) );
 		add_action( 'template_redirect', array( $this, 'handle_blocked_story_access' ), 12 );
 		add_action( 'template_redirect', array( $this, 'redirect_story_archives' ), 5 );
+		add_action( 'admin_post_fanfic_toggle_story_block', array( $this, 'handle_story_block_toggle' ) );
 		add_action( 'admin_post_fanfic_toggle_chapter_block', array( $this, 'handle_chapter_block_toggle' ) );
 
 		// Display suspension notice to banned users on frontend
@@ -1195,10 +1196,10 @@ class Fanfic_Core {
 			? fanfic_get_suspension_message( $current_user->ID )
 			: __( 'Your account has been suspended.', 'fanfiction-manager' );
 		$has_active_message = class_exists( 'Fanfic_Moderation_Messages' )
-			? Fanfic_Moderation_Messages::has_active_message( $current_user->ID, 'user', $current_user->ID )
+			? Fanfic_Moderation_Messages::has_active_message( $current_user->ID, 'user', $current_user->ID, 'restriction' )
 			: false;
 		$has_unread_reply = class_exists( 'Fanfic_Moderation_Messages' ) && method_exists( 'Fanfic_Moderation_Messages', 'active_thread_has_unread_for_author' )
-			? Fanfic_Moderation_Messages::active_thread_has_unread_for_author( $current_user->ID, 'user', $current_user->ID )
+			? Fanfic_Moderation_Messages::active_thread_has_unread_for_author( $current_user->ID, 'user', $current_user->ID, 'restriction' )
 			: false;
 		$message_blacklisted = Fanfic_Blacklist::is_message_sender_blacklisted( $current_user->ID );
 
@@ -1226,6 +1227,8 @@ class Fanfic_Core {
 							style="margin-left:12px;"
 							data-target-type="user"
 							data-target-id="<?php echo esc_attr( $current_user->ID ); ?>"
+							data-thread-context="restriction"
+							data-open-label="<?php echo esc_attr( __( 'Open Moderation Chat', 'fanfiction-manager' ) ); ?>"
 							data-has-unread="<?php echo $has_unread_reply ? '1' : '0'; ?>">
 							<?php echo esc_html( $has_active_message ? __( 'Open Moderation Chat', 'fanfiction-manager' ) : __( 'Message Moderation', 'fanfiction-manager' ) ); ?>
 						</button>
@@ -1424,13 +1427,27 @@ class Fanfic_Core {
 						'unfeatureStory'     => __( 'Unfeature', 'fanfiction-manager' ),
 						'modMessageSent'     => __( 'Message sent successfully.', 'fanfiction-manager' ),
 						'modMessageOpenState'=> __( 'Open Moderation Chat', 'fanfiction-manager' ),
+						'modMessageOpenStateDirect' => __( 'Open Conversation', 'fanfiction-manager' ),
 						'modMessageError'    => __( 'Failed to send message. Please try again.', 'fanfiction-manager' ),
 						'modMessageTooLong'  => __( 'Message must be between 1 and 1000 characters.', 'fanfiction-manager' ),
 						'modMessageEmpty'    => __( 'Please enter a message before sending.', 'fanfiction-manager' ),
 						'modThreadLoading'   => __( 'Loading conversation...', 'fanfiction-manager' ),
 						'modThreadEmpty'     => __( 'No messages yet. Send the first message to moderation.', 'fanfiction-manager' ),
+						'modThreadEmptyDirect' => __( 'No messages yet in this conversation.', 'fanfiction-manager' ),
 						'modThreadUnread'    => __( 'New moderator reply', 'fanfiction-manager' ),
-						'modThreadClosed'    => __( 'This conversation is closed. You can start a new one while the restriction remains active.', 'fanfiction-manager' ),
+						'modThreadClosed'    => __( 'This conversation is closed.', 'fanfiction-manager' ),
+						'modThreadNotStarted' => __( 'Moderation has not started this conversation yet.', 'fanfiction-manager' ),
+						'modModalTitleRestriction' => __( 'Moderation Chat', 'fanfiction-manager' ),
+						'modModalTitleDirect' => __( 'Direct Moderation Message', 'fanfiction-manager' ),
+						'modModalDescriptionRestriction' => __( 'Use this chat to discuss a restriction with moderators.', 'fanfiction-manager' ),
+						'modModalDescriptionDirectAuthor' => __( 'Use this chat to reply to a moderator-initiated conversation.', 'fanfiction-manager' ),
+						'modModalDescriptionDirectModerator' => __( 'Use this chat to send direct messages to this user.', 'fanfiction-manager' ),
+						'modModalSendLabelRestriction' => __( 'Send message:', 'fanfiction-manager' ),
+						'modModalSendLabelDirect' => __( 'Send message:', 'fanfiction-manager' ),
+						'modModalPlaceholderRestriction' => __( 'Write your message to moderation...', 'fanfiction-manager' ),
+						'modModalPlaceholderDirect' => __( 'Write your message...', 'fanfiction-manager' ),
+						'modModalSubmitRestriction' => __( 'Send Message', 'fanfiction-manager' ),
+						'modModalSubmitDirect' => __( 'Send Message', 'fanfiction-manager' ),
 						'chapterBlockReasonRequired' => __( 'Please choose a block reason.', 'fanfiction-manager' ),
 						'chapterBlockConfirm' => __( 'Block this chapter? Authors will be limited to view-only access.', 'fanfiction-manager' ),
 						'chapterUnblockConfirm' => __( 'Unblock this chapter?', 'fanfiction-manager' ),
@@ -1441,6 +1458,12 @@ class Fanfic_Core {
 						'chapterBlocked'     => __( 'Blocked', 'fanfiction-manager' ),
 						'chapterVisible'     => __( 'Visible', 'fanfiction-manager' ),
 						'chapterHidden'      => __( 'Hidden', 'fanfiction-manager' ),
+						'profileBlockUser'   => __( 'Block User', 'fanfiction-manager' ),
+						'profileUnblockUser' => __( 'Unblock User', 'fanfiction-manager' ),
+						'profileBanConfirm'  => __( 'Block %s?', 'fanfiction-manager' ),
+						'profileUnbanConfirm' => __( 'Unblock %s?', 'fanfiction-manager' ),
+						'profileBlocking'    => __( 'Blocking...', 'fanfiction-manager' ),
+						'profileUnblocking'  => __( 'Unblocking...', 'fanfiction-manager' ),
 					),
 				)
 			);
@@ -1797,6 +1820,56 @@ class Fanfic_Core {
 
 			$normalized_reason_text = function_exists( 'fanfic_normalize_block_reason_text' ) ? fanfic_normalize_block_reason_text( $block_reason_text ) : sanitize_textarea_field( $block_reason_text );
 			fanfic_block_chapter( $chapter_id, $normalized_reason, get_current_user_id(), $normalized_reason_text );
+		}
+
+		wp_safe_redirect( $redirect_url );
+		exit;
+	}
+
+	/**
+	 * Toggle story block status from moderator/admin actions.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
+	public function handle_story_block_toggle() {
+		$story_id          = isset( $_REQUEST['story_id'] ) ? absint( wp_unslash( $_REQUEST['story_id'] ) ) : 0;
+		$nonce             = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : '';
+		$block_reason      = isset( $_REQUEST['block_reason'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['block_reason'] ) ) : 'manual';
+		$block_reason_text = isset( $_REQUEST['block_reason_text'] ) ? sanitize_textarea_field( wp_unslash( $_REQUEST['block_reason_text'] ) ) : '';
+		$redirect_url      = wp_get_referer();
+
+		if ( ! $redirect_url ) {
+			$redirect_url = home_url( '/' );
+		}
+
+		if ( ! $story_id || ! wp_verify_nonce( $nonce, 'fanfic_toggle_story_block_' . $story_id ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'fanfiction-manager' ) );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'moderate_fanfiction' ) ) {
+			wp_die( esc_html__( 'You do not have permission to perform this action.', 'fanfiction-manager' ) );
+		}
+
+		$story = get_post( $story_id );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			wp_die( esc_html__( 'Story not found.', 'fanfiction-manager' ) );
+		}
+
+		if ( fanfic_is_story_blocked( $story_id ) ) {
+			fanfic_unblock_story( $story_id, get_current_user_id() );
+		} else {
+			$normalized_reason = function_exists( 'fanfic_normalize_block_reason_code' ) ? fanfic_normalize_block_reason_code( $block_reason, '' ) : trim( $block_reason );
+			if ( '' === $normalized_reason ) {
+				wp_die( esc_html__( 'Invalid block reason.', 'fanfiction-manager' ) );
+			}
+
+			if ( function_exists( 'fanfic_block_reason_text_exceeds_limit' ) && fanfic_block_reason_text_exceeds_limit( $block_reason_text ) ) {
+				wp_die( esc_html__( 'Additional block details must be 500 characters or fewer.', 'fanfiction-manager' ) );
+			}
+
+			$normalized_reason_text = function_exists( 'fanfic_normalize_block_reason_text' ) ? fanfic_normalize_block_reason_text( $block_reason_text ) : sanitize_textarea_field( $block_reason_text );
+			fanfic_block_story( $story_id, $normalized_reason, get_current_user_id(), $normalized_reason_text );
 		}
 
 		wp_safe_redirect( $redirect_url );

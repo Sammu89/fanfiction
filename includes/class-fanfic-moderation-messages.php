@@ -48,6 +48,29 @@ class Fanfic_Moderation_Messages {
 	private static $valid_sender_roles = array( 'author', 'moderator', 'system' );
 
 	/**
+	 * Valid thread contexts.
+	 *
+	 * restriction: author-initiated chat tied to blocked/suspended targets.
+	 * direct_profile: moderator-initiated chat from profile moderation controls.
+	 *
+	 * @since 2.5.0
+	 * @var string[]
+	 */
+	private static $valid_thread_contexts = array( 'restriction', 'direct_profile' );
+
+	/**
+	 * Normalize thread context to a known value.
+	 *
+	 * @since 2.5.0
+	 * @param string $thread_context Context from input.
+	 * @return string
+	 */
+	private static function normalize_thread_context( $thread_context ) {
+		$thread_context = sanitize_key( (string) $thread_context );
+		return in_array( $thread_context, self::$valid_thread_contexts, true ) ? $thread_context : 'restriction';
+	}
+
+	/**
 	 * Get moderation messages table name.
 	 *
 	 * @since 2.4.0
@@ -223,13 +246,14 @@ class Fanfic_Moderation_Messages {
 				'author_id'            => (int) $author_id,
 				'target_type'          => $target_type,
 				'target_id'            => (int) $target_id,
+				'thread_context'       => 'restriction',
 				'message'              => $message_text,
 				'status'               => 'unread',
 				'unread_for_moderator' => 1,
 				'unread_for_author'    => 0,
 				'last_message_at'      => $current_sql,
 			),
-			array( '%d', '%s', '%d', '%s', '%s', '%d', '%d', '%s' )
+			array( '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%s' )
 		);
 
 		if ( false === $result ) {
@@ -265,18 +289,16 @@ class Fanfic_Moderation_Messages {
 	 * @param string $target_type  Target type.
 	 * @param int    $target_id    Target ID.
 	 * @param string $message_text Message body.
+	 * @param string $thread_context Thread context ('restriction' or 'direct_profile').
 	 * @return array|WP_Error {
 	 *     @type int  $message_id Thread ID.
 	 *     @type bool $created    True if a new thread was created.
 	 * }
 	 */
-	public static function send_author_message( $author_id, $target_type, $target_id, $message_text ) {
+	public static function send_author_message( $author_id, $target_type, $target_id, $message_text, $thread_context = 'restriction' ) {
 		global $wpdb;
 
-		$validation = self::validate_author_target_context( $author_id, $target_type, $target_id );
-		if ( is_wp_error( $validation ) ) {
-			return $validation;
-		}
+		$thread_context = self::normalize_thread_context( $thread_context );
 
 		$message_text = sanitize_textarea_field( $message_text );
 		$length       = function_exists( 'mb_strlen' ) ? mb_strlen( $message_text ) : strlen( $message_text );
@@ -287,7 +309,31 @@ class Fanfic_Moderation_Messages {
 			);
 		}
 
-		$active = self::get_active_message( $author_id, $target_type, $target_id );
+		if ( class_exists( 'Fanfic_Blacklist' ) && Fanfic_Blacklist::is_message_sender_blacklisted( (int) $author_id ) ) {
+			return new WP_Error(
+				'author_blacklisted',
+				__( 'You are unable to send messages at this time.', 'fanfiction-manager' )
+			);
+		}
+
+		if ( 'restriction' === $thread_context ) {
+			$validation = self::validate_author_target_context( $author_id, $target_type, $target_id );
+			if ( is_wp_error( $validation ) ) {
+				return $validation;
+			}
+		} else {
+			$target_type = sanitize_key( $target_type );
+			$target_id   = absint( $target_id );
+			$author_id   = absint( $author_id );
+			if ( 'user' !== $target_type || $target_id !== $author_id ) {
+				return new WP_Error(
+					'invalid_direct_profile_target',
+					__( 'Direct moderation chats must target the author profile.', 'fanfiction-manager' )
+				);
+			}
+		}
+
+		$active = self::get_active_message( $author_id, $target_type, $target_id, $thread_context );
 		if ( ! empty( $active['id'] ) ) {
 			$message_id = (int) $active['id'];
 			$entry_id   = self::insert_thread_entry( $message_id, (int) $author_id, 'author', $message_text, false );
@@ -314,13 +360,20 @@ class Fanfic_Moderation_Messages {
 				array( '%d' )
 			);
 
-			if ( function_exists( 'fanfic_clear_restriction_reply_message' ) ) {
+			if ( 'restriction' === $thread_context && function_exists( 'fanfic_clear_restriction_reply_message' ) ) {
 				fanfic_clear_restriction_reply_message( $target_type, $target_id );
 			}
 
 			return array(
 				'message_id' => $message_id,
 				'created'    => false,
+			);
+		}
+
+		if ( 'direct_profile' === $thread_context ) {
+			return new WP_Error(
+				'thread_not_started',
+				__( 'A moderator must start this conversation before you can reply.', 'fanfiction-manager' )
 			);
 		}
 
@@ -331,6 +384,101 @@ class Fanfic_Moderation_Messages {
 
 		return array(
 			'message_id' => (int) $new_thread_id,
+			'created'    => true,
+		);
+	}
+
+	/**
+	 * Create or append a moderator-initiated direct profile thread.
+	 *
+	 * @since 2.5.0
+	 * @param int    $author_id    Target author ID.
+	 * @param int    $moderator_id Moderator ID.
+	 * @param string $message_text Message body.
+	 * @return array|WP_Error {
+	 *     @type int  $message_id Thread ID.
+	 *     @type bool $created    True if a new thread was created.
+	 * }
+	 */
+	public static function send_direct_profile_message( $author_id, $moderator_id, $message_text ) {
+		global $wpdb;
+
+		$author_id    = absint( $author_id );
+		$moderator_id = absint( $moderator_id );
+		$message_text = sanitize_textarea_field( $message_text );
+		$length       = function_exists( 'mb_strlen' ) ? mb_strlen( $message_text ) : strlen( $message_text );
+
+		if ( $author_id <= 0 || $moderator_id <= 0 ) {
+			return new WP_Error( 'invalid_participants', __( 'Invalid participants for direct moderation chat.', 'fanfiction-manager' ) );
+		}
+
+		if ( $length < 1 || $length > 1000 ) {
+			return new WP_Error(
+				'invalid_message_length',
+				__( 'Message must be between 1 and 1000 characters.', 'fanfiction-manager' )
+			);
+		}
+
+		$target_user = get_userdata( $author_id );
+		if ( ! $target_user ) {
+			return new WP_Error( 'invalid_author', __( 'Target user not found.', 'fanfiction-manager' ) );
+		}
+
+		$active = self::get_active_message( $author_id, 'user', $author_id, 'direct_profile' );
+		if ( ! empty( $active['id'] ) ) {
+			$message_id = (int) $active['id'];
+			$result     = self::send_moderator_message( $message_id, $moderator_id, $message_text );
+			if ( is_wp_error( $result ) ) {
+				return $result;
+			}
+
+			return array(
+				'message_id' => $message_id,
+				'created'    => false,
+			);
+		}
+
+		$table       = self::get_messages_table_name();
+		$current_sql = current_time( 'mysql' );
+
+		$result = $wpdb->insert(
+			$table,
+			array(
+				'author_id'            => $author_id,
+				'target_type'          => 'user',
+				'target_id'            => $author_id,
+				'thread_context'       => 'direct_profile',
+				'message'              => $message_text,
+				'status'               => 'unread',
+				'unread_for_moderator' => 0,
+				'unread_for_author'    => 1,
+				'moderator_id'         => $moderator_id,
+				'author_reply'         => $message_text,
+				'last_message_at'      => $current_sql,
+			),
+			array( '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s' )
+		);
+
+		if ( false === $result ) {
+			return new WP_Error(
+				'db_insert_failed',
+				__( 'Failed to start direct moderation chat.', 'fanfiction-manager' )
+			);
+		}
+
+		$message_id = (int) $wpdb->insert_id;
+		$entry_id   = self::insert_thread_entry( $message_id, $moderator_id, 'moderator', $message_text, false );
+
+		if ( false === $entry_id ) {
+			$wpdb->delete( $table, array( 'id' => $message_id ), array( '%d' ) );
+			return new WP_Error(
+				'db_entry_insert_failed',
+				__( 'Failed to insert moderation thread entry.', 'fanfiction-manager' )
+			);
+		}
+
+		return array(
+			'message_id' => $message_id,
 			'created'    => true,
 		);
 	}
@@ -360,6 +508,15 @@ class Fanfic_Moderation_Messages {
 
 		if ( 'unread' !== $thread['status'] ) {
 			return new WP_Error( 'thread_closed', __( 'This message thread is closed.', 'fanfiction-manager' ) );
+		}
+
+		if (
+			function_exists( 'fanfic_is_mod_chat_closed' )
+			&& ! empty( $thread['target_type'] )
+			&& ! empty( $thread['target_id'] )
+			&& fanfic_is_mod_chat_closed( $thread['target_type'], (int) $thread['target_id'] )
+		) {
+			return new WP_Error( 'chat_closed', __( 'The moderation chat is closed for this item.', 'fanfiction-manager' ) );
 		}
 
 		$message_text = sanitize_textarea_field( $message_text );
@@ -407,22 +564,26 @@ class Fanfic_Moderation_Messages {
 	 * @param int    $author_id   Author ID.
 	 * @param string $target_type Target type.
 	 * @param int    $target_id   Target ID.
+	 * @param string $thread_context Thread context.
 	 * @return bool
 	 */
-	public static function has_active_message( $author_id, $target_type, $target_id ) {
+	public static function has_active_message( $author_id, $target_type, $target_id, $thread_context = 'restriction' ) {
 		global $wpdb;
 
 		$table = self::get_messages_table_name();
+		$thread_context = self::normalize_thread_context( $thread_context );
 		$count = $wpdb->get_var(
 			$wpdb->prepare(
 				"SELECT COUNT(*) FROM {$table}
 				WHERE author_id = %d
 				  AND target_type = %s
 				  AND target_id = %d
+				  AND thread_context = %s
 				  AND status = 'unread'",
 				(int) $author_id,
 				$target_type,
-				(int) $target_id
+				(int) $target_id,
+				$thread_context
 			)
 		);
 
@@ -436,10 +597,11 @@ class Fanfic_Moderation_Messages {
 	 * @param int    $author_id   Author ID.
 	 * @param string $target_type Target type.
 	 * @param int    $target_id   Target ID.
+	 * @param string $thread_context Thread context.
 	 * @return bool
 	 */
-	public static function active_thread_has_unread_for_author( $author_id, $target_type, $target_id ) {
-		$active = self::get_active_message( $author_id, $target_type, $target_id );
+	public static function active_thread_has_unread_for_author( $author_id, $target_type, $target_id, $thread_context = 'restriction' ) {
+		$active = self::get_active_message( $author_id, $target_type, $target_id, $thread_context );
 		return ! empty( $active['unread_for_author'] );
 	}
 
@@ -450,12 +612,14 @@ class Fanfic_Moderation_Messages {
 	 * @param int    $author_id   Author ID.
 	 * @param string $target_type Target type.
 	 * @param int    $target_id   Target ID.
+	 * @param string $thread_context Thread context.
 	 * @return array|null
 	 */
-	public static function get_active_message( $author_id, $target_type, $target_id ) {
+	public static function get_active_message( $author_id, $target_type, $target_id, $thread_context = 'restriction' ) {
 		global $wpdb;
 
 		$table = self::get_messages_table_name();
+		$thread_context = self::normalize_thread_context( $thread_context );
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
@@ -463,12 +627,14 @@ class Fanfic_Moderation_Messages {
 				WHERE author_id = %d
 				  AND target_type = %s
 				  AND target_id = %d
+				  AND thread_context = %s
 				  AND status = 'unread'
 				ORDER BY COALESCE(last_message_at, created_at) DESC, id DESC
 				LIMIT 1",
 				(int) $author_id,
 				$target_type,
-				(int) $target_id
+				(int) $target_id,
+				$thread_context
 			),
 			ARRAY_A
 		);
@@ -620,6 +786,7 @@ class Fanfic_Moderation_Messages {
 			'status'               => '',
 			'target_type'          => '',
 			'author_id'            => 0,
+			'thread_context'       => '',
 			'unread_for_moderator' => null,
 			'unread_for_author'    => null,
 			'limit'                => 25,
@@ -654,6 +821,11 @@ class Fanfic_Moderation_Messages {
 		if ( ! empty( $args['author_id'] ) ) {
 			$where_clauses[] = 'author_id = %d';
 			$prepare_args[]  = (int) $args['author_id'];
+		}
+
+		if ( ! empty( $args['thread_context'] ) ) {
+			$where_clauses[] = 'thread_context = %s';
+			$prepare_args[]  = self::normalize_thread_context( $args['thread_context'] );
 		}
 
 		if ( null !== $args['unread_for_moderator'] ) {
@@ -708,6 +880,7 @@ class Fanfic_Moderation_Messages {
 			'status'               => '',
 			'target_type'          => '',
 			'author_id'            => 0,
+			'thread_context'       => '',
 			'unread_for_moderator' => null,
 			'unread_for_author'    => null,
 		);
@@ -738,6 +911,11 @@ class Fanfic_Moderation_Messages {
 		if ( ! empty( $args['author_id'] ) ) {
 			$where_clauses[] = 'author_id = %d';
 			$prepare_args[]  = (int) $args['author_id'];
+		}
+
+		if ( ! empty( $args['thread_context'] ) ) {
+			$where_clauses[] = 'thread_context = %s';
+			$prepare_args[]  = self::normalize_thread_context( $args['thread_context'] );
 		}
 
 		if ( null !== $args['unread_for_moderator'] ) {

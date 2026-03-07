@@ -57,7 +57,6 @@ $is_edit_mode = is_singular( 'fanfiction_story' );
 $story_id = $is_edit_mode ? get_the_ID() : 0;
 $story = null;
 $story_title = '';
-$fanfic_story_blocked_owner_edit = false;
 
 // For edit mode, validate story exists and user has permission
 if ( $is_edit_mode ) {
@@ -96,15 +95,14 @@ if ( $is_edit_mode ) {
 
 	$is_blocked = (bool) get_post_meta( $story_id, '_fanfic_story_blocked', true );
 	if ( $is_blocked ) {
-		$fanfic_story_blocked_owner_edit = function_exists( 'fanfic_current_user_is_content_owner' ) && fanfic_current_user_is_content_owner( $story_id );
 		$is_moderator_view = current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' );
-		if ( ! $fanfic_story_blocked_owner_edit && ! $is_moderator_view && function_exists( 'fanfic_render_restriction_notice' ) ) {
+		if ( ! $is_moderator_view && function_exists( 'fanfic_render_restriction_notice' ) ) {
 			fanfic_render_restriction_notice( 'story', $story_id, 'edit-story', array(
 				array( 'label' => __( 'Back to Dashboard', 'fanfiction-manager' ), 'url' => fanfic_get_dashboard_url() ),
 				array( 'label' => __( 'View Story', 'fanfiction-manager' ), 'url' => get_permalink( $story_id ), 'class' => 'secondary' ),
 			) );
 		}
-		if ( ! $fanfic_story_blocked_owner_edit && ! $is_moderator_view ) {
+		if ( ! $is_moderator_view ) {
 			return;
 		}
 	}
@@ -137,17 +135,6 @@ if ( $is_edit_mode ) {
 <?php include( plugin_dir_path( __FILE__ ) . 'modal-warnings.php' ); ?>
 
 <?php
-$fanfic_story_blocked_owner_edit  = isset( $fanfic_story_blocked_owner_edit ) ? $fanfic_story_blocked_owner_edit : false;
-
-add_action( 'fanfic_page_alerts', function( $context ) use ( $fanfic_story_blocked_owner_edit, $story_id ) {
-	if ( 'edit-story' !== $context || ! $fanfic_story_blocked_owner_edit ) {
-		return;
-	}
-	if ( function_exists( 'fanfic_render_restriction_notice' ) ) {
-		fanfic_render_restriction_notice( 'story', $story_id, 'edit-story' );
-	}
-} );
-
 fanfic_render_page_header( 'edit-story', array(
 	'story_id'     => $story_id,
 	'story_title'  => $story_title,
@@ -252,6 +239,12 @@ do_action( 'fanfic_story_form_messages', $story_id, $is_edit_mode );
 </div>
 <?php
 $fanfic_story_messages_markup = ob_get_clean();
+?>
+<?php echo $fanfic_story_messages_markup; ?>
+<?php
+if ( $is_edit_mode ) {
+	fanfic_render_moderation_controls( 'edit-story', array( 'story_id' => $story_id ) );
+}
 ?>
 
 <?php
@@ -422,7 +415,7 @@ if ( $is_edit_mode ) {
 					<?php if ( $is_edit_mode ) : ?>
 						<?php
 						$post_status = get_post_status( $story_id );
-						if ( $fanfic_story_blocked_owner_edit ) {
+						if ( fanfic_is_story_blocked( $story_id ) ) {
 							$status_class = 'blocked';
 							$status_text = __( 'Blocked', 'fanfiction-manager' );
 						} else {
@@ -430,8 +423,9 @@ if ( $is_edit_mode ) {
 							// Use plain-language labels: "Visible" and "Hidden" instead of "Published" / "Draft"
 							$status_text = 'publish' === $post_status ? __( 'Visible', 'fanfiction-manager' ) : __( 'Hidden', 'fanfiction-manager' );
 						}
+						$status_tone_class = function_exists( 'fanfic_get_badge_tone_for_status' ) ? fanfic_get_badge_tone_for_status( $status_class ) : 'is-muted';
 						?>
-						<span class="fanfic-story-status-badge fanfic-status-<?php echo esc_attr( $status_class ); ?>">
+						<span class="fanfic-badge fanfic-badge--status fanfic-badge--status-lg <?php echo esc_attr( $status_tone_class ); ?> fanfic-status-<?php echo esc_attr( $status_class ); ?>" data-badge-type="status" data-badge-scope="story-form-status" data-status="<?php echo esc_attr( $status_class ); ?>">
 							<?php echo esc_html( $status_text ); ?>
 						</span>
 					<?php endif; ?>
@@ -840,7 +834,7 @@ if ( $is_edit_mode ) {
 											<?php echo wp_kses_post( get_avatar( $coauthor_id, 20, '', $coauthor_name, array( 'class' => 'fanfic-coauthor-avatar', 'loading' => 'lazy' ) ) ); ?>
 											<span class="fanfic-pill-value-text"><?php echo esc_html( $coauthor_name ); ?></span>
 											<?php if ( 'pending' === $coauthor_status ) : ?>
-												<span class="fanfic-coauthor-status-badge"><?php esc_html_e( 'Pending', 'fanfiction-manager' ); ?></span>
+												<span class="fanfic-badge is-muted" data-badge-type="status" data-badge-scope="coauthor-status" data-status="pending"><?php esc_html_e( 'Pending', 'fanfiction-manager' ); ?></span>
 											<?php endif; ?>
 											<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove co-author', 'fanfiction-manager' ); ?>">&times;</button>
 											<input type="hidden" name="fanfic_story_coauthors[]" value="<?php echo esc_attr( $coauthor_id ); ?>">
@@ -1015,6 +1009,7 @@ if ( $is_edit_mode ) {
 											in_array( $warning['id'], (array) $_POST['fanfic_story_warnings'] ) :
 											( $is_edit_mode && in_array( $warning['id'], $current_warnings ) );
 										$age_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $warning['min_age'], 'fanfic-warning-age-' ) : 'fanfic-warning-age-18-plus';
+										$age_modifier_class = function_exists( 'fanfic_get_age_badge_class' ) ? fanfic_get_age_badge_class( $warning['min_age'] ) : 'is-age-18-plus';
 										$age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $warning['min_age'], false ) : (string) $warning['min_age'];
 										if ( '' === $age_label ) {
 											$age_label = (string) $warning['min_age'];
@@ -1029,7 +1024,7 @@ if ( $is_edit_mode ) {
 												<?php checked( $is_checked ); ?>
 											/>
 											<span class="fanfic-warning-name"><?php echo esc_html( $warning['name'] ); ?></span>
-											<span class="fanfic-warning-age-badge <?php echo esc_attr( $age_class ); ?>"><?php echo esc_html( $age_label ); ?></span>
+											<span class="fanfic-badge fanfic-badge--age <?php echo esc_attr( $age_modifier_class ); ?>"><?php echo esc_html( $age_label ); ?></span>
 										</label>
 									<?php endforeach; ?>
 								</div>
@@ -1216,20 +1211,18 @@ if ( $is_edit_mode ) {
 
 							<!-- Update: saves changes only, disabled until form is dirty -->
 							<button type="submit" name="fanfic_form_action" value="update" class="fanfic-button" id="update-button" disabled>
-								<?php echo esc_html( $fanfic_story_blocked_owner_edit ? __( 'Save Changes', 'fanfiction-manager' ) : __( 'Update', 'fanfiction-manager' ) ); ?>
+								<?php esc_html_e( 'Update', 'fanfiction-manager' ); ?>
 							</button>
 
 							<!-- Visibility toggle -->
-							<?php if ( ! $fanfic_story_blocked_owner_edit ) : ?>
-								<?php if ( $is_published ) : ?>
-									<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary" id="hide-story-button">
-										<?php esc_html_e( 'Hide Story', 'fanfiction-manager' ); ?>
-									</button>
-								<?php else : ?>
-									<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button secondary" id="make-visible-button">
-										<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
-									</button>
-								<?php endif; ?>
+							<?php if ( $is_published ) : ?>
+								<button type="submit" name="fanfic_form_action" value="save_draft" class="fanfic-button secondary" id="hide-story-button">
+									<?php esc_html_e( 'Hide Story', 'fanfiction-manager' ); ?>
+								</button>
+							<?php else : ?>
+								<button type="submit" name="fanfic_form_action" value="publish" class="fanfic-button secondary" id="make-visible-button">
+									<?php esc_html_e( 'Make Visible', 'fanfiction-manager' ); ?>
+								</button>
 							<?php endif; ?>
 
 							<!-- View link: only when story is visible -->
@@ -1261,8 +1254,6 @@ if ( $is_edit_mode ) {
 						<?php endif; ?>
 					</div>
 				</form>
-				<!-- [STATUS MESSAGES] Zone for form save/error feedback. Do not use for cross-page alerts. -->
-			<?php echo $fanfic_story_messages_markup; ?>
 			</div>
 		</section>
 	</div><!-- /.fanfic-content-primary -->
@@ -1397,10 +1388,6 @@ if ( $is_edit_mode ) {
 <section class="fanfic-content-section fanfic-chapters-section" aria-labelledby="chapters-heading">
 	<div class="fanfic-section-header">
 		<h2 id="chapters-heading"><?php esc_html_e( 'Chapters', 'fanfiction-manager' ); ?></h2>
-		<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button">
-			<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
-			<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
-		</a>
 	</div>
 
 	<!-- Chapters List -->
@@ -1479,6 +1466,7 @@ if ( $is_edit_mode ) {
 						);
 						$status_label = $is_chapter_blocked ? __( 'Blocked', 'fanfiction-manager' ) : ( isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : $status );
 						$status_class = $is_chapter_blocked ? 'blocked' : $status;
+						$status_tone_class = function_exists( 'fanfic_get_badge_tone_for_status' ) ? fanfic_get_badge_tone_for_status( $status_class ) : 'is-muted';
 						?>
 						<tr class="fanfic-chapter-row" data-chapter-id="<?php echo absint( $chapter_id ); ?>" data-post-status="<?php echo esc_attr( $status ); ?>">
 							<td data-label="<?php esc_attr_e( 'Chapter #', 'fanfiction-manager' ); ?>">
@@ -1488,7 +1476,7 @@ if ( $is_edit_mode ) {
 								<?php echo esc_html( $chapter->post_title ); ?>
 							</td>
 							<td data-label="<?php esc_attr_e( 'Visibility', 'fanfiction-manager' ); ?>">
-								<span class="fanfic-status-badge fanfic-status-<?php echo esc_attr( $status_class ); ?>">
+								<span class="fanfic-badge fanfic-badge--status <?php echo esc_attr( $status_tone_class ); ?> fanfic-status-<?php echo esc_attr( $status_class ); ?>" data-badge-type="status" data-badge-scope="chapter-row-status" data-status="<?php echo esc_attr( $status_class ); ?>">
 									<?php echo esc_html( $status_label ); ?>
 								</span>
 							</td>
@@ -1573,10 +1561,6 @@ if ( $is_edit_mode ) {
 			<div class="fanfic-empty-state" role="status">
 				<span class="dashicons dashicons-media-document" aria-hidden="true"></span>
 				<p><?php esc_html_e( 'No chapters yet. Add your first chapter to get started!', 'fanfiction-manager' ); ?></p>
-				<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button-primary">
-					<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
-					<?php esc_html_e( 'Add First Chapter', 'fanfiction-manager' ); ?>
-				</a>
 			</div>
 		<?php endif; ?>
 	</div>
@@ -2892,6 +2876,29 @@ fanfic_render_breadcrumb( 'edit-story', array(
 				}
 			}
 
+			function getBadgeToneClass(statusClass) {
+				var normalized = String(statusClass || '').toLowerCase();
+				if (['publish', 'published', 'visible', 'active', 'enabled'].indexOf(normalized) !== -1) {
+					return 'is-success';
+				}
+				if (['draft', 'hidden', 'pending'].indexOf(normalized) !== -1) {
+					return 'is-warning';
+				}
+				if (['blocked', 'suspended', 'deleted'].indexOf(normalized) !== -1) {
+					return 'is-danger';
+				}
+				if (['dismissed', 'info'].indexOf(normalized) !== -1) {
+					return 'is-info';
+				}
+				return 'is-muted';
+			}
+
+			function getStoryStatusBadgeClass(statusClass) {
+				var normalized = String(statusClass || '').toLowerCase();
+				var toneClass = getBadgeToneClass(normalized);
+				return 'fanfic-badge fanfic-badge--status fanfic-badge--status-lg ' + toneClass + ' fanfic-status-' + normalized;
+			}
+
 			function syncStoryActionButtons(postStatus, editUrl) {
 				var actionsContainer = storyForm.querySelector('.fanfic-form-actions');
 				if (!actionsContainer) {
@@ -3077,15 +3084,18 @@ fanfic_render_breadcrumb( 'edit-story', array(
 						nonceInput.value = data.edit_nonce;
 					}
 
-					var statusBadge = document.querySelector('.fanfic-story-status-badge');
+					var statusBadge = document.querySelector('[data-badge-type="status"][data-badge-scope="story-form-status"]');
 					var formHeader = document.querySelector('.fanfic-form-header');
 					if (!statusBadge && formHeader) {
 						statusBadge = document.createElement('span');
-						statusBadge.className = 'fanfic-story-status-badge';
+						statusBadge.className = 'fanfic-badge fanfic-badge--status fanfic-badge--status-lg is-muted';
+						statusBadge.setAttribute('data-badge-type', 'status');
+						statusBadge.setAttribute('data-badge-scope', 'story-form-status');
 						formHeader.appendChild(statusBadge);
 					}
 					if (statusBadge && data.status_class && data.status_label) {
-						statusBadge.className = 'fanfic-story-status-badge fanfic-status-' + data.status_class;
+						statusBadge.className = getStoryStatusBadgeClass(data.status_class);
+						statusBadge.setAttribute('data-status', data.status_class);
 						statusBadge.textContent = data.status_label;
 					}
 

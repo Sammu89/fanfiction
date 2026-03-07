@@ -672,19 +672,6 @@ foreach ( $definitions as $key => $def ) {
                 opacity: 0.6;
             }
 
-            .fanfic-todo-badge {
-                display: inline-block;
-                background: #fcf9e8;
-                color: #997404;
-                border: 1px solid #f0e9c5;
-                padding: 2px 8px;
-                border-radius: 3px;
-                font-size: 11px;
-                font-weight: 600;
-                text-transform: uppercase;
-                margin-left: 8px;
-            }
-
             /* Fieldsets */
             .fanfic-fieldset {
                 border: 1px solid #c3c4c7;
