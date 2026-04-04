@@ -184,6 +184,243 @@ a.fanfic-button.secondary:visited:not(:hover):not(:active):not(:focus-visible) {
 	background: var(--accent-color);
 }
 
+.fanfic-content-section.fanfic-page-moderation-controls,
+.fanfic-content-section.fanfic-page-dynamic-actions {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+	margin-bottom: var(--space-8);
+	padding: 22px 24px;
+	background: linear-gradient(180deg, #ffffff 0%, #f8fafb 100%);
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+.fanfic-content-section.fanfic-page-moderation-controls .fanfic-buttons,
+.fanfic-content-section.fanfic-page-dynamic-actions .fanfic-buttons {
+	margin-top: 0;
+	width: 100%;
+	align-items: flex-start;
+}
+
+.fanfic-content-section.fanfic-page-moderation-controls .fanfic-buttons {
+	gap: var(--space-3);
+}
+
+.fanfic-content-section.fanfic-page-moderation-controls .fanfic-buttons > *,
+.fanfic-content-section.fanfic-page-dynamic-actions .fanfic-buttons > * {
+	flex: 0 1 auto;
+	min-width: 0;
+	width: auto;
+}
+
+.fanfic-inline-block-form-with-reason.fanfic-story-block-controls,
+.fanfic-inline-block-form-with-reason.fanfic-chapter-block-controls {
+	width: 100%;
+}
+
+.fanfic-story-block-panel,
+.fanfic-chapter-block-panel {
+	width: 100%;
+	padding: 14px 16px;
+	background: #fff;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.fanfic-story-block-panel-block,
+.fanfic-chapter-block-panel-block {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.fanfic-story-block-panel-unblock,
+.fanfic-chapter-block-panel-unblock {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.fanfic-story-block-panel .fanfic-block-reason-select,
+.fanfic-chapter-block-panel .fanfic-block-reason-select {
+	flex: 0 1 240px;
+	max-width: 240px;
+}
+
+.fanfic-story-block-panel .fanfic-block-reason-text,
+.fanfic-chapter-block-panel .fanfic-block-reason-text {
+	flex: 1 1 320px;
+	min-width: 260px;
+}
+
+.fanfic-story-block-panel .fanfic-button,
+.fanfic-chapter-block-panel .fanfic-button {
+	flex: 0 0 auto;
+}
+
+body:has(#fanfic-suspension-notice) {
+	padding-top: 60px !important;
+}
+
+body.admin-bar:has(#fanfic-suspension-notice) {
+	padding-top: 92px !important;
+}
+
+.fanfic-suspension-notice {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	padding: 15px 20px;
+	text-align: center;
+	background: #dc3232;
+	color: #fff;
+	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+	z-index: 99998;
+	animation: fanfic-notice-slide-down 0.3s ease-out;
+}
+
+.fanfic-suspension-notice.fanfic-suspension-notice-with-admin-bar {
+	top: 32px;
+}
+
+.fanfic-suspension-notice__content {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.fanfic-suspension-notice__subtext {
+	font-weight: 400;
+}
+
+.fanfic-suspension-notice__button {
+	margin-left: 12px;
+}
+
+.fanfic-admin-bar-hidden-trigger {
+	display: none !important;
+}
+
+.fanfic-admin-bar-author-modal[hidden] {
+	display: none;
+}
+
+.fanfic-admin-bar-author-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 1000000;
+}
+
+.fanfic-admin-bar-author-modal__backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.45);
+}
+
+.fanfic-admin-bar-author-modal__dialog {
+	position: relative;
+	z-index: 1;
+	max-width: 520px;
+	margin: 12vh auto 0;
+	padding: 24px;
+	background: #fff;
+	color: var(--color-text);
+	border-radius: 10px;
+	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+.fanfic-admin-bar-author-modal__dialog h2 {
+	margin-top: 0;
+}
+
+.fanfic-admin-bar-author-modal__warning {
+	margin-bottom: 12px;
+	color: var(--color-text-muted);
+}
+
+.fanfic-admin-bar-author-modal__dialog label,
+.fanfic-admin-bar-author-modal__dialog select {
+	display: block;
+	width: 100%;
+}
+
+.fanfic-admin-bar-author-modal__dialog select {
+	margin-top: 6px;
+	padding: 10px 12px;
+	border: 1px solid var(--color-input-border);
+	border-radius: 6px;
+	background: #fff;
+}
+
+.fanfic-admin-bar-author-modal__message {
+	min-height: 1.5em;
+	margin: 12px 0 0;
+	color: var(--color-text-muted);
+}
+
+.fanfic-admin-bar-author-modal__message.is-error {
+	color: var(--color-error);
+}
+
+.fanfic-admin-bar-author-modal__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 12px;
+	margin-top: 18px;
+}
+
+body.fanfic-admin-bar-author-modal-open {
+	overflow: hidden;
+}
+
+@media screen and (max-width: 782px) {
+	body.admin-bar:has(#fanfic-suspension-notice) {
+		padding-top: 106px !important;
+	}
+
+	.fanfic-suspension-notice.fanfic-suspension-notice-with-admin-bar {
+		top: 46px;
+	}
+
+	.fanfic-admin-bar-author-modal__dialog {
+		margin: 20vh 16px 0;
+	}
+
+	.fanfic-page-moderation-controls,
+	.fanfic-page-dynamic-actions {
+		padding: 18px 16px;
+	}
+
+	.fanfic-story-block-panel-block,
+	.fanfic-chapter-block-panel-block {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.fanfic-story-block-panel .fanfic-block-reason-select,
+	.fanfic-chapter-block-panel .fanfic-block-reason-select,
+	.fanfic-story-block-panel .fanfic-block-reason-text,
+	.fanfic-chapter-block-panel .fanfic-block-reason-text {
+		max-width: none;
+		min-width: 0;
+		width: 100%;
+	}
+}
+
+@keyframes fanfic-notice-slide-down {
+	from {
+		transform: translateY(-100%);
+	}
+
+	to {
+		transform: translateY(0);
+	}
+}
+
 .fanfic-button.success:hover {
 	background: linear-gradient(
 		135deg,
@@ -1163,6 +1400,13 @@ select {
 input::placeholder,
 textarea::placeholder {
 	color: var(--base-lighter);
+}
+
+#fanfiction-wrapper textarea,
+.fanfic-modal textarea {
+	background-color: white;
+	color: var(--color-text);
+	opacity: 1;
 }
 
 /* Disabled State - Must Still Meet Contrast */
@@ -5034,11 +5278,40 @@ body.fanfiction-page .entry-content::after {
 .fanfic-chapter-navigation .chapter-selector {
 	grid-column: 2;
 	justify-self: center;
+	min-width: 280px;
+	padding: 10px 12px;
+	border: 1px solid var(--color-input-border);
+	border-radius: 4px;
+	font-size: 15px;
+	font-family: inherit;
+	color: var(--color-text);
+	background-color: white;
+	box-sizing: border-box;
 }
 
 .fanfic-chapter-navigation .chapter-nav-next {
 	grid-column: 3;
 	justify-self: end;
+}
+
+.fanfic-chapter-navigation .chapter-selector:focus,
+.fanfic-chapters-dropdown:focus,
+.fanfic-translations-dropdown:focus {
+	outline: none;
+	border-color: var(--accent-dark);
+	box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.1);
+}
+
+.fanfic-chapters-dropdown,
+.fanfic-translations-dropdown {
+	padding: 10px 12px;
+	border: 1px solid var(--color-input-border);
+	border-radius: 4px;
+	font-size: 15px;
+	font-family: inherit;
+	color: var(--color-text);
+	background-color: white;
+	box-sizing: border-box;
 }
 
 /* Comments Section */
@@ -5270,7 +5543,9 @@ body.fanfiction-page .entry-content::after {
 /* Modal Styles for Follow Email and Report */
 .fanfic-follow-email-modal,
 .fanfic-report-modal,
-.fanfic-age-confirmation-modal {
+.fanfic-age-confirmation-modal,
+#fanfic-mod-message-modal,
+#fanfic-admin-bar-block-modal {
 	display: none;
 	position: fixed;
 	top: 0;
@@ -5290,6 +5565,8 @@ body.fanfiction-page .entry-content::after {
 	right: 0;
 	bottom: 0;
 	background: rgba(0, 0, 0, 0.5);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
 	animation: fadeIn 0.2s ease;
 }
 
@@ -5299,6 +5576,7 @@ body.fanfiction-page .entry-content::after {
 	width: min(100%, 500px);
 	max-height: calc(100vh - 32px);
 	margin: auto;
+	padding: var(--space-7);
 	background: white;
 	border-radius: 8px;
 	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
@@ -5312,8 +5590,9 @@ body.fanfiction-page .entry-content::after {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 20px 24px;
+	padding: 0 0 var(--space-5);
 	border-bottom: 1px solid #e0e0e0;
+	margin-bottom: var(--space-5);
 }
 
 .fanfic-modal-header h3 {
@@ -5322,7 +5601,41 @@ body.fanfiction-page .entry-content::after {
 	color: var(--color-text);
 }
 
+#fanfic-mod-modal-title {
+	margin: 0 0 20px 0;
+	text-align: center;
+}
+
+#fanfic-report-modal-title {
+	margin: 0 0 20px 0;
+	text-align: center;
+}
+
+#fanfic-admin-bar-block-modal-title {
+	margin: 0 0 20px 0;
+	text-align: center;
+}
+
+.fanfic-modal-warning {
+	margin: 0 0 16px;
+	color: var(--color-text-muted, #666);
+}
+
+#fanfic-admin-bar-block-form {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+#fanfic-admin-bar-block-form textarea {
+	resize: vertical;
+	min-height: 100px;
+}
+
 .fanfic-modal-close {
+	position: absolute;
+	top: 12px;
+	right: 12px;
 	background: none;
 	border: none;
 	font-size: 28px;
@@ -5335,6 +5648,7 @@ body.fanfiction-page .entry-content::after {
 	align-items: center;
 	justify-content: center;
 	transition: color 0.2s;
+	z-index: 2;
 }
 
 .fanfic-modal-close:hover {
@@ -5342,7 +5656,7 @@ body.fanfiction-page .entry-content::after {
 }
 
 .fanfic-modal-body {
-	padding: var(--space-7);
+	padding: 0;
 }
 
 .fanfic-modal-body form {
@@ -5358,13 +5672,17 @@ body.fanfiction-page .entry-content::after {
 }
 
 .fanfic-modal-body input[type="email"],
+.fanfic-modal-body select,
 .fanfic-modal-body textarea {
 	padding: 10px 12px;
 	border: 1px solid var(--color-input-border);
 	border-radius: 4px;
 	font-size: 15px;
 	font-family: inherit;
-	color: #aaaaaa;
+	color: var(--color-text);
+	background-color: white;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .fanfic-modal-body textarea {
@@ -5373,6 +5691,7 @@ body.fanfiction-page .entry-content::after {
 }
 
 .fanfic-modal-body input[type="email"]:focus,
+.fanfic-modal-body select:focus,
 .fanfic-modal-body textarea:focus {
 	outline: none;
 	border-color: var(--accent-dark);
@@ -5389,33 +5708,14 @@ body.fanfiction-page .entry-content::after {
 	flex: 1;
 }
 
-.fanfic-report-reason-group {
-	margin: 0 0 18px;
-	padding: 0;
-	border: 0;
-}
-
-.fanfic-report-reason-group legend {
-	margin-bottom: 10px;
-	font-weight: 600;
-	color: var(--color-text);
-}
-
-.fanfic-report-reason-option {
+#fanfic-report-form {
 	display: flex;
-	align-items: center;
-	gap: 10px;
-	margin-bottom: 10px;
-	font-weight: 500;
-	cursor: pointer;
-}
-
-.fanfic-report-reason-option input[type="radio"] {
-	margin: 0;
+	flex-direction: column;
+	gap: 16px;
 }
 
 .fanfic-report-details-group {
-	margin-bottom: 12px;
+	margin-bottom: 0;
 }
 
 .fanfic-report-details-group .description {
@@ -6660,6 +6960,14 @@ body.fanfic-member-profile .wp-block-post-title {
 	cursor: default;
 }
 
+#wp-admin-bar-fanfic-story-action-block-disabled,
+#wp-admin-bar-fanfic-story-action-unblock-disabled,
+#wp-admin-bar-fanfic-chapter-action-block-disabled,
+#wp-admin-bar-fanfic-chapter-action-unblock-disabled {
+	opacity: 0.55;
+	pointer-events: none;
+}
+
 #fanfic-mod-message-modal .fanfic-modal-description {
 	margin: 0 0 16px;
 	color: var(--color-text-muted, #666);
@@ -6733,9 +7041,8 @@ body.fanfic-member-profile .wp-block-post-title {
 	margin: 0 0 12px;
 }
 
-#fanfic-mod-message-modal .fanfic-mod-thread-empty {
-	margin: 0;
-	color: var(--color-text-muted, #666);
+#fanfic-mod-message-modal .fanfic-mod-thread-history[hidden] {
+	display: none;
 }
 
 #fanfic-mod-message-modal .fanfic-mod-thread-entry {

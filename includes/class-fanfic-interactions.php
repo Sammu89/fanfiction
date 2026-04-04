@@ -886,6 +886,79 @@ class Fanfic_Interactions {
 	}
 
 	/**
+	 * Toggle follow for an author profile.
+	 *
+	 * @since 2.2.0
+	 * @param int         $author_id      Author user ID.
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return array|WP_Error
+	 */
+	public static function toggle_author_follow( $author_id, $user_id = 0, $anonymous_uuid = '' ) {
+		global $wpdb;
+
+		$author_id = absint( $author_id );
+		$actor     = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $author_id || empty( $actor ) ) {
+			return new WP_Error( 'invalid_author_follow_toggle_payload', __( 'Invalid author or identity for follow toggle.', 'fanfiction-manager' ) );
+		}
+
+		$table = $wpdb->prefix . 'fanfic_interactions';
+		if ( ! self::table_exists( $table ) ) {
+			return new WP_Error( 'author_follow_table_missing', __( 'Follow storage is unavailable.', 'fanfiction-manager' ) );
+		}
+
+		$interaction_type = 'follow_author';
+		if ( $actor['user_id'] > 0 ) {
+			$deleted = $wpdb->delete(
+				$table,
+				array(
+					'user_id'          => $actor['user_id'],
+					'chapter_id'       => $author_id,
+					'interaction_type' => $interaction_type,
+				),
+				array( '%d', '%d', '%s' )
+			);
+		} else {
+			$deleted = $wpdb->delete(
+				$table,
+				array(
+					'anon_hash'        => $actor['anonymous_hash'],
+					'chapter_id'       => $author_id,
+					'interaction_type' => $interaction_type,
+				),
+				array( '%s', '%d', '%s' )
+			);
+		}
+
+		if ( false === $deleted ) {
+			return new WP_Error( 'author_follow_toggle_delete_failed', __( 'Could not update author follow state.', 'fanfiction-manager' ) );
+		}
+
+		if ( $deleted > 0 ) {
+			do_action( 'fanfic_author_follow_removed', $author_id, $actor['user_id'] );
+			return array(
+				'success'     => true,
+				'changed'     => true,
+				'is_followed' => false,
+			);
+		}
+
+		$ok = self::upsert_interaction( $actor['user_id'], $author_id, $interaction_type, null, $actor['anonymous_hash'] );
+		if ( ! $ok ) {
+			return new WP_Error( 'author_follow_toggle_insert_failed', __( 'Could not save author follow.', 'fanfiction-manager' ) );
+		}
+
+		do_action( 'fanfic_author_follow_added', $author_id, $actor['user_id'] );
+
+		return array(
+			'success'     => true,
+			'changed'     => true,
+			'is_followed' => true,
+		);
+	}
+
+	/**
 	 * Check if follow exists.
 	 *
 	 * @since 1.8.0
@@ -902,6 +975,83 @@ class Fanfic_Interactions {
 		}
 
 		return self::has_interaction( $actor['user_id'], $post_id, 'follow', $actor['anonymous_hash'] );
+	}
+
+	/**
+	 * Check if an author follow exists.
+	 *
+	 * @since 2.2.0
+	 * @param int         $author_id      Author user ID.
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return bool
+	 */
+	public static function has_author_follow( $author_id, $user_id = 0, $anonymous_uuid = '' ) {
+		$author_id = absint( $author_id );
+		$actor     = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $author_id || empty( $actor ) ) {
+			return false;
+		}
+
+		return self::has_interaction( $actor['user_id'], $author_id, 'follow_author', $actor['anonymous_hash'] );
+	}
+
+	/**
+	 * Ensure an author follow exists.
+	 *
+	 * @since 2.2.0
+	 * @param int         $author_id      Author user ID.
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return bool
+	 */
+	public static function upsert_author_follow( $author_id, $user_id = 0, $anonymous_uuid = '' ) {
+		$author_id = absint( $author_id );
+		$actor     = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $author_id || empty( $actor ) ) {
+			return false;
+		}
+
+		if ( self::has_interaction( $actor['user_id'], $author_id, 'follow_author', $actor['anonymous_hash'] ) ) {
+			return true;
+		}
+
+		$ok = self::upsert_interaction( $actor['user_id'], $author_id, 'follow_author', null, $actor['anonymous_hash'] );
+		if ( ! $ok ) {
+			return false;
+		}
+
+		do_action( 'fanfic_author_follow_added', $author_id, $actor['user_id'] );
+
+		return true;
+	}
+
+	/**
+	 * Remove an author follow if it exists.
+	 *
+	 * @since 2.2.0
+	 * @param int         $author_id      Author user ID.
+	 * @param int         $user_id        User ID.
+	 * @param string|null $anonymous_uuid Anonymous UUID.
+	 * @return bool
+	 */
+	public static function remove_author_follow( $author_id, $user_id = 0, $anonymous_uuid = '' ) {
+		$author_id = absint( $author_id );
+		$actor     = self::resolve_interaction_actor( $user_id, $anonymous_uuid );
+		if ( ! $author_id || empty( $actor ) ) {
+			return false;
+		}
+
+		$deleted = self::delete_interaction_count( $actor['user_id'], $author_id, 'follow_author', $actor['anonymous_hash'] );
+		if ( false === $deleted ) {
+			return false;
+		}
+
+		if ( $deleted > 0 ) {
+			do_action( 'fanfic_author_follow_removed', $author_id, $actor['user_id'] );
+		}
+
+		return true;
 	}
 
 	/**
@@ -1159,6 +1309,18 @@ class Fanfic_Interactions {
 				} else {
 					continue;
 				}
+				if ( ! isset( $data[ $key ] ) ) {
+					$data[ $key ] = array( 'timestamp' => $timestamp );
+				}
+				if ( $timestamp > absint( $data[ $key ]['timestamp'] ?? 0 ) ) {
+					$data[ $key ]['timestamp'] = $timestamp;
+				}
+				$data[ $key ]['follow'] = true;
+				continue;
+			}
+
+			if ( 'follow_author' === $type ) {
+				$key = self::build_local_key( 0, $chapter_id );
 				if ( ! isset( $data[ $key ] ) ) {
 					$data[ $key ] = array( 'timestamp' => $timestamp );
 				}
@@ -2378,7 +2540,16 @@ class Fanfic_Interactions {
 		$story_id   = absint( $story_id );
 		$entry      = self::sanitize_local_entry( $entry );
 
-		if ( ! $user_id || ! $chapter_id || ! $story_id ) {
+		if ( ! $user_id || ! $chapter_id ) {
+			return;
+		}
+
+		if ( ! $story_id ) {
+			if ( ! empty( $entry['follow'] ) ) {
+				self::upsert_author_follow( $chapter_id, $user_id );
+			} elseif ( self::has_author_follow( $chapter_id, $user_id ) ) {
+				self::remove_author_follow( $chapter_id, $user_id );
+			}
 			return;
 		}
 
@@ -2562,7 +2733,7 @@ class Fanfic_Interactions {
 		}
 
 		$type = sanitize_key( $type );
-		if ( ! in_array( $type, array( 'like', 'dislike', 'rating', 'view', 'read', 'follow' ), true ) ) {
+		if ( ! in_array( $type, array( 'like', 'dislike', 'rating', 'view', 'read', 'follow', 'follow_author' ), true ) ) {
 			return false;
 		}
 

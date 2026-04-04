@@ -64,6 +64,7 @@ class Fanfic_Shortcodes_Buttons {
 		if ( ! $context_ids ) {
 			return '';
 		}
+		$context_ids['context'] = $context;
 
 		// Generate nonce for AJAX actions
 		$nonce = wp_create_nonce( 'fanfic_ajax_nonce' );
@@ -96,7 +97,7 @@ class Fanfic_Shortcodes_Buttons {
 		$output .= '</div>';
 
 		// Render follow email modal once per page (for logged-out users).
-		if ( ! is_user_logged_in() ) {
+		if ( ! fanfic_effective_is_user_logged_in() ) {
 			$output .= self::render_follow_email_modal();
 		}
 		$output .= self::render_report_modal();
@@ -157,8 +158,12 @@ class Fanfic_Shortcodes_Buttons {
 	 */
 	private static function detect_context() {
 		global $post;
+		$fanfic_page = (string) get_query_var( 'fanfic_page' );
 
 		if ( ! $post ) {
+			if ( in_array( $fanfic_page, array( 'user', 'members', 'member_profile' ), true ) && '' !== (string) get_query_var( 'member_name' ) ) {
+				return 'author';
+			}
 			return false;
 		}
 
@@ -172,6 +177,10 @@ class Fanfic_Shortcodes_Buttons {
 
 		// Check if we're on an author archive page
 		if ( is_author() ) {
+			return 'author';
+		}
+
+		if ( in_array( $fanfic_page, array( 'user', 'members', 'member_profile' ), true ) && '' !== (string) get_query_var( 'member_name' ) ) {
 			return 'author';
 		}
 
@@ -203,7 +212,7 @@ class Fanfic_Shortcodes_Buttons {
 				break;
 
 			case 'author':
-				$actions = array( 'share' );
+				$actions = array( 'follow', 'share', 'report' );
 				break;
 		}
 
@@ -260,6 +269,13 @@ class Fanfic_Shortcodes_Buttons {
 			case 'author':
 				if ( is_author() ) {
 					$ids['author_id'] = get_queried_object_id();
+				} elseif ( in_array( (string) get_query_var( 'fanfic_page' ), array( 'user', 'members', 'member_profile' ), true ) ) {
+					$member_name = (string) get_query_var( 'member_name' );
+					$member_user = '' !== $member_name ? get_user_by( 'login', $member_name ) : false;
+					if ( ! $member_user instanceof WP_User ) {
+						return false;
+					}
+					$ids['author_id'] = (int) $member_user->ID;
 				} elseif ( $post ) {
 					$ids['author_id'] = $post->post_author;
 				} else {
@@ -283,7 +299,7 @@ class Fanfic_Shortcodes_Buttons {
 	 * @return string Button HTML.
 	 */
 	private static function render_button( $action, $context, $context_ids, $nonce, $segmented = '' ) {
-		$user_id = get_current_user_id();
+		$user_id = fanfic_get_effective_current_user_id();
 
 		// Handle Edit button separately (it's a link, not a button)
 		if ( 'edit' === $action ) {
@@ -338,6 +354,9 @@ class Fanfic_Shortcodes_Buttons {
 		);
 
 		foreach ( $context_ids as $key => $value ) {
+			if ( 'context' === $key ) {
+				continue;
+			}
 			$data_attrs[ 'data-' . str_replace( '_', '-', $key ) ] = absint( $value );
 		}
 
@@ -348,10 +367,18 @@ class Fanfic_Shortcodes_Buttons {
 				$data_attrs['data-post-id']    = $context_ids['chapter_id'];
 				$data_attrs['data-story-id']   = isset( $context_ids['story_id'] ) ? $context_ids['story_id'] : 0;
 				$data_attrs['data-chapter-id'] = $context_ids['chapter_id'];
+				$data_attrs['data-follow-type'] = 'post';
+			} elseif ( 'author' === $context && isset( $context_ids['author_id'] ) ) {
+				$data_attrs['data-post-id']     = $context_ids['author_id'];
+				$data_attrs['data-story-id']    = 0;
+				$data_attrs['data-chapter-id']  = $context_ids['author_id'];
+				$data_attrs['data-author-id']   = $context_ids['author_id'];
+				$data_attrs['data-follow-type'] = 'author';
 			} elseif ( isset( $context_ids['story_id'] ) ) {
 				$data_attrs['data-post-id']    = $context_ids['story_id'];
 				$data_attrs['data-story-id']   = $context_ids['story_id'];
 				$data_attrs['data-chapter-id'] = 0;
+				$data_attrs['data-follow-type'] = 'post';
 			}
 			// Tell JS whether user is logged in (for follow email modal).
 			$data_attrs['data-user-logged-in'] = $user_id ? '1' : '0';
@@ -572,6 +599,17 @@ class Fanfic_Shortcodes_Buttons {
 		switch ( $action ) {
 			case 'follow':
 				$follow_post_id = 0;
+				$context        = isset( $context_ids['context'] ) ? (string) $context_ids['context'] : '';
+
+				if ( 'author' === $context ) {
+					$follow_post_id = isset( $context_ids['author_id'] ) ? absint( $context_ids['author_id'] ) : 0;
+
+					if ( ! $follow_post_id || ! class_exists( 'Fanfic_Follows' ) ) {
+						return false;
+					}
+
+					return Fanfic_Follows::is_author_followed( $user_id, $follow_post_id );
+				}
 
 				if ( isset( $context_ids['chapter_id'] ) && absint( $context_ids['chapter_id'] ) > 0 ) {
 					$follow_post_id = absint( $context_ids['chapter_id'] );
@@ -626,8 +664,12 @@ class Fanfic_Shortcodes_Buttons {
 	private static function get_button_label( $action, $current_state, $context = 'story' ) {
 		$labels = array(
 			'follow' => array(
-				'inactive' => 'chapter' === $context ? __( 'Bookmark', 'fanfiction-manager' ) : __( 'Follow', 'fanfiction-manager' ),
-				'active'   => 'chapter' === $context ? __( 'Bookmarked', 'fanfiction-manager' ) : __( 'Followed', 'fanfiction-manager' ),
+				'inactive' => 'chapter' === $context
+					? __( 'Bookmark', 'fanfiction-manager' )
+					: ( 'author' === $context ? __( 'Follow Author', 'fanfiction-manager' ) : __( 'Follow', 'fanfiction-manager' ) ),
+				'active'   => 'chapter' === $context
+					? __( 'Bookmarked', 'fanfiction-manager' )
+					: ( 'author' === $context ? __( 'Following Author', 'fanfiction-manager' ) : __( 'Followed', 'fanfiction-manager' ) ),
 			),
 			'like' => array(
 				'inactive' => __( 'Like', 'fanfiction-manager' ),
@@ -976,8 +1018,8 @@ class Fanfic_Shortcodes_Buttons {
 			$aria_label = __( 'Report this content', 'fanfiction-manager' );
 		}
 
-		if ( is_user_logged_in() ) {
-			$is_blacklisted = Fanfic_Blacklist::is_reporter_blacklisted( get_current_user_id() );
+		if ( fanfic_effective_is_user_logged_in() ) {
+			$is_blacklisted = Fanfic_Blacklist::is_reporter_blacklisted( fanfic_get_effective_current_user_id() );
 		} else {
 			$reporter_ip = class_exists( 'Fanfic_Rate_Limit' ) ? Fanfic_Rate_Limit::get_ip_address() : '';
 			if ( '' !== $reporter_ip ) {
@@ -1048,7 +1090,7 @@ class Fanfic_Shortcodes_Buttons {
 			<div class="fanfic-modal-content">
 				<button type="button" class="fanfic-modal-close" aria-label="<?php esc_attr_e( 'Close', 'fanfiction-manager' ); ?>">&times;</button>
 				<h2 id="fanfic-follow-email-modal-title"><?php esc_html_e( 'Would you like to receive email updates?', 'fanfiction-manager' ); ?></h2>
-				<p><?php esc_html_e( 'Get notified when new chapters become visible for this story.', 'fanfiction-manager' ); ?></p>
+				<p id="fanfic-follow-email-modal-description"><?php esc_html_e( 'Get notified when new chapters become visible for this story.', 'fanfiction-manager' ); ?></p>
 
 				<div class="form-group">
 					<label for="fanfic-follow-email-input">
@@ -1090,6 +1132,7 @@ class Fanfic_Shortcodes_Buttons {
 		self::$report_modal_rendered = true;
 
 		ob_start();
+		$report_reason_labels = function_exists( 'fanfic_get_report_reason_labels' ) ? fanfic_get_report_reason_labels() : array();
 		?>
 		<div id="fanfic-report-modal" class="fanfic-modal fanfic-report-modal" role="dialog" aria-hidden="true" aria-labelledby="fanfic-report-modal-title" style="display:none;">
 			<div class="fanfic-modal-overlay"></div>
@@ -1100,33 +1143,18 @@ class Fanfic_Shortcodes_Buttons {
 					<p class="fanfic-modal-description"><?php esc_html_e( 'Choose the reason that best matches the problem. Add more detail if needed. Details are required when selecting Other.', 'fanfiction-manager' ); ?></p>
 
 					<form id="fanfic-report-form" novalidate>
-						<fieldset class="fanfic-report-reason-group">
-							<legend><?php esc_html_e( 'Reason', 'fanfiction-manager' ); ?></legend>
-							<label class="fanfic-report-reason-option">
-								<input type="radio" name="fanfic_report_reason" value="spam">
-								<span><?php esc_html_e( 'Spam', 'fanfiction-manager' ); ?></span>
-							</label>
-							<label class="fanfic-report-reason-option">
-								<input type="radio" name="fanfic_report_reason" value="harassment">
-								<span><?php esc_html_e( 'Harassment or Bullying', 'fanfiction-manager' ); ?></span>
-							</label>
-							<label class="fanfic-report-reason-option">
-								<input type="radio" name="fanfic_report_reason" value="inappropriate">
-								<span><?php esc_html_e( 'Inappropriate Content', 'fanfiction-manager' ); ?></span>
-							</label>
-							<label class="fanfic-report-reason-option">
-								<input type="radio" name="fanfic_report_reason" value="copyright">
-								<span><?php esc_html_e( 'Copyright Violation', 'fanfiction-manager' ); ?></span>
-							</label>
-							<label class="fanfic-report-reason-option">
-								<input type="radio" name="fanfic_report_reason" value="other">
-								<span><?php esc_html_e( 'Other', 'fanfiction-manager' ); ?></span>
-							</label>
-						</fieldset>
+						<label for="fanfic-report-reason"><?php esc_html_e( 'Select a reason:', 'fanfiction-manager' ); ?></label>
+						<select id="fanfic-report-reason" name="fanfic_report_reason">
+							<?php foreach ( $report_reason_labels as $reason_value => $reason_label ) : ?>
+								<option value="<?php echo esc_attr( $reason_value ); ?>" <?php selected( 'other', $reason_value ); ?>>
+									<?php echo esc_html( $reason_label ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
 
 						<div class="fanfic-report-details-group">
 							<label for="fanfic-report-details"><?php esc_html_e( 'Details', 'fanfiction-manager' ); ?></label>
-							<textarea id="fanfic-report-details" name="fanfic_report_details" rows="5" maxlength="2000" placeholder="<?php esc_attr_e( 'Tell the moderators what is wrong with this content.', 'fanfiction-manager' ); ?>"></textarea>
+							<textarea id="fanfic-report-details" name="fanfic_report_details" rows="5" maxlength="1000" placeholder="<?php esc_attr_e( 'Tell the moderators what is wrong with this content.', 'fanfiction-manager' ); ?>"></textarea>
 							<p class="description"><?php esc_html_e( 'Optional for all reasons except Other.', 'fanfiction-manager' ); ?></p>
 						</div>
 

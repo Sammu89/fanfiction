@@ -133,16 +133,17 @@ class Fanfic_Email_Subscriptions {
 	/**
 	 * Subscribe from follow modal (streamlined for follow flow).
 	 *
-	 * Creates an email subscription for a story from the follow modal.
+	 * Creates an email subscription from the follow modal.
 	 * Immediately active — no verification required.
 	 *
 	 * @since 1.8.0
 	 * @param string $email    Email address.
-	 * @param int    $story_id Story ID.
+	 * @param int    $target_id Target ID.
+	 * @param string $subscription_type Subscription type: 'story' or 'author'.
 	 * @return array|WP_Error Result array on success, WP_Error on failure.
 	 */
-	public static function subscribe_from_follow( $email, $story_id ) {
-		return self::subscribe( $email, $story_id, 'story', 'follow' );
+	public static function subscribe_from_follow( $email, $target_id, $subscription_type = 'story' ) {
+		return self::subscribe( $email, $target_id, $subscription_type, 'follow' );
 	}
 
 	/**
@@ -188,23 +189,25 @@ class Fanfic_Email_Subscriptions {
 	}
 
 	/**
-	 * Unsubscribe email from story during unfollow (no token required)
+	 * Unsubscribe email from a followed target during unfollow (no token required)
 	 *
-	 * Used when a user actively unfollows a story via the UI.
+	 * Used when a user actively unfollows via the UI.
 	 * Since this is an intentional user action (not an email link), no token is needed.
 	 *
 	 * @since 1.8.0
 	 * @param string $email    Email address.
-	 * @param int    $story_id Story ID.
+	 * @param int    $target_id Target ID.
+	 * @param string $subscription_type Subscription type: 'story' or 'author'.
 	 * @return bool True if a subscription was removed, false if none existed.
 	 */
-	public static function unsubscribe_on_unfollow( $email, $story_id ) {
+	public static function unsubscribe_on_unfollow( $email, $target_id, $subscription_type = 'story' ) {
 		global $wpdb;
 
-		$email    = sanitize_email( $email );
-		$story_id = absint( $story_id );
+		$email             = sanitize_email( $email );
+		$target_id         = absint( $target_id );
+		$subscription_type = sanitize_key( $subscription_type );
 
-		if ( ! is_email( $email ) || ! $story_id ) {
+		if ( ! is_email( $email ) || ! $target_id || ! in_array( $subscription_type, array( 'story', 'author' ), true ) ) {
 			return false;
 		}
 
@@ -214,14 +217,14 @@ class Fanfic_Email_Subscriptions {
 			$table_name,
 			array(
 				'email'             => $email,
-				'target_id'         => $story_id,
-				'subscription_type' => 'story',
+				'target_id'         => $target_id,
+				'subscription_type' => $subscription_type,
 			),
 			array( '%s', '%d', '%s' )
 		);
 
 		if ( $result > 0 ) {
-			do_action( 'fanfic_email_unsubscribed', $email, $story_id, 'story' );
+			do_action( 'fanfic_email_unsubscribed', $email, $target_id, $subscription_type );
 			return true;
 		}
 

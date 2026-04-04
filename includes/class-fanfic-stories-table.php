@@ -309,7 +309,7 @@ class Fanfic_Stories_Table extends WP_List_Table {
 			$reason_label = isset( $reason_labels[ $block_reason ] ) ? $reason_labels[ $block_reason ] : $block_reason;
 
 			$output = '<span class="fanfic-badge fanfic-badge--status is-danger fanfic-status-blocked" data-badge-type="status" data-badge-scope="stories-table-status" data-status="blocked"><span class="dashicons dashicons-lock"></span> ' . __( 'Blocked', 'fanfiction-manager' ) . '</span>';
-			if ( $block_reason && 'manual' !== $block_reason ) {
+			if ( $block_reason ) {
 				$output .= '<br><small class="block-reason" title="' . esc_attr( $reason_label ) . '">' . esc_html( $reason_label ) . '</small>';
 			}
 			return $output;
@@ -1337,10 +1337,10 @@ class Fanfic_Stories_Table extends WP_List_Table {
 
 			case 'block':
 				// Get block reason from form
-				$block_reason = isset( $_REQUEST['block_reason'] ) ? sanitize_key( $_REQUEST['block_reason'] ) : 'manual';
+				$block_reason = isset( $_REQUEST['block_reason'] ) ? sanitize_key( $_REQUEST['block_reason'] ) : 'other';
 				$valid_reasons = array_keys( self::get_block_reason_labels() );
 				if ( ! in_array( $block_reason, $valid_reasons, true ) ) {
-					$block_reason = 'manual';
+					$block_reason = 'other';
 				}
 
 				foreach ( $story_ids as $story_id ) {

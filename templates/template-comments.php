@@ -60,9 +60,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 	<?php
 	$is_banned_commenter = false;
-	if ( is_user_logged_in() ) {
+	if ( fanfic_effective_is_user_logged_in() ) {
 		$current_user = wp_get_current_user();
-		$is_banned_commenter = in_array( 'fanfiction_banned_user', (array) $current_user->roles, true );
+		$is_banned_commenter = in_array( 'fanfiction_banned_user', fanfic_get_effective_user_roles( $current_user->ID ), true );
 	}
 
 	// Display comment form
@@ -71,6 +71,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 			?>
 			<p class="fanfic-no-comments">
 				<?php esc_html_e( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ); ?>
+			</p>
+			<?php
+		elseif ( fanfic_is_frontend_preview_mode( 'guest' ) ) :
+			?>
+			<p class="fanfic-no-comments" role="status">
+				<?php esc_html_e( 'Guest preview hides the interactive comment form.', 'fanfiction-manager' ); ?>
 			</p>
 			<?php
 		else :
@@ -207,8 +213,8 @@ function fanfic_custom_comment_template( $comment, $args, $depth ) {
 				$can_report_comment = false;
 
 				if ( $reporting_enabled ) {
-					if ( is_user_logged_in() ) {
-						$can_report_comment = get_current_user_id() !== absint( $comment->user_id );
+					if ( fanfic_effective_is_user_logged_in() ) {
+						$can_report_comment = fanfic_get_effective_current_user_id() !== absint( $comment->user_id );
 					} else {
 						$can_report_comment = $allow_anonymous_reports;
 					}

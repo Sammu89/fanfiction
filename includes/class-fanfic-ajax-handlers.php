@@ -856,9 +856,18 @@ class Fanfic_AJAX_Handlers {
 		$post_id        = absint( $params['post_id'] );
 		$user_id        = get_current_user_id();
 		$anonymous_uuid = isset( $params['anonymous_uuid'] ) ? sanitize_text_field( $params['anonymous_uuid'] ) : '';
+		$follow_type    = isset( $params['follow_type'] ) ? sanitize_key( $params['follow_type'] ) : 'post';
+
+		if ( ! in_array( $follow_type, array( 'post', 'author' ), true ) ) {
+			$follow_type = 'post';
+		}
 
 		// Toggle follow
-		$result = Fanfic_Follows::toggle_follow( $user_id, $post_id, $anonymous_uuid );
+		if ( 'author' === $follow_type ) {
+			$result = Fanfic_Follows::toggle_author_follow( $user_id, $post_id, $anonymous_uuid );
+		} else {
+			$result = Fanfic_Follows::toggle_follow( $user_id, $post_id, $anonymous_uuid );
+		}
 
 		if ( ! isset( $result['success'] ) || ! $result['success'] ) {
 			Fanfic_AJAX_Security::send_error_response(
@@ -869,10 +878,20 @@ class Fanfic_AJAX_Handlers {
 		}
 
 		// Determine the story ID (for email subscription operations).
-		$post = get_post( $post_id );
-		$story_id = $post_id;
-		if ( $post && 'fanfiction_chapter' === $post->post_type && $post->post_parent ) {
-			$story_id = absint( $post->post_parent );
+		$post          = 'author' === $follow_type ? null : get_post( $post_id );
+		$story_id      = $post_id;
+		$target_id     = $post_id;
+		$email_type    = 'author' === $follow_type ? 'author' : 'story';
+		$follow_count  = 0;
+
+		if ( 'author' !== $follow_type ) {
+			if ( $post && 'fanfiction_chapter' === $post->post_type && $post->post_parent ) {
+				$story_id = absint( $post->post_parent );
+			}
+			$target_id    = $story_id;
+			$follow_count = Fanfic_Follows::get_follow_count( $story_id );
+		} else {
+			$follow_count = Fanfic_Follows::get_author_follow_count( $post_id );
 		}
 
 		// Handle email subscription based on follow state.
@@ -886,11 +905,11 @@ class Fanfic_AJAX_Handlers {
 			if ( is_email( $email ) ) {
 				if ( $result['is_followed'] ) {
 					// Follow: subscribe email to story updates.
-					$sub_result = Fanfic_Email_Subscriptions::subscribe_from_follow( $email, $story_id );
+					$sub_result = Fanfic_Email_Subscriptions::subscribe_from_follow( $email, $target_id, $email_type );
 					$email_subscribed = ! is_wp_error( $sub_result );
 				} else {
 					// Unfollow: remove email subscription if it exists.
-					$email_unsubscribed = Fanfic_Email_Subscriptions::unsubscribe_on_unfollow( $email, $story_id );
+					$email_unsubscribed = Fanfic_Email_Subscriptions::unsubscribe_on_unfollow( $email, $target_id, $email_type );
 					if ( $email_unsubscribed ) {
 						$unsubscribed_email = $email;
 					}
@@ -911,9 +930,6 @@ class Fanfic_AJAX_Handlers {
 			$message = __( 'Follow removed.', 'fanfiction-manager' );
 		}
 
-		// Get updated follow count for the story.
-		$follow_count = Fanfic_Follows::get_follow_count( $story_id );
-
 		// Return success
 		Fanfic_AJAX_Security::send_success_response(
 			array(
@@ -922,6 +938,7 @@ class Fanfic_AJAX_Handlers {
 				'email_unsubscribed' => $email_unsubscribed,
 				'follow_count'       => $follow_count,
 				'story_id'           => $story_id,
+				'follow_type'        => $follow_type,
 			),
 			$message
 		);
@@ -1523,7 +1540,7 @@ class Fanfic_AJAX_Handlers {
 		}
 
 		$reason = isset( $params['reason'] ) ? sanitize_key( $params['reason'] ) : 'other';
-		$valid_reasons = array( 'spam', 'harassment', 'inappropriate', 'inappropriate_content', 'copyright', 'other' );
+		$valid_reasons = array( 'spam', 'harassment', 'inappropriate', 'inappropriate_content', 'copyright', 'rating_mismatch', 'other' );
 		if ( ! in_array( $reason, $valid_reasons, true ) ) {
 			Fanfic_AJAX_Security::send_error_response(
 				'invalid_reason',
@@ -1533,10 +1550,10 @@ class Fanfic_AJAX_Handlers {
 		}
 
 		$details = isset( $params['details'] ) ? sanitize_textarea_field( $params['details'] ) : '';
-		if ( strlen( $details ) > 2000 ) {
+		if ( strlen( $details ) > 1000 ) {
 			Fanfic_AJAX_Security::send_error_response(
 				'invalid_details',
-				__( 'Details must be less than 2000 characters.', 'fanfiction-manager' ),
+				__( 'Details must be less than 1000 characters.', 'fanfiction-manager' ),
 				400
 			);
 		}
@@ -1767,14 +1784,8 @@ class Fanfic_AJAX_Handlers {
 	 * @return string
 	 */
 	private static function get_report_reason_label( $reason ) {
-		$labels = array(
-			'spam'                 => __( 'Spam', 'fanfiction-manager' ),
-			'harassment'           => __( 'Harassment or Bullying', 'fanfiction-manager' ),
-			'inappropriate'        => __( 'Inappropriate Content', 'fanfiction-manager' ),
-			'inappropriate_content' => __( 'Inappropriate Content', 'fanfiction-manager' ),
-			'copyright'            => __( 'Copyright Violation', 'fanfiction-manager' ),
-			'other'                => __( 'Other', 'fanfiction-manager' ),
-		);
+		$labels = function_exists( 'fanfic_get_report_reason_labels' ) ? fanfic_get_report_reason_labels() : array();
+		$labels['inappropriate_content'] = isset( $labels['inappropriate'] ) ? $labels['inappropriate'] : __( 'Inappropriate Content', 'fanfiction-manager' );
 
 		return isset( $labels[ $reason ] ) ? $labels[ $reason ] : __( 'Other', 'fanfiction-manager' );
 	}
@@ -2358,7 +2369,7 @@ class Fanfic_AJAX_Handlers {
 	 */
 	public static function ajax_toggle_chapter_block() {
 		$chapter_id         = isset( $_POST['chapter_id'] ) ? absint( $_POST['chapter_id'] ) : 0;
-		$block_reason       = isset( $_POST['block_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['block_reason'] ) ) : 'manual';
+		$block_reason       = isset( $_POST['block_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['block_reason'] ) ) : 'other';
 		$block_reason_text  = isset( $_POST['block_reason_text'] ) ? sanitize_textarea_field( wp_unslash( $_POST['block_reason_text'] ) ) : '';
 		$moderator_id       = get_current_user_id();
 

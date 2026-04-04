@@ -847,9 +847,14 @@ class Fanfic_URL_Manager {
 	 */
 	public function add_body_classes( $classes ) {
 		$fanfic_page = get_query_var( 'fanfic_page' );
+		$preview_mode = function_exists( 'fanfic_get_frontend_preview_mode' ) ? fanfic_get_frontend_preview_mode() : 'admin';
 		if ( ! empty( $fanfic_page ) ) {
 			$classes[] = 'fanfic-page';
 			$classes[] = 'fanfic-page-' . sanitize_html_class( $fanfic_page );
+		}
+		if ( $preview_mode && 'admin' !== $preview_mode ) {
+			$classes[] = 'fanfic-preview-mode';
+			$classes[] = 'fanfic-preview-mode-' . sanitize_html_class( $preview_mode );
 		}
 		if ( 'member_profile' === $fanfic_page ) {
 			$classes[] = 'fanfic-member-profile';

@@ -131,7 +131,7 @@ if ( ! $enable_comments ) {
 $template = str_replace( '[fanfiction-action-buttons]', '', (string) $template );
 
 $story_post       = get_post();
-$is_story_author  = $story_post && is_user_logged_in() && function_exists( 'fanfic_user_is_story_author_or_coauthor' ) && fanfic_user_is_story_author_or_coauthor( $story_post->ID, get_current_user_id() );
+$is_story_author  = $story_post && fanfic_effective_is_user_logged_in() && function_exists( 'fanfic_user_is_story_author_or_coauthor' ) && fanfic_user_is_story_author_or_coauthor( $story_post->ID, fanfic_get_effective_current_user_id() );
 $is_story_blocked = $story_post && fanfic_is_story_blocked( $story_post->ID );
 
 add_action( 'fanfic_page_alerts', function( $context ) use ( $story_post, $is_story_author, $is_story_blocked ) {

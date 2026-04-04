@@ -259,11 +259,13 @@
 			const threadContext = String($button.data('thread-context') || 'restriction').trim();
 			const messageId = parseInt($button.data('message-id'), 10) || 0;
 			const isModeratorView = String($button.data('is-moderator') || '0') === '1';
+			const previewMode = this.getPreviewMode($button);
 
 			$modal.find('#fanfic-mod-target-type').val(targetType);
 			$modal.find('#fanfic-mod-target-id').val(targetId);
 			$modal.find('#fanfic-mod-thread-id').val(messageId ? String(messageId) : '');
 			$modal.find('#fanfic-mod-thread-context').val(threadContext);
+			$modal.data('preview-mode', previewMode);
 			$modal.find('#fanfic-mod-message-text').val('');
 			$modal.data('triggerButton', $button);
 			this.clearModerationMessageFormMessage();
@@ -393,13 +395,11 @@
 
 			const rows = Array.isArray(entries) ? entries : [];
 			if (!rows.length) {
-				const threadContext = String($('#fanfic-mod-thread-context').val() || 'restriction').trim();
-				const emptyLabel = threadContext === 'direct_profile'
-					? (this.strings.modThreadEmptyDirect || 'No messages yet in this conversation.')
-					: (this.strings.modThreadEmpty || 'No messages yet. Send the first message to moderation.');
-				$history.html('<p class="fanfic-mod-thread-empty">' + emptyLabel + '</p>');
+				$history.empty().attr('hidden', true);
 				return;
 			}
+
+			$history.removeAttr('hidden');
 
 			let html = '';
 			rows.forEach(function(entry) {
@@ -460,6 +460,7 @@
 				const resolvedContext = String(data.thread_context || normalizedContext).trim();
 				const canSend = !!data.can_send;
 				const isModeratorView = !!data.is_moderator_view;
+				const previewMode = String($modal.data('preview-mode') || '').trim();
 				const isDirectContext = resolvedContext === 'direct_profile';
 				$modal.find('#fanfic-mod-thread-id').val(threadId ? String(threadId) : '');
 				$modal.find('#fanfic-mod-target-type').val(resolvedTargetType);
@@ -470,9 +471,11 @@
 				self.clearModerationThreadState();
 
 				if (!canSend) {
-					const closedMessage = (isDirectContext && threadId === 0 && !isModeratorView)
-						? (self.strings.modThreadNotStarted || 'Moderation has not started this conversation yet.')
-						: (self.strings.modThreadClosed || 'This conversation is closed.');
+					const closedMessage = (previewMode === 'banned' && !isModeratorView)
+						? (self.strings.modThreadPreviewBanned || 'Preview mode: this account is not actually banned.')
+						: ((isDirectContext && threadId === 0 && !isModeratorView)
+							? (self.strings.modThreadNotStarted || 'Moderation has not started this conversation yet.')
+							: (self.strings.modThreadClosed || 'This conversation is closed.'));
 					self.showModerationThreadState('info', closedMessage);
 				}
 
@@ -484,6 +487,29 @@
 			}).fail(function() {
 				self.showModerationThreadState('error', self.strings.modMessageError || self.strings.error);
 			});
+		},
+
+		getPreviewMode: function($button) {
+			const buttonMode = $button ? String($button.data('preview-mode') || '').trim() : '';
+			if (buttonMode) {
+				return buttonMode;
+			}
+
+			const $body = $('body');
+			if ($body.hasClass('fanfic-preview-mode-banned')) {
+				return 'banned';
+			}
+			if ($body.hasClass('fanfic-preview-mode-guest')) {
+				return 'guest';
+			}
+			if ($body.hasClass('fanfic-preview-mode-author')) {
+				return 'author';
+			}
+			if ($body.hasClass('fanfic-preview-mode-admin')) {
+				return 'admin';
+			}
+
+			return '';
 		},
 
 		submitModerationMessage: function(targetType, targetId, message, $trigger, threadContext, messageId) {
@@ -908,6 +934,7 @@
 				const postId = parseInt($button.data('post-id'), 10);
 				const storyId = parseInt($button.data('story-id'), 10) || 0;
 				const chapterId = parseInt($button.data('chapter-id'), 10) || 0;
+				const followType = String($button.data('follow-type') || 'post');
 				const isLoggedIn = !!parseInt($button.data('user-logged-in'), 10);
 
 				// Prevent double-click
@@ -915,7 +942,7 @@
 					return;
 				}
 
-				self.log('Follow button clicked:', { postId, storyId, chapterId, isLoggedIn });
+				self.log('Follow button clicked:', { postId, storyId, chapterId, followType, isLoggedIn });
 
 				// Toggle in localStorage immediately
 				const entry = FanficLocalStore.toggleFollow(storyId, chapterId);
@@ -941,7 +968,7 @@
 
 				// For logged-out users following (not unfollowing), show email modal
 				if (!isLoggedIn && isNowFollowed) {
-					self._pendingFollowData = { postId: postId, $button: $button, wasFollowed: !isNowFollowed, storyId: storyId, chapterId: chapterId };
+					self._pendingFollowData = { postId: postId, $button: $button, wasFollowed: !isNowFollowed, storyId: storyId, chapterId: chapterId, followType: followType };
 					self.showFollowEmailModal();
 					return;
 				}
@@ -955,7 +982,7 @@
 				}
 
 				// AJAX to server
-				self.toggleFollow(postId, $button, !isNowFollowed, unfollowEmail);
+				self.toggleFollow(postId, $button, !isNowFollowed, unfollowEmail, followType);
 			});
 		},
 
@@ -1016,7 +1043,7 @@
 			if (!$modal.length) {
 				// No modal on page — just send AJAX without email
 				if (this._pendingFollowData) {
-					this.toggleFollow(this._pendingFollowData.postId, this._pendingFollowData.$button, this._pendingFollowData.wasFollowed);
+					this.toggleFollow(this._pendingFollowData.postId, this._pendingFollowData.$button, this._pendingFollowData.wasFollowed, null, this._pendingFollowData.followType || 'post');
 					this._pendingFollowData = null;
 				}
 				return;
@@ -1028,6 +1055,10 @@
 				savedEmail = window.localStorage.getItem('fanfic_user_email') || '';
 			} catch (err) {}
 			$modal.find('.fanfic-follow-email-input').val(savedEmail);
+			const description = this._pendingFollowData && this._pendingFollowData.followType === 'author'
+				? 'Get notified when this author publishes a new story or updates a chapter.'
+				: 'Get notified when new chapters become visible for this story.';
+			$modal.find('#fanfic-follow-email-modal-description').text(description);
 
 			// Show modal
 			$modal.fadeIn(200);
@@ -1047,7 +1078,7 @@
 			this._pendingFollowData = null;
 
 			// Send AJAX with or without email
-			this.toggleFollow(data.postId, data.$button, data.wasFollowed, email || null);
+			this.toggleFollow(data.postId, data.$button, data.wasFollowed, email || null, data.followType || 'post');
 		},
 
 		/**
@@ -1074,8 +1105,9 @@
 				var storyId = parseInt($button.data('story-id'), 10) || 0;
 				var chapterIdRaw = parseInt($button.data('chapter-id'), 10);
 				var chapterId = Number.isFinite(chapterIdRaw) ? chapterIdRaw : 0;
+				var followType = String($button.data('follow-type') || 'post');
 
-				if (!storyId) {
+				if (followType !== 'author' && !storyId) {
 					return;
 				}
 
@@ -1493,7 +1525,7 @@
 
 			const contentId = parseInt($modal.attr('data-content-id'), 10) || 0;
 			const reportType = ($modal.attr('data-report-type') || '').toString();
-			const reason = ($modal.find('input[name="fanfic_report_reason"]:checked').val() || '').toString();
+			const reason = ($modal.find('#fanfic-report-reason').val() || '').toString();
 			const details = ($modal.find('#fanfic-report-details').val() || '').toString().trim();
 
 			self.clearReportFormMessage();
@@ -1588,7 +1620,7 @@
 		$('body').css('overflow', 'hidden');
 
 		setTimeout(function() {
-			$modal.find('input[name="fanfic_report_reason"]').first().focus();
+			$modal.find('#fanfic-report-reason').trigger('focus');
 		}, 220);
 	},
 
@@ -1711,7 +1743,7 @@
 		/**
 		 * Toggle follow on server (supports anonymous via UUID)
 		 */
-		toggleFollow: function(postId, $button, wasFollowed, email) {
+		toggleFollow: function(postId, $button, wasFollowed, email, followType) {
 			const self = this;
 
 			$button.addClass('loading');
@@ -1719,7 +1751,8 @@
 			const payload = {
 				action: 'fanfic_toggle_follow',
 				nonce: this.config.nonce,
-				post_id: postId
+				post_id: postId,
+				follow_type: followType || String($button.data('follow-type') || 'post')
 			};
 			if (!this.config.isLoggedIn) {
 				const anonymousUuid = FanficLocalStore.getAnonymousUuid();

@@ -16,3 +16,4 @@ wp-config.php
 .idea/
 .vscode/
 .git/
+.codex/local-auth.json

@@ -532,6 +532,9 @@
 		init: function() {
 			$('[maxlength]').each((i, field) => {
 				const $field = $(field);
+				if ($field.is('[data-skip-char-counter="true"]')) {
+					return;
+				}
 				const maxLength = $field.attr('maxlength');
 				const $counter = $('<div class="fanfic-char-counter"><small><span class="current">0</span> / ' + maxLength + ' characters</small></div>');
 
@@ -584,7 +587,26 @@
 	 * Modal Close Handlers
 	 */
 	const ModalClose = {
+		ensureCloseButtons: function() {
+			$('.fanfic-modal').each(function() {
+				const $modal = $(this);
+				const $content = $modal.find('.fanfic-modal-content').first();
+				if (!$content.length || $content.children('.fanfic-modal-close').length) {
+					return;
+				}
+
+				const allowStaticClose = $modal.is('[data-static-modal="true"]');
+				const $close = $('<button type="button" class="fanfic-modal-close" aria-label="Close modal">&times;</button>');
+				if (allowStaticClose) {
+					$close.attr('data-allow-static-close', 'true');
+				}
+				$content.prepend($close);
+			});
+		},
+
 		init: function() {
+			this.ensureCloseButtons();
+
 			// Close button
 			$(document).on('click', '.fanfic-modal .fanfic-modal-close, .fanfic-modal .cancel-delete', function() {
 				const $modal = $(this).closest('.fanfic-modal');
@@ -942,6 +964,7 @@
 		CharCounter.init();
 		DeleteConfirm.init();
 		ModalClose.init();
+		ModalClose.ensureCloseButtons();
 		RatingHandler.init();
 
 		// Custom event logging

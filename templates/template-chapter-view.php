@@ -163,8 +163,8 @@ $template = preg_replace( '/<div[^>]*fanfic-chapter-actions[^>]*>\s*<\/div>/is',
 
 $parent_story_id      = $chapter_post ? absint( $chapter_post->post_parent ) : 0;
 $is_chapter_author    = false;
-$current_user_id      = get_current_user_id();
-if ( $chapter_post && is_user_logged_in() ) {
+$current_user_id      = fanfic_get_effective_current_user_id();
+if ( $chapter_post && fanfic_effective_is_user_logged_in() ) {
 	$is_chapter_author = (int) $chapter_post->post_author === $current_user_id;
 	if ( ! $is_chapter_author && $parent_story_id && function_exists( 'fanfic_user_is_story_author_or_coauthor' ) ) {
 		$is_chapter_author = fanfic_user_is_story_author_or_coauthor( $parent_story_id, $current_user_id );

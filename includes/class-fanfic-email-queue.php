@@ -47,6 +47,7 @@ class Fanfic_Email_Queue {
 		// Register WP-Cron actions
 		add_action( 'fanfic_send_email_batch', array( __CLASS__, 'send_batch' ), 10, 3 );
 		add_action( 'fanfic_send_single_email', array( __CLASS__, 'send_single_email' ), 10, 4 );
+		add_action( 'fanfic_send_author_story_email_batch', array( __CLASS__, 'send_author_story_batch' ), 10, 2 );
 
 		// Hook into chapter publish (this is the main trigger)
 		add_action( 'transition_post_status', array( __CLASS__, 'handle_chapter_publish' ), 10, 3 );
@@ -65,6 +66,14 @@ class Fanfic_Email_Queue {
 	 * @return int|false Count of scheduled notifications or false on failure.
 	 */
 	public static function handle_chapter_publish( $new_status, $old_status, $post ) {
+		if ( 'fanfiction_story' === $post->post_type ) {
+			if ( 'publish' !== $new_status || 'publish' === $old_status ) {
+				return false;
+			}
+
+			return self::handle_story_publish( $post->ID );
+		}
+
 		// Only handle chapter posts
 		if ( 'fanfiction_chapter' !== $post->post_type ) {
 			return false;
@@ -132,18 +141,39 @@ class Fanfic_Email_Queue {
 		}
 
 		// Step 3: Get logged-in story followers with email preference enabled.
-		$follower_ids = $wpdb->get_col( $wpdb->prepare(
+		$story_follower_ids = $wpdb->get_col( $wpdb->prepare(
 			"SELECT DISTINCT user_id FROM {$wpdb->prefix}fanfic_interactions
 			WHERE chapter_id = %d AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
 			$story_id,
 			$author_id
 		) );
 
-		if ( $follower_ids ) {
-			foreach ( $follower_ids as $follower_id ) {
-				// Check if user wants email notifications for new chapters
-				if ( class_exists( 'Fanfic_Notification_Preferences' ) &&
-					! Fanfic_Notification_Preferences::should_send_email( $follower_id, 'new_chapter' ) ) {
+		foreach ( (array) $story_follower_ids as $follower_id ) {
+			if ( class_exists( 'Fanfic_Follows' ) && ! Fanfic_Follows::should_email_followed_stories( $follower_id ) ) {
+				continue;
+			}
+
+			$user = get_userdata( $follower_id );
+			if ( ! $user ) {
+				continue;
+			}
+
+			$email_lower = strtolower( $user->user_email );
+			if ( isset( $seen_emails[ $email_lower ] ) ) {
+				continue;
+			}
+			$seen_emails[ $email_lower ] = true;
+
+			$email_recipients[] = array(
+				'type'         => 'user',
+				'email'        => $user->user_email,
+				'display_name' => $user->display_name,
+			);
+		}
+
+		if ( class_exists( 'Fanfic_Follows' ) ) {
+			foreach ( Fanfic_Follows::get_author_follower_user_ids( $author_id ) as $follower_id ) {
+				if ( ! Fanfic_Follows::should_email_followed_authors( $follower_id ) ) {
 					continue;
 				}
 
@@ -152,7 +182,6 @@ class Fanfic_Email_Queue {
 					continue;
 				}
 
-				// Deduplicate against email subscribers
 				$email_lower = strtolower( $user->user_email );
 				if ( isset( $seen_emails[ $email_lower ] ) ) {
 					continue;
@@ -226,19 +255,39 @@ class Fanfic_Email_Queue {
 		$email_recipients = array();
 		$seen_emails = array();
 
-		// Get logged-in story followers + chapter bookmarkers with email pref enabled
-		$follower_ids = $wpdb->get_col( $wpdb->prepare(
+		$chapter_follower_ids = $wpdb->get_col( $wpdb->prepare(
 			"SELECT DISTINCT user_id FROM {$wpdb->prefix}fanfic_interactions
-			WHERE (chapter_id = %d OR chapter_id = %d) AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
-			$story_id,
+			WHERE chapter_id = %d AND interaction_type = 'follow' AND user_id > 0 AND user_id != %d",
 			$chapter_id,
 			$author_id
 		) );
 
-		if ( $follower_ids ) {
-			foreach ( $follower_ids as $follower_id ) {
-				if ( class_exists( 'Fanfic_Notification_Preferences' ) &&
-					! Fanfic_Notification_Preferences::should_send_email( $follower_id, 'chapter_update' ) ) {
+		foreach ( (array) $chapter_follower_ids as $follower_id ) {
+			if ( class_exists( 'Fanfic_Follows' ) && ! Fanfic_Follows::should_email_followed_chapters( $follower_id ) ) {
+				continue;
+			}
+
+			$user = get_userdata( $follower_id );
+			if ( ! $user ) {
+				continue;
+			}
+
+			$email_lower = strtolower( $user->user_email );
+			if ( isset( $seen_emails[ $email_lower ] ) ) {
+				continue;
+			}
+			$seen_emails[ $email_lower ] = true;
+
+			$email_recipients[] = array(
+				'type'         => 'user',
+				'email'        => $user->user_email,
+				'display_name' => $user->display_name,
+			);
+		}
+
+		if ( class_exists( 'Fanfic_Follows' ) ) {
+			foreach ( Fanfic_Follows::get_author_follower_user_ids( $author_id ) as $follower_id ) {
+				if ( ! Fanfic_Follows::should_email_followed_authors( $follower_id ) ) {
 					continue;
 				}
 
@@ -310,8 +359,8 @@ class Fanfic_Email_Queue {
 
 		if ( $follower_ids ) {
 			foreach ( $follower_ids as $follower_id ) {
-				if ( class_exists( 'Fanfic_Notification_Preferences' ) &&
-					! Fanfic_Notification_Preferences::should_send_email( $follower_id, 'story_status' ) ) {
+				if ( class_exists( 'Fanfic_Follows' ) &&
+					! Fanfic_Follows::should_email_followed_stories( $follower_id ) ) {
 					continue;
 				}
 
@@ -349,6 +398,173 @@ class Fanfic_Email_Queue {
 		}
 
 		return count( $email_recipients );
+	}
+
+	/**
+	 * Handle story publish for author-follow email updates.
+	 *
+	 * @since 2.2.0
+	 * @param int $story_id Story ID.
+	 * @return int|false
+	 */
+	public static function handle_story_publish( $story_id ) {
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return false;
+		}
+
+		$story = get_post( $story_id );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			return false;
+		}
+
+		$author_id = (int) $story->post_author;
+		$recipients = self::collect_author_story_email_recipients( $author_id );
+		if ( empty( $recipients ) ) {
+			return 0;
+		}
+
+		$chunks = array_chunk( $recipients, self::BATCH_SIZE );
+		foreach ( $chunks as $i => $chunk ) {
+			wp_schedule_single_event(
+				time() + ( $i * self::BATCH_DELAY ),
+				'fanfic_send_author_story_email_batch',
+				array( $chunk, $story_id )
+			);
+		}
+
+		return count( $recipients );
+	}
+
+	/**
+	 * Build recipient list for author-story email updates.
+	 *
+	 * @since 2.2.0
+	 * @param int $author_id Author user ID.
+	 * @return array<int,array<string,string>>
+	 */
+	private static function collect_author_story_email_recipients( $author_id ) {
+		global $wpdb;
+
+		$author_id = absint( $author_id );
+		if ( ! $author_id ) {
+			return array();
+		}
+
+		$recipients  = array();
+		$seen_emails = array();
+
+		$email_subscribers = $wpdb->get_col( $wpdb->prepare(
+			"SELECT DISTINCT email
+			FROM {$wpdb->prefix}fanfic_email_subscriptions
+			WHERE target_id = %d
+			  AND subscription_type = 'author'
+			  AND verified = 1",
+			$author_id
+		) );
+
+		foreach ( (array) $email_subscribers as $email ) {
+			$email_lower = strtolower( (string) $email );
+			if ( isset( $seen_emails[ $email_lower ] ) ) {
+				continue;
+			}
+			$seen_emails[ $email_lower ] = true;
+			$recipients[] = array(
+				'type'  => 'subscriber',
+				'email' => (string) $email,
+			);
+		}
+
+		if ( class_exists( 'Fanfic_Follows' ) ) {
+			$follower_ids = Fanfic_Follows::get_author_follower_user_ids( $author_id );
+			foreach ( $follower_ids as $follower_id ) {
+				if ( ! Fanfic_Follows::should_email_followed_authors( $follower_id ) ) {
+					continue;
+				}
+
+				$user = get_userdata( $follower_id );
+				if ( ! $user instanceof WP_User ) {
+					continue;
+				}
+
+				$email_lower = strtolower( $user->user_email );
+				if ( isset( $seen_emails[ $email_lower ] ) ) {
+					continue;
+				}
+				$seen_emails[ $email_lower ] = true;
+				$recipients[] = array(
+					'type'         => 'user',
+					'email'        => $user->user_email,
+					'display_name' => $user->display_name,
+				);
+			}
+		}
+
+		return $recipients;
+	}
+
+	/**
+	 * Send author-story email batches.
+	 *
+	 * @since 2.2.0
+	 * @param array $recipients Recipient rows.
+	 * @param int   $story_id Story ID.
+	 * @return array
+	 */
+	public static function send_author_story_batch( $recipients, $story_id ) {
+		$story = get_post( $story_id );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			return array(
+				'sent_count'   => 0,
+				'failed_count' => count( (array) $recipients ),
+				'errors'       => array( 'Story not found' ),
+			);
+		}
+
+		$author      = get_userdata( $story->post_author );
+		$author_name = $author ? $author->display_name : __( 'Unknown Author', 'fanfiction-manager' );
+		$story_url   = get_permalink( $story_id );
+		$sent_count  = 0;
+		$failed_count = 0;
+		$errors      = array();
+
+		foreach ( (array) $recipients as $recipient ) {
+			$email        = (string) ( $recipient['email'] ?? '' );
+			$display_name = 'user' === ( $recipient['type'] ?? '' )
+				? (string) ( $recipient['display_name'] ?? __( 'Reader', 'fanfiction-manager' ) )
+				: __( 'Reader', 'fanfiction-manager' );
+
+			$subject = sprintf(
+				/* translators: 1: author name, 2: story title */
+				__( '%1$s published a new story: "%2$s"', 'fanfiction-manager' ),
+				$author_name,
+				$story->post_title
+			);
+
+			$message = sprintf(
+				/* translators: 1: display name, 2: author name, 3: story title, 4: story url */
+				__(
+					"Hello %1\$s,\n\n%2\$s published a new story:\n\"%3\$s\"\n\nRead it here:\n%4\$s\n",
+					'fanfiction-manager'
+				),
+				$display_name,
+				$author_name,
+				$story->post_title,
+				$story_url
+			);
+
+			if ( wp_mail( $email, $subject, $message ) ) {
+				$sent_count++;
+			} else {
+				$failed_count++;
+				$errors[] = $email;
+			}
+		}
+
+		return array(
+			'sent_count'   => $sent_count,
+			'failed_count' => $failed_count,
+			'errors'       => $errors,
+		);
 	}
 
 	/**

@@ -30,12 +30,12 @@ class Fanfic_Shortcodes_Comments {
 	 * @return bool
 	 */
 	private static function is_current_user_banned() {
-		if ( ! is_user_logged_in() ) {
+		if ( ! fanfic_effective_is_user_logged_in() ) {
 			return false;
 		}
 
 		$current_user = wp_get_current_user();
-		return in_array( 'fanfiction_banned_user', (array) $current_user->roles, true );
+		return in_array( 'fanfiction_banned_user', fanfic_get_effective_user_roles( $current_user->ID ), true );
 	}
 
 	/**
@@ -180,7 +180,7 @@ class Fanfic_Shortcodes_Comments {
 		}
 
 		// Check if user must be logged in
-		if ( get_option( 'comment_registration' ) && ! is_user_logged_in() ) {
+		if ( get_option( 'comment_registration' ) && ! fanfic_effective_is_user_logged_in() ) {
 			return '<p class="must-log-in">' .
 				sprintf(
 					/* translators: %s: Login URL */
@@ -427,7 +427,7 @@ class Fanfic_Shortcodes_Comments {
 
 				<?php
 				// Check if user must be logged in
-				if ( get_option( 'comment_registration' ) && ! is_user_logged_in() ) {
+				if ( get_option( 'comment_registration' ) && ! fanfic_effective_is_user_logged_in() ) {
 					?>
 					<p class="must-log-in">
 						<?php
@@ -443,6 +443,12 @@ class Fanfic_Shortcodes_Comments {
 					?>
 					<p class="fanfic-no-comments">
 						<?php esc_html_e( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ); ?>
+					</p>
+					<?php
+				} elseif ( fanfic_is_frontend_preview_mode( 'guest' ) ) {
+					?>
+					<p class="fanfic-no-comments" role="status">
+						<?php esc_html_e( 'Guest preview hides the interactive comment form.', 'fanfiction-manager' ); ?>
 					</p>
 					<?php
 				} else {
@@ -565,7 +571,7 @@ class Fanfic_Shortcodes_Comments {
 
 				<?php
 				// Check if user must be logged in
-				if ( get_option( 'comment_registration' ) && ! is_user_logged_in() ) {
+				if ( get_option( 'comment_registration' ) && ! fanfic_effective_is_user_logged_in() ) {
 					?>
 					<p class="must-log-in">
 						<?php
@@ -581,6 +587,12 @@ class Fanfic_Shortcodes_Comments {
 					?>
 					<p class="fanfic-no-comments">
 						<?php esc_html_e( 'Your account is suspended. You cannot post comments.', 'fanfiction-manager' ); ?>
+					</p>
+					<?php
+				} elseif ( fanfic_is_frontend_preview_mode( 'guest' ) ) {
+					?>
+					<p class="fanfic-no-comments" role="status">
+						<?php esc_html_e( 'Guest preview hides the interactive comment form.', 'fanfiction-manager' ); ?>
 					</p>
 					<?php
 				} else {

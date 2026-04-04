@@ -602,13 +602,13 @@ class Fanfic_Shortcodes_User {
 
 		// Default settings
 		$defaults = array(
-			'email_new_chapter'      => true,
+			'email_followed_stories' => true,
+			'email_followed_chapters'=> true,
+			'email_followed_authors' => true,
 			'email_new_comment'      => true,
-			'email_author_update'    => true,
 			'inapp_new_chapter'      => true,
 			'inapp_new_comment'      => true,
 			'inapp_author_update'    => true,
-			'email_frequency'        => 'instant', // instant, daily, weekly
 		);
 
 		$settings = wp_parse_args( $settings, $defaults );
@@ -629,9 +629,21 @@ class Fanfic_Shortcodes_User {
 		$output .= '<div class="fanfic-settings-group">';
 
 		$output .= self::checkbox_field(
-			'email_new_chapter',
-			__( 'New chapter updates', 'fanfiction-manager' ),
-			$settings['email_new_chapter']
+			'email_followed_stories',
+			__( 'Followed stories: new chapters and status changes', 'fanfiction-manager' ),
+			$settings['email_followed_stories']
+		);
+
+		$output .= self::checkbox_field(
+			'email_followed_chapters',
+			__( 'Followed chapters: chapter content updates', 'fanfiction-manager' ),
+			$settings['email_followed_chapters']
+		);
+
+		$output .= self::checkbox_field(
+			'email_followed_authors',
+			__( 'Followed authors: new stories and chapter updates', 'fanfiction-manager' ),
+			$settings['email_followed_authors']
 		);
 
 		$output .= self::checkbox_field(
@@ -640,15 +652,9 @@ class Fanfic_Shortcodes_User {
 			$settings['email_new_comment']
 		);
 
-		$output .= self::checkbox_field(
-			'email_author_update',
-			__( 'Story update notifications', 'fanfiction-manager' ),
-			$settings['email_author_update']
-		);
-
 		$output .= '</div>';
 
-		$output .= '<h3>' . esc_html__( 'In-App Notifications', 'fanfiction-manager' ) . '</h3>';
+		$output .= '<h3>' . esc_html__( 'Dashboard Notifications', 'fanfiction-manager' ) . '</h3>';
 		$output .= '<div class="fanfic-settings-group">';
 
 		$output .= self::checkbox_field(
@@ -671,22 +677,6 @@ class Fanfic_Shortcodes_User {
 
 		$output .= '</div>';
 
-		$output .= '<h3>' . esc_html__( 'Email Frequency', 'fanfiction-manager' ) . '</h3>';
-		$output .= '<div class="fanfic-settings-group">';
-		$output .= '<label>';
-		$output .= '<input type="radio" name="email_frequency" value="instant" ' . checked( $settings['email_frequency'], 'instant', false ) . '>';
-		$output .= ' ' . esc_html__( 'Instant (receive emails immediately)', 'fanfiction-manager' );
-		$output .= '</label><br>';
-		$output .= '<label>';
-		$output .= '<input type="radio" name="email_frequency" value="daily" ' . checked( $settings['email_frequency'], 'daily', false ) . '>';
-		$output .= ' ' . esc_html__( 'Daily digest (once per day)', 'fanfiction-manager' );
-		$output .= '</label><br>';
-		$output .= '<label>';
-		$output .= '<input type="radio" name="email_frequency" value="weekly" ' . checked( $settings['email_frequency'], 'weekly', false ) . '>';
-		$output .= ' ' . esc_html__( 'Weekly digest (once per week)', 'fanfiction-manager' );
-		$output .= '</label>';
-		$output .= '</div>';
-
 		$output .= '<p class="fanfic-submit-wrapper">';
 		$output .= '<input type="submit" name="fanfic_save_notification_settings" class="fanfic-button" value="' . esc_attr__( 'Save Settings', 'fanfiction-manager' ) . '">';
 		$output .= '</p>';
@@ -706,13 +696,13 @@ class Fanfic_Shortcodes_User {
 	 */
 	private static function save_notification_settings( $user_id ) {
 		$settings = array(
-			'email_new_chapter'   => isset( $_POST['email_new_chapter'] ),
-			'email_new_comment'   => isset( $_POST['email_new_comment'] ),
-			'email_author_update' => isset( $_POST['email_author_update'] ),
+			'email_followed_stories'  => isset( $_POST['email_followed_stories'] ),
+			'email_followed_chapters' => isset( $_POST['email_followed_chapters'] ),
+			'email_followed_authors'  => isset( $_POST['email_followed_authors'] ),
+			'email_new_comment'       => isset( $_POST['email_new_comment'] ),
 			'inapp_new_chapter'   => isset( $_POST['inapp_new_chapter'] ),
 			'inapp_new_comment'   => isset( $_POST['inapp_new_comment'] ),
 			'inapp_author_update' => isset( $_POST['inapp_author_update'] ),
-			'email_frequency'     => isset( $_POST['email_frequency'] ) ? sanitize_text_field( $_POST['email_frequency'] ) : 'instant',
 		);
 
 		update_user_meta( $user_id, 'fanfic_notification_settings', $settings );

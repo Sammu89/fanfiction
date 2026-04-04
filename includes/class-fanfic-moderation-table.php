@@ -382,31 +382,15 @@ class Fanfic_Moderation_Table extends WP_List_Table {
 		if ( false !== strpos( $reason, 'copyright' ) ) {
 			return 'copyright';
 		}
-		if ( false !== strpos( $reason, 'illegal' ) ) {
-			return 'illegal';
-		}
-		if ( false !== strpos( $reason, 'minor' ) ) {
-			return 'underage';
-		}
 		if ( false !== strpos( $reason, 'other' ) ) {
 			return 'other';
 		}
 
-		return 'manual';
+		return 'other';
 	}
 
 	public static function get_block_reason_options() {
-		$labels = function_exists( 'fanfic_get_block_reason_labels' ) ? fanfic_get_block_reason_labels() : array();
-		$keys   = array( 'manual', 'tos_violation', 'copyright', 'inappropriate', 'spam', 'harassment', 'illegal', 'underage', 'rating_mismatch', 'other' );
-		$options = array();
-
-		foreach ( $keys as $key ) {
-			if ( isset( $labels[ $key ] ) ) {
-				$options[ $key ] = $labels[ $key ];
-			}
-		}
-
-		return $options;
+		return function_exists( 'fanfic_get_block_reason_labels' ) ? fanfic_get_block_reason_labels() : array();
 	}
 
 	/**
@@ -1259,7 +1243,7 @@ class Fanfic_Moderation_Ajax {
 	public static function ajax_block_report() {
 		self::verify_request();
 		$report_id = isset( $_POST['report_id'] ) ? absint( $_POST['report_id'] ) : 0;
-		$block_reason   = isset( $_POST['block_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['block_reason'] ) ) : 'manual';
+		$block_reason   = isset( $_POST['block_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['block_reason'] ) ) : 'other';
 		$internal_note  = isset( $_POST['internal_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['internal_note'] ) ) : '';
 		$author_message = isset( $_POST['author_message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['author_message'] ) ) : '';
 		$moderator_id   = get_current_user_id();

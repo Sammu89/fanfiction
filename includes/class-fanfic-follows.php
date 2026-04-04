@@ -2,7 +2,7 @@
 /**
  * Follows System Class
  *
- * Handles story and chapter follow functionality via the unified interactions table.
+ * Handles story, chapter, and author follow functionality via the unified interactions table.
  *
  * @package FanfictionManager
  * @since 1.8.0
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Class Fanfic_Follows
  *
  * Follow system backed by wp_fanfic_interactions WHERE interaction_type = 'follow'.
- * Supports both story and chapter follows, anonymous + authenticated users.
+ * Supports story, chapter, and author follows for anonymous and authenticated users.
  *
  * @since 1.8.0
  */
@@ -36,6 +36,69 @@ class Fanfic_Follows {
 	 * @var array<int,WP_Post|false>
 	 */
 	private static $latest_chapter_cache = array();
+
+	/**
+	 * Check whether a logged-in user wants email updates for followed stories.
+	 *
+	 * @since 2.2.0
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	public static function should_email_followed_stories( $user_id ) {
+		return self::get_follow_email_setting( $user_id, 'email_followed_stories' );
+	}
+
+	/**
+	 * Check whether a logged-in user wants email updates for followed chapters.
+	 *
+	 * @since 2.2.0
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	public static function should_email_followed_chapters( $user_id ) {
+		return self::get_follow_email_setting( $user_id, 'email_followed_chapters' );
+	}
+
+	/**
+	 * Check whether a logged-in user wants email updates for followed authors.
+	 *
+	 * @since 2.2.0
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	public static function should_email_followed_authors( $user_id ) {
+		return self::get_follow_email_setting( $user_id, 'email_followed_authors' );
+	}
+
+	/**
+	 * Read follow-email settings from the private notification settings panel.
+	 *
+	 * @since 2.2.0
+	 * @param int    $user_id User ID.
+	 * @param string $key     Settings key.
+	 * @return bool
+	 */
+	private static function get_follow_email_setting( $user_id, $key ) {
+		$user_id = absint( $user_id );
+		if ( ! $user_id ) {
+			return false;
+		}
+
+		$settings = get_user_meta( $user_id, 'fanfic_notification_settings', true );
+		if ( ! is_array( $settings ) ) {
+			$settings = array();
+		}
+
+		$defaults = array(
+			'email_followed_stories'  => true,
+			'email_followed_chapters' => true,
+			'email_followed_authors'  => true,
+		);
+
+		$settings = wp_parse_args( $settings, $defaults );
+
+		return ! empty( $settings[ $key ] );
+	}
 
 	/**
 	 * Toggle follow for a post (story or chapter).
@@ -73,6 +136,41 @@ class Fanfic_Follows {
 
 		return array(
 			'success'       => true,
+			'is_followed' => ! empty( $result['is_followed'] ),
+		);
+	}
+
+	/**
+	 * Toggle follow for an author profile.
+	 *
+	 * @since 2.2.0
+	 * @param int    $user_id        User ID (0 for anonymous).
+	 * @param int    $author_id      Author user ID.
+	 * @param string $anonymous_uuid Anonymous UUID (empty for logged-in users).
+	 * @return array Result with is_followed status.
+	 */
+	public static function toggle_author_follow( $user_id, $author_id, $anonymous_uuid = '' ) {
+		$user_id   = absint( $user_id );
+		$author_id = absint( $author_id );
+
+		if ( ! $author_id && ! $user_id && empty( $anonymous_uuid ) ) {
+			return array( 'success' => false, 'error' => 'Invalid parameters' );
+		}
+
+		$author = get_userdata( $author_id );
+		if ( ! $author instanceof WP_User ) {
+			return array( 'success' => false, 'error' => 'Author not found' );
+		}
+
+		$result = Fanfic_Interactions::toggle_author_follow( $author_id, $user_id, $anonymous_uuid );
+		if ( is_wp_error( $result ) ) {
+			return array( 'success' => false, 'error' => $result->get_error_message() );
+		}
+
+		self::clear_author_follow_cache( $author_id, $user_id );
+
+		return array(
+			'success'     => true,
 			'is_followed' => ! empty( $result['is_followed'] ),
 		);
 	}
@@ -116,6 +214,19 @@ class Fanfic_Follows {
 	}
 
 	/**
+	 * Check if an author is followed.
+	 *
+	 * @since 2.2.0
+	 * @param int    $user_id        User ID.
+	 * @param int    $author_id      Author user ID.
+	 * @param string $anonymous_uuid Anonymous UUID.
+	 * @return bool
+	 */
+	public static function is_author_followed( $user_id, $author_id, $anonymous_uuid = '' ) {
+		return Fanfic_Interactions::has_author_follow( $author_id, $user_id, $anonymous_uuid );
+	}
+
+	/**
 	 * Get follow count for a post.
 	 *
 	 * @since 1.8.0
@@ -151,6 +262,41 @@ class Fanfic_Follows {
 	}
 
 	/**
+	 * Get follow count for an author.
+	 *
+	 * @since 2.2.0
+	 * @param int $author_id Author user ID.
+	 * @return int
+	 */
+	public static function get_author_follow_count( $author_id ) {
+		$author_id = absint( $author_id );
+		if ( ! $author_id ) {
+			return 0;
+		}
+
+		$cache_key = 'fanfic_author_follow_count_' . $author_id;
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			return absint( $cached );
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_interactions';
+
+		$count = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$table}
+				WHERE chapter_id = %d AND interaction_type = 'follow_author'",
+				$author_id
+			)
+		);
+
+		set_transient( $cache_key, $count, 10 * MINUTE_IN_SECONDS );
+
+		return $count;
+	}
+
+	/**
 	 * Get user's followed posts.
 	 *
 	 * @since 1.8.0
@@ -165,15 +311,40 @@ class Fanfic_Follows {
 		$limit   = absint( $limit );
 		$offset  = absint( $offset );
 
-		if ( ! $user_id || ! in_array( $follow_type, array( 'story', 'chapter' ), true ) ) {
+		if ( ! $user_id || ! in_array( $follow_type, array( 'story', 'chapter', 'author' ), true ) ) {
 			return array();
 		}
-
-		$post_type = ( 'story' === $follow_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
 
 		global $wpdb;
 		$table       = $wpdb->prefix . 'fanfic_interactions';
 		$posts_table = $wpdb->posts;
+		$users_table = $wpdb->users;
+
+		if ( 'author' === $follow_type ) {
+			$results = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT i.chapter_id AS post_id, i.created_at
+					FROM {$table} i
+					INNER JOIN {$users_table} u ON u.ID = i.chapter_id
+					WHERE i.user_id = %d
+					  AND i.interaction_type = 'follow_author'
+					ORDER BY i.created_at DESC
+					LIMIT %d OFFSET %d",
+					$user_id,
+					$limit,
+					$offset
+				),
+				ARRAY_A
+			);
+
+			foreach ( $results as &$row ) {
+				$row['follow_type'] = 'author';
+			}
+
+			return $results;
+		}
+
+		$post_type = ( 'story' === $follow_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
 
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
@@ -213,15 +384,27 @@ class Fanfic_Follows {
 	public static function get_follows_count( $user_id, $follow_type = 'story' ) {
 		$user_id = absint( $user_id );
 
-		if ( ! $user_id || ! in_array( $follow_type, array( 'story', 'chapter' ), true ) ) {
+		if ( ! $user_id || ! in_array( $follow_type, array( 'story', 'chapter', 'author' ), true ) ) {
 			return 0;
 		}
-
-		$post_type = ( 'story' === $follow_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
 
 		global $wpdb;
 		$table       = $wpdb->prefix . 'fanfic_interactions';
 		$posts_table = $wpdb->posts;
+
+		if ( 'author' === $follow_type ) {
+			return (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*)
+					FROM {$table}
+					WHERE user_id = %d
+					  AND interaction_type = 'follow_author'",
+					$user_id
+				)
+			);
+		}
+
+		$post_type = ( 'story' === $follow_type ) ? 'fanfiction_story' : 'fanfiction_chapter';
 
 		$count = (int) $wpdb->get_var(
 			$wpdb->prepare(
@@ -441,6 +624,8 @@ class Fanfic_Follows {
 		foreach ( $follows as $follow ) {
 			if ( 'chapter' === $type ) {
 				$output .= self::render_chapter_follow_item( $follow );
+			} elseif ( 'author' === $type ) {
+				$output .= self::render_author_follow_item( $follow );
 			} else {
 				$output .= self::render_story_follow_item( $follow );
 			}
@@ -547,6 +732,68 @@ class Fanfic_Follows {
 	}
 
 	/**
+	 * Render author follow item.
+	 *
+	 * @since 2.2.0
+	 * @param array $follow_data Follow data with 'post_id'.
+	 * @return string HTML.
+	 */
+	public static function render_author_follow_item( $follow_data ) {
+		$author_id = isset( $follow_data['post_id'] ) ? absint( $follow_data['post_id'] ) : 0;
+		if ( ! $author_id ) {
+			return '';
+		}
+
+		$author = get_userdata( $author_id );
+		if ( ! $author instanceof WP_User ) {
+			return '';
+		}
+
+		$profile_url = function_exists( 'fanfic_get_user_profile_url' ) ? fanfic_get_user_profile_url( $author_id ) : get_author_posts_url( $author_id );
+		$bio         = wp_html_excerpt( wp_strip_all_tags( (string) get_user_meta( $author_id, 'description', true ) ), 180, '...' );
+
+		$output  = '<div class="fanfic-follow-item fanfic-follow-author">';
+		$output .= '<h4><a href="' . esc_url( $profile_url ) . '">' . esc_html( $author->display_name ) . '</a></h4>';
+		if ( '' !== $bio ) {
+			$output .= '<p class="fanfic-follow-meta">' . esc_html( $bio ) . '</p>';
+		}
+		$output .= '</div>';
+
+		return $output;
+	}
+
+	/**
+	 * Get logged-in followers of an author.
+	 *
+	 * @since 2.2.0
+	 * @param int $author_id Author user ID.
+	 * @return array<int>
+	 */
+	public static function get_author_follower_user_ids( $author_id ) {
+		$author_id = absint( $author_id );
+		if ( ! $author_id ) {
+			return array();
+		}
+
+		global $wpdb;
+		$table = $wpdb->prefix . 'fanfic_interactions';
+
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT user_id FROM {$table}
+				WHERE chapter_id = %d
+				  AND interaction_type = 'follow_author'
+				  AND user_id > 0
+				  AND user_id != %d",
+				$author_id,
+				$author_id
+			)
+		);
+
+		return $ids ? array_map( 'absint', $ids ) : array();
+	}
+
+	/**
 	 * Clear follow cache.
 	 *
 	 * @since 1.8.0
@@ -572,6 +819,25 @@ class Fanfic_Follows {
 		// Reset in-request follow rendering caches.
 		self::$read_chapters_cache = array();
 		self::$latest_chapter_cache = array();
+	}
+
+	/**
+	 * Clear author-follow cache.
+	 *
+	 * @since 2.2.0
+	 * @param int $author_id Author user ID.
+	 * @param int $user_id User ID.
+	 * @return void
+	 */
+	private static function clear_author_follow_cache( $author_id, $user_id ) {
+		$author_id = absint( $author_id );
+		$user_id   = absint( $user_id );
+
+		delete_transient( 'fanfic_author_follow_count_' . $author_id );
+		delete_transient( 'fanfic_follow_stats' );
+
+		self::$read_chapters_cache   = array();
+		self::$latest_chapter_cache  = array();
 	}
 
 	/**

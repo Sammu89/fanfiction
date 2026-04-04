@@ -19,8 +19,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Check if user is logged in
-if ( ! is_user_logged_in() ) {
+// Check if user is effectively logged in for fanfiction rendering.
+if ( ! fanfic_effective_is_user_logged_in() ) {
 	?>
 	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
 		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
@@ -36,11 +36,46 @@ if ( ! is_user_logged_in() ) {
 }
 
 $current_user = wp_get_current_user();
-$is_banned_user = in_array( 'fanfiction_banned_user', (array) $current_user->roles, true );
+$is_banned_user = fanfic_is_user_suspended( $current_user->ID );
+$notification_settings_saved = false;
+$notification_settings       = get_user_meta( $current_user->ID, 'fanfic_notification_settings', true );
+
+if ( ! is_array( $notification_settings ) ) {
+	$notification_settings = array();
+}
+
+$notification_settings_defaults = array(
+	'email_followed_stories'  => true,
+	'email_followed_chapters' => true,
+	'email_followed_authors'  => true,
+	'email_new_comment'       => true,
+	'inapp_new_chapter'       => true,
+	'inapp_new_comment'       => true,
+	'inapp_author_update'     => true,
+);
+
+if ( isset( $_POST['fanfic_save_notification_settings'] ) &&
+	isset( $_POST['fanfic_notification_settings_nonce'] ) &&
+	wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['fanfic_notification_settings_nonce'] ) ), 'fanfic_notification_settings_' . $current_user->ID ) ) {
+	$notification_settings = array(
+		'email_followed_stories'  => isset( $_POST['email_followed_stories'] ),
+		'email_followed_chapters' => isset( $_POST['email_followed_chapters'] ),
+		'email_followed_authors'  => isset( $_POST['email_followed_authors'] ),
+		'email_new_comment'       => isset( $_POST['email_new_comment'] ),
+		'inapp_new_chapter'       => isset( $_POST['inapp_new_chapter'] ),
+		'inapp_new_comment'       => isset( $_POST['inapp_new_comment'] ),
+		'inapp_author_update'     => isset( $_POST['inapp_author_update'] ),
+	);
+
+	update_user_meta( $current_user->ID, 'fanfic_notification_settings', $notification_settings );
+	$notification_settings_saved = true;
+}
+
+$notification_settings = wp_parse_args( $notification_settings, $notification_settings_defaults );
 
 // Check if user can access dashboard.
 // Banned users keep read-only dashboard/profile access.
-if ( ! current_user_can( 'edit_fanfiction_stories' ) && ! $is_banned_user ) {
+if ( ! fanfic_current_user_has_preview_cap( 'edit_fanfiction_stories' ) && ! $is_banned_user ) {
 	?>
 	<div class="fanfic-message fanfic-message-error" role="alert" aria-live="assertive">
 		<span class="fanfic-message-icon" aria-hidden="true">&#10007;</span>
@@ -50,7 +85,7 @@ if ( ! current_user_can( 'edit_fanfiction_stories' ) && ! $is_banned_user ) {
 	return;
 }
 
-$user_id = get_current_user_id();
+$user_id = fanfic_get_effective_current_user_id();
 
 $coauthors_enabled = class_exists( 'Fanfic_Coauthors' ) && Fanfic_Coauthors::is_enabled();
 $pending_invitations = $coauthors_enabled ? Fanfic_Coauthors::get_pending_invitations( $user_id ) : array();
@@ -698,6 +733,62 @@ fanfic_render_page_header( 'dashboard' );
 					<span class="spinner is-active"></span>
 					<p><?php esc_html_e( 'Loading...', 'fanfiction-manager' ); ?></p>
 				</div>
+			</div>
+		</section>
+
+		<!-- Notification Settings -->
+		<section class="fanfic-dashboard-widget fanfic-dashboard-notification-settings" id="notification-settings" aria-labelledby="notification-settings-heading">
+			<h3 id="notification-settings-heading"><?php esc_html_e( 'Notification Settings', 'fanfiction-manager' ); ?></h3>
+			<div class="fanfic-notification-settings">
+				<?php if ( $notification_settings_saved ) : ?>
+					<div class="fanfic-notice fanfic-notice-success">
+						<p><?php esc_html_e( 'Settings saved successfully!', 'fanfiction-manager' ); ?></p>
+					</div>
+				<?php endif; ?>
+
+				<form method="post" class="fanfic-settings-form">
+					<?php wp_nonce_field( 'fanfic_notification_settings_' . $current_user->ID, 'fanfic_notification_settings_nonce' ); ?>
+
+					<h3><?php esc_html_e( 'Email Notifications', 'fanfiction-manager' ); ?></h3>
+					<div class="fanfic-settings-group">
+						<label>
+							<input type="checkbox" name="email_followed_stories" value="1" <?php checked( $notification_settings['email_followed_stories'], true ); ?>>
+							<?php esc_html_e( 'Followed stories: new chapters and status changes', 'fanfiction-manager' ); ?>
+						</label><br>
+						<label>
+							<input type="checkbox" name="email_followed_chapters" value="1" <?php checked( $notification_settings['email_followed_chapters'], true ); ?>>
+							<?php esc_html_e( 'Followed chapters: chapter content updates', 'fanfiction-manager' ); ?>
+						</label><br>
+						<label>
+							<input type="checkbox" name="email_followed_authors" value="1" <?php checked( $notification_settings['email_followed_authors'], true ); ?>>
+							<?php esc_html_e( 'Followed authors: new stories and chapter updates', 'fanfiction-manager' ); ?>
+						</label><br>
+						<label>
+							<input type="checkbox" name="email_new_comment" value="1" <?php checked( $notification_settings['email_new_comment'], true ); ?>>
+							<?php esc_html_e( 'New comments on my stories', 'fanfiction-manager' ); ?>
+						</label>
+					</div>
+
+					<h3><?php esc_html_e( 'Dashboard Notifications', 'fanfiction-manager' ); ?></h3>
+					<div class="fanfic-settings-group">
+						<label>
+							<input type="checkbox" name="inapp_new_chapter" value="1" <?php checked( $notification_settings['inapp_new_chapter'], true ); ?>>
+							<?php esc_html_e( 'New chapter updates', 'fanfiction-manager' ); ?>
+						</label><br>
+						<label>
+							<input type="checkbox" name="inapp_new_comment" value="1" <?php checked( $notification_settings['inapp_new_comment'], true ); ?>>
+							<?php esc_html_e( 'New comments on my stories', 'fanfiction-manager' ); ?>
+						</label><br>
+						<label>
+							<input type="checkbox" name="inapp_author_update" value="1" <?php checked( $notification_settings['inapp_author_update'], true ); ?>>
+							<?php esc_html_e( 'Story update notifications', 'fanfiction-manager' ); ?>
+						</label>
+					</div>
+
+					<p class="fanfic-submit-wrapper">
+						<input type="submit" name="fanfic_save_notification_settings" class="fanfic-button" value="<?php esc_attr_e( 'Save Settings', 'fanfiction-manager' ); ?>">
+					</p>
+				</form>
 			</div>
 		</section>
 

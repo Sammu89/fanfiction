@@ -870,7 +870,71 @@ class Fanfic_Notifications {
 	 * @return int Count of notifications created.
 	 */
 	public static function create_chapter_notification( $chapter_id, $story_id ) {
-		return 0;
+		$chapter = get_post( $chapter_id );
+		$story   = get_post( $story_id );
+
+		if ( ! $chapter || ! $story ) {
+			return 0;
+		}
+
+		$follower_ids = self::get_author_follower_user_ids( $story->post_author );
+		if ( empty( $follower_ids ) ) {
+			return 0;
+		}
+
+		$chapter_number = get_post_meta( $chapter_id, '_fanfic_chapter_number', true );
+		$chapter_label  = $chapter_number ? sprintf( __( 'Chapter %s', 'fanfiction-manager' ), $chapter_number ) : $chapter->post_title;
+		$author_name    = get_the_author_meta( 'display_name', $story->post_author );
+
+		$message = sprintf(
+			/* translators: 1: author name, 2: chapter label, 3: story title */
+			__( '%1$s published %2$s in "%3$s"', 'fanfiction-manager' ),
+			$author_name,
+			$chapter_label,
+			$story->post_title
+		);
+
+		$data = array(
+			'chapter_id' => $chapter_id,
+			'story_id'   => $story_id,
+			'post_url'   => get_permalink( $chapter_id ),
+		);
+
+		return self::batch_create_notifications( $follower_ids, self::TYPE_NEW_CHAPTER, $message, $data );
+	}
+
+	/**
+	 * Create new-story notifications for author followers.
+	 *
+	 * @since 2.2.0
+	 * @param int $story_id Story ID.
+	 * @return int
+	 */
+	public static function create_author_new_story_notification( $story_id ) {
+		$story = get_post( $story_id );
+		if ( ! $story || 'fanfiction_story' !== $story->post_type ) {
+			return 0;
+		}
+
+		$follower_ids = self::get_author_follower_user_ids( $story->post_author );
+		if ( empty( $follower_ids ) ) {
+			return 0;
+		}
+
+		$author_name = get_the_author_meta( 'display_name', $story->post_author );
+		$message     = sprintf(
+			/* translators: 1: author name, 2: story title */
+			__( '%1$s published a new story: "%2$s"', 'fanfiction-manager' ),
+			$author_name,
+			$story->post_title
+		);
+
+		$data = array(
+			'story_id' => $story_id,
+			'post_url' => get_permalink( $story_id ),
+		);
+
+		return self::batch_create_notifications( $follower_ids, self::TYPE_NEW_STORY, $message, $data );
 	}
 
 	/**
@@ -987,8 +1051,13 @@ class Fanfic_Notifications {
 			'post_url'   => get_permalink( $chapter_id ),
 		);
 
-		// Get story followers (logged-in users only)
-		$follower_ids = self::get_story_follower_user_ids( $story_id, $story->post_author );
+		// Notify story followers and author followers without duplicating users.
+		$follower_ids = array_unique(
+			array_merge(
+				self::get_story_follower_user_ids( $story_id, $story->post_author ),
+				self::get_author_follower_user_ids( $story->post_author )
+			)
+		);
 
 		if ( empty( $follower_ids ) ) {
 			return 0;
@@ -1028,8 +1097,12 @@ class Fanfic_Notifications {
 			'post_url'   => get_permalink( $story_id ),
 		);
 
-		// Get story followers (logged-in users only)
-		$follower_ids = self::get_story_follower_user_ids( $story_id, $story->post_author );
+		$follower_ids = array_unique(
+			array_merge(
+				self::get_story_follower_user_ids( $story_id, $story->post_author ),
+				self::get_author_follower_user_ids( $story->post_author )
+			)
+		);
 
 		if ( empty( $follower_ids ) ) {
 			return 0;
@@ -1066,6 +1139,21 @@ class Fanfic_Notifications {
 		$ids = $wpdb->get_col( $sql );
 
 		return $ids ? array_map( 'absint', $ids ) : array();
+	}
+
+	/**
+	 * Get logged-in user IDs who follow an author.
+	 *
+	 * @since 2.2.0
+	 * @param int $author_id Author user ID.
+	 * @return array<int>
+	 */
+	private static function get_author_follower_user_ids( $author_id ) {
+		if ( ! class_exists( 'Fanfic_Follows' ) ) {
+			return array();
+		}
+
+		return Fanfic_Follows::get_author_follower_user_ids( $author_id );
 	}
 
 	/**
@@ -1128,13 +1216,10 @@ class Fanfic_Notifications {
 
 		// Handle story status changes
 		if ( 'fanfiction_story' === $post->post_type ) {
-			// Only notify if both old and new status are publish (status updated while live)
-			if ( 'publish' !== $new_status || 'publish' !== $old_status ) {
-				return;
+			if ( 'publish' === $new_status && 'publish' !== $old_status ) {
+				self::create_author_new_story_notification( $post->ID );
 			}
 
-			// Check if story status taxonomy changed (e.g., ongoing → completed)
-			// This is handled by taxonomy change hook, not status transition
 			return;
 		}
 	}
