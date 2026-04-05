@@ -103,13 +103,20 @@
 	 */
 	const Modal = {
 		open: function(modalId) {
-			$('#' + modalId).fadeIn(200);
-			$('body').css('overflow', 'hidden');
+			const $modal = $('#' + modalId);
+			$modal.stop(true, true).css({
+				display: 'flex',
+				opacity: 0
+			}).animate({ opacity: 1 }, 200);
+			$('html, body').css('overflow', 'hidden');
 		},
 
 		close: function(modalId) {
-			$('#' + modalId).fadeOut(200);
-			$('body').css('overflow', 'auto');
+			const $modal = $('#' + modalId);
+			$modal.stop(true, true).animate({ opacity: 0 }, 200, function() {
+				$(this).css({ display: 'none' });
+			});
+			$('html, body').css('overflow', '');
 		},
 
 		closeAll: function() {
@@ -127,7 +134,7 @@
 			if (closedAny) {
 				setTimeout(function() {
 					if ($('.fanfic-modal:visible').length === 0) {
-						$('body').css('overflow', 'auto');
+						$('html, body').css('overflow', '');
 					}
 				}, 210);
 			}
@@ -146,6 +153,484 @@
 	// Initialize escape key handler on document ready
 	$(document).ready(function() {
 		Modal.initEscapeHandler();
+	});
+
+	/**
+	 * Delete Confirmation Modal Handler
+	 * Shared by story and chapter edit forms.
+	 */
+	const DeleteConfirmModal = {
+		modalId: 'fanfic-delete-confirm-modal',
+		$modal: null,
+		$title: null,
+		$warning: null,
+		$confirm: null,
+		$cancel: null,
+		$close: null,
+		$overlay: null,
+		activeTrigger: null,
+		activeCallback: null,
+		initialized: false,
+
+		init: function() {
+			if (this.initialized) {
+				return;
+			}
+
+			this.$modal = $('#' + this.modalId);
+			if (!this.$modal.length) {
+				return;
+			}
+
+			this.$title = this.$modal.find('#fanfic-delete-confirm-modal-title').first();
+			this.$warning = this.$modal.find('.fanfic-modal-warning').first();
+			this.$confirm = this.$modal.find('[data-fanfic-delete-modal-confirm]').first();
+			this.$cancel = this.$modal.find('[data-fanfic-delete-modal-cancel]').first();
+			this.$close = this.$modal.find('.fanfic-modal-close').first();
+			this.$overlay = this.$modal.find('.fanfic-modal-overlay').first();
+
+			const self = this;
+
+			if (this.$confirm.length) {
+				this.$confirm.on('click', function() {
+					const callback = self.activeCallback;
+					self.close();
+					if (typeof callback === 'function') {
+						callback();
+					}
+				});
+			}
+
+			[this.$cancel, this.$close, this.$overlay].forEach(function($element) {
+				if (!$element || !$element.length) {
+					return;
+				}
+
+				$element.on('click', function(e) {
+					e.preventDefault();
+					self.close();
+				});
+			});
+
+			this.initialized = true;
+		},
+
+		open: function(options) {
+			options = options || {};
+			this.init();
+			if (!this.$modal || !this.$modal.length) {
+				return false;
+			}
+
+			this.activeTrigger = options.trigger || document.activeElement || null;
+			this.activeCallback = typeof options.onConfirm === 'function' ? options.onConfirm : null;
+
+			if (this.$title.length) {
+				this.$title.text(options.title || '');
+			}
+			if (this.$warning.length) {
+				this.$warning.text(options.warning || '');
+			}
+			if (this.$confirm.length) {
+				this.$confirm.text(options.confirmLabel || 'Delete');
+			}
+
+			this.$modal.attr('aria-hidden', 'false');
+			Modal.open(this.modalId);
+			return true;
+		},
+
+		close: function() {
+			if (!this.$modal || !this.$modal.length) {
+				return;
+			}
+
+			Modal.close(this.modalId);
+			this.$modal.attr('aria-hidden', 'true');
+			this.activeCallback = null;
+
+			if (this.activeTrigger && typeof this.activeTrigger.focus === 'function') {
+				this.activeTrigger.focus();
+			}
+			this.activeTrigger = null;
+		}
+	};
+
+	window.FanficDeleteConfirmModal = DeleteConfirmModal;
+	$(document).ready(function() {
+		DeleteConfirmModal.init();
+	});
+
+	/**
+	 * Story Delete Action Handler
+	 * Shared by the story edit form and the frontend admin bar.
+	 */
+	const StoryDeleteAction = {
+		getDeleteButtonLabel: function() {
+			return (window.FanficMessages && FanficMessages.delete) ? FanficMessages.delete : 'Delete';
+		},
+
+		getDeletingLabel: function() {
+			return (window.FanficMessages && FanficMessages.deleting) ? FanficMessages.deleting : 'Deleting...';
+		},
+
+		getErrorMessage: function() {
+			return (window.FanficMessages && FanficMessages.errorDeletingStory) ? FanficMessages.errorDeletingStory : 'An error occurred while deleting the story.';
+		},
+
+		reportError: function(message) {
+			if (typeof appendStoryFormMessage === 'function') {
+				appendStoryFormMessage('error', message, true);
+				return;
+			}
+
+			if (window.alert) {
+				window.alert(message);
+			}
+		},
+
+		setButtonState: function(buttonElement, disabled, label) {
+			if (!buttonElement) {
+				return;
+			}
+
+			if ('A' === buttonElement.tagName) {
+				buttonElement.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+				buttonElement.style.pointerEvents = disabled ? 'none' : '';
+			} else {
+				buttonElement.disabled = !!disabled;
+			}
+
+			if (typeof label === 'string') {
+				buttonElement.textContent = label;
+			}
+		},
+
+		perform: function(options) {
+			options = options || {};
+
+			var buttonElement = options.buttonElement || options.trigger || null;
+			var storyId = parseInt(options.storyId || '0', 10) || 0;
+			var nonce = String(options.nonce || '').trim();
+			var redirectUrl = String(options.redirectUrl || '').trim();
+			var formData;
+
+			if (!storyId || !nonce) {
+				return false;
+			}
+
+			this.setButtonState(buttonElement, true, this.getDeletingLabel());
+
+			formData = new FormData();
+			formData.append('action', 'fanfic_story_delete');
+			formData.append('story_id', storyId);
+			formData.append('nonce', nonce);
+
+			fetch(options.ajaxUrl || (window.ajaxurl || ''), {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: formData
+			})
+			.then(function(response) {
+				return response.json();
+			})
+			.then(function(data) {
+				if (data && data.success) {
+					if (redirectUrl) {
+						window.location.href = redirectUrl;
+					} else {
+						window.location.reload();
+					}
+					return;
+				}
+
+				StoryDeleteAction.setButtonState(buttonElement, false, StoryDeleteAction.getDeleteButtonLabel());
+				StoryDeleteAction.reportError(
+					(data && data.data && data.data.message) ? data.data.message : StoryDeleteAction.getErrorMessage()
+				);
+			})
+			.catch(function(error) {
+				StoryDeleteAction.setButtonState(buttonElement, false, StoryDeleteAction.getDeleteButtonLabel());
+				StoryDeleteAction.reportError(StoryDeleteAction.getErrorMessage());
+				if (window.console && console.error) {
+					console.error('Error deleting story:', error);
+				}
+			});
+
+			return false;
+		},
+
+		openConfirm: function(options) {
+			options = options || {};
+
+			if (!window.FanficDeleteConfirmModal) {
+				return false;
+			}
+
+			var storyTitle = String(options.storyTitle || '').trim();
+			var title = (window.FanficDeleteMessages && FanficDeleteMessages.deleteStoryTitle)
+				? FanficDeleteMessages.deleteStoryTitle
+				: 'Delete Story';
+
+			window.FanficDeleteConfirmModal.open({
+				trigger: options.trigger || options.buttonElement || null,
+				title: title + (storyTitle ? ': ' + storyTitle : ''),
+				warning: (window.FanficDeleteMessages && FanficDeleteMessages.deleteStoryWarning)
+					? FanficDeleteMessages.deleteStoryWarning
+					: 'Are you sure you want to delete this story? This will permanently delete the story, all chapters, and all comments.',
+				confirmLabel: this.getDeleteButtonLabel(),
+				onConfirm: function() {
+					StoryDeleteAction.perform(options);
+				}
+			});
+
+			return false;
+		}
+	};
+
+	window.FanficStoryDelete = StoryDeleteAction;
+
+	/**
+	 * Chapter Delete Action Handler
+	 * Shared by chapter edit forms and moderation controls.
+	 */
+	const ChapterDeleteAction = {
+		getDeleteButtonLabel: function() {
+			return (window.FanficMessages && FanficMessages.delete) ? FanficMessages.delete : 'Delete';
+		},
+
+		getDeletingLabel: function() {
+			return (window.FanficMessages && FanficMessages.deleting) ? FanficMessages.deleting : 'Deleting...';
+		},
+
+		queueMessage: function(type, content, persistent) {
+			const payload = {
+				type: type || 'success',
+				message: content || '',
+				persistent: !!persistent
+			};
+
+			try {
+				window.sessionStorage.setItem('fanfic_pending_form_message', JSON.stringify(payload));
+				return;
+			} catch (storageError) {
+				// Fall through to direct rendering.
+			}
+
+			if (typeof appendChapterFormMessage === 'function') {
+				appendChapterFormMessage(payload.type, payload.message, payload.persistent);
+				return;
+			}
+
+			if (typeof appendStoryFormMessage === 'function') {
+				appendStoryFormMessage(payload.type, payload.message, payload.persistent);
+				return;
+			}
+
+			if (window.alert) {
+				window.alert(payload.message);
+			}
+		},
+
+		reportError: function(message) {
+			if (typeof appendChapterFormMessage === 'function') {
+				appendChapterFormMessage('error', message, true);
+				return;
+			}
+
+			if (typeof appendStoryFormMessage === 'function') {
+				appendStoryFormMessage('error', message, true);
+				return;
+			}
+
+			if (window.alert) {
+				window.alert(message);
+			}
+		},
+
+		perform: function(options) {
+			options = options || {};
+
+			var buttonElement = options.buttonElement || options.trigger || null;
+			var chapterId = parseInt(options.chapterId || '0', 10) || 0;
+			var storyEditUrl = String(options.storyEditUrl || options.redirectUrl || '').trim();
+			var ajaxUrl = String(options.ajaxUrl || (window.ajaxurl || '')).trim();
+			var nonce = String(options.nonce || '').trim();
+			var formData;
+
+			if (!chapterId || !ajaxUrl || !nonce) {
+				return false;
+			}
+
+			StoryDeleteAction.setButtonState(buttonElement, true, this.getDeletingLabel());
+
+			formData = new FormData();
+			formData.append('action', 'fanfic_delete_chapter');
+			formData.append('chapter_id', chapterId);
+			formData.append('nonce', nonce);
+
+			fetch(ajaxUrl, {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: formData
+			})
+			.then(function(response) {
+				return response.json();
+			})
+			.then(function(data) {
+				if (data && data.success) {
+					if (data.data && data.data.story_auto_drafted) {
+						ChapterDeleteAction.queueMessage(
+							'warning',
+							(window.FanficDeleteMessages && FanficDeleteMessages.deleteChapterAutoDraftAlert)
+								? FanficDeleteMessages.deleteChapterAutoDraftAlert
+								: 'Chapter deleted. Your story has been hidden because it no longer has any visible chapters, prologues, or epilogues.',
+							true
+						);
+					} else {
+						ChapterDeleteAction.queueMessage(
+							'success',
+							(window.FanficDeleteMessages && FanficDeleteMessages.deleteChapterSuccess)
+								? FanficDeleteMessages.deleteChapterSuccess
+								: 'Chapter deleted successfully.',
+							false
+						);
+					}
+
+					window.location.href = storyEditUrl || window.location.href;
+					return;
+				}
+
+				StoryDeleteAction.setButtonState(buttonElement, false, ChapterDeleteAction.getDeleteButtonLabel());
+				ChapterDeleteAction.reportError(
+					(data && data.data && data.data.message) ? data.data.message : (window.FanficMessages && FanficMessages.errorDeletingChapter ? FanficMessages.errorDeletingChapter : 'An error occurred while deleting the chapter.')
+				);
+			})
+			.catch(function(error) {
+				StoryDeleteAction.setButtonState(buttonElement, false, ChapterDeleteAction.getDeleteButtonLabel());
+				ChapterDeleteAction.reportError(
+					(window.FanficMessages && FanficMessages.errorDeletingChapter) ? FanficMessages.errorDeletingChapter : 'An error occurred while deleting the chapter.'
+				);
+				if (window.console && console.error) {
+					console.error('Error deleting chapter:', error);
+				}
+			});
+
+			return false;
+		},
+
+		openConfirm: function(options) {
+			options = options || {};
+
+			if (!window.FanficDeleteConfirmModal) {
+				return false;
+			}
+
+			var chapterId = parseInt(options.chapterId || '0', 10) || 0;
+			var storyEditUrl = String(options.storyEditUrl || options.redirectUrl || '').trim();
+			var ajaxUrl = String(options.ajaxUrl || (window.ajaxurl || '')).trim();
+			var nonce = String(options.nonce || '').trim();
+			var chapterTitle = String(options.chapterTitle || '').trim();
+			var title = (window.FanficDeleteMessages && FanficDeleteMessages.deleteChapterTitle) ? FanficDeleteMessages.deleteChapterTitle : 'Delete Chapter';
+			var warning = (window.FanficDeleteMessages && FanficDeleteMessages.deleteChapterWarning)
+				? FanficDeleteMessages.deleteChapterWarning
+				: 'Are you sure you want to delete this chapter? This will permanently delete the chapter.';
+
+			if (!chapterId) {
+				return false;
+			}
+
+			function openModalWithWarning(extraWarning) {
+				window.FanficDeleteConfirmModal.open({
+					trigger: options.trigger || options.buttonElement || null,
+					title: title + (chapterTitle ? ': ' + chapterTitle : ''),
+					warning: extraWarning || warning,
+					confirmLabel: ChapterDeleteAction.getDeleteButtonLabel(),
+					onConfirm: function() {
+						ChapterDeleteAction.perform({
+							trigger: options.trigger || options.buttonElement || null,
+							buttonElement: options.buttonElement || options.trigger || null,
+							chapterId: chapterId,
+							storyEditUrl: storyEditUrl,
+							ajaxUrl: ajaxUrl,
+							nonce: nonce
+						});
+					}
+				});
+			}
+
+			if (!ajaxUrl || !nonce) {
+				openModalWithWarning(warning);
+				return true;
+			}
+
+			var checkFormData = new FormData();
+			checkFormData.append('action', 'fanfic_check_last_chapter');
+			checkFormData.append('chapter_id', chapterId);
+			checkFormData.append('nonce', nonce);
+
+			fetch(ajaxUrl, {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: checkFormData
+			})
+			.then(function(response) {
+				return response.json();
+			})
+			.then(function(checkData) {
+				var modalWarning = warning;
+				if (checkData && checkData.success && checkData.data && checkData.data.is_last_chapter) {
+					modalWarning += ' ' + ((window.FanficDeleteMessages && FanficDeleteMessages.deleteChapterLastWarning)
+						? FanficDeleteMessages.deleteChapterLastWarning
+						: 'If this is the last visible chapter, prologue, or epilogue, deleting it will hide your story from readers.');
+				}
+				openModalWithWarning(modalWarning);
+			})
+			.catch(function(error) {
+				if (window.console && console.error) {
+					console.error('Error checking last chapter before delete:', error);
+				}
+				openModalWithWarning(warning);
+			});
+
+			return true;
+		}
+	};
+
+	window.FanficChapterDelete = ChapterDeleteAction;
+
+	$(document).on('click', '.fanfic-story-delete-trigger', function(e) {
+		e.preventDefault();
+		if (!window.FanficStoryDelete) {
+			return;
+		}
+
+		window.FanficStoryDelete.openConfirm({
+			trigger: this,
+			buttonElement: this,
+			storyId: this.getAttribute('data-story-id'),
+			storyTitle: this.getAttribute('data-story-title'),
+			nonce: this.getAttribute('data-story-delete-nonce'),
+			redirectUrl: this.getAttribute('data-story-redirect-url'),
+			ajaxUrl: this.getAttribute('data-story-ajax-url')
+		});
+	});
+
+	$(document).on('click', '.fanfic-chapter-delete-trigger', function(e) {
+		e.preventDefault();
+		if (!window.FanficChapterDelete) {
+			return;
+		}
+
+		window.FanficChapterDelete.openConfirm({
+			trigger: this,
+			buttonElement: this,
+			chapterId: this.getAttribute('data-chapter-id'),
+			chapterTitle: this.getAttribute('data-chapter-title'),
+			storyEditUrl: this.getAttribute('data-story-edit-url'),
+			nonce: this.getAttribute('data-chapter-delete-nonce'),
+			ajaxUrl: this.getAttribute('data-chapter-ajax-url')
+		});
 	});
 
 	/**
@@ -233,12 +718,8 @@
 			// Hide initially for animation
 			$message.css({ opacity: 0, transform: 'translateY(-10px)' });
 
-			// Clear existing messages of same type before adding to prevent stacking
-			$container.find('.fanfic-message-' + type).each(function() {
-				const $old = $(this);
-				$old.css({ opacity: 0, transform: 'translateY(-10px)' });
-				setTimeout(() => $old.remove(), 300);
-			});
+			// Replace any existing flash message so the container stays single-slot.
+			$container.find('.fanfic-message').remove();
 
 			// Add to container
 			$container.append($message);
@@ -1830,8 +2311,11 @@
 
 			// Open modal
 			const $modal = $('#' + modalId);
-			$modal.fadeIn(200);
-			$('body').css('overflow', 'hidden');
+			$modal.stop(true, true).css({
+				display: 'flex',
+				opacity: 0
+			}).animate({ opacity: 1 }, 200);
+			$('html, body').css('overflow', 'hidden');
 
 			// Set ARIA attributes
 			$modal.attr('aria-hidden', 'false');
@@ -1861,8 +2345,10 @@
 		 */
 		close: function(modalId) {
 			const $modal = $('#' + modalId);
-			$modal.fadeOut(200);
-			$('body').css('overflow', 'auto');
+			$modal.stop(true, true).animate({ opacity: 0 }, 200, function() {
+				$(this).css({ display: 'none' });
+			});
+			$('html, body').css('overflow', '');
 
 			// Set ARIA attributes
 			$modal.attr('aria-hidden', 'true');

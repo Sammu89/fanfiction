@@ -24,14 +24,22 @@ function chromeCandidates() {
     return [process.env.CHROME_PATH];
   }
 
-  return process.platform === 'win32'
-    ? [
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files\\Chromium\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Chromium\\Application\\chrome.exe',
-      ]
-    : [];
+  if (process.platform === 'win32') {
+    return [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files\\Chromium\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Chromium\\Application\\chrome.exe',
+    ];
+  }
+
+  return [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/opt/google/chrome/chrome',
+  ];
 }
 
 async function readAuthConfig() {
@@ -88,17 +96,12 @@ function maybeUnserializeOption(value) {
 
 async function readWpFanficOptions(dbConfig) {
   const wpConfig = parseWpConfig();
-  if (!wpConfig) {
+  const connectionOptions = buildDbConnectionOptions(dbConfig);
+  if (!connectionOptions) {
     return {};
   }
 
-  const connection = await mysql.createConnection({
-    host: dbConfig.dbHost || wpConfig.dbHost || 'localhost',
-    port: dbConfig.dbPort || defaultDbPort,
-    user: wpConfig.dbUser,
-    password: wpConfig.dbPassword,
-    database: wpConfig.dbName,
-  });
+  const connection = await mysql.createConnection(connectionOptions);
 
   try {
     const table = `${wpConfig.tablePrefix}options`;
@@ -131,17 +134,12 @@ async function readWpFanficOptions(dbConfig) {
 
 async function findFanficStoryRecord(dbConfig, identifier) {
   const wpConfig = parseWpConfig();
-  if (!wpConfig || !identifier) {
+  const connectionOptions = buildDbConnectionOptions(dbConfig);
+  if (!connectionOptions || !identifier) {
     return null;
   }
 
-  const connection = await mysql.createConnection({
-    host: dbConfig.dbHost || wpConfig.dbHost || 'localhost',
-    port: dbConfig.dbPort || defaultDbPort,
-    user: wpConfig.dbUser,
-    password: wpConfig.dbPassword,
-    database: wpConfig.dbName,
-  });
+  const connection = await mysql.createConnection(connectionOptions);
 
   try {
     const table = `${wpConfig.tablePrefix}posts`;
@@ -203,17 +201,12 @@ function deriveFanficAccessProfile(userProfile) {
 
 async function readUserAccessProfile(dbConfig, username) {
   const wpConfig = parseWpConfig();
-  if (!wpConfig || !username) {
+  const connectionOptions = buildDbConnectionOptions(dbConfig);
+  if (!connectionOptions || !username) {
     return null;
   }
 
-  const connection = await mysql.createConnection({
-    host: dbConfig.dbHost || wpConfig.dbHost || 'localhost',
-    port: dbConfig.dbPort || defaultDbPort,
-    user: wpConfig.dbUser,
-    password: wpConfig.dbPassword,
-    database: wpConfig.dbName,
-  });
+  const connection = await mysql.createConnection(connectionOptions);
 
   try {
     const usersTable = `${wpConfig.tablePrefix}users`;
@@ -348,6 +341,118 @@ async function waitForFanficAdminMenu(page, timeoutMs = 30000) {
   });
 }
 
+async function collectInstalledThemes(page, siteUrl) {
+  const themesUrl = new URL('/wp-admin/themes.php', siteUrl).toString();
+  await page.goto(themesUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => {});
+
+  return page.evaluate(() => Array.from(document.querySelectorAll('div.theme')).map((el) => {
+    const slug = el.getAttribute('data-slug') || '';
+    const name = (el.querySelector('.theme-name')?.textContent || el.textContent || '')
+      .replace(/^Active:\s*/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const author = (el.querySelector('.theme-author')?.textContent || '')
+      .replace(/^By\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const activateLink = el.querySelector('a.button.activate');
+    const previewLink = el.querySelector('a.load-customize');
+    return {
+      slug,
+      name,
+      author,
+      active: el.classList.contains('active'),
+      activateHref: activateLink ? activateLink.href : '',
+      previewHref: previewLink ? previewLink.href : '',
+    };
+  }));
+}
+
+function printInstalledThemes(themes) {
+  console.log('Installed themes:');
+  themes.forEach((theme, index) => {
+    const status = theme.active ? ' (active)' : '';
+    const author = theme.author ? ` by ${theme.author}` : '';
+    console.log(`  ${index + 1}. ${theme.name} [${theme.slug}]${status}${author}`);
+  });
+}
+
+function resolveThemeSelection(input, themes) {
+  const value = String(input || '').trim();
+  if (!value) {
+    return null;
+  }
+
+  const numeric = Number.parseInt(value, 10);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= themes.length) {
+    return themes[numeric - 1];
+  }
+
+  const normalized = value.toLowerCase();
+  const exactSlug = themes.find((theme) => theme.slug.toLowerCase() === normalized);
+  if (exactSlug) {
+    return exactSlug;
+  }
+
+  const exactName = themes.find((theme) => theme.name.toLowerCase() === normalized);
+  if (exactName) {
+    return exactName;
+  }
+
+  const partial = themes.filter((theme) =>
+    theme.slug.toLowerCase().includes(normalized) || theme.name.toLowerCase().includes(normalized)
+  );
+  if (partial.length === 1) {
+    return partial[0];
+  }
+
+  return null;
+}
+
+async function promptThemeSwitch(rl, page, config) {
+  const themes = await collectInstalledThemes(page, config.siteUrl);
+  if (!themes.length) {
+    console.log('No installed themes were found on the WordPress Themes screen.');
+    return;
+  }
+
+  printInstalledThemes(themes);
+
+  while (true) {
+    const choice = (await prompt(rl, 'Theme to activate (number, slug, or name; blank to skip)', '')).trim();
+    if (!choice) {
+      return;
+    }
+
+    const selected = resolveThemeSelection(choice, themes);
+    if (!selected) {
+      console.log(`Theme "${choice}" was not found. Enter a listed number, slug, or name.`);
+      continue;
+    }
+
+    if (selected.active) {
+      console.log(`Theme "${selected.name}" is already active.`);
+      return;
+    }
+
+    const themeCard = page.locator(`div.theme[data-slug="${selected.slug}"]`).first();
+    const activateLink = themeCard.locator('a.button.activate').first();
+    await activateLink.click();
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    await page.waitForFunction(
+      (slug) => {
+        const activeTheme = document.querySelector(`div.theme.active[data-slug="${slug}"]`);
+        return !!activeTheme;
+      },
+      selected.slug,
+      { timeout: 15000 }
+    ).catch(() => {});
+    console.log(`Activated theme "${selected.name}" (${selected.slug}).`);
+    return;
+  }
+}
+
 function probePort(host, port, timeoutMs = 2000) {
   return new Promise((resolve) => {
     const socket = net.connect({ host, port });
@@ -369,37 +474,80 @@ function probePort(host, port, timeoutMs = 2000) {
 }
 
 async function ensureDbPort(config, rl) {
-  const host = config.dbHost || 'localhost';
-  let port = Number.parseInt(config.dbPort || defaultDbPort, 10);
-  if (!Number.isFinite(port) || port <= 0) {
-    port = defaultDbPort;
-  }
-
-  const ok = await probePort(host, port);
+  const ok = await probeMysqlConnection(config);
   if (ok) {
-    config.dbHost = host;
-    config.dbPort = port;
     return config;
   }
 
   if (!interactive) {
-    throw new Error(`Database connection to ${host}:${port} failed and interactive fallback is unavailable.`);
+    throw new Error('Database connection failed and interactive fallback is unavailable.');
   }
 
   const fallback = await prompt(
     rl,
-    `Database connection to ${host}:${port} failed. Enter a different port`,
-    String(defaultDbPort)
+    'Database connection failed. Enter a different MySQL socket path or TCP port',
+    config.dbSocket || String(config.dbPort || defaultDbPort)
   );
   const fallbackPort = Number.parseInt(fallback, 10);
-  if (!Number.isFinite(fallbackPort) || fallbackPort <= 0) {
-    throw new Error(`Invalid database port: ${fallback}`);
+  if (Number.isFinite(fallbackPort) && fallbackPort > 0) {
+    config.dbHost = 'localhost';
+    config.dbPort = fallbackPort;
+    await writeAuthConfig(config);
+    return config;
   }
 
-  config.dbHost = host;
-  config.dbPort = fallbackPort;
+  config.dbHost = 'localhost';
+  config.dbSocket = fallback;
   await writeAuthConfig(config);
   return config;
+}
+
+function buildDbConnectionOptions(config) {
+  const wpConfig = parseWpConfig();
+  if (!wpConfig) {
+    return false;
+  }
+
+  const useSocket = process.platform !== 'win32';
+  const socketPath = useSocket ? (config?.dbSocket || wpConfig.dbSocket || '') : '';
+  if (socketPath) {
+    return {
+      socketPath,
+      user: wpConfig.dbUser,
+      password: wpConfig.dbPassword,
+      database: wpConfig.dbName,
+      connectTimeout: 3000,
+    };
+  }
+
+  return {
+    host: config?.dbHost || wpConfig.dbHost || 'localhost',
+    port: config?.dbPort || defaultDbPort,
+    user: wpConfig.dbUser,
+    password: wpConfig.dbPassword,
+    database: wpConfig.dbName,
+    connectTimeout: 3000,
+  };
+}
+
+async function probeMysqlConnection(config) {
+  const connectionOptions = buildDbConnectionOptions(config);
+  if (!connectionOptions) {
+    return false;
+  }
+
+  let connection;
+  try {
+    connection = await mysql.createConnection(connectionOptions);
+    await connection.ping();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (connection) {
+      await connection.end().catch(() => {});
+    }
+  }
 }
 
 async function ensureConfig(rl) {
@@ -545,19 +693,20 @@ async function login(page, config) {
 async function main() {
   if (process.env.LIVE_SESSION_SELF_TEST === '1') {
     const net = await import('node:net');
-    const options = await readWpFanficOptions({ dbHost: 'localhost', dbPort: defaultDbPort });
-    const userAccessProfile = await readUserAccessProfile({ dbHost: 'localhost', dbPort: defaultDbPort }, 'sammu89').catch(() => null);
+    const authConfig = await readAuthConfig();
+    const dbConfig = {
+      dbHost: authConfig.dbHost || 'localhost',
+      dbPort: authConfig.dbPort,
+      dbSocket: authConfig.dbSocket,
+    };
+    const options = await readWpFanficOptions(dbConfig);
+    const userAccessProfile = await readUserAccessProfile(dbConfig, 'sammu89').catch(() => null);
     let storyCount = null;
     let firstStory = null;
     try {
+      const connectionOptions = buildDbConnectionOptions(dbConfig);
+      const connection = await mysql.createConnection(connectionOptions);
       const wpConfig = parseWpConfig();
-      const connection = await mysql.createConnection({
-        host: 'localhost',
-        port: defaultDbPort,
-        user: wpConfig.dbUser,
-        password: wpConfig.dbPassword,
-        database: wpConfig.dbName,
-      });
       const table = `${wpConfig.tablePrefix}posts`;
       const [countRows] = await connection.execute(`SELECT COUNT(*) AS total FROM ${table} WHERE post_type = 'fanfiction_story'`);
       storyCount = countRows[0]?.total ?? null;
@@ -619,6 +768,9 @@ async function main() {
     });
 
     await login(page, config);
+    await promptThemeSwitch(rl, page, config);
+    await page.goto(new URL(config.wpAdminPath, config.siteUrl).toString(), { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle').catch(() => {});
     const menu = await waitForFanficAdminMenu(page).catch(() => null);
 
     console.log(`Connected to ${cdpUrl}`);

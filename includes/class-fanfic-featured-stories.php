@@ -532,15 +532,20 @@ class Fanfic_Featured_Stories {
 			: __( 'Feature story', 'fanfiction-manager' );
 
 		return sprintf(
-			'<button type="button" class="%s" data-story-id="%d" aria-label="%s" title="%s">' .
-				'<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>' .
-				'<span class="fanfic-button-text">%s</span>' .
-			'</button>',
+			'<button type="button" class="%s" data-story-id="%d" aria-label="%s" title="%s">%s</button>',
 			esc_attr( $class ),
 			absint( $story_id ),
 			esc_attr( $label ),
 			esc_attr( $label ),
-			$is_featured ? esc_html__( 'Featured', 'fanfiction-manager' ) : esc_html__( 'Feature', 'fanfiction-manager' )
+			function_exists( 'fanfic_get_button_content_markup' )
+				? fanfic_get_button_content_markup(
+					$is_featured ? __( 'Featured', 'fanfiction-manager' ) : __( 'Feature', 'fanfiction-manager' ),
+					'dashicons-star-filled'
+				)
+				: fanfic_get_button_content_markup(
+					$is_featured ? __( 'Featured', 'fanfiction-manager' ) : __( 'Feature', 'fanfiction-manager' ),
+					'dashicons-star-filled'
+				)
 		);
 	}
 

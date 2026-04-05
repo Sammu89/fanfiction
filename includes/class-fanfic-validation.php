@@ -40,7 +40,7 @@ class Fanfic_Validation {
 	 * A story can be published when it has:
 	 * 1. A title
 	 * 2. An introduction (excerpt field is not empty)
-	 * 3. At least one published chapter or prologue (epilogues don't count)
+	 * 3. At least one published chapter, prologue, or epilogue
 	 * 4. At least one genre assigned
 	 * 5. At least one status assigned
 	 *
@@ -75,7 +75,7 @@ class Fanfic_Validation {
 
 		// Check published chapters
 		if ( ! self::check_story_published_chapters( $story_id ) ) {
-			$missing_fields['published_chapters'] = __( 'Your story must have at least one visible chapter or prologue.', 'fanfiction-manager' );
+			$missing_fields['published_chapters'] = __( 'Your story must have at least one visible chapter, prologue, or epilogue.', 'fanfiction-manager' );
 		}
 
 		// Check genre
@@ -284,34 +284,38 @@ class Fanfic_Validation {
 	}
 
 	/**
-	 * Check if story has at least one published chapter or prologue.
-	 *
-	 * Epilogues don't count for this validation - a story must have
-	 * at least one published prologue or chapter to be publishable.
+	 * Check if story has at least one published chapter, prologue, or epilogue.
 	 *
 	 * @since 1.0.0
 	 * @param int $story_id The story post ID.
-	 * @return bool True if at least one published chapter/prologue exists, false otherwise.
+	 * @return bool True if at least one published chapter/prologue/epilogue exists, false otherwise.
 	 */
 	public static function check_story_published_chapters( $story_id ) {
-		$chapters = get_posts(
-			array(
-				'post_parent'    => $story_id,
-				'post_type'      => 'fanfiction_chapter',
-				'post_status'    => 'publish',
-				'posts_per_page' => 1,
-				'fields'         => 'ids',
-				'meta_query'     => array(
-					array(
-						'key'     => '_fanfic_chapter_type',
-						'value'   => array( 'prologue', 'chapter' ),
-						'compare' => 'IN',
-					),
-				),
-			)
+		return ! empty( self::get_published_story_children( $story_id ) );
+	}
+
+	/**
+	 * Get published child chapters for a story.
+	 *
+	 * @since 1.0.0
+	 * @param int $story_id The story post ID.
+	 * @param int $exclude_post_id Optional. Child post ID to exclude from the result.
+	 * @return array Published child post IDs.
+	 */
+	public static function get_published_story_children( $story_id, $exclude_post_id = 0 ) {
+		$args = array(
+			'post_parent'    => $story_id,
+			'post_type'      => 'fanfiction_chapter',
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
 		);
 
-		return ! empty( $chapters );
+		if ( $exclude_post_id ) {
+			$args['post__not_in'] = array( $exclude_post_id );
+		}
+
+		return get_posts( $args );
 	}
 
 	/**
@@ -340,8 +344,8 @@ class Fanfic_Validation {
 	/**
 	 * Handle chapter deletion and auto-draft story if it becomes invalid.
 	 *
-	 * When the last chapter or prologue is deleted, automatically set the story to draft
-	 * if it becomes invalid (no published chapters remaining).
+	 * When the last published chapter, prologue, or epilogue is deleted, automatically
+	 * set the story to draft if it becomes invalid (no published children remaining).
 	 *
 	 * @since 1.0.0
 	 * @param int $post_id The post ID being deleted.
@@ -357,6 +361,10 @@ class Fanfic_Validation {
 			return;
 		}
 
+		if ( 'publish' !== $chapter->post_status ) {
+			return;
+		}
+
 		$story_id = $chapter->post_parent;
 		$story = get_post( $story_id );
 
@@ -364,21 +372,9 @@ class Fanfic_Validation {
 			return;
 		}
 
-		// Check if story will have any chapters left after deletion
-		// (excluding the one being deleted)
-		$remaining_chapters = get_children(
-			array(
-				'post_parent'    => $story_id,
-				'post_type'      => 'fanfiction_chapter',
-				'post_status'    => 'any',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'exclude'        => array( $post_id ),
-			)
-		);
-
-		// If no chapters will remain, auto-draft the story
-		if ( empty( $remaining_chapters ) ) {
+		// If no published children will remain, auto-draft the story.
+		$remaining_published_children = self::get_published_story_children( $story_id, $post_id );
+		if ( empty( $remaining_published_children ) ) {
 			wp_update_post(
 				array(
 					'ID'          => $story_id,
@@ -400,7 +396,7 @@ class Fanfic_Validation {
 	/**
 	 * Handle chapter status changes (e.g., hideing a chapter).
 	 *
-	 * When a chapter is hideed, check if the story becomes invalid and auto-draft it.
+	 * When a chapter is hidden, check if the story becomes invalid and auto-draft it.
 	 *
 	 * @since 1.0.0
 	 * @param string  $new_status The new post status.
@@ -422,18 +418,10 @@ class Fanfic_Validation {
 				return;
 			}
 
-			// Check if story still has any published chapters
-			$published_chapters = get_posts(
-				array(
-					'post_type'      => 'fanfiction_chapter',
-					'post_parent'    => $story_id,
-					'post_status'    => 'publish',
-					'posts_per_page' => 1,
-					'fields'         => 'ids',
-				)
-			);
+			// Check if story still has any published children
+			$published_chapters = self::get_published_story_children( $story_id );
 
-			// If no published chapters remain, auto-draft the story
+			// If no published children remain, auto-draft the story
 			if ( empty( $published_chapters ) ) {
 				wp_update_post(
 					array(
@@ -515,35 +503,13 @@ class Fanfic_Validation {
 			return false;
 		}
 
-		// Check chapter type - only chapters/prologues matter for auto-draft
-		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
-
-		// Epilogues don't count - story can exist with only epilogues in draft
-		if ( ! in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-			return false;
-		}
-
 		// If chapter is already draft, removing it won't change story status
 		if ( 'draft' === $chapter->post_status ) {
 			return false;
 		}
 
-		// Count OTHER published chapters/prologues (excluding this one)
-		$other_published_chapters = get_posts( array(
-			'post_type'      => 'fanfiction_chapter',
-			'post_parent'    => $story->ID,
-			'post_status'    => 'publish',
-			'posts_per_page' => 1,
-			'fields'         => 'ids',
-			'post__not_in'   => array( $chapter_id ),
-			'meta_query'     => array(
-				array(
-					'key'     => '_fanfic_chapter_type',
-					'value'   => array( 'prologue', 'chapter' ),
-					'compare' => 'IN',
-				),
-			),
-		) );
+		// Count OTHER published children (excluding this one).
+		$other_published_chapters = self::get_published_story_children( $story->ID, $chapter_id );
 
 		// If no other published chapters/prologues exist, story will auto-draft
 		return empty( $other_published_chapters );

@@ -158,12 +158,12 @@ fanfic_render_page_header( 'dashboard' );
 				?>
 				<?php if ( $fanfic_public_profile_url ) : ?>
 					<a href="<?php echo esc_url( $fanfic_public_profile_url ); ?>" class="fanfic-button secondary">
-						<?php esc_html_e( 'View Profile', 'fanfiction-manager' ); ?>
+						<?php echo fanfic_get_button_content_markup( __( 'View Profile', 'fanfiction-manager' ), 'dashicons-admin-users' ); ?>
 					</a>
 				<?php endif; ?>
 				<?php if ( $fanfic_edit_profile_url ) : ?>
 					<a href="<?php echo esc_url( $fanfic_edit_profile_url ); ?>" class="fanfic-button secondary">
-						<?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?>
+						<?php echo fanfic_get_button_content_markup( __( 'Edit Profile', 'fanfiction-manager' ), 'dashicons-edit' ); ?>
 					</a>
 				<?php endif; ?>
 			</div>
@@ -230,19 +230,16 @@ fanfic_render_page_header( 'dashboard' );
 	<div class="fanfic-actions-grid">
 		<?php if ( ! $is_banned_user ) : ?>
 			<a href="<?php echo esc_url( fanfic_get_create_story_url() ); ?>" class="fanfic-button fanfic-action-primary">
-				<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>
-				<span><?php esc_html_e( 'Create New Story', 'fanfiction-manager' ); ?></span>
+				<?php echo fanfic_get_button_content_markup( __( 'Create New Story', 'fanfiction-manager' ), 'dashicons-plus-alt' ); ?>
 			</a>
 		<?php endif; ?>
 
 		<a href="<?php echo esc_url( fanfic_get_dashboard_url() . '#my-stories' ); ?>" class="fanfic-button fanfic-action-secondary">
-			<span class="dashicons dashicons-portfolio" aria-hidden="true"></span>
-			<span><?php esc_html_e( 'View My Stories', 'fanfiction-manager' ); ?></span>
+			<?php echo fanfic_get_button_content_markup( __( 'View My Stories', 'fanfiction-manager' ), 'dashicons-portfolio' ); ?>
 		</a>
 
 		<a href="<?php echo esc_url( fanfic_get_edit_profile_url() ); ?>" class="fanfic-button fanfic-action-secondary">
-			<span class="dashicons dashicons-admin-users" aria-hidden="true"></span>
-			<span><?php esc_html_e( 'Edit Profile', 'fanfiction-manager' ); ?></span>
+			<?php echo fanfic_get_button_content_markup( __( 'Edit Profile', 'fanfiction-manager' ), 'dashicons-admin-users' ); ?>
 		</a>
 	</div>
 </section>
@@ -280,13 +277,13 @@ fanfic_render_page_header( 'dashboard' );
 							</p>
 							<div class="fanfic-invitation-actions">
 								<button type="button" class="fanfic-button fanfic-accept-invitation" data-story-id="<?php echo esc_attr( $story_id ); ?>">
-									<?php esc_html_e( 'Accept', 'fanfiction-manager' ); ?>
+									<?php echo fanfic_get_button_content_markup( __( 'Accept', 'fanfiction-manager' ), 'dashicons-yes' ); ?>
 								</button>
 								<button type="button" class="fanfic-button danger fanfic-refuse-invitation" data-story-id="<?php echo esc_attr( $story_id ); ?>">
-									<?php esc_html_e( 'Refuse', 'fanfiction-manager' ); ?>
+									<?php echo fanfic_get_button_content_markup( __( 'Refuse', 'fanfiction-manager' ), 'dashicons-no-alt' ); ?>
 								</button>
 								<button type="button" class="fanfic-button danger fanfic-block-invitation" data-story-id="<?php echo esc_attr( $story_id ); ?>">
-									<?php esc_html_e( 'Refuse & Block', 'fanfiction-manager' ); ?>
+									<?php echo fanfic_get_button_content_markup( __( 'Refuse & Block', 'fanfiction-manager' ), 'dashicons-lock' ); ?>
 								</button>
 							</div>
 						</div>
@@ -395,7 +392,7 @@ fanfic_render_page_header( 'dashboard' );
 											data-thread-context="<?php echo esc_attr( $thread_context ); ?>"
 											data-open-label="<?php echo esc_attr( $open_label ); ?>"
 											data-has-unread="<?php echo $has_unread ? '1' : '0'; ?>">
-											<?php esc_html_e( 'View Messages', 'fanfiction-manager' ); ?>
+											<?php echo fanfic_get_button_content_markup( __( 'View Messages', 'fanfiction-manager' ), 'dashicons-email-alt' ); ?>
 										</button>
 									</td>
 								</tr>
@@ -542,18 +539,18 @@ fanfic_render_page_header( 'dashboard' );
 													: false;
 												?>
 												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
-													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
+													<?php echo fanfic_get_button_content_markup( __( 'Edit', 'fanfiction-manager' ), 'dashicons-edit' ); ?>
 												</span>
 												<span class="fanfic-button small disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
-													<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+													<?php echo fanfic_get_button_content_markup( __( 'Add Chapter', 'fanfiction-manager' ), 'dashicons-plus-alt' ); ?>
 												</span>
 												<span class="fanfic-button small danger disabled" data-tooltip="<?php echo esc_attr( fanfic_get_blocked_story_message( $story_id ) ); ?>">
-													<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+													<?php echo fanfic_get_button_content_markup( __( 'Delete', 'fanfiction-manager' ), 'dashicons-trash' ); ?>
 												</span>
 												<?php if ( class_exists( 'Fanfic_Moderation_Messages' ) ) : ?>
 													<?php if ( $is_story_chat_closed ) : ?>
 														<button type="button" class="fanfic-button small secondary" disabled aria-disabled="true">
-															<?php esc_html_e( 'Chat Closed', 'fanfiction-manager' ); ?>
+															<?php echo fanfic_get_button_content_markup( __( 'Chat Closed', 'fanfiction-manager' ), 'dashicons-lock' ); ?>
 														</button>
 													<?php elseif ( $message_blacklisted && ! $has_active_message ) : ?>
 														<button type="button" class="fanfic-button small secondary" disabled aria-disabled="true">
@@ -568,16 +565,16 @@ fanfic_render_page_header( 'dashboard' );
 															data-thread-context="restriction"
 															data-open-label="<?php echo esc_attr( __( 'Open Moderation Chat', 'fanfiction-manager' ) ); ?>"
 															data-has-unread="<?php echo $has_unread_reply ? '1' : '0'; ?>">
-															<?php esc_html_e( 'Open Moderation Chat', 'fanfiction-manager' ); ?>
+															<?php echo fanfic_get_button_content_markup( __( 'Open Moderation Chat', 'fanfiction-manager' ), 'dashicons-email-alt' ); ?>
 														</button>
 													<?php endif; ?>
 												<?php endif; ?>
 											<?php else : ?>
 												<a href="<?php echo esc_url( fanfic_get_edit_story_url( $story_id ) ); ?>" class="fanfic-button small">
-													<?php esc_html_e( 'Edit', 'fanfiction-manager' ); ?>
+													<?php echo fanfic_get_button_content_markup( __( 'Edit', 'fanfiction-manager' ), 'dashicons-edit' ); ?>
 												</a>
 												<a href="<?php echo esc_url( fanfic_get_edit_chapter_url( 0, $story_id ) ); ?>" class="fanfic-button small">
-													<?php esc_html_e( 'Add Chapter', 'fanfiction-manager' ); ?>
+													<?php echo fanfic_get_button_content_markup( __( 'Add Chapter', 'fanfiction-manager' ), 'dashicons-plus-alt' ); ?>
 												</a>
 												<?php if ( $is_original_author && current_user_can( 'delete_fanfiction_story', $story_id ) ) : ?>
 													<form method="post" style="display: inline;" onsubmit="return confirm('<?php esc_attr_e( 'Are you sure you want to delete this story and all its chapters? This action cannot be undone.', 'fanfiction-manager' ); ?>');">
@@ -585,7 +582,7 @@ fanfic_render_page_header( 'dashboard' );
 														<input type="hidden" name="fanfic_story_id" value="<?php echo esc_attr( $story_id ); ?>" />
 														<input type="hidden" name="fanfic_delete_story_submit" value="1" />
 														<button type="submit" class="fanfic-button small danger">
-															<?php esc_html_e( 'Delete', 'fanfiction-manager' ); ?>
+															<?php echo fanfic_get_button_content_markup( __( 'Delete', 'fanfiction-manager' ), 'dashicons-trash' ); ?>
 														</button>
 													</form>
 												<?php endif; ?>

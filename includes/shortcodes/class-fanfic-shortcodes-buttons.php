@@ -931,13 +931,12 @@ class Fanfic_Shortcodes_Buttons {
 			$aria_object = 'profile';
 		}
 
-		$icon = '<span class="dashicons dashicons-edit" aria-hidden="true"></span>';
-
 		// Render as link (not button) since it navigates to a different page
 		// Uses same structure and classes as other action buttons for visual consistency
 		$output = '<a href="' . esc_url( $edit_url ) . '" class="fanfic-button fanfic-edit-button" aria-label="' . esc_attr( sprintf( __( 'Edit this %s', 'fanfiction-manager' ), $aria_object ) ) . '" role="button">';
-		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
-		$output .= '<span class="fanfic-button-text">' . esc_html( $label ) . '</span>';
+		$output .= function_exists( 'fanfic_get_button_content_markup' )
+			? fanfic_get_button_content_markup( $label, 'dashicons-edit' )
+			: fanfic_get_button_content_markup( $label, 'dashicons-edit' );
 		$output .= '</a>';
 
 		return $output;
@@ -1049,8 +1048,6 @@ class Fanfic_Shortcodes_Buttons {
 			}
 		}
 
-		$icon = '<span class="dashicons dashicons-flag" aria-hidden="true"></span>';
-
 		$output = '<button type="button" class="' . esc_attr( implode( ' ', $classes ) ) . '" ';
 		$output .= 'data-content-id="' . $content_id . '" ';
 		$output .= 'data-report-type="' . esc_attr( $report_type ) . '" ';
@@ -1061,8 +1058,9 @@ class Fanfic_Shortcodes_Buttons {
 			$output .= ' disabled aria-disabled="true"';
 		}
 		$output .= '>';
-		$output .= '<span class="fanfic-button-icon">' . $icon . '</span>';
-		$output .= '<span class="fanfic-button-text">' . esc_html__( 'Report', 'fanfiction-manager' ) . '</span>';
+		$output .= function_exists( 'fanfic_get_button_content_markup' )
+			? fanfic_get_button_content_markup( __( 'Report', 'fanfiction-manager' ), 'dashicons-flag' )
+			: fanfic_get_button_content_markup( __( 'Report', 'fanfiction-manager' ), 'dashicons-flag' );
 		$output .= '</button>';
 
 		return $output;

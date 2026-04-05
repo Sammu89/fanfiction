@@ -84,12 +84,9 @@ class Fanfic_Shortcodes_Utility {
 
 		// Return button HTML
 		return sprintf(
-			'<a href="%1$s" class="fanfic-button fanfic-edit-button">' .
-				'<span class="dashicons dashicons-edit" aria-hidden="true"></span>' .
-				'<span class="fanfic-button-text">%2$s</span>' .
-			'</a>',
+			'<a href="%1$s" class="fanfic-button fanfic-edit-button">%2$s</a>',
 			esc_url( $edit_url ),
-			esc_html__( 'Edit Story', 'fanfiction-manager' )
+			fanfic_get_button_content_markup( __( 'Edit Story', 'fanfiction-manager' ), 'dashicons-edit' )
 		);
 	}
 
@@ -134,12 +131,9 @@ class Fanfic_Shortcodes_Utility {
 		}
 
 		return sprintf(
-			'<a href="%1$s" class="fanfic-button fanfic-edit-button">' .
-				'<span class="dashicons dashicons-edit" aria-hidden="true"></span>' .
-				'<span class="fanfic-button-text">%2$s</span>' .
-			'</a>',
+			'<a href="%1$s" class="fanfic-button fanfic-edit-button">%2$s</a>',
 			esc_url( $edit_url ),
-			esc_html__( 'Edit Chapter', 'fanfiction-manager' )
+			fanfic_get_button_content_markup( __( 'Edit Chapter', 'fanfiction-manager' ), 'dashicons-edit' )
 		);
 	}
 
@@ -183,12 +177,9 @@ class Fanfic_Shortcodes_Utility {
 		}
 
 		return sprintf(
-			'<a href="%1$s" class="fanfic-button fanfic-edit-button fanfic-add-chapter-button">' .
-				'<span class="dashicons dashicons-plus-alt" aria-hidden="true"></span>' .
-				'<span class="fanfic-button-text">%2$s</span>' .
-			'</a>',
+			'<a href="%1$s" class="fanfic-button fanfic-edit-button fanfic-add-chapter-button">%2$s</a>',
 			esc_url( $add_chapter_url ),
-			esc_html__( 'Add Chapter', 'fanfiction-manager' )
+			fanfic_get_button_content_markup( __( 'Add Chapter', 'fanfiction-manager' ), 'dashicons-plus-alt' )
 		);
 	}
 
@@ -242,12 +233,9 @@ class Fanfic_Shortcodes_Utility {
 
 		// Return button HTML
 		return sprintf(
-			'<a href="%1$s" class="fanfic-button fanfic-edit-button">' .
-				'<span class="dashicons dashicons-edit" aria-hidden="true"></span>' .
-				'<span class="fanfic-button-text">%2$s</span>' .
-			'</a>',
+			'<a href="%1$s" class="fanfic-button fanfic-edit-button">%2$s</a>',
 			esc_url( $edit_url ),
-			esc_html__( 'Edit Profile', 'fanfiction-manager' )
+			fanfic_get_button_content_markup( __( 'Edit Profile', 'fanfiction-manager' ), 'dashicons-edit' )
 		);
 
 	}

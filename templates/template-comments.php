@@ -98,8 +98,9 @@ if ( class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
 ?>
 
 <?php
-/**
- * Custom comment template callback
+if ( ! function_exists( 'fanfic_custom_comment_template' ) ) :
+	/**
+	 * Custom comment template callback
  *
  * Displays a single comment with custom HTML structure and accessibility features.
  *
@@ -107,11 +108,11 @@ if ( class_exists( 'Fanfic_Shortcodes_Buttons' ) ) {
  * @param WP_Comment $comment Comment object.
  * @param array      $args    Comment display arguments.
  * @param int        $depth   Comment depth level.
- */
-function fanfic_custom_comment_template( $comment, $args, $depth ) {
-	$tag = ( 'div' === $args['style'] ) ? 'div' : 'li';
-	?>
-	<<?php echo esc_html( $tag ); ?> id="comment-<?php comment_ID(); ?>" <?php comment_class( empty( $args['has_children'] ) ? '' : 'parent', $comment ); ?> role="article" aria-label="<?php echo esc_attr( sprintf( __( 'Comment by %s', 'fanfiction-manager' ), get_comment_author() ) ); ?>">
+	 */
+	function fanfic_custom_comment_template( $comment, $args, $depth ) {
+		$tag = ( 'div' === $args['style'] ) ? 'div' : 'li';
+		?>
+		<<?php echo esc_html( $tag ); ?> id="comment-<?php comment_ID(); ?>" <?php comment_class( empty( $args['has_children'] ) ? '' : 'parent', $comment ); ?> role="article" aria-label="<?php echo esc_attr( sprintf( __( 'Comment by %s', 'fanfiction-manager' ), get_comment_author() ) ); ?>">
 		<article id="div-comment-<?php comment_ID(); ?>" class="fanfic-comment-body">
 			<footer class="fanfic-comment-meta">
 				<div class="fanfic-comment-author vcard">
@@ -231,5 +232,6 @@ function fanfic_custom_comment_template( $comment, $args, $depth ) {
 				?>
 			</div>
 		</article>
-	<?php
-}
+		<?php
+	}
+endif;

@@ -85,8 +85,11 @@ function fanfic_get_default_story_view_template() {
 		[chapters-list]
 	</section>
 
+	[fanfiction-action-buttons]
+
 	<?php if ( $enable_comments ) : ?>
 		<section class="fanfic-story-comments" aria-labelledby="comments-heading">
+			<h2 id="comments-heading"><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h2>
 			[story-comments]
 		</section>
 	<?php endif; ?>
@@ -128,7 +131,7 @@ if ( ! $enable_comments ) {
 	$template = str_replace( '[story-comments]', '', (string) $template );
 }
 
-$template = str_replace( '[fanfiction-action-buttons]', '', (string) $template );
+$template = fanfic_inject_dynamic_action_buttons_placeholder( $template, 'view-story' );
 
 $story_post       = get_post();
 $is_story_author  = $story_post && fanfic_effective_is_user_logged_in() && function_exists( 'fanfic_user_is_story_author_or_coauthor' ) && fanfic_user_is_story_author_or_coauthor( $story_post->ID, fanfic_get_effective_current_user_id() );
@@ -156,10 +159,11 @@ add_action( 'fanfic_page_alerts', function( $context ) use ( $story_post, $is_st
 
 fanfic_render_page_header( 'view-story', array( 'story_id' => get_the_ID() ) );
 fanfic_render_moderation_controls( 'view-story', array( 'story_id' => get_the_ID() ) );
-fanfic_render_dynamic_action_buttons();
 
 // Process shortcodes in the template
 $rendered_template = do_shortcode( $template );
+$action_buttons_markup = fanfic_get_dynamic_action_buttons_markup();
+$rendered_template = str_replace( '[fanfiction-action-buttons]', $action_buttons_markup, $rendered_template );
 echo function_exists( 'fanfic_wrap_story_age_confirmation_gate' )
 	? fanfic_wrap_story_age_confirmation_gate( $rendered_template, get_the_ID(), 'story' )
 	: $rendered_template;

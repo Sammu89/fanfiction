@@ -49,6 +49,8 @@ function fanfic_get_default_profile_view_template() {
 		[author-bio]
 	</div>
 
+	[fanfiction-action-buttons]
+
 	<div class="fanfic-profile-stories">
 		<h2><?php esc_html_e( 'Stories', 'fanfiction-manager' ); ?></h2>
 		[author-story-list]
@@ -103,18 +105,20 @@ $template = str_replace( '[author-avatar]', '[author-avatar author_id="' . $user
 $template = str_replace( '[author-display-name]', '[author-display-name author_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-registration-date]', '[author-registration-date author_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-story-count]', '[author-story-count author_id="' . $user_id . '"]', $template );
-$template = str_replace( '[fanfiction-action-buttons]', '', (string) $template );
-$template = str_replace( '[content-actions]', '', (string) $template );
 $template = str_replace( '[author-bio]', '[author-bio author_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-story-list]', '[author-story-list author_id="' . $user_id . '"]', $template );
 $template = str_replace( '[author-coauthored-stories]', '[author-coauthored-stories author_id="' . $user_id . '"]', $template );
+$template = fanfic_inject_dynamic_action_buttons_placeholder( $template, 'view-profile' );
 
 fanfic_render_page_header( 'view-profile', array(
 	'user_id'  => $user_id,
 	'username' => $user->display_name,
 ) );
 fanfic_render_moderation_controls( 'view-profile', array( 'user_id' => $user_id ) );
-fanfic_render_dynamic_action_buttons();
 
 // Process shortcodes in the template
-echo do_shortcode( $template );
+$rendered_template = do_shortcode( $template );
+$action_buttons_markup = fanfic_get_dynamic_action_buttons_markup();
+$rendered_template = str_replace( '[fanfiction-action-buttons]', $action_buttons_markup, $rendered_template );
+$rendered_template = str_replace( '[content-actions]', $action_buttons_markup, $rendered_template );
+echo $rendered_template;

@@ -419,10 +419,6 @@ class Fanfic_Shortcodes_Comments {
 						);
 						?>
 					</ol>
-				<?php else : ?>
-					<p class="fanfic-no-comments" role="status">
-						<?php esc_html_e( 'No comments yet. Be the first to comment on this story!', 'fanfiction-manager' ); ?>
-					</p>
 				<?php endif; ?>
 
 				<?php
@@ -563,10 +559,6 @@ class Fanfic_Shortcodes_Comments {
 						);
 						?>
 					</ol>
-				<?php else : ?>
-					<p class="fanfic-no-comments" role="status">
-						<?php esc_html_e( 'No comments yet. Be the first to comment on this chapter!', 'fanfiction-manager' ); ?>
-					</p>
 				<?php endif; ?>
 
 				<?php

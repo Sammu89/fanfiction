@@ -87,8 +87,9 @@ function fanfic_get_default_chapter_view_template() {
 </nav>
 
 <!-- Comments section -->
+[fanfiction-action-buttons]
 <section class="fanfic-chapter-comments" aria-labelledby="comments-heading">
-	<h3 id="comments-heading"><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h3>
+	<h2 id="comments-heading"><?php esc_html_e( 'Comments', 'fanfiction-manager' ); ?></h2>
 	[chapter-comments]
 </section>
 <?php
@@ -158,7 +159,7 @@ if ( ! $enable_comments ) {
 	$template = preg_replace( '/<section[^>]*fanfic-chapter-comments[^>]*>.*?<\/section>/is', '', (string) $template );
 	$template = str_replace( '[chapter-comments]', '', (string) $template );
 }
-$template = str_replace( '[fanfiction-action-buttons]', '', (string) $template );
+$template = fanfic_inject_dynamic_action_buttons_placeholder( $template, 'view-chapter' );
 $template = preg_replace( '/<div[^>]*fanfic-chapter-actions[^>]*>\s*<\/div>/is', '', (string) $template );
 
 $parent_story_id      = $chapter_post ? absint( $chapter_post->post_parent ) : 0;
@@ -259,10 +260,11 @@ fanfic_render_moderation_controls( 'view-chapter', array(
 	'story_id'   => $parent_story_id,
 	'chapter_id' => $chapter_post ? absint( $chapter_post->ID ) : 0,
 ) );
-fanfic_render_dynamic_action_buttons();
 
 // Process shortcodes in the template
 $rendered_template = do_shortcode( $template );
+$action_buttons_markup = fanfic_get_dynamic_action_buttons_markup();
+$rendered_template = str_replace( '[fanfiction-action-buttons]', $action_buttons_markup, $rendered_template );
 echo function_exists( 'fanfic_wrap_story_age_confirmation_gate' )
 	? fanfic_wrap_story_age_confirmation_gate( $rendered_template, $parent_story_id, 'chapter' )
 	: $rendered_template;

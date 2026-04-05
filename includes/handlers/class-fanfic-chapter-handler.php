@@ -143,6 +143,25 @@ class Fanfic_Chapter_Handler {
 	}
 
 	/**
+	 * Build the chapter save/update success message with visibility context.
+	 *
+	 * @since 2.1.0
+	 * @param string $base_message Base success message.
+	 * @param int    $story_id Parent story ID.
+	 * @param string $chapter_status Chapter status after save.
+	 * @return string
+	 */
+	private static function get_chapter_success_message( $base_message, $story_id, $chapter_status ) {
+		$message = (string) $base_message;
+
+		if ( 'publish' === $chapter_status && $story_id && function_exists( 'fanfic_is_story_publicly_visible' ) && ! fanfic_is_story_publicly_visible( $story_id ) ) {
+			$message .= ' ' . __( 'It will become visible to readers when the parent story is made visible.', 'fanfiction-manager' );
+		}
+
+		return $message;
+	}
+
+	/**
 	 * Register chapter handlers
 	 *
 	 * @since 1.0.0
@@ -382,16 +401,9 @@ class Fanfic_Chapter_Handler {
 		// Check if this is the first published chapter and story is a draft
 		error_log( 'Checking for first published chapter. Chapter status: ' . $chapter_status . ', Story status: ' . $story->post_status . ', Chapter type: ' . $chapter_type );
 		$is_first_published_chapter = false;
-		if ( 'publish' === $chapter_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-			// Count published chapters (excluding the one we just created)
-			$published_chapters = get_posts( array(
-				'post_type'      => 'fanfiction_chapter',
-				'post_parent'    => $story_id,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'post__not_in'   => array( $chapter_id ),
-			) );
+			if ( 'publish' === $chapter_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter', 'epilogue' ), true ) ) {
+				// Count published children (excluding the one we just created)
+				$published_chapters = Fanfic_Validation::get_published_story_children( $story_id, $chapter_id );
 			error_log( 'Other published chapters count: ' . count( $published_chapters ) );
 
 			// If there are no other published chapters, this is the first
@@ -407,7 +419,12 @@ class Fanfic_Chapter_Handler {
 
 		// Add message if this is first published chapter
 		if ( $is_first_published_chapter && ! $is_ajax ) {
-			Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first visible chapter! Consider making your story visible now.', 'fanfiction-manager' ) );
+					Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first visible chapter, prologue, or epilogue! Consider making your story visible now.', 'fanfiction-manager' ) );
+		}
+
+		if ( ! $is_ajax ) {
+			$success_message = self::get_chapter_success_message( __( 'Chapter saved successfully.', 'fanfiction-manager' ), $story_id, $chapter_status );
+			Fanfic_Flash_Messages::add_message( 'success', $success_message );
 		}
 
 		// Check if this is an AJAX request
@@ -415,13 +432,14 @@ class Fanfic_Chapter_Handler {
 			// Return JSON response for AJAX
 			$chapter_edit_url = add_query_arg( 'action', 'edit', get_permalink( $chapter_id ) );
 			wp_send_json_success( array(
-				'message'            => __( 'Chapter saved successfully.', 'fanfiction-manager' ),
+				'message'            => self::get_chapter_success_message( __( 'Chapter saved successfully.', 'fanfiction-manager' ), $story_id, $chapter_status ),
 				'redirect_url'       => $edit_url,
 				'edit_url'           => $chapter_edit_url,
 				'chapter_id'         => $chapter_id,
 				'chapter_type'       => $chapter_type,
 				'chapter_number' => $chapter_number,
 				'chapter_status' => get_post_status( $chapter_id ),
+				'story_status'       => get_post_status( $story_id ),
 				'form_mode'          => 'edit',
 				'edit_nonce'         => wp_create_nonce( 'fanfic_edit_chapter_action_' . $chapter_id ),
 				'is_first_published_chapter' => $is_first_published_chapter,
@@ -676,16 +694,9 @@ class Fanfic_Chapter_Handler {
 		$is_first_published_chapter = false;
 
 		// Only check if we're publishing a chapter that was draft and story is also draft
-		if ( 'publish' === $chapter_status && 'draft' === $old_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-			// Count other published chapters
-			$published_chapters = get_posts( array(
-				'post_type'      => 'fanfiction_chapter',
-				'post_parent'    => $story_id,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'post__not_in'   => array( $chapter_id ),
-			) );
+		if ( 'publish' === $chapter_status && 'draft' === $old_status && 'draft' === $story->post_status && in_array( $chapter_type, array( 'prologue', 'chapter', 'epilogue' ), true ) ) {
+			// Count other published children
+			$published_chapters = Fanfic_Validation::get_published_story_children( $story_id, $chapter_id );
 
 			// If there are no other published chapters, this is the first
 			if ( empty( $published_chapters ) ) {
@@ -693,49 +704,35 @@ class Fanfic_Chapter_Handler {
 			}
 		}
 
-		// Check if we're drafting the last published chapter/prologue
-		$was_story_auto_drafted = false;
-		if ( 'draft' === $chapter_status && 'publish' === $old_status && in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-			// Count other published chapters/prologues (excluding this one)
-			$published_chapters = get_posts( array(
-				'post_type'      => 'fanfiction_chapter',
-				'post_parent'    => $story_id,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'post__not_in'   => array( $chapter_id ),
-				'meta_query'     => array(
-					array(
-						'key'     => '_fanfic_chapter_type',
-						'value'   => array( 'prologue', 'chapter' ),
-						'compare' => 'IN',
-					),
-				),
-			) );
+			// Check if we're drafting the last published child
+			$was_story_auto_drafted = false;
+			if ( 'draft' === $chapter_status && 'publish' === $old_status && in_array( $chapter_type, array( 'prologue', 'chapter', 'epilogue' ), true ) ) {
+				// Count other published children (excluding this one)
+				$published_chapters = Fanfic_Validation::get_published_story_children( $story_id, $chapter_id );
 
-			// If no other published chapters/prologues, auto-draft the story
-			if ( empty( $published_chapters ) ) {
-				wp_update_post( array(
-					'ID'          => $story_id,
-					'post_status' => 'draft',
-				) );
-				$was_story_auto_drafted = true;
-				error_log( 'Auto-drafted story ' . $story_id . ' because last published chapter/prologue was drafted' );
+				// If no other published children remain, auto-draft the story
+				if ( empty( $published_chapters ) ) {
+					wp_update_post( array(
+						'ID'          => $story_id,
+						'post_status' => 'draft',
+					) );
+					$was_story_auto_drafted = true;
+					error_log( 'Auto-drafted story ' . $story_id . ' because last published child was drafted' );
+				}
 			}
-		}
 
 		if ( ! $is_ajax ) {
 			// Add success message
-			Fanfic_Flash_Messages::add_message( 'success', __( 'Chapter updated successfully!', 'fanfiction-manager' ) );
+			Fanfic_Flash_Messages::add_message( 'success', self::get_chapter_success_message( __( 'Chapter updated successfully!', 'fanfiction-manager' ), $story_id, $chapter_status ) );
 
 			// Add warning message if story was auto-drafted
 			if ( $was_story_auto_drafted ) {
-				Fanfic_Flash_Messages::add_message( 'warning', __( 'Story was automatically set to hidden status because this was its last visible chapter/prologue.', 'fanfiction-manager' ) );
+				Fanfic_Flash_Messages::add_message( 'warning', __( 'Story was automatically set to hidden status because this was its last visible chapter, prologue, or epilogue.', 'fanfiction-manager' ) );
 			}
 
 			// Add info message if this is first published chapter
 			if ( $is_first_published_chapter ) {
-				Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first visible chapter! Consider making your story visible now.', 'fanfiction-manager' ) );
+				Fanfic_Flash_Messages::add_message( 'info', __( 'This is your first visible chapter, prologue, or epilogue! Consider making your story visible now.', 'fanfiction-manager' ) );
 			}
 		}
 
@@ -747,11 +744,12 @@ class Fanfic_Chapter_Handler {
 		if ( $is_ajax ) {
 			$edit_url = add_query_arg( 'action', 'edit', get_permalink( $chapter_id ) );
 			wp_send_json_success( array(
-				'message' => __( 'Chapter updated successfully!', 'fanfiction-manager' ),
+				'message' => self::get_chapter_success_message( __( 'Chapter updated successfully!', 'fanfiction-manager' ), $story_id, $chapter_status ),
 				'chapter_id' => $chapter_id,
 				'chapter_type' => $chapter_type,
 				'chapter_number' => $chapter_number,
 				'chapter_status' => get_post_status( $chapter_id ),
+				'story_status' => get_post_status( $story_id ),
 				'story_auto_drafted' => $was_story_auto_drafted,
 				'story_id' => $story_id,
 				'redirect_url' => $edit_url,
@@ -863,38 +861,21 @@ class Fanfic_Chapter_Handler {
 		// Get chapter type
 		$chapter_type = get_post_meta( $chapter_id, '_fanfic_chapter_type', true );
 
-		// Check if this is the last chapter/prologue (epilogues don't count)
+		// Check if this is the last publishable child.
 		$is_last_publishable_chapter = false;
-		if ( in_array( $chapter_type, array( 'prologue', 'chapter' ) ) ) {
-			// Count other chapters/prologues (exclude epilogues and the one being deleted)
-			$other_chapters = get_posts( array(
-				'post_type'      => 'fanfiction_chapter',
-				'post_parent'    => $story->ID,
-				'post_status'    => 'any',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'post__not_in'   => array( $chapter_id ),
-				'meta_query'     => array(
-					array(
-						'key'     => '_fanfic_chapter_type',
-						'value'   => array( 'prologue', 'chapter' ),
-						'compare' => 'IN',
-					),
-				),
+		$other_chapters = Fanfic_Validation::get_published_story_children( $story->ID, $chapter_id );
+
+		if ( empty( $other_chapters ) ) {
+			$is_last_publishable_chapter = true;
+
+			// Auto-draft the story
+			wp_update_post( array(
+				'ID'          => $story->ID,
+				'post_status' => 'draft',
 			) );
 
-			if ( empty( $other_chapters ) ) {
-				$is_last_publishable_chapter = true;
-
-				// Auto-draft the story
-				wp_update_post( array(
-					'ID'          => $story->ID,
-					'post_status' => 'draft',
-				) );
-
-				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-					error_log( 'Chapter Delete AJAX: Auto-drafted story ' . $story->ID . ' because last chapter/prologue was deleted' );
-				}
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Chapter Delete AJAX: Auto-drafted story ' . $story->ID . ' because last published child was deleted' );
 			}
 		}
 

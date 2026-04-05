@@ -680,7 +680,7 @@ class Fanfic_Core {
 			return $posts;
 		}
 
-		if ( current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' ) ) {
+		if ( function_exists( 'fanfic_current_user_can_use_moderation_controls' ) && fanfic_current_user_can_use_moderation_controls() ) {
 			return $posts;
 		}
 
@@ -1085,7 +1085,8 @@ class Fanfic_Core {
 			return;
 		}
 
-		$modes       = fanfic_get_frontend_preview_modes();
+		$preview_context = function_exists( 'fanfic_get_frontend_preview_context' ) ? fanfic_get_frontend_preview_context() : '';
+		$modes           = fanfic_get_frontend_preview_modes( $preview_context );
 		$active_mode = fanfic_get_frontend_preview_mode();
 		$current_url = fanfic_get_current_url();
 
@@ -1207,6 +1208,28 @@ class Fanfic_Core {
 			);
 		}
 
+		if ( current_user_can( 'delete_fanfiction_story', $story_id ) ) {
+			$wp_admin_bar->add_node(
+				array(
+					'parent'  => 'fanfic-frontend-preview',
+						'id'      => 'fanfic-story-action-delete',
+						'title'   => esc_html__( 'Delete Story', 'fanfiction-manager' ),
+						'position' => 22,
+						'href'    => '#',
+						'meta'    => array(
+							'class'   => 'fanfic-admin-bar-delete-story-trigger',
+							'onclick' => sprintf(
+								"window.FanficStoryDelete && window.FanficStoryDelete.openConfirm({trigger:this, buttonElement:this, storyId:%d, storyTitle:%s, nonce:%s, redirectUrl:%s}); return false;",
+								$story_id,
+								wp_json_encode( get_the_title( $story_id ) ),
+								wp_json_encode( wp_create_nonce( 'fanfic_delete_story' ) ),
+								wp_json_encode( fanfic_get_dashboard_url() )
+							),
+					),
+				)
+			);
+		}
+
 		if ( ! current_user_can( 'moderate_fanfiction' ) && ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
@@ -1215,14 +1238,15 @@ class Fanfic_Core {
 			? __( 'Unfeature Story', 'fanfiction-manager' )
 			: __( 'Feature Story', 'fanfiction-manager' );
 
-		$wp_admin_bar->add_node(
-			array(
-				'parent' => 'fanfic-frontend-preview',
-				'id'     => 'fanfic-story-action-feature',
-				'title'  => esc_html( $feature_label ),
-				'href'   => wp_nonce_url(
-					add_query_arg(
-						array(
+			$wp_admin_bar->add_node(
+				array(
+					'parent' => 'fanfic-frontend-preview',
+					'id'     => 'fanfic-story-action-feature',
+					'title'  => esc_html( $feature_label ),
+					'position' => 20,
+					'href'   => wp_nonce_url(
+						add_query_arg(
+							array(
 							'action'   => 'fanfic_admin_bar_toggle_featured',
 							'story_id' => $story_id,
 							'redirect' => rawurlencode( $current_url ),
@@ -1231,6 +1255,33 @@ class Fanfic_Core {
 					),
 					'fanfic_admin_bar_toggle_featured_' . $story_id
 				),
+				)
+			);
+
+		$block_title = $is_blocked ? __( 'Unblock Story', 'fanfiction-manager' ) : __( 'Block Story', 'fanfiction-manager' );
+		$block_href  = $is_blocked
+			? wp_nonce_url(
+				add_query_arg(
+					array(
+						'action'   => 'fanfic_admin_bar_toggle_story_block',
+						'story_id' => $story_id,
+						'redirect' => rawurlencode( $current_url ),
+					),
+					admin_url( 'admin-post.php' )
+				),
+				'fanfic_admin_bar_toggle_story_block_' . $story_id
+			)
+			: '#';
+		$block_class = $is_blocked ? '' : 'fanfic-admin-bar-block-story-trigger fanfic-open-block-modal';
+
+		$wp_admin_bar->add_node(
+			array(
+				'parent' => 'fanfic-frontend-preview',
+				'id'     => 'fanfic-story-action-block-toggle',
+				'title'  => esc_html( $block_title ),
+				'position' => 21,
+				'href'   => $block_href,
+				'meta'   => $block_class ? array( 'class' => $block_class ) : array(),
 			)
 		);
 
@@ -1239,70 +1290,14 @@ class Fanfic_Core {
 				'parent' => 'fanfic-frontend-preview',
 				'id'     => 'fanfic-story-action-change-author',
 				'title'  => esc_html__( 'Change Author', 'fanfiction-manager' ),
+				'position' => 23,
 				'href'   => '#',
 				'meta'   => array(
 					'class' => 'fanfic-admin-bar-change-author-trigger',
 				),
 			)
 		);
-
-		if ( $is_blocked ) {
-			$wp_admin_bar->add_node(
-				array(
-					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-story-action-unblock',
-					'title'  => esc_html__( 'Unblock Story', 'fanfiction-manager' ),
-					'href'   => wp_nonce_url(
-						add_query_arg(
-							array(
-								'action'   => 'fanfic_admin_bar_toggle_story_block',
-								'story_id' => $story_id,
-								'redirect' => rawurlencode( $current_url ),
-							),
-							admin_url( 'admin-post.php' )
-						),
-						'fanfic_admin_bar_toggle_story_block_' . $story_id
-					),
-				)
-			);
-
-			$wp_admin_bar->add_node(
-				array(
-					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-story-action-block-disabled',
-					'title'  => esc_html__( 'Block Story', 'fanfiction-manager' ),
-					'href'   => false,
-					'meta'   => array(
-						'class' => 'fanfic-admin-bar-disabled',
-					),
-				)
-			);
-		} else {
-			$wp_admin_bar->add_node(
-				array(
-					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-story-action-block',
-					'title'  => esc_html__( 'Block Story', 'fanfiction-manager' ),
-					'href'   => '#',
-					'meta'   => array(
-						'class' => 'fanfic-admin-bar-block-story-trigger',
-					),
-				)
-			);
-
-			$wp_admin_bar->add_node(
-				array(
-					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-story-action-unblock-disabled',
-					'title'  => esc_html__( 'Unblock Story', 'fanfiction-manager' ),
-					'href'   => false,
-					'meta'   => array(
-						'class' => 'fanfic-admin-bar-disabled',
-					),
-				)
-			);
 		}
-	}
 
 	/**
 	 * Add current-page admin bar actions for chapter pages.
@@ -1359,27 +1354,53 @@ class Fanfic_Core {
 			);
 		}
 
-		if ( $story_id ) {
-			$feature_label = class_exists( 'Fanfic_Featured_Stories' ) && Fanfic_Featured_Stories::is_featured( $story_id )
-				? __( 'Unfeature Story', 'fanfiction-manager' )
-				: __( 'Feature Story', 'fanfiction-manager' );
+			if ( $story_id ) {
+				$feature_label = class_exists( 'Fanfic_Featured_Stories' ) && Fanfic_Featured_Stories::is_featured( $story_id )
+					? __( 'Unfeature Story', 'fanfiction-manager' )
+					: __( 'Feature Story', 'fanfiction-manager' );
+
+				$wp_admin_bar->add_node(
+					array(
+						'parent' => 'fanfic-frontend-preview',
+						'id'     => 'fanfic-chapter-action-feature-story',
+						'title'  => esc_html( $feature_label ),
+						'position' => 20,
+						'href'   => wp_nonce_url(
+							add_query_arg(
+								array(
+									'action'   => 'fanfic_admin_bar_toggle_featured',
+									'story_id' => $story_id,
+									'redirect' => rawurlencode( $current_url ),
+								),
+								admin_url( 'admin-post.php' )
+							),
+							'fanfic_admin_bar_toggle_featured_' . $story_id
+						),
+					)
+				);
+			}
+
+			$block_title = $is_blocked ? __( 'Unblock Chapter', 'fanfiction-manager' ) : __( 'Block Chapter', 'fanfiction-manager' );
+			$block_href  = $is_blocked
+				? add_query_arg(
+					array(
+						'action'     => 'fanfic_toggle_chapter_block',
+						'chapter_id' => $chapter_id,
+						'_wpnonce'   => wp_create_nonce( 'fanfic_toggle_chapter_block_' . $chapter_id ),
+					),
+					admin_url( 'admin-post.php' )
+				)
+				: '#';
+			$block_class = $is_blocked ? '' : 'fanfic-admin-bar-block-chapter-trigger fanfic-open-block-modal';
 
 			$wp_admin_bar->add_node(
 				array(
 					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-chapter-action-feature-story',
-					'title'  => esc_html( $feature_label ),
-					'href'   => wp_nonce_url(
-						add_query_arg(
-							array(
-								'action'   => 'fanfic_admin_bar_toggle_featured',
-								'story_id' => $story_id,
-								'redirect' => rawurlencode( $current_url ),
-							),
-							admin_url( 'admin-post.php' )
-						),
-						'fanfic_admin_bar_toggle_featured_' . $story_id
-					),
+					'id'     => 'fanfic-chapter-action-block-toggle',
+					'title'  => esc_html( $block_title ),
+					'position' => 21,
+					'href'   => $block_href,
+					'meta'   => $block_class ? array( 'class' => $block_class ) : array(),
 				)
 			);
 
@@ -1388,6 +1409,7 @@ class Fanfic_Core {
 					'parent' => 'fanfic-frontend-preview',
 					'id'     => 'fanfic-chapter-action-change-author',
 					'title'  => esc_html__( 'Change Story Author', 'fanfiction-manager' ),
+					'position' => 22,
 					'href'   => '#',
 					'meta'   => array(
 						'class' => 'fanfic-admin-bar-change-author-trigger',
@@ -1395,61 +1417,6 @@ class Fanfic_Core {
 				)
 			);
 		}
-
-		if ( $is_blocked ) {
-			$wp_admin_bar->add_node(
-				array(
-					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-chapter-action-unblock',
-					'title'  => esc_html__( 'Unblock Chapter', 'fanfiction-manager' ),
-					'href'   => add_query_arg(
-						array(
-							'action'     => 'fanfic_toggle_chapter_block',
-							'chapter_id' => $chapter_id,
-							'_wpnonce'   => wp_create_nonce( 'fanfic_toggle_chapter_block_' . $chapter_id ),
-						),
-						admin_url( 'admin-post.php' )
-					),
-				)
-			);
-
-			$wp_admin_bar->add_node(
-				array(
-					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-chapter-action-block-disabled',
-					'title'  => esc_html__( 'Block Chapter', 'fanfiction-manager' ),
-					'href'   => false,
-					'meta'   => array(
-						'class' => 'fanfic-admin-bar-disabled',
-					),
-				)
-			);
-		} else {
-			$wp_admin_bar->add_node(
-				array(
-					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-chapter-action-block',
-					'title'  => esc_html__( 'Block Chapter', 'fanfiction-manager' ),
-					'href'   => '#',
-					'meta'   => array(
-						'class' => 'fanfic-admin-bar-block-chapter-trigger',
-					),
-				)
-			);
-
-			$wp_admin_bar->add_node(
-				array(
-					'parent' => 'fanfic-frontend-preview',
-					'id'     => 'fanfic-chapter-action-unblock-disabled',
-					'title'  => esc_html__( 'Unblock Chapter', 'fanfiction-manager' ),
-					'href'   => false,
-					'meta'   => array(
-						'class' => 'fanfic-admin-bar-disabled',
-					),
-				)
-			);
-		}
-	}
 
 	/**
 	 * Add current-page admin bar actions for public profile pages.
@@ -1966,7 +1933,7 @@ class Fanfic_Core {
 				var modal = document.getElementById('fanfic-admin-bar-author-modal');
 				var blockModal = document.getElementById('fanfic-admin-bar-block-modal');
 				var trigger = document.getElementById('wp-admin-bar-fanfic-story-action-change-author') || document.getElementById('wp-admin-bar-fanfic-chapter-action-change-author');
-				var blockTriggers = Array.prototype.slice.call(document.querySelectorAll('#wp-admin-bar-fanfic-story-action-block, #wp-admin-bar-fanfic-chapter-action-block, .fanfic-open-block-modal'));
+				var blockTriggers = Array.prototype.slice.call(document.querySelectorAll('.fanfic-open-block-modal'));
 				var cancel = modal ? modal.querySelector('[data-fanfic-author-modal-cancel]') : null;
 				var blockCancel = blockModal ? blockModal.querySelector('[data-fanfic-block-modal-cancel]') : null;
 				var confirmButton = modal ? modal.querySelector('[data-fanfic-author-modal-confirm]') : null;
@@ -1974,8 +1941,155 @@ class Fanfic_Core {
 				var message = modal ? modal.querySelector('.fanfic-admin-bar-author-modal__message') : null;
 				var backdrop = modal ? modal.querySelector('.fanfic-admin-bar-author-modal__backdrop') : null;
 				var blockBackdrop = blockModal ? blockModal.querySelector('.fanfic-modal-overlay') : null;
+				var blockTitle = blockModal ? blockModal.querySelector('#fanfic-admin-bar-block-modal-title') : null;
+				var blockWarning = blockModal ? blockModal.querySelector('.fanfic-modal-warning') : null;
+				var blockForm = blockModal ? blockModal.querySelector('#fanfic-admin-bar-block-form') : null;
+				var blockActionInput = blockForm ? blockForm.querySelector('input[name="action"]') : null;
+				var blockTargetInput = blockForm ? blockForm.querySelector('input[name="story_id"], input[name="chapter_id"]') : null;
+				var blockNonceInput = blockForm ? blockForm.querySelector('input[name="_wpnonce"]') : null;
+				var blockSubmitButton = blockForm ? blockForm.querySelector('.fanfic-modal-actions button[type="submit"]') : null;
 				var blockReasonSelect = blockModal ? blockModal.querySelector('select[name="block_reason"]') : null;
 				var blockReasonText = blockModal ? blockModal.querySelector('textarea[name="block_reason_text"]') : null;
+				var blockDefaults = blockModal ? {
+					action: blockActionInput ? String(blockActionInput.value || '').trim() : '',
+					targetInputName: blockTargetInput ? String(blockTargetInput.name || '').trim() : '',
+					targetId: blockTargetInput ? parseInt(blockTargetInput.value || '0', 10) || 0 : 0,
+					nonce: blockNonceInput ? String(blockNonceInput.value || '').trim() : '',
+					title: blockTitle ? String(blockTitle.textContent || '').trim() : '',
+					warning: blockWarning ? String(blockWarning.textContent || '').trim() : '',
+					submitLabel: blockSubmitButton ? String(blockSubmitButton.textContent || '').trim() : '',
+				} : null;
+
+				function getBlockTriggerConfig(blockTrigger) {
+					var targetType = String(blockTrigger.getAttribute('data-fanfic-block-target-type') || '').trim();
+					var targetId = parseInt(blockTrigger.getAttribute('data-fanfic-block-target-id') || '0', 10) || 0;
+					var targetAction = String(blockTrigger.getAttribute('data-fanfic-block-target-action') || '').trim();
+					var targetInputName = String(blockTrigger.getAttribute('data-fanfic-block-target-input') || '').trim();
+					var nonce = String(blockTrigger.getAttribute('data-fanfic-block-nonce') || '').trim();
+					var title = String(blockTrigger.getAttribute('data-fanfic-block-title') || '').trim();
+					var warning = String(blockTrigger.getAttribute('data-fanfic-block-warning') || '').trim();
+					var submitLabel = String(blockTrigger.getAttribute('data-fanfic-block-submit-label') || '').trim();
+
+					if (!targetType) {
+						if (blockTrigger.classList.contains('fanfic-admin-bar-block-chapter-trigger') || blockTrigger.classList.contains('fanfic-chapter-block-toggle')) {
+							targetType = 'chapter';
+						} else if (blockTrigger.classList.contains('fanfic-admin-bar-block-story-trigger') || blockTrigger.classList.contains('fanfic-story-block-toggle')) {
+							targetType = 'story';
+						} else if (blockTrigger.hasAttribute('data-chapter-id')) {
+							targetType = 'chapter';
+						} else if (blockTrigger.hasAttribute('data-story-id')) {
+							targetType = 'story';
+						} else if (blockDefaults && blockDefaults.targetInputName) {
+							targetType = 'chapter_id' === blockDefaults.targetInputName ? 'chapter' : 'story';
+						}
+					}
+
+					if (!targetId) {
+						if ('chapter' === targetType) {
+							targetId = parseInt(blockTrigger.getAttribute('data-chapter-id') || '0', 10) || 0;
+							if (!targetId && blockDefaults && 'chapter_id' === blockDefaults.targetInputName) {
+								targetId = blockDefaults.targetId || 0;
+							}
+						} else if ('story' === targetType) {
+							targetId = parseInt(blockTrigger.getAttribute('data-story-id') || '0', 10) || 0;
+							if (!targetId && blockDefaults && 'story_id' === blockDefaults.targetInputName) {
+								targetId = blockDefaults.targetId || 0;
+							}
+						}
+					}
+
+					if (!targetAction && blockActionInput) {
+						targetAction = String(blockActionInput.value || '').trim();
+					}
+					if (!targetAction && blockDefaults) {
+						targetAction = blockDefaults.action;
+					}
+					if (!targetInputName && blockTargetInput) {
+						targetInputName = String(blockTargetInput.name || '').trim();
+					}
+					if (!targetInputName && blockDefaults) {
+						targetInputName = blockDefaults.targetInputName;
+					}
+					if (!nonce && blockNonceInput) {
+						nonce = String(blockNonceInput.value || '').trim();
+					}
+					if (!nonce && blockDefaults) {
+						nonce = blockDefaults.nonce;
+					}
+
+					if (!title) {
+						title = blockDefaults && blockDefaults.title ? blockDefaults.title : ('chapter' === targetType ? '<?php echo esc_js( __( 'Block Chapter', 'fanfiction-manager' ) ); ?>' : '<?php echo esc_js( __( 'Block Story', 'fanfiction-manager' ) ); ?>');
+					}
+
+					if (!warning) {
+						warning = blockDefaults && blockDefaults.warning ? blockDefaults.warning : ('chapter' === targetType
+							? '<?php echo esc_js( __( 'Choose a reason and optional details for the author before blocking this chapter.', 'fanfiction-manager' ) ); ?>'
+							: '<?php echo esc_js( __( 'Choose a reason and optional details for the author before blocking this story.', 'fanfiction-manager' ) ); ?>');
+					}
+
+					if (!submitLabel) {
+						submitLabel = blockDefaults && blockDefaults.submitLabel ? blockDefaults.submitLabel : ('chapter' === targetType ? '<?php echo esc_js( __( 'Block Chapter', 'fanfiction-manager' ) ); ?>' : '<?php echo esc_js( __( 'Block Story', 'fanfiction-manager' ) ); ?>');
+					}
+
+					if (!targetAction) {
+						targetAction = 'chapter' === targetType ? 'fanfic_toggle_chapter_block' : 'fanfic_toggle_story_block';
+					}
+					if (!targetInputName) {
+						targetInputName = 'chapter' === targetType ? 'chapter_id' : 'story_id';
+					}
+
+					return {
+						targetType: targetType,
+						targetId: targetId,
+						targetAction: targetAction,
+						targetInputName: targetInputName,
+						nonce: nonce,
+						title: title,
+						warning: warning,
+						submitLabel: submitLabel,
+					};
+				}
+
+				function configureBlockModal(blockTrigger) {
+					var config;
+
+					if (!blockModal || !blockForm || !blockTrigger) {
+						return false;
+					}
+
+					config = getBlockTriggerConfig(blockTrigger);
+					if (!config.targetId || !config.targetAction || !config.targetInputName) {
+						return false;
+					}
+
+					if (blockTitle) {
+						blockTitle.textContent = config.title;
+					}
+					if (blockWarning) {
+						blockWarning.textContent = config.warning;
+					}
+					if (blockSubmitButton) {
+						blockSubmitButton.textContent = config.submitLabel;
+					}
+					if (blockActionInput) {
+						blockActionInput.value = config.targetAction;
+					}
+					if (blockTargetInput) {
+						blockTargetInput.name = config.targetInputName;
+						blockTargetInput.value = String(config.targetId);
+					}
+					if (blockNonceInput && config.nonce) {
+						blockNonceInput.value = config.nonce;
+					}
+					if (blockReasonSelect) {
+						blockReasonSelect.value = 'other';
+					}
+					if (blockReasonText) {
+						blockReasonText.value = '';
+					}
+
+					return true;
+				}
 
 				function setOpen(isOpen) {
 					if (!modal) {
@@ -2040,18 +2154,15 @@ class Fanfic_Core {
 						}
 
 						blockTrigger.addEventListener('click', function(event) {
-						event.preventDefault();
-						if (blockReasonSelect) {
-							blockReasonSelect.value = 'other';
-						}
-						if (blockReasonText) {
-							blockReasonText.value = '';
-						}
-						setBlockOpen(true);
-						if (blockReasonSelect) {
-							blockReasonSelect.focus();
-						}
-					});
+							event.preventDefault();
+							if (!configureBlockModal(blockTrigger)) {
+								return;
+							}
+							setBlockOpen(true);
+							if (blockReasonSelect) {
+								blockReasonSelect.focus();
+							}
+						});
 					});
 				}
 
@@ -2625,7 +2736,7 @@ class Fanfic_Core {
 		}
 
 		// Allow admins and moderators full access
-		if ( current_user_can( 'manage_options' ) || current_user_can( 'moderate_fanfiction' ) ) {
+		if ( function_exists( 'fanfic_current_user_can_use_moderation_controls' ) && fanfic_current_user_can_use_moderation_controls() ) {
 			return;
 		}
 

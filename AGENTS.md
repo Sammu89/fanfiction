@@ -23,6 +23,15 @@ Tech stack:
 - Frontend behavior driven by AJAX and shortcodes
 - Build/tooling files are present in the repo, including `package.json`, `package-lock.json`, and `purgecss.config.js`
 
+## Local Setup
+Use this order when preparing the repository for browser or helper work:
+1. Run `npm install` from the plugin root so `node_modules/` is present for the Playwright-based helpers.
+2. Confirm the browser helper auth file exists at `.codex/local-auth.json`. If it is missing, let `scripts/live-session.mjs` prompt for the local WordPress site URL, login path, and credentials once so it can save them.
+3. Make sure a visible Chrome or Chromium installation is available on the machine.
+4. Start the browser helper with `npm run live:session` and keep the visible session open while debugging.
+5. If you modify the browser helper itself, validate it with `node --check scripts/live-session.mjs` and `LIVE_SESSION_SELF_TEST=1 node scripts/live-session.mjs`.
+6. If no MCP browser session is available on first launch, ask the user for the local wp-admin URL, login path, and username, then prompt for the password in the terminal each run instead of assuming it or caching it blindly.
+
 ## Directory Structure
 - `fanfiction-manager.php` - main plugin entry point
 - `includes/` - core classes and bootstrap logic
@@ -148,6 +157,16 @@ Before writing code:
 - Frontend JS: `assets/js/fanfiction-frontend.js`, `assets/js/fanfiction-interactions.js`
 - Admin CSS: `assets/css/fanfiction-admin.css`
 - Admin JS: `assets/js/fanfiction-admin.js`
+
+## Modal Rules
+- Before creating a new modal, inspect the existing modal patterns in `templates/modal-warnings.php`, `includes/class-fanfic-core.php`, `includes/shortcodes/class-fanfic-shortcodes-buttons.php`, `templates/template-story-form.php`, and `templates/template-chapter-form.php`.
+- Reuse the standard structure: `.fanfic-modal`, `.fanfic-modal-overlay`, `.fanfic-modal-content`, `.fanfic-modal-body`, `.fanfic-modal-actions`, and `.fanfic-modal-close`.
+- Render shared modals once per page and toggle them from buttons or JS helpers; do not duplicate modal markup inside loops unless there is no reusable option.
+- Prefer centralizing modal behavior in `assets/js/fanfiction-frontend.js` when the same modal is used on multiple frontend templates; templates should usually only render markup and localized copy.
+- Use fixed full-screen positioning for modal containers, lock page scroll with a dedicated `body` class while a modal is open, and restore scroll on close.
+- Include accessibility basics by default: `role="dialog"`, `aria-modal="true"`, `aria-hidden`, `aria-labelledby`, Escape-to-close, overlay-to-close, and focus restoration to the trigger button.
+- For destructive actions, use a confirmation modal with explicit title, warning text, cancel button, and confirm button, and keep the copy in a dedicated message namespace so it does not collide with the frontend notification system.
+- Keep the modal layout plain and consistent unless a page already has an established modal variant that must be preserved.
 
 ## Shortcodes
 - Core registry: `includes/class-fanfic-shortcodes.php`

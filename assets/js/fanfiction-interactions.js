@@ -732,7 +732,7 @@
 					.attr('data-status', badgeClass)
 					.text(badgeText);
 				$row.find('.fanfic-hide-chapter').prop('hidden', isBlocked || postStatus !== 'publish');
-				$row.find('.fanfic-publish-chapter').prop('hidden', isBlocked || postStatus !== 'draft');
+				$row.find('.fanfic-publish-chapter').prop('hidden', isBlocked || postStatus === 'publish');
 			});
 
 			$('.fanfic-form-actions').each(function() {
