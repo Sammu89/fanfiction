@@ -378,6 +378,10 @@
 
         // Taxonomy order (determines pill order)
         taxonomyOrder: [
+            { key: 'search', label: 'Search', type: 'search' },
+            { key: 'sort', label: 'Sort', type: 'single-select' },
+            { key: 'direction', label: 'Order', type: 'single-select' },
+            { key: 'rating', label: 'Rating', type: 'single-select' },
             { key: 'match_all', label: 'Match all filters', type: 'toggle', naked: true },
             { key: 'language', label: 'Language', type: 'multi-select' },
             { key: 'status', label: 'Status', type: 'multi-select' },
@@ -393,6 +397,29 @@
          */
         getCurrentFilters: function() {
             var filters = {};
+
+            // Search text
+            var search = $('#fanfic-search-input').val();
+            if (search && search.trim()) {
+                filters.search = search.trim();
+            }
+
+            var sortValue = $('select[name="sort"]').val();
+            var sortText = $('select[name="sort"] option:selected').text().trim();
+            if (sortValue) {
+                filters.sort = sortText;
+            }
+
+            var directionValue = $('select[name="direction"]').val();
+            var directionText = $('select[name="direction"] option:selected').text().trim();
+            if (directionValue) {
+                filters.direction = directionText;
+            }
+
+            var ratingMin = parseFloat($('#fanfic-rating-min').val() || '0');
+            if (!isNaN(ratingMin) && ratingMin > 0) {
+                filters.rating = [ratingMin.toFixed(1) + '+'];
+            }
 
             // Status multi-select
             var statuses = [];
@@ -539,6 +566,18 @@
                     return;
                 }
 
+                if (taxConfig.type === 'search') {
+                    var searchLabel = (window.fanficSearchBar && window.fanficSearchBar.i18n && window.fanficSearchBar.i18n.searchTermLabel) ? window.fanficSearchBar.i18n.searchTermLabel : 'Search';
+                    var removeSearchLabel = (window.fanficSearchBar && window.fanficSearchBar.i18n && window.fanficSearchBar.i18n.removeSearchTerm) ? window.fanficSearchBar.i18n.removeSearchTerm : 'Remove search term';
+                    var searchValue = values[0];
+                    pillsHtml += '<li class="fanfic-pill fanfic-pill-search" data-taxonomy="' + key + '" data-value="' + self.escapeAttr(searchValue) + '">';
+                    pillsHtml += '<span class="fanfic-pill-label">' + searchLabel + ':</span>';
+                    pillsHtml += '<span class="fanfic-pill-value-text">' + self.escapeHtml(searchValue) + '</span>';
+                    pillsHtml += '<button type="button" class="fanfic-pill-value-remove" aria-label="' + self.escapeAttr(removeSearchLabel) + '">&times;</button>';
+                    pillsHtml += '</li>';
+                    return;
+                }
+
                 // Naked pills render just the value without the outer container
                 if (taxConfig.naked) {
                     values.forEach(function(value) {
@@ -576,31 +615,56 @@
         },
 
         /**
+         * Count active filter selections.
+         */
+        countActiveFilters: function(filters) {
+            var count = 0;
+
+            Object.keys(filters || {}).forEach(function(key) {
+                var value = filters[key];
+
+                if (Array.isArray(value)) {
+                    count += value.length;
+                } else if (value) {
+                    count += 1;
+                }
+            });
+
+            return count;
+        },
+
+        /**
          * Render pills to DOM
          */
         updatePills: function() {
             var filters = this.getCurrentFilters();
             var pillsHtml = this.generatePills(filters);
+            var activeCount = this.countActiveFilters(filters);
+            var i18n = (window.fanficSearchBar && window.fanficSearchBar.i18n) ? window.fanficSearchBar.i18n : {};
 
             var $container = $(this.config.containerSelector);
             var $section = $container.closest('.fanfic-current-filters-section');
+            var $count = $section.find('[data-fanfic-filter-count]');
+            var $summary = $section.find('[data-fanfic-filter-summary]');
+
+            if ($count.length) {
+                $count.text(activeCount);
+            }
+
+            if ($summary.length) {
+                if (activeCount > 0) {
+                    $summary.text(activeCount + ' ' + (activeCount === 1 ? (i18n.activeFilterSingular || 'active filter') : (i18n.activeFilterPlural || 'active filters')));
+                } else {
+                    $summary.text(i18n.noActiveFilters || 'No active filters yet.');
+                }
+            }
 
             if (pillsHtml) {
                 var containerHtml = '<ul class="fanfic-pills-container">' + pillsHtml + '</ul>';
                 $container.html(containerHtml);
                 this.attachRemoveListeners();
-
-                // Show the section when pills are present
-                if ($section.length) {
-                    $section.show();
-                }
             } else {
-                $container.empty();
-
-                // Hide the section when no pills
-                if ($section.length) {
-                    $section.hide();
-                }
+                $container.html('<p class="fanfic-current-filters-empty">' + (i18n.noActiveFilters || 'No active filters yet.') + ' ' + (i18n.noActiveFiltersHint || 'Use Advanced search to narrow results.') + '</p>');
             }
         },
 
@@ -631,8 +695,24 @@
 
             // Map taxonomy to form selectors
             switch (taxonomy) {
+                case 'search':
+                    $('#fanfic-search-input').val('').trigger('input');
+                    break;
+
                 case 'match_all':
                     $('#fanfic-match-all-filters').prop('checked', false).trigger('change');
+                    break;
+
+                case 'sort':
+                    $('select[name="sort"]').val('').trigger('change');
+                    break;
+
+                case 'direction':
+                    $('select[name="direction"]').val('').trigger('change');
+                    break;
+
+                case 'rating':
+                    $('#fanfic-rating-min').val('0').trigger('input').trigger('change');
                     break;
 
                 case 'language':
@@ -927,17 +1007,22 @@
         TranslationDeduplicator.init();
 
         var $advancedSearchToggle = $('.fanfic-advanced-search-toggle');
+        var $advancedSearchAccordion = $('#fanfic-advanced-search-panel');
         var $advancedSearchFilters = $('.fanfic-advanced-search-filters');
-        var $advancedActions = $('.fanfic-advanced-actions');
         var $toggleIcon = $advancedSearchToggle.find('.dashicons');
         var $clearFiltersButton = $('#fanfic-clear-filters-button');
         var $searchInput = $('#fanfic-search-input');
         var $searchForm = $('.fanfic-stories-form');
+        var $sortSelect = $('#fanfic-sort-filter');
+        var $directionSelect = $('#fanfic-direction-filter');
+        var $ratingFilter = $('#fanfic-rating-min');
+        var $ratingValue = $('[data-fanfic-rating-value]');
         var $ageFilter = $('#fanfic-age-filter');
         var $warningsExcludeMultiSelect = $('.fanfic-warnings-exclude-multiselect');
         var $warningsIncludeMultiSelect = $('.fanfic-warnings-include-multiselect');
         var $smartToggleCheckbox = $('#fanfic-match-all-filters');
-        var $smartToggleLabel = $smartToggleCheckbox.closest('.fanfic-stories-row').find('.fanfic-toggle-label');
+        var $smartToggleWrapper = $smartToggleCheckbox.closest('.fanfic-smart-toggle-wrapper');
+        var $smartToggleLabel = $smartToggleWrapper.find('.fanfic-comment-toggle-label');
 
         // Get single-select taxonomy list from PHP localization
         var singleSelectTaxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
@@ -946,8 +1031,7 @@
         $advancedSearchToggle.on('click', function() {
             var isExpanded = $advancedSearchToggle.attr('aria-expanded') === 'true';
 
-            $advancedSearchFilters.slideToggle(200);
-            $advancedActions.slideToggle(200);
+            $advancedSearchAccordion.stop(true, true).slideToggle(200);
 
             $advancedSearchToggle.attr('aria-expanded', !isExpanded);
 
@@ -964,12 +1048,14 @@
 
             if (isChecked) {
                 $smartToggleLabel.addClass('is-active');
+                $smartToggleWrapper.addClass('is-active');
                 // Enforce single-select for single-select taxonomies
                 SmartFilterManager.enforceMatchAllFilters();
                 // Attach listeners to prevent multiple selections going forward
                 SmartFilterManager.attachSingleSelectEnforcement();
             } else {
                 $smartToggleLabel.removeClass('is-active');
+                $smartToggleWrapper.removeClass('is-active');
                 // Re-enable multi-select for all checkboxes
                 SmartFilterManager.disableMatchAllFilters();
             }
@@ -980,13 +1066,51 @@
         // Set initial state
         if ($smartToggleCheckbox.is(':checked')) {
             $smartToggleLabel.addClass('is-active');
+            $smartToggleWrapper.addClass('is-active');
         }
+
+        function updateRatingDisplay(value) {
+            var numericValue = parseFloat(value || '0');
+            if (!$ratingValue.length) {
+                return;
+            }
+
+            if (isNaN(numericValue) || numericValue <= 0) {
+                $ratingValue.text('Any');
+                return;
+            }
+
+            $ratingValue.text(
+                numericValue.toLocaleString(undefined, {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1
+                }) + '+'
+            );
+        }
+
+        updateRatingDisplay($ratingFilter.val());
+
+        $ratingFilter.on('input change', function() {
+            updateRatingDisplay(this.value);
+            PillsManager.updatePills();
+        });
 
         // Clear filters button functionality
         $clearFiltersButton.on('click', function(e) {
             e.preventDefault();
 
             // Reset all inputs
+            $('#fanfic-search-input').val('');
+            if ($sortSelect.length) {
+                $sortSelect.val('');
+            }
+            if ($directionSelect.length) {
+                $directionSelect.val('desc');
+            }
+            if ($ratingFilter.length) {
+                $ratingFilter.val('0');
+                updateRatingDisplay('0');
+            }
             if ($ageFilter.length) {
                 $ageFilter.val('');
             }
@@ -1062,6 +1186,16 @@
             var $sortSelect = $searchForm.find('select[name="sort"]');
             if ($sortSelect.length && $sortSelect.val()) {
                 params.sort = $sortSelect.val();
+            }
+
+            var $directionSelect = $searchForm.find('select[name="direction"]');
+            if ($directionSelect.length && $directionSelect.val()) {
+                params.direction = $directionSelect.val();
+            }
+
+            var $ratingMin = $searchForm.find('input[name="rating_min"]');
+            if ($ratingMin.length && parseFloat($ratingMin.val() || '0') > 0) {
+                params.rating_min = $ratingMin.val();
             }
 
             // 3. Match all filters toggle - include as match_all_filters=1 only if checked

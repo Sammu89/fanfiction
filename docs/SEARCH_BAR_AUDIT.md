@@ -25,7 +25,7 @@ Renders the complete search interface with 3 sections:
 **Section 2: Basic Search Row** (Always visible)
 - Text input: `#fanfic-search-input` (name="search")
 - Status dropdown: `#fanfic-status-filter` (name="status")
-- Sort dropdown: `#fanfic-sort-filter` (name="sort")
+- Sort dropdown: `#fanfic-sort-filter` (name="sort"), default label `Popularity`
 - Clear filters button: `#fanfic-clear-filters-button`
 - Search submit button
 
@@ -300,4 +300,3 @@ AJAX approach:
 - Debounce filter changes (500ms)
 - Cache search results (transients)
 - Rate limit AJAX requests (already implemented via `Fanfic_AJAX_Security`)
-

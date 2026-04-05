@@ -177,7 +177,7 @@ Pills show human-readable versions of selected filters:
 Filters that are empty/default don't show pills:
 - Empty search
 - "All Statuses" selected
-- "Relevance / Updated" sort
+- "Popularity" sort
 - "Any age" selected
 - No genres selected
 - Match ALL toggle OFF (optional)
@@ -325,4 +325,3 @@ The pills work entirely on the frontend with no backend calls.
 - Easy to extend or modify
 - No breaking changes
 - Backward compatible with existing form submission
-

@@ -4908,9 +4908,71 @@ function fanfic_normalize_sort_filter( $value ) {
 	}
 
 	$value = sanitize_key( $value );
-	$allowed = array( 'updated', 'alphabetical', 'created' );
+	$allowed = array( 'popularity', 'updated', 'alphabetical', 'created', 'likes', 'comments', 'views', 'rating', 'followers' );
 
 	return in_array( $value, $allowed, true ) ? $value : '';
+}
+
+/**
+ * Build SQL for the story popularity score.
+ *
+ * Volume leads, rating acts as a quality multiplier.
+ *
+ * @since 1.2.0
+ * @param string $prefix SQL column prefix/alias.
+ * @return string SQL expression.
+ */
+function fanfic_build_story_popularity_score_sql( $prefix = '' ) {
+	$prefix = '' !== $prefix ? rtrim( $prefix, '.' ) . '.' : '';
+
+	return sprintf(
+		'((0.35 * LOG(1 + COALESCE(%1$sview_count, 0))) + (0.30 * LOG(1 + COALESCE(%1$slikes_total, 0))) + (0.20 * LOG(1 + COALESCE(%1$sfollow_count, 0))) + (0.15 * LOG(1 + COALESCE(%1$scomment_count, 0))) - (0.10 * LOG(1 + COALESCE(%1$sdislikes_total, 0)))) * (0.75 + (0.25 * (COALESCE(%1$srating_avg_total, 0) / 5)))',
+		$prefix
+	);
+}
+
+/**
+ * Normalize sort direction.
+ *
+ * @since 1.2.0
+ * @param mixed $value Raw param value.
+ * @return string Direction value or empty string.
+ */
+function fanfic_normalize_sort_direction( $value ) {
+	if ( empty( $value ) ) {
+		return '';
+	}
+
+	$value = sanitize_key( $value );
+
+	return in_array( $value, array( 'asc', 'desc' ), true ) ? $value : '';
+}
+
+/**
+ * Normalize minimum story rating filter.
+ *
+ * Accepts values between 0 and 5 in 0.5 increments.
+ *
+ * @since 1.2.0
+ * @param mixed $value Raw param value.
+ * @return float Normalized minimum rating.
+ */
+function fanfic_normalize_rating_min_filter( $value ) {
+	if ( '' === $value || null === $value ) {
+		return 0.0;
+	}
+
+	$value = wp_unslash( (string) $value );
+	$value = str_replace( ',', '.', trim( $value ) );
+
+	if ( ! is_numeric( $value ) ) {
+		return 0.0;
+	}
+
+	$rating = (float) $value;
+	$rating = max( 0.0, min( 5.0, $rating ) );
+
+	return round( $rating * 2 ) / 2;
 }
 
 /**
@@ -5007,6 +5069,8 @@ function fanfic_get_stories_params( $source = null ) {
 		'include_warnings' => $include_warnings,
 		'age'              => $age_filter,
 		'sort'             => fanfic_normalize_sort_filter( $source['sort'] ?? '' ),
+		'direction'        => fanfic_normalize_sort_direction( $source['direction'] ?? '' ),
+		'rating_min'       => fanfic_normalize_rating_min_filter( $source['rating_min'] ?? '' ),
 		'match_all_filters' => $match_all_filters,
 		'custom'           => array(),
 	);
@@ -5221,17 +5285,65 @@ function fanfic_get_story_ids_with_warnings( $warning_slugs ) {
 }
 
 /**
+ * Get story IDs that meet a minimum average rating.
+ *
+ * @since 1.2.0
+ * @param float      $rating_min  Minimum average rating.
+ * @param int[]|null $post_in     Allowed story IDs.
+ * @param int[]      $post_not_in Excluded story IDs.
+ * @return int[] Story IDs.
+ */
+function fanfic_get_story_ids_by_min_rating( $rating_min, $post_in = null, $post_not_in = array() ) {
+	global $wpdb;
+
+	$rating_min = max( 0.0, min( 5.0, (float) $rating_min ) );
+	if ( $rating_min <= 0 ) {
+		return is_array( $post_in ) ? array_map( 'absint', $post_in ) : array();
+	}
+
+	$table        = $wpdb->prefix . 'fanfic_story_search_index';
+	$table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	if ( $table_exists !== $table ) {
+		return array();
+	}
+
+	$where_clauses = array( "story_status = 'publish'", 'rating_avg_total >= %f' );
+	$bind_values   = array( $rating_min );
+
+	if ( is_array( $post_in ) && ! empty( $post_in ) ) {
+		$placeholders    = implode( ',', array_fill( 0, count( $post_in ), '%d' ) );
+		$where_clauses[] = "story_id IN ({$placeholders})";
+		$bind_values     = array_merge( $bind_values, $post_in );
+	}
+
+	if ( ! empty( $post_not_in ) ) {
+		$placeholders    = implode( ',', array_fill( 0, count( $post_not_in ), '%d' ) );
+		$where_clauses[] = "story_id NOT IN ({$placeholders})";
+		$bind_values     = array_merge( $bind_values, $post_not_in );
+	}
+
+	$where_sql = implode( ' AND ', $where_clauses );
+	$results   = $wpdb->get_col(
+		$wpdb->prepare( "SELECT story_id FROM {$table} WHERE {$where_sql}", $bind_values )
+	);
+
+	return array_map( 'absint', (array) $results );
+}
+
+/**
  * Sort and paginate story IDs using the search index table.
  *
  * @since 1.9.0
  * @param int[]|null $post_in     Allowed story IDs (null = all published).
  * @param int[]      $post_not_in Excluded story IDs.
- * @param string     $sort        Sort key: updated|created|alphabetical.
+ * @param string     $sort        Sort key: popularity|updated|created|alphabetical|likes|comments|views|rating|followers.
  * @param int        $paged       Current page (1-based).
  * @param int        $per_page    Posts per page.
+ * @param string     $direction   Requested sort direction.
+ * @param float      $rating_min  Minimum average rating.
  * @return array{ids: int[], total: int}
  */
-function fanfic_sort_story_ids_via_index( $post_in, $post_not_in, $sort, $paged, $per_page ) {
+function fanfic_sort_story_ids_via_index( $post_in, $post_not_in, $sort, $paged, $per_page, $direction = '', $rating_min = 0.0 ) {
 	global $wpdb;
 
 	$table        = $wpdb->prefix . 'fanfic_story_search_index';
@@ -5241,16 +5353,31 @@ function fanfic_sort_story_ids_via_index( $post_in, $post_not_in, $sort, $paged,
 	}
 
 	$sort_map = array(
+		'popularity'   => array( 'column' => fanfic_build_story_popularity_score_sql(), 'direction' => 'DESC', 'expression' => true ),
 		'updated'      => array( 'column' => 'updated_date', 'direction' => 'DESC' ),
 		'created'      => array( 'column' => 'published_date', 'direction' => 'DESC' ),
 		'alphabetical' => array( 'column' => 'story_title', 'direction' => 'ASC' ),
+		'likes'        => array( 'column' => 'likes_total', 'direction' => 'DESC' ),
+		'comments'     => array( 'column' => 'comment_count', 'direction' => 'DESC' ),
+		'views'        => array( 'column' => 'view_count', 'direction' => 'DESC' ),
+		'rating'       => array( 'column' => 'rating_avg_total', 'direction' => 'DESC' ),
+		'followers'    => array( 'column' => 'follow_count', 'direction' => 'DESC' ),
 	);
 	$sort_config  = isset( $sort_map[ $sort ] ) ? $sort_map[ $sort ] : $sort_map['updated'];
 	$order_col    = $sort_config['column'];
-	$order_dir    = $sort_config['direction'];
+	$order_dir    = 'asc' === strtolower( (string) $direction )
+		? 'ASC'
+		: ( 'desc' === strtolower( (string) $direction ) ? 'DESC' : $sort_config['direction'] );
+	$order_expr   = ! empty( $sort_config['expression'] ) ? $order_col : "{$order_col} {$order_dir}";
 
 	$where_clauses = array( "story_status = 'publish'" );
 	$bind_values   = array();
+	$rating_min    = max( 0.0, min( 5.0, (float) $rating_min ) );
+
+	if ( $rating_min > 0 ) {
+		$where_clauses[] = 'rating_avg_total >= %f';
+		$bind_values[]   = $rating_min;
+	}
 
 	if ( is_array( $post_in ) && ! empty( $post_in ) ) {
 		$placeholders    = implode( ',', array_fill( 0, count( $post_in ), '%d' ) );
@@ -5266,19 +5393,22 @@ function fanfic_sort_story_ids_via_index( $post_in, $post_not_in, $sort, $paged,
 
 	$where_sql = implode( ' AND ', $where_clauses );
 	$offset    = ( $paged - 1 ) * $per_page;
+	$order_sql = ! empty( $sort_config['expression'] )
+		? "{$order_expr} {$order_dir}, updated_date DESC, story_id DESC"
+		: "{$order_expr}, updated_date DESC, story_id DESC";
 
 	if ( empty( $bind_values ) ) {
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE {$where_sql}" );
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT story_id FROM {$table} WHERE {$where_sql} ORDER BY {$order_col} {$order_dir} LIMIT %d, %d", $offset, $per_page ) );
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT story_id FROM {$table} WHERE {$where_sql} ORDER BY {$order_sql} LIMIT %d, %d", $offset, $per_page ) );
 	} else {
 		$count_values = $bind_values;
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE {$where_sql}", $count_values ) );
 		$offset_values = array_merge( $bind_values, array( $offset, $per_page ) );
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT story_id FROM {$table} WHERE {$where_sql} ORDER BY {$order_col} {$order_dir} LIMIT %d, %d", $offset_values ) );
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT story_id FROM {$table} WHERE {$where_sql} ORDER BY {$order_sql} LIMIT %d, %d", $offset_values ) );
 	}
 
 	return array(
@@ -5313,6 +5443,7 @@ function fanfic_build_stories_query_args( $params, $paged = 1, $per_page = 12 ) 
 	$post__not_in = array();
 	$search_ids   = array();
 	$match_all_filters = ( $params['match_all_filters'] ?? '0' ) === '1';
+	$sort_direction = $params['direction'] ?? '';
 
 	// Search index -> candidate IDs
 	if ( ! empty( $params['search'] ) && class_exists( 'Fanfic_Search_Index' ) ) {
@@ -5419,12 +5550,12 @@ function fanfic_build_stories_query_args( $params, $paged = 1, $per_page = 12 ) 
 		$query_args['post__not_in'] = array_values( array_unique( array_map( 'absint', $post__not_in ) ) );
 	}
 
-	// Determine sort key. Only use index-sort when not in pure relevance (search text) mode.
+	// Determine sort key. Popularity is the default archive sort.
 	$sort_key = '';
-	if ( ! empty( $params['sort'] ) && in_array( $params['sort'], array( 'updated', 'created', 'alphabetical' ), true ) ) {
+	if ( ! empty( $params['sort'] ) && in_array( $params['sort'], array( 'popularity', 'updated', 'created', 'alphabetical', 'likes', 'comments', 'views', 'rating', 'followers' ), true ) ) {
 		$sort_key = $params['sort'];
-	} elseif ( empty( $search_ids ) ) {
-		$sort_key = 'updated';
+	} else {
+		$sort_key = 'popularity';
 	}
 
 	if ( '' !== $sort_key ) {
@@ -5434,7 +5565,9 @@ function fanfic_build_stories_query_args( $params, $paged = 1, $per_page = 12 ) 
 			$post__not_in,
 			$sort_key,
 			$paged,
-			$per_page
+			$per_page,
+			$sort_direction,
+			(float) ( $params['rating_min'] ?? 0 )
 		);
 
 		if ( ! empty( $sort_result['ids'] ) ) {
@@ -5455,14 +5588,32 @@ function fanfic_build_stories_query_args( $params, $paged = 1, $per_page = 12 ) 
 		);
 	}
 
-	// Fallback: relevance search mode — preserve relevance order when provided,
-	// otherwise use the canonical computed story update date.
-	if ( ! empty( $search_ids ) && is_array( $post__in ) ) {
-		$query_args['orderby'] = 'post__in';
-	} elseif ( empty( $query_args['orderby'] ) ) {
-		$query_args['meta_key'] = '_fanfic_content_updated_date';
-		$query_args['orderby']  = 'meta_value';
-		$query_args['order']    = 'DESC';
+	// Fallback: use popularity for archive defaults.
+	if ( empty( $query_args['orderby'] ) ) {
+		$sort_result = fanfic_sort_story_ids_via_index(
+			is_array( $post__in ) ? $post__in : null,
+			$post__not_in,
+			'popularity',
+			$paged,
+			$per_page,
+			$sort_direction,
+			(float) ( $params['rating_min'] ?? 0 )
+		);
+
+		if ( ! empty( $sort_result['ids'] ) ) {
+			$query_args['post__in']       = $sort_result['ids'];
+			$query_args['orderby']        = 'post__in';
+			$query_args['posts_per_page'] = count( $sort_result['ids'] );
+			$query_args['paged']          = 1;
+			$query_args['no_found_rows']  = true;
+			unset( $query_args['post__not_in'] );
+			return array(
+				'args'        => $query_args,
+				'found_posts' => $sort_result['total'],
+			);
+		}
+
+		$query_args['post__in'] = array( 0 );
 	}
 
 	return array(
@@ -5508,6 +5659,12 @@ function fanfic_build_stories_url_args( $params ) {
 	}
 	if ( ! empty( $params['sort'] ) ) {
 		$args['sort'] = $params['sort'];
+	}
+	if ( ! empty( $params['direction'] ) ) {
+		$args['direction'] = $params['direction'];
+	}
+	if ( ! empty( $params['rating_min'] ) ) {
+		$args['rating_min'] = number_format( (float) $params['rating_min'], 1, '.', '' );
 	}
 
 	// Custom taxonomies.
@@ -5660,15 +5817,42 @@ function fanfic_build_active_filters( $params, $base_url ) {
 		);
 	}
 
+	if ( ! empty( $params['rating_min'] ) ) {
+		$filters[] = array(
+			'label' => sprintf(
+				__( 'Rating: %s+', 'fanfiction-manager' ),
+				number_format_i18n( (float) $params['rating_min'], 1 )
+			),
+			'url'   => fanfic_build_stories_url( $base_url, $params, array( 'rating_min' => null, 'paged' => null ) ),
+		);
+	}
+
 	if ( ! empty( $params['sort'] ) ) {
 		$sort_labels = array(
+			'popularity'   => __( 'Popularity', 'fanfiction-manager' ),
 			'updated'      => __( 'Updated', 'fanfiction-manager' ),
-			'alphabetical' => __( 'Alphabetical', 'fanfiction-manager' ),
-			'created'      => __( 'Created', 'fanfiction-manager' ),
+			'alphabetical' => __( 'A-Z', 'fanfiction-manager' ),
+			'created'      => __( 'Publication date', 'fanfiction-manager' ),
+			'likes'        => __( 'Likes', 'fanfiction-manager' ),
+			'comments'     => __( 'Comments', 'fanfiction-manager' ),
+			'views'        => __( 'Views', 'fanfiction-manager' ),
+			'rating'       => __( 'Rating', 'fanfiction-manager' ),
+			'followers'    => __( 'Followers', 'fanfiction-manager' ),
 		);
 		$filters[] = array(
 			'label' => sprintf( __( 'Sort: %s', 'fanfiction-manager' ), $sort_labels[ $params['sort'] ] ?? $params['sort'] ),
 			'url'   => fanfic_build_stories_url( $base_url, $params, array( 'sort' => null, 'paged' => null ) ),
+		);
+	}
+
+	if ( ! empty( $params['direction'] ) ) {
+		$direction_labels = array(
+			'asc'  => __( 'Ascending', 'fanfiction-manager' ),
+			'desc' => __( 'Descending', 'fanfiction-manager' ),
+		);
+		$filters[] = array(
+			'label' => sprintf( __( 'Order: %s', 'fanfiction-manager' ), $direction_labels[ $params['direction'] ] ?? $params['direction'] ),
+			'url'   => fanfic_build_stories_url( $base_url, $params, array( 'direction' => null, 'paged' => null ) ),
 		);
 	}
 

@@ -41,6 +41,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 				'word_count'            => 0,
 				'view_count'            => 0,
 				'likes_total'           => 0,
+				'follow_count'          => 0,
 				'rating_avg_total'      => 0,
 				'fandom_slugs'          => '',
 				'warning_slugs'         => '',
@@ -96,6 +97,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 		'word_count',
 		'view_count',
 		'likes_total',
+		'follow_count',
 		'rating_avg_total',
 		'fandom_slugs',
 		'warning_slugs',
@@ -154,6 +156,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
 				'word_count'           => absint( $row['word_count'] ?? 0 ),
 				'view_count'           => absint( $row['view_count'] ?? 0 ),
 				'likes_total'          => absint( $row['likes_total'] ?? 0 ),
+				'follow_count'         => absint( $row['follow_count'] ?? 0 ),
 				'rating_avg_total'     => isset( $row['rating_avg_total'] ) && is_numeric( $row['rating_avg_total'] ) ? (float) $row['rating_avg_total'] : 0,
 				'fandom_slugs'         => sanitize_text_field( (string) ( $row['fandom_slugs'] ?? '' ) ),
 				'warning_slugs'        => sanitize_text_field( (string) ( $row['warning_slugs'] ?? '' ) ),
@@ -270,6 +273,7 @@ function fanfic_preload_story_card_index_data( $story_ids ) {
  *   word_count:int,
  *   view_count:int,
  *   likes_total:int,
+ *   follow_count:int,
  *   rating_avg_total:float,
  *   fandom_slugs:string,
  *   warning_slugs:string,
@@ -302,6 +306,7 @@ function fanfic_get_story_card_index_data( $story_id ) {
 		'word_count'           => 0,
 		'view_count'           => 0,
 		'likes_total'          => 0,
+		'follow_count'         => 0,
 		'rating_avg_total'     => 0,
 		'fandom_slugs'         => '',
 		'warning_slugs'        => '',
@@ -754,7 +759,33 @@ function fanfic_get_story_card_html( $story_id ) {
 	$chapters = absint( $card_index_data['chapter_count'] );
 	$story_views = absint( $card_index_data['view_count'] );
 	$story_likes = absint( $card_index_data['likes_total'] );
+	$story_follows = absint( $card_index_data['follow_count'] );
 	$story_rating_avg = isset( $card_index_data['rating_avg_total'] ) && is_numeric( $card_index_data['rating_avg_total'] ) ? (float) $card_index_data['rating_avg_total'] : 0;
+	$word_count_help = sprintf(
+		/* translators: %s: word count */
+		__( 'Word count: %s', 'fanfiction-manager' ),
+		Fanfic_Shortcodes::format_number( $word_count )
+	);
+	$views_help = sprintf(
+		/* translators: %s: view count */
+		__( 'Views: %s', 'fanfiction-manager' ),
+		Fanfic_Shortcodes::format_number( $story_views )
+	);
+	$likes_help = sprintf(
+		/* translators: %s: like count */
+		__( 'Likes: %s', 'fanfiction-manager' ),
+		Fanfic_Shortcodes::format_number( $story_likes )
+	);
+	$follows_help = sprintf(
+		/* translators: %s: follow count */
+		__( 'Follows: %s', 'fanfiction-manager' ),
+		Fanfic_Shortcodes::format_number( $story_follows )
+	);
+	$rating_help = sprintf(
+		/* translators: %s: average rating */
+		__( 'Rating: %s', 'fanfiction-manager' ),
+		number_format_i18n( $story_rating_avg, 1 )
+	);
 	$language_slug = sanitize_title( (string) $card_index_data['language_slug'] );
 	$language_label = trim( (string) $card_index_data['language_name'] );
 	if ( '' === $language_label ) {
@@ -1182,21 +1213,25 @@ function fanfic_get_story_card_html( $story_id ) {
 						<?php endif; ?>
 
 						<div class="search-story-card-metrics" aria-label="<?php esc_attr_e( 'Story metrics', 'fanfiction-manager' ); ?>">
-							<span class="search-story-card-metric">
+							<span class="search-story-card-metric" title="<?php echo esc_attr( $word_count_help ); ?>">
 								<span class="dashicons dashicons-edit" aria-hidden="true"></span>
-								<span title="<?php printf( esc_attr__( '%s words', 'fanfiction-manager' ), esc_attr( Fanfic_Shortcodes::format_number( $word_count ) ) ); ?>" aria-label="<?php printf( esc_attr__( '%s words', 'fanfiction-manager' ), esc_attr( Fanfic_Shortcodes::format_number( $word_count ) ) ); ?>"><?php printf( esc_html__( '%s words', 'fanfiction-manager' ), esc_html( Fanfic_Shortcodes::format_engagement_number( $word_count ) ) ); ?></span>
+								<span aria-label="<?php echo esc_attr( $word_count_help ); ?>"><?php printf( esc_html__( '%s words', 'fanfiction-manager' ), esc_html( Fanfic_Shortcodes::format_engagement_number( $word_count ) ) ); ?></span>
 							</span>
-							<span class="search-story-card-metric">
+							<span class="search-story-card-metric" title="<?php echo esc_attr( $views_help ); ?>">
 								<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
-								<span title="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $story_views ) ); ?>" aria-label="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $story_views ) ); ?>"><?php echo esc_html( Fanfic_Shortcodes::format_engagement_number( $story_views ) ); ?></span>
+								<span aria-label="<?php echo esc_attr( $views_help ); ?>"><?php echo esc_html( Fanfic_Shortcodes::format_engagement_number( $story_views ) ); ?></span>
 							</span>
-							<span class="search-story-card-metric">
+							<span class="search-story-card-metric" title="<?php echo esc_attr( $likes_help ); ?>">
 								<svg class="fanfic-metric-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M19.017 31.992c-9.088 0-9.158-0.377-10.284-1.224-0.597-0.449-1.723-0.76-5.838-1.028-0.298-0.020-0.583-0.134-0.773-0.365-0.087-0.107-2.143-3.105-2.143-7.907 0-4.732 1.472-6.89 1.534-6.99 0.182-0.293 0.503-0.47 0.847-0.47 3.378 0 8.062-4.313 11.21-11.841 0.544-1.302 0.657-2.159 2.657-2.159 1.137 0 2.413 0.815 3.042 1.86 1.291 2.135 0.636 6.721 0.029 9.171 2.063-0.017 5.796-0.045 7.572-0.045 2.471 0 4.107 1.473 4.156 3.627 0.017 0.711-0.077 1.619-0.282 2.089 0.544 0.543 1.245 1.36 1.276 2.414 0.038 1.36-0.852 2.395-1.421 2.989 0.131 0.395 0.391 0.92 0.366 1.547-0.063 1.542-1.253 2.535-1.994 3.054 0.061 0.422 0.11 1.218-0.026 1.834-0.535 2.457-4.137 3.443-9.928 3.443z"/></svg>
-								<span title="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $story_likes ) ); ?>" aria-label="<?php echo esc_attr( Fanfic_Shortcodes::format_number( $story_likes ) ); ?>"><?php echo esc_html( Fanfic_Shortcodes::format_engagement_number( $story_likes ) ); ?></span>
+								<span aria-label="<?php echo esc_attr( $likes_help ); ?>"><?php echo esc_html( Fanfic_Shortcodes::format_engagement_number( $story_likes ) ); ?></span>
 							</span>
-							<span class="search-story-card-metric">
+							<span class="search-story-card-metric" title="<?php echo esc_attr( $follows_help ); ?>">
+								<span class="dashicons dashicons-heart" aria-hidden="true"></span>
+								<span aria-label="<?php echo esc_attr( $follows_help ); ?>"><?php echo esc_html( Fanfic_Shortcodes::format_engagement_number( $story_follows ) ); ?></span>
+							</span>
+							<span class="search-story-card-metric" title="<?php echo esc_attr( $rating_help ); ?>">
 								<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>
-								<span><?php echo esc_html( number_format_i18n( $story_rating_avg, 1 ) ); ?></span>
+								<span aria-label="<?php echo esc_attr( $rating_help ); ?>"><?php echo esc_html( number_format_i18n( $story_rating_avg, 1 ) ); ?></span>
 							</span>
 						</div>
 

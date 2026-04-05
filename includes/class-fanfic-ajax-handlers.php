@@ -1040,7 +1040,7 @@ class Fanfic_AJAX_Handlers {
 	public static function ajax_stories_search() {
 		$params = Fanfic_AJAX_Security::get_ajax_parameters(
 			array( 'nonce' ),
-			array( 'search', 's', 'genre', 'status', 'fandom', 'warning', 'age', 'sort', 'paged', 'base_url' )
+			array( 'search', 's', 'genre', 'status', 'fandom', 'warning', 'age', 'sort', 'direction', 'rating_min', 'paged', 'base_url' )
 		);
 
 		if ( is_wp_error( $params ) ) {

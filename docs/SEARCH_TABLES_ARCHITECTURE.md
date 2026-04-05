@@ -203,6 +203,18 @@ Pipeline:
   - otherwise `post__in` ordering for text relevance,
   - fallback to modified date desc.
 
+Popularity sort:
+- The stories archive defaults to `Popularity`.
+- The score is computed from the precomputed story search index, so it stays table-driven and avoids extra joins.
+- The weighting is volume-first with rating as a quality multiplier:
+  - `volume_score = 0.35*log(1+views) + 0.30*log(1+likes) + 0.20*log(1+follows) + 0.15*log(1+comments) - 0.10*log(1+dislikes)`
+  - `quality_multiplier = 0.75 + 0.25*(rating_avg/5)`
+  - `popularity = volume_score * quality_multiplier`
+- The order direction selector still applies:
+  - `asc` returns lower popularity scores first
+  - `desc` returns higher popularity scores first
+- Stable tie-breakers remain `updated_date DESC, story_id DESC`.
+
 Important:
 - runtime filtering now avoids direct canonical relation-table scans for these facets.
 
@@ -362,4 +374,3 @@ When changing search/filter behavior, verify:
 - `fanfic_build_stories_query_args()` keeps using map helpers for facets.
 - `fanfic_get_search_filter_option_counts()` reflects the same facet logic.
 - caches invalidated where needed (`global_filter_counts` minimum).
-
