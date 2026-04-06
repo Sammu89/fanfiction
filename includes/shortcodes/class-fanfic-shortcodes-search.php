@@ -55,6 +55,542 @@ class Fanfic_Shortcodes_Search {
 	}
 
 	/**
+	 * Get the shared tooltip copy for disabled search filters.
+	 *
+	 * @since 2.0.0
+	 * @return string
+	 */
+	private static function get_unavailable_filter_tooltip() {
+		return __( 'No stories with this filter exist', 'fanfiction-manager' );
+	}
+
+	/**
+	 * Filter scalar values by their positive count.
+	 *
+	 * @since 2.0.0
+	 * @param array $values Value list.
+	 * @param array $counts Count map.
+	 * @return array
+	 */
+	private static function filter_scalar_values_by_counts( $values, $counts ) {
+		$filtered = array();
+
+		foreach ( (array) $values as $value ) {
+			if ( ! empty( $counts[ $value ] ) ) {
+				$filtered[] = $value;
+			}
+		}
+
+		return $filtered;
+	}
+
+	/**
+	 * Filter array items with a slug key by positive count.
+	 *
+	 * @since 2.0.0
+	 * @param array  $items    Item list.
+	 * @param array  $counts   Count map.
+	 * @param string $slug_key Slug array key.
+	 * @return array
+	 */
+	private static function filter_array_items_by_counts( $items, $counts, $slug_key = 'slug' ) {
+		$filtered = array();
+
+		foreach ( (array) $items as $item ) {
+			if ( ! isset( $item[ $slug_key ] ) ) {
+				continue;
+			}
+
+			if ( ! empty( $counts[ $item[ $slug_key ] ] ) ) {
+				$filtered[] = $item;
+			}
+		}
+
+		return $filtered;
+	}
+
+	/**
+	 * Filter term objects by positive count.
+	 *
+	 * @since 2.0.0
+	 * @param array $terms  Term list.
+	 * @param array $counts Count map.
+	 * @return array
+	 */
+	private static function filter_term_objects_by_counts( $terms, $counts ) {
+		$filtered = array();
+
+		foreach ( (array) $terms as $term ) {
+			if ( empty( $term->slug ) ) {
+				continue;
+			}
+
+			if ( ! empty( $counts[ $term->slug ] ) ) {
+				$filtered[] = $term;
+			}
+		}
+
+		return $filtered;
+	}
+
+	/**
+	 * Render a standard checkbox multiselect search filter.
+	 *
+	 * @since 2.0.0
+	 * @param array $args Filter config.
+	 * @return string
+	 */
+	private static function render_search_multiselect_filter( $args ) {
+		$args = wp_parse_args(
+			$args,
+			array(
+				'label'         => '',
+				'placeholder'   => '',
+				'input_name'    => '',
+				'options'       => array(),
+				'selected'      => array(),
+				'disabled'      => false,
+				'tooltip'       => '',
+				'wrapper_class' => '',
+			)
+		);
+
+		$wrapper_class = trim( 'fanfic-advanced-search-item ' . $args['wrapper_class'] );
+
+		ob_start();
+		?>
+		<div class="<?php echo esc_attr( $wrapper_class ); ?>">
+			<label><?php echo esc_html( $args['label'] ); ?></label>
+			<div class="multi-select" data-placeholder="<?php echo esc_attr( $args['placeholder'] ); ?>">
+				<button
+					type="button"
+					class="multi-select__trigger"
+					aria-haspopup="listbox"
+					<?php disabled( ! empty( $args['disabled'] ) ); ?>
+					<?php if ( ! empty( $args['disabled'] ) && '' !== $args['tooltip'] ) : ?>
+						title="<?php echo esc_attr( $args['tooltip'] ); ?>"
+					<?php endif; ?>
+				>
+					<?php echo esc_html( $args['placeholder'] ); ?>
+				</button>
+				<div class="multi-select__dropdown">
+					<?php foreach ( (array) $args['options'] as $option ) : ?>
+						<label>
+							<input
+								type="checkbox"
+								name="<?php echo esc_attr( $args['input_name'] ); ?>"
+								value="<?php echo esc_attr( $option['value'] ); ?>"
+								<?php checked( in_array( (string) $option['value'], array_map( 'strval', (array) $args['selected'] ), true ) ); ?>
+							/>
+							<?php echo esc_html( sprintf( '%s (%d)', $option['label'], absint( $option['count'] ) ) ); ?>
+						</label>
+					<?php endforeach; ?>
+				</div>
+			</div>
+		</div>
+		<?php
+
+		return ob_get_clean();
+	}
+
+	/**
+	 * Render a standard single-select search filter.
+	 *
+	 * @since 2.0.0
+	 * @param array $args Filter config.
+	 * @return string
+	 */
+	private static function render_search_select_filter( $args ) {
+		$args = wp_parse_args(
+			$args,
+			array(
+				'label'         => '',
+				'input_id'      => '',
+				'input_name'    => '',
+				'placeholder'   => __( 'Any', 'fanfiction-manager' ),
+				'options'       => array(),
+				'selected'      => '',
+				'disabled'      => false,
+				'tooltip'       => '',
+				'wrapper_class' => '',
+			)
+		);
+
+		$wrapper_class = trim( 'fanfic-advanced-search-item ' . $args['wrapper_class'] );
+
+		ob_start();
+		?>
+		<div class="<?php echo esc_attr( $wrapper_class ); ?>">
+			<label for="<?php echo esc_attr( $args['input_id'] ); ?>"><?php echo esc_html( $args['label'] ); ?></label>
+			<select
+				id="<?php echo esc_attr( $args['input_id'] ); ?>"
+				name="<?php echo esc_attr( $args['input_name'] ); ?>"
+				<?php disabled( ! empty( $args['disabled'] ) ); ?>
+				<?php if ( ! empty( $args['disabled'] ) && '' !== $args['tooltip'] ) : ?>
+					title="<?php echo esc_attr( $args['tooltip'] ); ?>"
+				<?php endif; ?>
+			>
+				<option value=""><?php echo esc_html( $args['placeholder'] ); ?></option>
+				<?php foreach ( (array) $args['options'] as $option ) : ?>
+					<option value="<?php echo esc_attr( $option['value'] ); ?>" <?php selected( (string) $args['selected'], (string) $option['value'] ); ?>>
+						<?php echo esc_html( sprintf( '%s (%d)', $option['label'], absint( $option['count'] ) ) ); ?>
+					</option>
+				<?php endforeach; ?>
+			</select>
+		</div>
+		<?php
+
+		return ob_get_clean();
+	}
+
+	/**
+	 * Build the selected fandom labels for the search filter.
+	 *
+	 * @since 2.0.0
+	 * @param array $params Current search params.
+	 * @return array
+	 */
+	private static function get_selected_fandom_labels( $params ) {
+		$current_fandom_labels = array();
+
+		if ( empty( $params['fandoms'] ) || ! class_exists( 'Fanfic_Fandoms' ) || ! Fanfic_Fandoms::is_enabled() ) {
+			return $current_fandom_labels;
+		}
+
+		foreach ( (array) $params['fandoms'] as $fandom_slug ) {
+			$fandom_id = Fanfic_Fandoms::get_fandom_id_by_slug( $fandom_slug );
+			if ( ! $fandom_id ) {
+				continue;
+			}
+
+			$fandom_label = Fanfic_Fandoms::get_fandom_label_by_id( $fandom_id );
+			if ( ! $fandom_label ) {
+				continue;
+			}
+
+			$current_fandom_labels[] = array(
+				'id'    => $fandom_id,
+				'label' => $fandom_label,
+			);
+		}
+
+		return $current_fandom_labels;
+	}
+
+	/**
+	 * Render the fandom search filter.
+	 *
+	 * @since 2.0.0
+	 * @param array $context Search context.
+	 * @return string
+	 */
+	private static function render_fandom_search_filter( $context ) {
+		return fanfic_render_fandom_multiselect_field(
+			array(
+				'wrapper_class'       => 'fanfic-advanced-search-item fanfic-fandoms-field',
+				'input_id'            => 'fanfic-fandom-filter',
+				'selected_fandoms'    => self::get_selected_fandom_labels( $context['params'] ),
+				'trigger_placeholder' => __( 'Select Fandoms', 'fanfiction-manager' ),
+				'search_placeholder'  => __( 'Search fandoms...', 'fanfiction-manager' ),
+				'field_disabled'      => empty( $context['has_fandom_options'] ),
+				'disabled_title'      => $context['unavailable_filter_tip'],
+				'preloaded_options'   => $context['preloaded_fandoms'],
+				'show_all_on_click'   => ! empty( $context['preloaded_fandoms'] ),
+			)
+		);
+	}
+
+	/**
+	 * Render the minimum rating filter.
+	 *
+	 * @since 2.0.0
+	 * @param float $rating_min Selected minimum rating.
+	 * @return string
+	 */
+	private static function render_rating_search_filter( $rating_min ) {
+		ob_start();
+		?>
+		<div class="fanfic-advanced-search-item fanfic-advanced-search-item--rating">
+			<div class="fanfic-rating-range-filter">
+				<div class="fanfic-rating-range-header">
+					<label for="fanfic-rating-min"><?php esc_html_e( 'Minimum rating', 'fanfiction-manager' ); ?></label>
+					<span class="fanfic-rating-range-value" data-fanfic-rating-value>
+						<?php echo $rating_min > 0
+							? esc_html( number_format_i18n( $rating_min, 1 ) . '+' )
+							: esc_html__( 'Any', 'fanfiction-manager' ); ?>
+					</span>
+				</div>
+				<input
+					type="range"
+					id="fanfic-rating-min"
+					name="rating_min"
+					min="0"
+					max="5"
+					step="0.5"
+					value="<?php echo esc_attr( $rating_min > 0 ? $rating_min : 0 ); ?>"
+				/>
+				<div class="fanfic-rating-range-scale" aria-hidden="true">
+					<span><?php esc_html_e( 'Any', 'fanfiction-manager' ); ?></span>
+					<span>5.0</span>
+				</div>
+			</div>
+		</div>
+		<?php
+
+		return ob_get_clean();
+	}
+
+	/**
+	 * Render a searchable custom taxonomy filter.
+	 *
+	 * @since 2.0.0
+	 * @param array $context          Search context.
+	 * @param array $custom_taxonomy  Custom taxonomy config.
+	 * @return string
+	 */
+	private static function render_custom_taxonomy_search_filter( $context, $custom_taxonomy ) {
+		$custom_params = isset( $context['params']['custom'][ $custom_taxonomy['slug'] ] ) ? (array) $context['params']['custom'][ $custom_taxonomy['slug'] ] : array();
+		$custom_counts = isset( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ] ) && is_array( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ] )
+			? $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ]
+			: array();
+		$options = array();
+
+		foreach ( (array) $custom_taxonomy['available_terms'] as $term ) {
+			$term_slug = isset( $term['slug'] ) ? (string) $term['slug'] : '';
+			if ( '' === $term_slug ) {
+				continue;
+			}
+
+			$options[] = array(
+				'value' => $term_slug,
+				'label' => isset( $term['name'] ) ? (string) $term['name'] : $term_slug,
+				'count' => isset( $custom_counts[ $term_slug ] ) ? absint( $custom_counts[ $term_slug ] ) : 0,
+			);
+		}
+
+		if ( 'single' === $custom_taxonomy['selection_type'] ) {
+			return self::render_search_select_filter(
+				array(
+					'label'       => $custom_taxonomy['name'],
+					'input_id'    => 'fanfic-' . sanitize_html_class( $custom_taxonomy['slug'] ) . '-filter',
+					'input_name'  => $custom_taxonomy['slug'],
+					'placeholder' => __( 'Any', 'fanfiction-manager' ),
+					'options'     => $options,
+					'selected'    => ! empty( $custom_params ) ? reset( $custom_params ) : '',
+					'disabled'    => empty( $custom_taxonomy['has_available_terms'] ),
+					'tooltip'     => $context['unavailable_filter_tip'],
+				)
+			);
+		}
+
+		return self::render_search_multiselect_filter(
+			array(
+				'label'       => $custom_taxonomy['name'],
+				'placeholder' => sprintf( __( 'Select %s', 'fanfiction-manager' ), $custom_taxonomy['name'] ),
+				'input_name'  => $custom_taxonomy['slug'] . '[]',
+				'options'     => $options,
+				'selected'    => $custom_params,
+				'disabled'    => empty( $custom_taxonomy['has_available_terms'] ),
+				'tooltip'     => $context['unavailable_filter_tip'],
+			)
+		);
+	}
+
+	/**
+	 * Build the ordered advanced search filters.
+	 *
+	 * @since 2.0.0
+	 * @param array $context Search context.
+	 * @return array
+	 */
+	private static function get_advanced_search_filters( $context ) {
+		$filters    = array();
+		$rating_min = isset( $context['params']['rating_min'] ) ? (float) $context['params']['rating_min'] : 0.0;
+
+		$status_options = array();
+		foreach ( (array) $context['available_statuses'] as $status ) {
+			$status_options[] = array(
+				'value' => $status->slug,
+				'label' => $status->name,
+				'count' => isset( $context['filter_counts']['statuses'][ $status->slug ] ) ? absint( $context['filter_counts']['statuses'][ $status->slug ] ) : 0,
+			);
+		}
+		$filters[] = self::render_search_multiselect_filter(
+			array(
+				'label'         => __( 'Status', 'fanfiction-manager' ),
+				'placeholder'   => __( 'All Statuses', 'fanfiction-manager' ),
+				'input_name'    => 'status[]',
+				'options'       => $status_options,
+				'selected'      => (array) ( $context['params']['statuses'] ?? array() ),
+				'disabled'      => empty( $context['available_statuses'] ),
+				'tooltip'       => $context['unavailable_filter_tip'],
+				'wrapper_class' => 'fanfic-status-filter-wrapper',
+			)
+		);
+
+		$genre_options = array();
+		foreach ( (array) $context['available_genres'] as $genre ) {
+			$genre_options[] = array(
+				'value' => $genre->slug,
+				'label' => $genre->name,
+				'count' => isset( $context['filter_counts']['genres'][ $genre->slug ] ) ? absint( $context['filter_counts']['genres'][ $genre->slug ] ) : 0,
+			);
+		}
+		$filters[] = self::render_search_multiselect_filter(
+			array(
+				'label'       => __( 'Genres', 'fanfiction-manager' ),
+				'placeholder' => __( 'Select Genres', 'fanfiction-manager' ),
+				'input_name'  => 'genre[]',
+				'options'     => $genre_options,
+				'selected'    => (array) ( $context['params']['genres'] ?? array() ),
+				'disabled'    => empty( $context['available_genres'] ),
+				'tooltip'     => $context['unavailable_filter_tip'],
+			)
+		);
+
+		if ( ! empty( $context['show_language_filter'] ) ) {
+			$language_options = array();
+			foreach ( (array) $context['available_languages'] as $language ) {
+				$language_slug = $language['slug'];
+				$language_label = $language['name'];
+				if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
+					$language_label .= ' (' . $language['native_name'] . ')';
+				}
+
+				$language_options[] = array(
+					'value' => $language_slug,
+					'label' => $language_label,
+					'count' => isset( $context['filter_counts']['languages'][ $language_slug ] ) ? absint( $context['filter_counts']['languages'][ $language_slug ] ) : 0,
+				);
+			}
+
+			$filters[] = self::render_search_multiselect_filter(
+				array(
+					'label'       => __( 'Language', 'fanfiction-manager' ),
+					'placeholder' => __( 'Select Languages', 'fanfiction-manager' ),
+					'input_name'  => 'language[]',
+					'options'     => $language_options,
+					'selected'    => (array) ( $context['params']['languages'] ?? array() ),
+					'disabled'    => empty( $context['available_languages'] ),
+					'tooltip'     => $context['unavailable_filter_tip'],
+				)
+			);
+		}
+
+		if ( ! empty( $context['show_age_filter'] ) ) {
+			$age_options = array();
+			foreach ( (array) $context['available_age_options'] as $age_value ) {
+				$age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $age_value, true ) : (string) $age_value;
+				if ( '' === $age_label ) {
+					$age_label = (string) $age_value;
+				}
+
+				$age_options[] = array(
+					'value' => $age_value,
+					'label' => $age_label,
+					'count' => isset( $context['filter_counts']['ages'][ $age_value ] ) ? absint( $context['filter_counts']['ages'][ $age_value ] ) : 0,
+				);
+			}
+
+			$filters[] = self::render_search_multiselect_filter(
+				array(
+					'label'       => __( 'Age rating', 'fanfiction-manager' ),
+					'placeholder' => __( 'Select Age Rating', 'fanfiction-manager' ),
+					'input_name'  => 'age[]',
+					'options'     => $age_options,
+					'selected'    => (array) ( $context['params']['age'] ?? array() ),
+					'disabled'    => empty( $context['available_age_options'] ),
+					'tooltip'     => $context['unavailable_filter_tip'],
+				)
+			);
+		}
+
+		if ( ! empty( $context['show_fandom_filter'] ) ) {
+			$filters[] = self::render_fandom_search_filter( $context );
+		}
+
+		if ( ! empty( $context['show_warnings_filters'] ) ) {
+			$warning_options = array();
+			foreach ( (array) $context['available_warnings'] as $warning ) {
+				$warning_slug = $warning['slug'];
+				$warning_options[] = array(
+					'value' => $warning_slug,
+					'label' => $warning['name'],
+					'count' => isset( $context['filter_counts']['warnings'][ $warning_slug ] ) ? absint( $context['filter_counts']['warnings'][ $warning_slug ] ) : 0,
+				);
+			}
+
+			$filters[] = self::render_search_multiselect_filter(
+				array(
+					'label'       => __( 'Exclude Warnings', 'fanfiction-manager' ),
+					'placeholder' => __( 'Select Warnings to Exclude', 'fanfiction-manager' ),
+					'input_name'  => 'warnings_exclude[]',
+					'options'     => $warning_options,
+					'selected'    => (array) ( $context['params']['exclude_warnings'] ?? array() ),
+					'disabled'    => empty( $context['available_warnings'] ),
+					'tooltip'     => $context['unavailable_filter_tip'],
+				)
+			);
+
+			$filters[] = self::render_search_multiselect_filter(
+				array(
+					'label'       => __( 'Include Warnings', 'fanfiction-manager' ),
+					'placeholder' => __( 'Select Warnings to Include', 'fanfiction-manager' ),
+					'input_name'  => 'warnings_include[]',
+					'options'     => $warning_options,
+					'selected'    => (array) ( $context['params']['include_warnings'] ?? array() ),
+					'disabled'    => empty( $context['available_warnings'] ),
+					'tooltip'     => $context['unavailable_filter_tip'],
+				)
+			);
+		}
+
+		foreach ( (array) $context['custom_taxonomies'] as $custom_taxonomy ) {
+			$filters[] = self::render_custom_taxonomy_search_filter( $context, $custom_taxonomy );
+		}
+
+		$filters[] = self::render_rating_search_filter( $rating_min );
+
+		return array_filter( $filters );
+	}
+
+	/**
+	 * Render the match-all advanced filter block.
+	 *
+	 * @since 2.0.0
+	 * @param array $context Search context.
+	 * @return string
+	 */
+	private static function render_match_all_search_filter( $context ) {
+		ob_start();
+		?>
+		<div class="fanfic-advanced-search-match-all">
+			<div class="fanfic-smart-toggle-wrapper<?php echo ( $context['params']['match_all_filters'] ?? '0' ) === '1' ? ' is-active' : ''; ?>">
+				<div class="fanfic-comment-toggle-row">
+					<label for="fanfic-match-all-filters" class="fanfic-comment-toggle-label">
+						<?php esc_html_e( 'Match all filters', 'fanfiction-manager' ); ?>
+					</label>
+					<label class="fanfic-switch fanfic-comment-switch">
+						<input type="checkbox" id="fanfic-match-all-filters" name="match_all_filters" value="1" <?php checked( ( $context['params']['match_all_filters'] ?? '0' ) === '1' ); ?>>
+						<span class="fanfic-slider round" aria-hidden="true">
+							<span class="fanfic-slider-state fanfic-slider-state-off"><?php esc_html_e( 'Off', 'fanfiction-manager' ); ?></span>
+							<span class="fanfic-slider-state fanfic-slider-state-on"><?php esc_html_e( 'On', 'fanfiction-manager' ); ?></span>
+						</span>
+					</label>
+				</div>
+				<div class="fanfic-match-all-description" aria-live="polite">
+					<p class="description fanfic-match-all-description-summary">
+						<?php esc_html_e( 'If ON, results must match all selected filters; if OFF, results can match any of them.', 'fanfiction-manager' ); ?>
+					</p>
+				</div>
+			</div>
+		</div>
+		<?php
+
+		return ob_get_clean();
+	}
+
+	/**
 	 * Stories search bar shortcode
 	 *
 	 * [fanfic-search-bar]
@@ -99,15 +635,44 @@ class Fanfic_Shortcodes_Search {
 
 		$context = self::get_stories_context();
 
-		$open_wrapper = ! self::$stories_wrapper_open;
-		$close_wrapper = false;
+		$single_select_taxonomies = array( 'status', 'age', 'language' );
+		$custom_taxonomy_configs  = array();
+		foreach ( (array) $context['custom_taxonomies'] as $custom_taxonomy ) {
+			$custom_taxonomy_slug = isset( $custom_taxonomy['slug'] ) ? sanitize_key( $custom_taxonomy['slug'] ) : '';
+			if ( '' === $custom_taxonomy_slug ) {
+				continue;
+			}
 
+			$custom_taxonomy_configs[] = array(
+				'slug'           => $custom_taxonomy_slug,
+				'label'          => isset( $custom_taxonomy['name'] ) ? (string) $custom_taxonomy['name'] : $custom_taxonomy_slug,
+				'selection_type' => isset( $custom_taxonomy['selection_type'] ) ? (string) $custom_taxonomy['selection_type'] : 'multi',
+			);
+
+			if ( 'single' === ( $custom_taxonomy['selection_type'] ?? '' ) ) {
+				$single_select_taxonomies[] = $custom_taxonomy_slug;
+			}
+		}
+
+		wp_localize_script(
+			'fanfic-search-bar-frontend',
+			'fanficSearchBar',
+			array(
+				'singleSelectTaxonomies' => array_values( array_unique( $single_select_taxonomies ) ),
+				'customTaxonomies'       => $custom_taxonomy_configs,
+				'hasActiveQuery'         => ! empty( $context['has_filters'] ),
+				'i18n'                   => array(
+					'searchTermLabel'   => __( 'Search', 'fanfiction-manager' ),
+					'removeSearchTerm'   => __( 'Remove search term', 'fanfiction-manager' ),
+					'activeFilters'      => __( 'Current filters', 'fanfiction-manager' ),
+				),
+			)
+		);
+
+		$open_wrapper = ! self::$stories_wrapper_open;
 		if ( $open_wrapper ) {
 			self::$stories_wrapper_open = true;
 			self::$stories_wrapper_opened_by_search = true;
-			if ( self::$stories_archive_rendered ) {
-				$close_wrapper = true;
-			}
 		}
 
 		ob_start();
@@ -167,506 +732,42 @@ class Fanfic_Shortcodes_Search {
 							class="fanfic-button fanfic-search-advanced-toggle fanfic-advanced-search-toggle"
 							aria-expanded="false"
 							aria-controls="fanfic-advanced-search-panel"
+							aria-label="<?php esc_attr_e( 'Advanced search', 'fanfiction-manager' ); ?>"
 						>
 							<span class="dashicons dashicons-plus" aria-hidden="true"></span>
-							<span class="fanfic-advanced-search-toggle__label"><?php esc_html_e( 'Advanced search', 'fanfiction-manager' ); ?></span>
 						</button>
 					</div>
 				</div>
 
 			</div>
 
-			<!-- Common Filters (Inside Accordion) -->
 			<div class="fanfic-advanced-search-accordion fanfic-advanced-search-filters" id="fanfic-advanced-search-panel" style="display: none;">
-				<div class="fanfic-common-filters" id="fanfic-search-row-1">
-				<div class="fanfic-stories-row fanfic-stories-columns">
-					<div class="fanfic-stories-column fanfic-status-filter-wrapper">
-						<label><?php esc_html_e( 'Status', 'fanfiction-manager' ); ?></label>
-						<div class="multi-select" data-placeholder="<?php esc_attr_e( 'All Statuses', 'fanfiction-manager' ); ?>">
-							<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-								<?php esc_html_e( 'All Statuses', 'fanfiction-manager' ); ?>
-							</button>
-							<div class="multi-select__dropdown">
-								<?php if ( ! empty( $context['statuses'] ) && ! is_wp_error( $context['statuses'] ) ) : ?>
-									<?php foreach ( $context['statuses'] as $status ) : ?>
-										<?php
-										$status_count = isset( $context['filter_counts']['statuses'][ $status->slug ] ) ? absint( $context['filter_counts']['statuses'][ $status->slug ] ) : 0;
-										$status_selected = in_array( $status->slug, (array) ( $context['params']['statuses'] ?? array() ), true );
-										$status_disabled = 0 === $status_count;
-										?>
-										<label class="<?php echo $status_disabled ? 'fanfic-disabled' : ''; ?>">
-											<input
-												type="checkbox"
-												name="status[]"
-												value="<?php echo esc_attr( $status->slug ); ?>"
-												<?php checked( $status_selected ); ?>
-												<?php disabled( $status_disabled ); ?>
-											/>
-											<?php echo esc_html( sprintf( '%s (%d)', $status->name, $status_count ) ); ?>
-										</label>
-									<?php endforeach; ?>
-								<?php endif; ?>
-							</div>
-						</div>
-					</div>
-
-					<div class="fanfic-stories-column">
-						<label for="fanfic-genre-filter"><?php esc_html_e( 'Genres', 'fanfiction-manager' ); ?></label>
-						<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Genres', 'fanfiction-manager' ); ?>">
-							<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-								<?php esc_html_e( 'Select Genres', 'fanfiction-manager' ); ?>
-							</button>
-							<div class="multi-select__dropdown">
-								<?php if ( ! empty( $context['genres'] ) && ! is_wp_error( $context['genres'] ) ) : ?>
-									<?php foreach ( $context['genres'] as $genre ) : ?>
-										<?php
-										$genre_count = isset( $context['filter_counts']['genres'][ $genre->slug ] ) ? absint( $context['filter_counts']['genres'][ $genre->slug ] ) : 0;
-										$genre_disabled = 0 === $genre_count;
-										?>
-										<label class="<?php echo $genre_disabled ? 'fanfic-disabled' : ''; ?>">
-											<input
-												type="checkbox"
-												name="genre[]"
-												value="<?php echo esc_attr( $genre->slug ); ?>"
-												<?php checked( in_array( $genre->slug, (array) $context['params']['genres'], true ) ); ?>
-												<?php disabled( $genre_disabled ); ?>
-											/>
-											<?php echo esc_html( sprintf( '%s (%d)', $genre->name, $genre_count ) ); ?>
-										</label>
-									<?php endforeach; ?>
-								<?php endif; ?>
-							</div>
-						</div>
-					</div>
-
-					<div class="fanfic-stories-column">
-						<label><?php esc_html_e( 'Age rating', 'fanfiction-manager' ); ?></label>
-						<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Age Rating', 'fanfiction-manager' ); ?>">
-							<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-								<?php esc_html_e( 'Select Age Rating', 'fanfiction-manager' ); ?>
-							</button>
-							<div class="multi-select__dropdown">
-								<?php foreach ( (array) ( $context['age_options'] ?? array() ) as $age_value ) : ?>
-									<?php
-									$age_count = isset( $context['filter_counts']['ages'][ $age_value ] ) ? absint( $context['filter_counts']['ages'][ $age_value ] ) : 0;
-									$age_disabled = 0 === $age_count;
-									$age_label = function_exists( 'fanfic_get_age_display_label' ) ? fanfic_get_age_display_label( $age_value, true ) : (string) $age_value;
-									if ( '' === $age_label ) {
-										$age_label = (string) $age_value;
-									}
-									?>
-									<label class="<?php echo $age_disabled ? 'fanfic-disabled' : ''; ?>">
-										<input
-											type="checkbox"
-											name="age[]"
-											value="<?php echo esc_attr( $age_value ); ?>"
-											<?php checked( in_array( $age_value, (array) ( $context['params']['age'] ?? array() ), true ) ); ?>
-											<?php disabled( $age_disabled ); ?>
-										/>
-										<?php echo esc_html( sprintf( '%s (%d)', $age_label, $age_count ) ); ?>
-									</label>
-								<?php endforeach; ?>
-							</div>
-						</div>
-					</div>
-
-					<?php if ( ! empty( $context['languages'] ) ) : ?>
-						<div class="fanfic-stories-column">
-							<label for="fanfic-language-filter"><?php esc_html_e( 'Language', 'fanfiction-manager' ); ?></label>
-							<div class="multi-select" data-placeholder="<?php esc_attr_e( 'Select Languages', 'fanfiction-manager' ); ?>">
-								<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-									<?php esc_html_e( 'Select Languages', 'fanfiction-manager' ); ?>
-								</button>
-								<div class="multi-select__dropdown">
-									<?php foreach ( $context['languages'] as $language ) : ?>
-										<?php
-										$language_slug = $language['slug'];
-										$language_count = isset( $context['filter_counts']['languages'][ $language_slug ] ) ? absint( $context['filter_counts']['languages'][ $language_slug ] ) : 0;
-										$language_disabled = 0 === $language_count;
-										$language_label = $language['name'];
-										if ( ! empty( $language['native_name'] ) && $language['native_name'] !== $language['name'] ) {
-											$language_label .= ' (' . $language['native_name'] . ')';
-										}
-										?>
-										<label class="<?php echo $language_disabled ? 'fanfic-disabled' : ''; ?>">
-											<input
-												type="checkbox"
-												name="language[]"
-												value="<?php echo esc_attr( $language_slug ); ?>"
-												<?php checked( in_array( $language_slug, (array) $context['params']['languages'], true ) ); ?>
-												<?php disabled( $language_disabled ); ?>
-											/>
-											<?php echo esc_html( sprintf( '%s (%d)', $language_label, $language_count ) ); ?>
-										</label>
-									<?php endforeach; ?>
-								</div>
-							</div>
-						</div>
-					<?php endif; ?>
+				<div id="fanfic_advanced_search">
+					<?php foreach ( self::get_advanced_search_filters( $context ) as $advanced_filter_markup ) : ?>
+						<?php echo $advanced_filter_markup; ?>
+					<?php endforeach; ?>
 				</div>
+				<div class="fanfic-advanced-search-footer">
+					<?php echo self::render_match_all_search_filter( $context ); ?>
 				</div>
-
-				<!-- Advanced Filters -->
-				<?php $rating_min = isset( $context['params']['rating_min'] ) ? (float) $context['params']['rating_min'] : 0.0; ?>
-					<?php if ( class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled() ) : ?>
-						<?php
-						$current_fandom_labels = array();
-						if ( ! empty( $context['params']['fandoms'] ) ) {
-							foreach ( (array) $context['params']['fandoms'] as $fandom_slug ) {
-								$fandom_id = Fanfic_Fandoms::get_fandom_id_by_slug( $fandom_slug );
-								if ( $fandom_id ) {
-									$fandom_label = Fanfic_Fandoms::get_fandom_label_by_id( $fandom_id );
-									if ( $fandom_label ) {
-										$current_fandom_labels[] = array(
-											'id'    => $fandom_id,
-											'label' => $fandom_label,
-										);
-									}
-								}
-							}
-						}
-						?>
-						<div class="fanfic-stories-row fanfic-stories-columns" id="fanfic-search-row-2">
-							<div class="fanfic-stories-column fanfic-fandoms-field" data-max-fandoms="<?php echo esc_attr( Fanfic_Fandoms::MAX_FANDOMS ); ?>">
-								<label for="fanfic-fandom-filter"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
-								<input
-									type="text"
-									id="fanfic-fandom-filter"
-									class="fanfic-input"
-									autocomplete="off"
-									placeholder="<?php esc_attr_e( 'Search fandoms...', 'fanfiction-manager' ); ?>"
-								/>
-								<div class="fanfic-fandom-results" role="listbox" aria-label="<?php esc_attr_e( 'Fandom search results', 'fanfiction-manager' ); ?>"></div>
-								<div class="fanfic-selected-fandoms fanfic-pill-values" aria-live="polite">
-									<?php foreach ( $current_fandom_labels as $fandom ) : ?>
-										<span class="fanfic-pill-value" data-id="<?php echo esc_attr( $fandom['id'] ); ?>">
-											<span class="fanfic-pill-value-text"><?php echo esc_html( $fandom['label'] ); ?></span>
-											<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
-											<input type="hidden" name="fanfic_story_fandoms[]" value="<?php echo esc_attr( $fandom['id'] ); ?>">
-										</span>
-									<?php endforeach; ?>
-								</div>
-								<p class="description"><?php esc_html_e( 'Select up to 5 fandoms. Search requires at least 2 characters.', 'fanfiction-manager' ); ?></p>
-							</div>
-
-							<div class="fanfic-stories-column">
-								<label><?php esc_html_e( 'Exclude Warnings', 'fanfiction-manager' ); ?></label>
-								<div class="multi-select fanfic-warnings-exclude-multiselect" data-placeholder="<?php esc_attr_e( 'Select Warnings to Exclude', 'fanfiction-manager' ); ?>">
-									<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-										<?php esc_html_e( 'Select Warnings to Exclude', 'fanfiction-manager' ); ?>
-									</button>
-									<div class="multi-select__dropdown">
-										<?php foreach ( $context['warnings'] as $warning ) : ?>
-											<?php
-											$warning_count = isset( $context['filter_counts']['warnings'][ $warning['slug'] ] ) ? absint( $context['filter_counts']['warnings'][ $warning['slug'] ] ) : 0;
-											$warning_disabled = 0 === $warning_count;
-											?>
-											<label class="<?php echo $warning_disabled ? 'fanfic-disabled' : ''; ?>">
-												<input
-													type="checkbox"
-													name="warnings_exclude[]"
-													value="<?php echo esc_attr( $warning['slug'] ); ?>"
-													<?php checked( in_array( $warning['slug'], (array) ( $context['params']['exclude_warnings'] ?? array() ), true ) ); ?>
-													<?php disabled( $warning_disabled ); ?>
-												/>
-												<?php echo esc_html( sprintf( '%s (%d)', $warning['name'], $warning_count ) ); ?>
-											</label>
-										<?php endforeach; ?>
-									</div>
-								</div>
-							</div>
-
-							<div class="fanfic-stories-column">
-								<label><?php esc_html_e( 'Include Warnings', 'fanfiction-manager' ); ?></label>
-								<div class="multi-select fanfic-warnings-include-multiselect" data-placeholder="<?php esc_attr_e( 'Select Warnings to Include', 'fanfiction-manager' ); ?>">
-									<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-										<?php esc_html_e( 'Select Warnings to Include', 'fanfiction-manager' ); ?>
-									</button>
-									<div class="multi-select__dropdown">
-										<?php foreach ( $context['warnings'] as $warning ) : ?>
-											<?php
-											$warning_count = isset( $context['filter_counts']['warnings'][ $warning['slug'] ] ) ? absint( $context['filter_counts']['warnings'][ $warning['slug'] ] ) : 0;
-											$warning_disabled = 0 === $warning_count;
-											?>
-											<label class="<?php echo $warning_disabled ? 'fanfic-disabled' : ''; ?>">
-												<input
-													type="checkbox"
-													name="warnings_include[]"
-													value="<?php echo esc_attr( $warning['slug'] ); ?>"
-													<?php checked( in_array( $warning['slug'], (array) ( $context['params']['include_warnings'] ?? array() ), true ) ); ?>
-													<?php disabled( $warning_disabled ); ?>
-												/>
-												<?php echo esc_html( sprintf( '%s (%d)', $warning['name'], $warning_count ) ); ?>
-											</label>
-										<?php endforeach; ?>
-									</div>
-								</div>
-							</div>
-
-							<div class="fanfic-stories-column">
-								<div class="fanfic-rating-range-filter fanfic-fallback-rating-filter">
-									<div class="fanfic-rating-range-header">
-										<label for="fanfic-rating-min"><?php esc_html_e( 'Minimum rating', 'fanfiction-manager' ); ?></label>
-										<span class="fanfic-rating-range-value" data-fanfic-rating-value>
-											<?php echo $rating_min > 0
-												? esc_html( number_format_i18n( $rating_min, 1 ) . '+' )
-												: esc_html__( 'Any', 'fanfiction-manager' ); ?>
-										</span>
-									</div>
-									<input
-										type="range"
-										id="fanfic-rating-min"
-										name="rating_min"
-										min="0"
-										max="5"
-										step="0.5"
-										value="<?php echo esc_attr( $rating_min > 0 ? $rating_min : 0 ); ?>"
-									/>
-									<div class="fanfic-rating-range-scale" aria-hidden="true">
-										<span><?php esc_html_e( 'Any', 'fanfiction-manager' ); ?></span>
-										<span>5.0</span>
-									</div>
-								</div>
-							</div>
-						</div>
-					<?php else : ?>
-						<div class="fanfic-stories-row fanfic-stories-columns" id="fanfic-search-row-2">
-							<div class="fanfic-stories-column">
-								<label><?php esc_html_e( 'Exclude Warnings', 'fanfiction-manager' ); ?></label>
-								<div class="multi-select fanfic-warnings-exclude-multiselect" data-placeholder="<?php esc_attr_e( 'Select Warnings to Exclude', 'fanfiction-manager' ); ?>">
-									<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-										<?php esc_html_e( 'Select Warnings to Exclude', 'fanfiction-manager' ); ?>
-									</button>
-									<div class="multi-select__dropdown">
-										<?php foreach ( $context['warnings'] as $warning ) : ?>
-											<?php
-											$warning_count = isset( $context['filter_counts']['warnings'][ $warning['slug'] ] ) ? absint( $context['filter_counts']['warnings'][ $warning['slug'] ] ) : 0;
-											$warning_disabled = 0 === $warning_count;
-											?>
-											<label class="<?php echo $warning_disabled ? 'fanfic-disabled' : ''; ?>">
-												<input
-													type="checkbox"
-													name="warnings_exclude[]"
-													value="<?php echo esc_attr( $warning['slug'] ); ?>"
-													<?php checked( in_array( $warning['slug'], (array) ( $context['params']['exclude_warnings'] ?? array() ), true ) ); ?>
-													<?php disabled( $warning_disabled ); ?>
-												/>
-												<?php echo esc_html( sprintf( '%s (%d)', $warning['name'], $warning_count ) ); ?>
-											</label>
-										<?php endforeach; ?>
-									</div>
-								</div>
-							</div>
-
-							<div class="fanfic-stories-column">
-								<label><?php esc_html_e( 'Include Warnings', 'fanfiction-manager' ); ?></label>
-								<div class="multi-select fanfic-warnings-include-multiselect" data-placeholder="<?php esc_attr_e( 'Select Warnings to Include', 'fanfiction-manager' ); ?>">
-									<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-										<?php esc_html_e( 'Select Warnings to Include', 'fanfiction-manager' ); ?>
-									</button>
-									<div class="multi-select__dropdown">
-										<?php foreach ( $context['warnings'] as $warning ) : ?>
-											<?php
-											$warning_count = isset( $context['filter_counts']['warnings'][ $warning['slug'] ] ) ? absint( $context['filter_counts']['warnings'][ $warning['slug'] ] ) : 0;
-											$warning_disabled = 0 === $warning_count;
-											?>
-											<label class="<?php echo $warning_disabled ? 'fanfic-disabled' : ''; ?>">
-												<input
-													type="checkbox"
-													name="warnings_include[]"
-													value="<?php echo esc_attr( $warning['slug'] ); ?>"
-													<?php checked( in_array( $warning['slug'], (array) ( $context['params']['include_warnings'] ?? array() ), true ) ); ?>
-													<?php disabled( $warning_disabled ); ?>
-												/>
-												<?php echo esc_html( sprintf( '%s (%d)', $warning['name'], $warning_count ) ); ?>
-											</label>
-										<?php endforeach; ?>
-									</div>
-								</div>
-							</div>
-
-							<div class="fanfic-stories-column">
-								<div class="fanfic-rating-range-filter fanfic-fallback-rating-filter">
-									<div class="fanfic-rating-range-header">
-										<label for="fanfic-rating-min"><?php esc_html_e( 'Minimum rating', 'fanfiction-manager' ); ?></label>
-										<span class="fanfic-rating-range-value" data-fanfic-rating-value>
-											<?php echo $rating_min > 0
-												? esc_html( number_format_i18n( $rating_min, 1 ) . '+' )
-												: esc_html__( 'Any', 'fanfiction-manager' ); ?>
-										</span>
-									</div>
-									<input
-										type="range"
-										id="fanfic-rating-min"
-										name="rating_min"
-										min="0"
-										max="5"
-										step="0.5"
-										value="<?php echo esc_attr( $rating_min > 0 ? $rating_min : 0 ); ?>"
-									/>
-									<div class="fanfic-rating-range-scale" aria-hidden="true">
-										<span><?php esc_html_e( 'Any', 'fanfiction-manager' ); ?></span>
-										<span>5.0</span>
-									</div>
-								</div>
-							</div>
-						</div>
-					<?php endif; ?>
-
-				<?php if ( ! empty( $context['custom_taxonomies'] ) ) : ?>
-					<div class="fanfic-stories-row fanfic-stories-columns" id="fanfic-search-row-custom-taxonomies">
-						<?php foreach ( $context['custom_taxonomies'] as $custom_taxonomy ) : ?>
-							<?php if ( empty( $custom_taxonomy['terms'] ) ) { continue; } ?>
-							<?php
-							$custom_params = isset( $context['params']['custom'][ $custom_taxonomy['slug'] ] ) ? (array) $context['params']['custom'][ $custom_taxonomy['slug'] ] : array();
-							?>
-							<div class="fanfic-stories-column">
-								<label><?php echo esc_html( $custom_taxonomy['name'] ); ?></label>
-								<?php if ( 'single' === $custom_taxonomy['selection_type'] ) : ?>
-									<select id="fanfic-<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>-filter" name="<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>">
-										<option value=""><?php esc_html_e( 'Any', 'fanfiction-manager' ); ?></option>
-										<?php foreach ( $custom_taxonomy['terms'] as $term ) : ?>
-											<?php
-											$custom_term_count = isset( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ][ $term['slug'] ] )
-												? absint( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ][ $term['slug'] ] )
-												: 0;
-											?>
-											<option
-												value="<?php echo esc_attr( $term['slug'] ); ?>"
-												<?php selected( in_array( $term['slug'], $custom_params, true ) ); ?>
-												<?php disabled( 0 === $custom_term_count ); ?>
-											>
-												<?php echo esc_html( sprintf( '%s (%d)', $term['name'], $custom_term_count ) ); ?>
-											</option>
-										<?php endforeach; ?>
-									</select>
-								<?php else : ?>
-									<div class="multi-select" data-placeholder="<?php echo esc_attr( sprintf( __( 'Select %s', 'fanfiction-manager' ), $custom_taxonomy['name'] ) ); ?>">
-										<button type="button" class="multi-select__trigger" aria-haspopup="listbox">
-											<?php echo esc_html( sprintf( __( 'Select %s', 'fanfiction-manager' ), $custom_taxonomy['name'] ) ); ?>
-										</button>
-										<div class="multi-select__dropdown">
-											<?php foreach ( $custom_taxonomy['terms'] as $term ) : ?>
-												<?php
-												$custom_term_count = isset( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ][ $term['slug'] ] )
-													? absint( $context['filter_counts']['custom'][ $custom_taxonomy['slug'] ][ $term['slug'] ] )
-													: 0;
-												$custom_term_disabled = 0 === $custom_term_count;
-												?>
-												<label class="<?php echo $custom_term_disabled ? 'fanfic-disabled' : ''; ?>">
-													<input
-														type="checkbox"
-														name="<?php echo esc_attr( $custom_taxonomy['slug'] ); ?>[]"
-														value="<?php echo esc_attr( $term['slug'] ); ?>"
-														<?php checked( in_array( $term['slug'], $custom_params, true ) ); ?>
-														<?php disabled( $custom_term_disabled ); ?>
-													/>
-													<?php echo esc_html( sprintf( '%s (%d)', $term['name'], $custom_term_count ) ); ?>
-												</label>
-											<?php endforeach; ?>
-										</div>
-									</div>
-								<?php endif; ?>
-							</div>
-						<?php endforeach; ?>
-					</div>
-				<?php endif; ?>
-
-					<div class="fanfic-stories-row fanfic-stories-columns" id="fanfic-search-row-3">
-						<div class="fanfic-stories-column">
-							<div class="fanfic-smart-toggle-wrapper<?php echo ( $context['params']['match_all_filters'] ?? '0' ) === '1' ? ' is-active' : ''; ?>">
-								<div class="fanfic-comment-toggle-row">
-									<label for="fanfic-match-all-filters" class="fanfic-comment-toggle-label">
-										<?php esc_html_e( 'Match ALL selected filters', 'fanfiction-manager' ); ?>
-									</label>
-									<label class="fanfic-switch fanfic-comment-switch">
-										<input type="checkbox" id="fanfic-match-all-filters" name="match_all_filters" value="1" <?php checked( ( $context['params']['match_all_filters'] ?? '0' ) === '1' ); ?>>
-										<span class="fanfic-slider round" aria-hidden="true">
-											<span class="fanfic-slider-state fanfic-slider-state-off"><?php esc_html_e( 'Off', 'fanfiction-manager' ); ?></span>
-											<span class="fanfic-slider-state fanfic-slider-state-on"><?php esc_html_e( 'On', 'fanfiction-manager' ); ?></span>
-										</span>
-									</label>
-								</div>
-								<div class="fanfic-match-all-description" aria-live="polite">
-									<p class="description fanfic-match-all-description-off">
-										<?php esc_html_e(
-											'OFF: matches any selected values within the same category (e.g. Comedy or Drama + Finished or Ongoing)',
-											'fanfiction-manager'
-										); ?>
-									</p>
-									<p class="description fanfic-match-all-description-on">
-										<?php esc_html_e(
-											'ON: matches all selected values within the same category (e.g. Comedy and Drama + only one valid status)',
-											'fanfiction-manager'
-										); ?>
-									</p>
-								</div>
-							</div>
-						</div>
+			</div>
+			<!-- Current Filters Section with Live Pills -->
+			<div class="fanfic-current-filters-section<?php echo ! empty( $context['has_real_filters'] ) ? ' is-visible' : ''; ?>">
+				<div class="fanfic-current-filters-header">
+					<div class="fanfic-current-filters-container" data-fanfic-active-filters></div>
+					<div class="fanfic-current-filters-actions">
+						<button type="submit" class="fanfic-button fanfic-search-submit fanfic-current-filters-search-button">
+							<?php esc_html_e( 'Search', 'fanfiction-manager' ); ?>
+						</button>
+						<button type="button" class="fanfic-button fanfic-clear-search-button" id="fanfic-clear-filters-button">
+							<?php esc_html_e( 'Clear all', 'fanfiction-manager' ); ?>
+						</button>
 					</div>
 				</div>
 			</div>
 		</form>
 
 		<?php
-		// Prepare single-select taxonomy mapping for JavaScript
-		$single_select_taxonomies = array( 'status', 'age', 'language' );
-
-		// Add single-select custom taxonomies
-		if ( ! empty( $context['custom_taxonomies'] ) ) {
-			foreach ( $context['custom_taxonomies'] as $custom_taxonomy ) {
-				if ( 'single' === $custom_taxonomy['selection_type'] ) {
-					$single_select_taxonomies[] = $custom_taxonomy['slug'];
-				}
-			}
-		}
-
-		// Localize script with base_url and translations for live pills
-		wp_localize_script(
-			'fanfic-search-bar-frontend',
-			'fanficSearchBar',
-			array(
-				'baseUrl' => esc_url_raw( $context['base_url'] ),
-				'singleSelectTaxonomies' => $single_select_taxonomies,
-				'i18n'    => array(
-					'activeFilters'      => esc_html__( 'Active Filters', 'fanfiction-manager' ),
-					'noActiveFilters'     => esc_html__( 'No active filters yet.', 'fanfiction-manager' ),
-					'noActiveFiltersHint' => esc_html__( 'Use Advanced search to narrow results.', 'fanfiction-manager' ),
-					'activeFilterSingular'=> esc_html__( 'active filter', 'fanfiction-manager' ),
-					'activeFilterPlural'  => esc_html__( 'active filters', 'fanfiction-manager' ),
-					'searchTermLabel'     => esc_html__( 'Search', 'fanfiction-manager' ),
-					'removeSearchTerm'    => esc_html__( 'Remove search term', 'fanfiction-manager' ),
-				),
-			)
-		);
-		?>
-
-		<!-- Current Filters Section with Live Pills -->
-		<div class="fanfic-current-filters-section">
-			<div class="fanfic-current-filters-header">
-				<div class="fanfic-current-filters-heading">
-					<h3 class="fanfic-current-filters-label"><?php esc_html_e( 'Current Filters', 'fanfiction-manager' ); ?></h3>
-					<p class="fanfic-current-filters-summary" data-fanfic-filter-summary><?php esc_html_e( 'No active filters yet.', 'fanfiction-manager' ); ?></p>
-				</div>
-				<div class="fanfic-current-filters-actions">
-					<span class="fanfic-current-filters-count" data-fanfic-filter-count>0</span>
-					<button type="button" class="fanfic-button fanfic-clear-search-button" id="fanfic-clear-filters-button">
-						<?php esc_html_e( 'Clear all', 'fanfiction-manager' ); ?>
-					</button>
-				</div>
-			</div>
-			<div class="fanfic-current-filters-container" data-fanfic-active-filters></div>
-		</div>
-		<?php
-
-		if ( $close_wrapper ) :
-			self::$stories_wrapper_open = false;
-			self::$stories_wrapper_opened_by_search = false;
-			?>
-			</div>
-			<?php
-		endif;
-
 		return ob_get_clean();
 	}
 
@@ -700,11 +801,12 @@ class Fanfic_Shortcodes_Search {
 			<div class="fanfic-archive fanfic-stories-page" data-fanfic-stories>
 			<?php
 		endif;
+		?>
 
-		if ( $is_stories_all ) :
-			// Display taxonomy terms directory.
-			echo self::render_stories_all_terms();
-		else :
+		<?php if ( $is_stories_all ) : ?>
+			<?php echo self::render_stories_all_terms(); ?>
+		<?php else : ?>
+			<?php
 			// Display normal story results.
 			$paged = absint( get_query_var( 'paged' ) );
 			if ( $paged < 1 ) {
@@ -732,7 +834,7 @@ class Fanfic_Shortcodes_Search {
 				: ( $stories_query instanceof WP_Query ? (int) $stories_query->found_posts : 0 );
 			?>
 
-			<div class="fanfic-archive-content fanfic-stories-page">
+			<div class="fanfic-archive-content fanfic-stories-page" data-fanfic-load-more-region data-fanfic-load-more-key="stories-archive">
 				<div class="fanfic-stories-results-summary" aria-live="polite">
 					<?php
 					printf(
@@ -744,7 +846,7 @@ class Fanfic_Shortcodes_Search {
 				</div>
 				<div class="fanfic-stories-results" data-fanfic-stories-results>
 					<?php if ( $stories_query instanceof WP_Query && $stories_query->have_posts() ) : ?>
-						<div class="fanfic-story-grid">
+						<div class="fanfic-story-grid" data-fanfic-load-more-list>
 							<?php
 							while ( $stories_query->have_posts() ) :
 								$stories_query->the_post();
@@ -753,7 +855,7 @@ class Fanfic_Shortcodes_Search {
 							?>
 						</div>
 
-						<nav class="fanfic-pagination fanfic-stories-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-stories-pagination>
+						<nav class="fanfic-pagination fanfic-stories-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Stories pagination', 'fanfiction-manager' ); ?>" data-fanfic-stories-pagination data-fanfic-load-more-pagination>
 							<?php
 							$pagination_base = function_exists( 'fanfic_build_stories_url' )
 								? fanfic_build_stories_url( $context['base_url'], $context['params'], array( 'paged' => null ) )
@@ -793,19 +895,19 @@ class Fanfic_Shortcodes_Search {
 			if ( $stories_query instanceof WP_Query ) {
 				wp_reset_postdata();
 			}
+
+			self::$stories_archive_rendered = true;
+
+			if ( $opened_here || self::$stories_wrapper_opened_by_search ) {
+				self::$stories_wrapper_open = false;
+				self::$stories_wrapper_opened_by_search = false;
+				?>
+				</div>
+				<?php
+			}
+
+			return ob_get_clean();
 		endif;
-
-		self::$stories_archive_rendered = true;
-
-		if ( $opened_here || self::$stories_wrapper_opened_by_search ) :
-			self::$stories_wrapper_open = false;
-			self::$stories_wrapper_opened_by_search = false;
-			?>
-			</div>
-			<?php
-		endif;
-
-		return ob_get_clean();
 	}
 
 	/**
@@ -921,6 +1023,18 @@ class Fanfic_Shortcodes_Search {
 			|| ! empty( $params['direction'] )
 			|| ! empty( $params['rating_min'] );
 
+		$non_pill_params = array( 'search', 'sort', 'direction' );
+		$has_real_filters = false;
+		foreach ( $params as $param_key => $param_value ) {
+			if ( in_array( $param_key, $non_pill_params, true ) ) {
+				continue;
+			}
+			if ( ! empty( $param_value ) ) {
+				$has_real_filters = true;
+				break;
+			}
+		}
+
 		$genres = get_terms( array(
 			'taxonomy'   => 'fanfiction_genre',
 			'hide_empty' => false,
@@ -931,12 +1045,16 @@ class Fanfic_Shortcodes_Search {
 			'hide_empty' => false,
 		) );
 
+		$warnings_enabled = class_exists( 'Fanfic_Settings' ) ? Fanfic_Settings::get_setting( 'enable_warnings', true ) : true;
 		$warnings = class_exists( 'Fanfic_Warnings' ) ? Fanfic_Warnings::get_available_warnings() : array();
 
 		$languages = array();
-		if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) {
+		$languages_enabled = class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled();
+		if ( $languages_enabled ) {
 			$languages = Fanfic_Languages::get_active_languages();
 		}
+
+		$fandoms_enabled = class_exists( 'Fanfic_Fandoms' ) && Fanfic_Fandoms::is_enabled();
 
 		$custom_taxonomies = array();
 		if ( class_exists( 'Fanfic_Custom_Taxonomies' ) ) {
@@ -1023,17 +1141,78 @@ class Fanfic_Shortcodes_Search {
 			? $raw_filter_counts['custom']
 			: array();
 
+		$available_genres = ( ! empty( $genres ) && ! is_wp_error( $genres ) )
+			? self::filter_term_objects_by_counts( $genres, $filter_counts['genres'] )
+			: array();
+		$available_statuses = ( ! empty( $statuses ) && ! is_wp_error( $statuses ) )
+			? self::filter_term_objects_by_counts( $statuses, $filter_counts['statuses'] )
+			: array();
+		$available_age_options = self::filter_scalar_values_by_counts( $age_options, $filter_counts['ages'] );
+		$available_languages = self::filter_array_items_by_counts( $languages, $filter_counts['languages'] );
+		$available_warnings = self::filter_array_items_by_counts( $warnings, $filter_counts['warnings'] );
+		$available_fandoms = array();
+		$has_fandom_options = ! empty(
+			array_filter(
+				(array) $filter_counts['fandoms'],
+				static function( $count ) {
+					return absint( $count ) > 0;
+				}
+			)
+		);
+
+		if ( $fandoms_enabled ) {
+			foreach ( (array) Fanfic_Fandoms::get_all_active() as $fandom ) {
+				$fandom_slug = isset( $fandom['slug'] ) ? (string) $fandom['slug'] : '';
+				$fandom_count = isset( $filter_counts['fandoms'][ $fandom_slug ] ) ? absint( $filter_counts['fandoms'][ $fandom_slug ] ) : 0;
+
+				if ( '' === $fandom_slug || $fandom_count <= 0 ) {
+					continue;
+				}
+
+				$available_fandoms[] = array(
+					'id'    => isset( $fandom['id'] ) ? absint( $fandom['id'] ) : 0,
+					'label' => isset( $fandom['name'] ) ? (string) $fandom['name'] : '',
+					'count' => $fandom_count,
+				);
+			}
+		}
+
+		$preloaded_fandom_options = count( $available_fandoms ) <= 20 ? $available_fandoms : array();
+
+		foreach ( $custom_taxonomies as $custom_taxonomy_index => $custom_taxonomy ) {
+			$custom_counts = isset( $filter_counts['custom'][ $custom_taxonomy['slug'] ] ) && is_array( $filter_counts['custom'][ $custom_taxonomy['slug'] ] )
+				? $filter_counts['custom'][ $custom_taxonomy['slug'] ]
+				: array();
+
+			$custom_taxonomies[ $custom_taxonomy_index ]['available_terms'] = self::filter_array_items_by_counts( $custom_taxonomy['terms'], $custom_counts );
+			$custom_taxonomies[ $custom_taxonomy_index ]['has_available_terms'] = ! empty( $custom_taxonomies[ $custom_taxonomy_index ]['available_terms'] );
+		}
+
 		return array(
-			'base_url'          => $base_url,
-			'params'            => $params,
-			'has_filters'       => $has_filters,
-			'genres'            => $genres,
-			'statuses'          => $statuses,
-			'warnings'          => $warnings,
-			'languages'         => $languages,
-			'custom_taxonomies' => $custom_taxonomies,
-			'age_options'       => $age_options,
-			'filter_counts'     => $filter_counts,
+			'base_url'               => $base_url,
+			'params'                 => $params,
+			'has_filters'            => $has_filters,
+			'has_real_filters'       => $has_real_filters,
+			'genres'                 => $genres,
+			'statuses'               => $statuses,
+			'warnings'               => $warnings,
+			'languages'              => $languages,
+			'custom_taxonomies'      => $custom_taxonomies,
+			'age_options'            => $age_options,
+			'filter_counts'          => $filter_counts,
+			'available_genres'       => $available_genres,
+			'available_statuses'     => $available_statuses,
+			'available_age_options'  => $available_age_options,
+			'available_languages'    => $available_languages,
+			'available_warnings'     => $available_warnings,
+			'available_fandoms'      => $available_fandoms,
+			'preloaded_fandoms'      => $preloaded_fandom_options,
+			'has_fandom_options'     => $has_fandom_options,
+			'show_language_filter'   => $languages_enabled,
+			'show_age_filter'        => $warnings_enabled,
+			'show_warnings_filters'  => $warnings_enabled,
+			'show_fandom_filter'     => $fandoms_enabled,
+			'unavailable_filter_tip' => self::get_unavailable_filter_tooltip(),
 		);
 	}
 }

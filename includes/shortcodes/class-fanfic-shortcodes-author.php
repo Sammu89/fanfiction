@@ -600,11 +600,13 @@ class Fanfic_Shortcodes_Author {
 			return '';
 		}
 
+		$load_more_key = self::build_load_more_key( 'author-coauthored', $author_id );
 		$output = '<h2>' . esc_html__( 'Co-Authored Stories', 'fanfiction-manager' ) . '</h2>';
+		$output .= '<div class="fanfic-load-more-region" data-fanfic-load-more-region data-fanfic-load-more-key="' . esc_attr( $load_more_key ) . '">';
 		$preload_ids = wp_list_pluck( $stories->posts, 'ID' );
 		fanfic_preload_story_card_index_data( $preload_ids );
 		$output .= '<div class="fanfic-archive fanfic-stories-page author-coauthored-stories" role="region" aria-label="' . esc_attr__( 'Co-authored stories', 'fanfiction-manager' ) . '">';
-		$output .= '<div class="fanfic-story-grid author-stories-list author-coauthored-stories-list">';
+		$output .= '<div class="fanfic-story-grid author-stories-list author-coauthored-stories-list" data-fanfic-load-more-list>';
 		while ( $stories->have_posts() ) {
 			$stories->the_post();
 			$output .= self::render_story_item( get_the_ID() );
@@ -613,8 +615,10 @@ class Fanfic_Shortcodes_Author {
 		$output .= '</div>';
 
 		if ( 'true' === $atts['paginate'] ) {
-			$output .= self::render_story_pagination( $stories );
+			$output .= self::render_story_pagination( $stories, $load_more_key );
 		}
+
+		$output .= '</div>';
 
 		wp_reset_postdata();
 		return $output;
@@ -779,8 +783,10 @@ class Fanfic_Shortcodes_Author {
 		// Build output
 		$preload_ids = wp_list_pluck( $stories->posts, 'ID' );
 		fanfic_preload_story_card_index_data( $preload_ids );
-		$output = '<div class="fanfic-archive fanfic-stories-page author-featured-stories" role="region" aria-label="' . esc_attr__( 'Featured stories', 'fanfiction-manager' ) . '">';
-		$output .= '<div class="fanfic-story-grid author-featured-stories-list">';
+		$load_more_key = self::build_load_more_key( 'author-featured', $author_id );
+		$output = '<div class="fanfic-load-more-region" data-fanfic-load-more-region data-fanfic-load-more-key="' . esc_attr( $load_more_key ) . '">';
+		$output .= '<div class="fanfic-archive fanfic-stories-page author-featured-stories" role="region" aria-label="' . esc_attr__( 'Featured stories', 'fanfiction-manager' ) . '">';
+		$output .= '<div class="fanfic-story-grid author-featured-stories-list" data-fanfic-load-more-list>';
 
 		while ( $stories->have_posts() ) {
 			$stories->the_post();
@@ -793,7 +799,8 @@ class Fanfic_Shortcodes_Author {
 		$output .= '</div>';
 
 		// Add pagination
-		$output .= self::render_story_pagination( $stories );
+		$output .= self::render_story_pagination( $stories, $load_more_key );
+		$output .= '</div>';
 
 		wp_reset_postdata();
 
@@ -853,8 +860,17 @@ class Fanfic_Shortcodes_Author {
 		$container_class = 'grid' === $display ? 'author-stories-grid' : 'author-story-list';
 		$preload_ids = wp_list_pluck( $stories->posts, 'ID' );
 		fanfic_preload_story_card_index_data( $preload_ids );
-		$output = '<div class="fanfic-archive fanfic-stories-page ' . esc_attr( $container_class ) . '-wrapper" role="region" aria-label="' . esc_attr__( 'Author stories', 'fanfiction-manager' ) . '">';
-		$output .= '<div class="fanfic-story-grid ' . esc_attr( $container_class ) . '">';
+		$load_more_key = self::build_load_more_key(
+			'author-stories',
+			$author_id,
+			array(
+				'display' => $display,
+				'status'  => isset( $atts['status'] ) ? (string) $atts['status'] : '',
+			)
+		);
+		$output = '<div class="fanfic-load-more-region" data-fanfic-load-more-region data-fanfic-load-more-key="' . esc_attr( $load_more_key ) . '">';
+		$output .= '<div class="fanfic-archive fanfic-stories-page ' . esc_attr( $container_class ) . '-wrapper" role="region" aria-label="' . esc_attr__( 'Author stories', 'fanfiction-manager' ) . '">';
+		$output .= '<div class="fanfic-story-grid ' . esc_attr( $container_class ) . '" data-fanfic-load-more-list>';
 
 		while ( $stories->have_posts() ) {
 			$stories->the_post();
@@ -868,8 +884,10 @@ class Fanfic_Shortcodes_Author {
 
 		// Add pagination if enabled
 		if ( 'true' === $atts['paginate'] ) {
-			$output .= self::render_story_pagination( $stories );
+			$output .= self::render_story_pagination( $stories, $load_more_key );
 		}
+
+		$output .= '</div>';
 
 		wp_reset_postdata();
 
@@ -894,12 +912,13 @@ class Fanfic_Shortcodes_Author {
 	 * @param WP_Query $query Query object.
 	 * @return string Pagination HTML.
 	 */
-	private static function render_story_pagination( $query ) {
+	private static function render_story_pagination( $query, $load_more_key = '' ) {
 		if ( $query->max_num_pages <= 1 ) {
 			return '';
 		}
 
-		$output = '<nav class="author-story-pagination" role="navigation" aria-label="' . esc_attr__( 'Story pagination', 'fanfiction-manager' ) . '">';
+		$data_key_attr = '' !== $load_more_key ? ' data-fanfic-load-more-key="' . esc_attr( $load_more_key ) . '"' : '';
+		$output = '<nav class="author-story-pagination" role="navigation" aria-label="' . esc_attr__( 'Story pagination', 'fanfiction-manager' ) . '" data-fanfic-load-more-pagination' . $data_key_attr . '>';
 
 		$pagination_args = array(
 			'base'      => str_replace( 999999999, '%#%', esc_url( get_pagenum_link( 999999999 ) ) ),
@@ -915,6 +934,25 @@ class Fanfic_Shortcodes_Author {
 		$output .= '</nav>';
 
 		return $output;
+	}
+
+	/**
+	 * Build a stable key for progressive load-more regions.
+	 *
+	 * @since 2.0.0
+	 * @param string     $prefix Prefix for the key.
+	 * @param int|string $entity_id Entity identifier.
+	 * @param array      $context Additional context.
+	 * @return string
+	 */
+	private static function build_load_more_key( $prefix, $entity_id, $context = array() ) {
+		$raw = array(
+			'prefix' => (string) $prefix,
+			'id'     => (string) $entity_id,
+			'ctx'    => (array) $context,
+		);
+
+		return sanitize_html_class( $prefix . '-' . substr( md5( wp_json_encode( $raw ) ), 0, 12 ) );
 	}
 
 	/**

@@ -4095,6 +4095,97 @@ function fanfic_render_visible_tags( $story_id, $wrapper = 'div', $class = 'fanf
 }
 
 /**
+ * Render the shared fandom multi-select field.
+ *
+ * The fandom picker uses the same dropdown shell as the other multi-select
+ * filters, while keeping remote search so large fandom datasets stay light.
+ *
+ * @since 2.0.0
+ * @param array $args Field arguments.
+ * @return string
+ */
+function fanfic_render_fandom_multiselect_field( $args = array() ) {
+	if ( ! class_exists( 'Fanfic_Fandoms' ) || ! Fanfic_Fandoms::is_enabled() ) {
+		return '';
+	}
+
+	$defaults = array(
+		'wrapper_class'       => 'fanfic-fandoms-field',
+		'field_id'            => '',
+		'input_id'            => 'fanfic_fandom_search',
+		'label'               => __( 'Fandoms', 'fanfiction-manager' ),
+		'trigger_placeholder' => __( 'Select Fandoms', 'fanfiction-manager' ),
+		'search_placeholder'  => __( 'Search fandoms...', 'fanfiction-manager' ),
+		'results_aria_label'  => __( 'Fandom search results', 'fanfiction-manager' ),
+		'description'         => '',
+		'selected_fandoms'    => array(),
+		'max_fandoms'         => Fanfic_Fandoms::MAX_FANDOMS,
+		'field_disabled'      => false,
+		'disabled_title'      => '',
+		'preloaded_options'   => array(),
+		'show_all_on_click'   => false,
+	);
+
+	$args            = wp_parse_args( $args, $defaults );
+	$wrapper_classes = trim( (string) $args['wrapper_class'] );
+	$field_id        = sanitize_html_class( (string) $args['field_id'] );
+
+	ob_start();
+	?>
+	<div
+		class="<?php echo esc_attr( $wrapper_classes ); ?>"
+		<?php if ( '' !== $field_id ) : ?>
+			id="<?php echo esc_attr( $field_id ); ?>"
+		<?php endif; ?>
+		data-max-fandoms="<?php echo esc_attr( absint( $args['max_fandoms'] ) ); ?>"
+		data-show-all-on-click="<?php echo ! empty( $args['show_all_on_click'] ) ? '1' : '0'; ?>"
+		data-preloaded-options="<?php echo esc_attr( wp_json_encode( array_values( (array) $args['preloaded_options'] ) ) ); ?>"
+	>
+		<label for="<?php echo esc_attr( $args['input_id'] ); ?>"><?php echo esc_html( $args['label'] ); ?></label>
+		<div class="multi-select fanfic-fandom-multiselect" data-placeholder="<?php echo esc_attr( $args['trigger_placeholder'] ); ?>">
+			<input
+				type="text"
+				id="<?php echo esc_attr( $args['input_id'] ); ?>"
+				class="fanfic-input fanfic-fandom-search-input"
+				autocomplete="off"
+				placeholder="<?php echo esc_attr( $args['search_placeholder'] ); ?>"
+				aria-haspopup="listbox"
+				aria-expanded="false"
+				<?php disabled( ! empty( $args['field_disabled'] ) ); ?>
+				<?php if ( ! empty( $args['field_disabled'] ) && '' !== $args['disabled_title'] ) : ?>
+					title="<?php echo esc_attr( $args['disabled_title'] ); ?>"
+				<?php endif; ?>
+			/>
+			<div class="multi-select__dropdown">
+				<div class="fanfic-fandom-results" role="listbox" aria-label="<?php echo esc_attr( $args['results_aria_label'] ); ?>"></div>
+			</div>
+		</div>
+		<div class="fanfic-selected-fandoms fanfic-pill-values" aria-live="polite">
+			<?php foreach ( (array) $args['selected_fandoms'] as $fandom ) : ?>
+				<?php
+				$fandom_id    = isset( $fandom['id'] ) ? absint( $fandom['id'] ) : 0;
+				$fandom_label = isset( $fandom['label'] ) ? sanitize_text_field( (string) $fandom['label'] ) : '';
+				if ( ! $fandom_id || '' === $fandom_label ) {
+					continue;
+				}
+				?>
+				<span class="fanfic-pill-value" data-id="<?php echo esc_attr( $fandom_id ); ?>" data-label="<?php echo esc_attr( $fandom_label ); ?>">
+					<span class="fanfic-pill-value-text"><?php echo esc_html( $fandom_label ); ?></span>
+					<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
+					<input type="hidden" name="fanfic_story_fandoms[]" value="<?php echo esc_attr( $fandom_id ); ?>">
+				</span>
+			<?php endforeach; ?>
+		</div>
+		<?php if ( '' !== $args['description'] ) : ?>
+			<p class="description"><?php echo esc_html( $args['description'] ); ?></p>
+		<?php endif; ?>
+	</div>
+	<?php
+
+	return ob_get_clean();
+}
+
+/**
  * Get combined tag text for search indexing
  *
  * @since 1.2.0

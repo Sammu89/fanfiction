@@ -1,6 +1,16 @@
 (function($) {
     'use strict';
 
+    // Keep the applied search term separate from the draft text in the input.
+    // Filter changes should not promote a new search string until the user submits.
+    var searchFormState = {
+        committedSearchTerm: '',
+        liveFilteringEnabled: false,
+        pendingSearchCommit: false,
+        autoSubmitTimer: null,
+        suppressAutoSubmit: false
+    };
+
     // ===== SMART FILTER MANAGER (Match All Logic) =====
     var SmartFilterManager = {
         /**
@@ -25,7 +35,7 @@
          * Update all multi-select dropdown labels
          */
         updateAllMultiSelectLabels: function() {
-            document.querySelectorAll('.multi-select').forEach(function(select) {
+            document.querySelectorAll('.multi-select:not(.fanfic-fandom-multiselect)').forEach(function(select) {
                 var trigger = select.querySelector('.multi-select__trigger');
                 var checkboxes = select.querySelectorAll('input[type="checkbox"]');
                 var placeholder = select.dataset.placeholder || 'Select';
@@ -374,23 +384,56 @@
         config: {
             containerSelector: '[data-fanfic-active-filters]',
             formSelector: '.fanfic-stories-form',
+            nonActivatingKeys: [ 'search', 'sort', 'direction' ],
         },
 
         // Taxonomy order (determines pill order)
         taxonomyOrder: [
-            { key: 'search', label: 'Search', type: 'search' },
-            { key: 'sort', label: 'Sort', type: 'single-select' },
-            { key: 'direction', label: 'Order', type: 'single-select' },
-            { key: 'rating', label: 'Rating', type: 'single-select' },
-            { key: 'match_all', label: 'Match all filters', type: 'toggle', naked: true },
-            { key: 'language', label: 'Language', type: 'multi-select' },
             { key: 'status', label: 'Status', type: 'multi-select' },
-            { key: 'fandoms', label: 'Fandom', type: 'custom', selector: '[name="fanfic_story_fandoms[]"]' },
             { key: 'genres', label: 'Genre', type: 'multi-select' },
+            { key: 'language', label: 'Language', type: 'multi-select' },
             { key: 'age', label: 'Age', type: 'multi-select' },
+            { key: 'fandoms', label: 'Fandom', type: 'custom', selector: '[name="fanfic_story_fandoms[]"]' },
             { key: 'warnings_include', label: 'Including', type: 'warnings' },
             { key: 'warnings_exclude', label: 'Excluding', type: 'warnings' },
         ],
+
+        /**
+         * Return custom taxonomy pill configs from localized data.
+         */
+        getCustomTaxonomyOrder: function() {
+            var customTaxonomies = window.fanficSearchBar && Array.isArray(window.fanficSearchBar.customTaxonomies) ? window.fanficSearchBar.customTaxonomies : [];
+
+            return customTaxonomies
+                .filter(function(taxonomy) {
+                    return taxonomy && taxonomy.slug;
+                })
+                .map(function(taxonomy) {
+                    return {
+                        key: taxonomy.slug,
+                        label: taxonomy.label || taxonomy.slug,
+                        type: 'single' === taxonomy.selection_type ? 'single-select' : 'multi-select',
+                        custom: true,
+                    };
+                });
+        },
+
+        /**
+         * Return the full taxonomy order, including custom taxonomies and tail controls.
+         */
+        getTaxonomyOrder: function() {
+            var order = this.taxonomyOrder.slice(0);
+            var customTaxonomies = this.getCustomTaxonomyOrder();
+
+            if (customTaxonomies.length) {
+                order = order.concat(customTaxonomies);
+            }
+
+            order.push({ key: 'rating', label: 'Rating', type: 'single-select' });
+            order.push({ key: 'match_all', label: 'Match all filters', type: 'toggle', naked: true });
+
+            return order;
+        },
 
         /**
          * Get all current filter values from form
@@ -399,7 +442,7 @@
             var filters = {};
 
             // Search text
-            var search = $('#fanfic-search-input').val();
+            var search = searchFormState.committedSearchTerm || '';
             if (search && search.trim()) {
                 filters.search = search.trim();
             }
@@ -492,43 +535,53 @@
                 filters.warnings_include = includeWarnings;
             }
 
-            // Custom taxonomies (multi-select and single-select dropdowns)
-            var singleSelectTaxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
+            // Custom taxonomies (single-select and multi-select dropdowns)
+            var customTaxonomies = window.fanficSearchBar && Array.isArray(window.fanficSearchBar.customTaxonomies) ? window.fanficSearchBar.customTaxonomies : [];
 
-            // Collect all custom taxonomy names from selectors on page
-            document.querySelectorAll('.fanfic-advanced-search-filters select:not([multiple]), .fanfic-advanced-search-filters .multi-select:not(.fanfic-warnings-exclude-multiselect):not(.fanfic-warnings-include-multiselect)').forEach(function(elem) {
-                var selector, values = [];
-
-                // Check if it's a select element (single-select custom taxonomy)
-                if (elem.tagName === 'SELECT') {
-                    selector = 'select[name="' + elem.name + '"]';
-                    var selectedOption = document.querySelector(selector);
-                    if (selectedOption && selectedOption.value) {
-                        values.push($(selectedOption).find('option:selected').text().trim());
-                    }
-                } else if (elem.classList.contains('multi-select')) {
-                    // Get the multi-select's name from its checkboxes
-                    var $checkboxes = $(elem).find('input[type="checkbox"]:checked');
-                    if ($checkboxes.length > 0) {
-                        var fieldName = $checkboxes.first().attr('name');
-                        if (fieldName) {
-                            $checkboxes.each(function() {
-                                values.push($(this).closest('label').text().trim());
-                            });
-                        }
-                    }
+            customTaxonomies.forEach(function(customTaxonomy) {
+                if (!customTaxonomy || !customTaxonomy.slug) {
+                    return;
                 }
 
-                // Store custom taxonomy values
-                if (values.length > 0 && elem.name) {
-                    var taxonomyName = elem.name.replace(/\[\]$/, ''); // Remove [] suffix if present
-                    if (taxonomyName && !['status', 'age', 'language', 'genre', 'warnings_exclude', 'warnings_include'].includes(taxonomyName)) {
-                        filters[taxonomyName] = values;
+                var taxonomySlug = customTaxonomy.slug;
+                var values = [];
+
+                if (customTaxonomy.selection_type === 'single') {
+                    var $selectedOption = $('.fanfic-advanced-search-filters select[name="' + taxonomySlug + '"] option:selected');
+                    var selectedValue = $selectedOption.val();
+
+                    if (selectedValue) {
+                        values.push($selectedOption.text().trim());
                     }
+                } else {
+                    $('.fanfic-advanced-search-filters input[name="' + taxonomySlug + '[]"]:checked').each(function() {
+                        values.push($(this).closest('label').text().trim());
+                    });
+                }
+
+                if (values.length > 0) {
+                    filters[taxonomySlug] = values;
                 }
             });
 
             return filters;
+        },
+
+        /**
+         * Remove pill-inactive filter keys from the filter map.
+         */
+        getPillRelevantFilters: function(filters) {
+            var self = this;
+            var pillFilters = {};
+
+            Object.keys(filters || {}).forEach(function(key) {
+                if (self.config.nonActivatingKeys.indexOf(key) !== -1) {
+                    return;
+                }
+                pillFilters[key] = filters[key];
+            });
+
+            return pillFilters;
         },
 
         /**
@@ -539,7 +592,7 @@
             var pillsHtml = '';
 
             // Generate pills in defined order
-            this.taxonomyOrder.forEach(function(taxConfig) {
+            this.getTaxonomyOrder().forEach(function(taxConfig) {
                 var key = taxConfig.key;
                 var label = taxConfig.label;
                 var values = null;
@@ -637,35 +690,26 @@
          * Render pills to DOM
          */
         updatePills: function() {
-            var filters = this.getCurrentFilters();
+            var filters = this.getPillRelevantFilters(this.getCurrentFilters());
             var pillsHtml = this.generatePills(filters);
             var activeCount = this.countActiveFilters(filters);
-            var i18n = (window.fanficSearchBar && window.fanficSearchBar.i18n) ? window.fanficSearchBar.i18n : {};
 
             var $container = $(this.config.containerSelector);
             var $section = $container.closest('.fanfic-current-filters-section');
-            var $count = $section.find('[data-fanfic-filter-count]');
-            var $summary = $section.find('[data-fanfic-filter-summary]');
 
-            if ($count.length) {
-                $count.text(activeCount);
+            if (!$section.length) {
+                return;
             }
 
-            if ($summary.length) {
-                if (activeCount > 0) {
-                    $summary.text(activeCount + ' ' + (activeCount === 1 ? (i18n.activeFilterSingular || 'active filter') : (i18n.activeFilterPlural || 'active filters')));
-                } else {
-                    $summary.text(i18n.noActiveFilters || 'No active filters yet.');
-                }
+            if (activeCount <= 0 || !pillsHtml) {
+                $section.removeClass('is-visible');
+                $container.empty();
+                return;
             }
 
-            if (pillsHtml) {
-                var containerHtml = '<ul class="fanfic-pills-container">' + pillsHtml + '</ul>';
-                $container.html(containerHtml);
-                this.attachRemoveListeners();
-            } else {
-                $container.html('<p class="fanfic-current-filters-empty">' + (i18n.noActiveFilters || 'No active filters yet.') + ' ' + (i18n.noActiveFiltersHint || 'Use Advanced search to narrow results.') + '</p>');
-            }
+            $section.addClass('is-visible');
+            $container.html('<ul class="fanfic-pills-container">' + pillsHtml + '</ul>');
+            this.attachRemoveListeners();
         },
 
         /**
@@ -692,11 +736,26 @@
          */
         removeValueFromTaxonomy: function(taxonomy, valueText) {
             var self = this;
+            var customTaxonomies = window.fanficSearchBar && Array.isArray(window.fanficSearchBar.customTaxonomies) ? window.fanficSearchBar.customTaxonomies : [];
+            var customTaxonomy = null;
+
+            for (var i = 0; i < customTaxonomies.length; i++) {
+                if (customTaxonomies[i] && customTaxonomies[i].slug === taxonomy) {
+                    customTaxonomy = customTaxonomies[i];
+                    break;
+                }
+            }
 
             // Map taxonomy to form selectors
             switch (taxonomy) {
                 case 'search':
                     $('#fanfic-search-input').val('').trigger('input');
+                    if (window.fanficSearchBarState && typeof window.fanficSearchBarState.setCommittedSearchTerm === 'function') {
+                        window.fanficSearchBarState.setCommittedSearchTerm('');
+                    }
+                    if (window.fanficSearchBarState && typeof window.fanficSearchBarState.submitSearchForm === 'function') {
+                        window.fanficSearchBarState.submitSearchForm(false);
+                    }
                     break;
 
                 case 'match_all':
@@ -773,7 +832,12 @@
                     break;
 
                 default:
-                    // Custom taxonomy
+                    if (customTaxonomy && customTaxonomy.selection_type === 'single') {
+                        $('select[name="' + taxonomy + '"]').val('').trigger('change');
+                        break;
+                    }
+
+                    // Custom taxonomy multi-select
                     var selector = '[name="' + taxonomy + '[]"]';
                     $(selector).each(function() {
                         if ($(this).closest('label').text().trim() === valueText) {
@@ -794,7 +858,7 @@
          * Called after removing values to ensure dropdowns show correct count
          */
         updateMultiSelectLabels: function() {
-            document.querySelectorAll('.multi-select').forEach(function(select) {
+            document.querySelectorAll('.multi-select:not(.fanfic-fandom-multiselect)').forEach(function(select) {
                 var trigger = select.querySelector('.multi-select__trigger');
                 var checkboxes = select.querySelectorAll('input[type="checkbox"]');
                 var placeholder = select.dataset.placeholder || 'Select';
@@ -843,15 +907,6 @@
             var self = this;
             $(document).on('change', self.config.formSelector + ' input, ' + self.config.formSelector + ' select', function() {
                 self.updatePills();
-            });
-
-            // Debounce text input
-            var searchDebounce;
-            $(self.config.formSelector + ' #fanfic-search-input').on('keyup', function() {
-                clearTimeout(searchDebounce);
-                searchDebounce = setTimeout(function() {
-                    self.updatePills();
-                }, 300);
             });
 
             // Update pills when fandoms are added/removed (custom event from fandoms JS)
@@ -1005,6 +1060,9 @@
 
         // Initialize translation deduplication
         TranslationDeduplicator.init();
+        document.addEventListener('fanfic:load-more-appended', function() {
+            TranslationDeduplicator.deduplicate();
+        });
 
         var $advancedSearchToggle = $('.fanfic-advanced-search-toggle');
         var $advancedSearchAccordion = $('#fanfic-advanced-search-panel');
@@ -1023,23 +1081,236 @@
         var $smartToggleCheckbox = $('#fanfic-match-all-filters');
         var $smartToggleWrapper = $smartToggleCheckbox.closest('.fanfic-smart-toggle-wrapper');
         var $smartToggleLabel = $smartToggleWrapper.find('.fanfic-comment-toggle-label');
+        var $currentFiltersSection = $('.fanfic-current-filters-section');
+
+        searchFormState.committedSearchTerm = ($searchInput.val() || '').trim();
+
+        function setCommittedSearchTerm(value) {
+            searchFormState.committedSearchTerm = String(value || '').trim();
+        }
+
+        function canUseSessionStorage() {
+            try {
+                return typeof window.sessionStorage !== 'undefined';
+            } catch (err) {
+                return false;
+            }
+        }
+
+        function getStoredLiveFilteringEnabled() {
+            if (!canUseSessionStorage()) {
+                return false;
+            }
+
+            return window.sessionStorage.getItem('fanficSearchLiveFilteringEnabled') === '1';
+        }
+
+        function setStoredLiveFilteringEnabled(isEnabled) {
+            searchFormState.liveFilteringEnabled = !!isEnabled;
+
+            if (!canUseSessionStorage()) {
+                return;
+            }
+
+            window.sessionStorage.setItem('fanficSearchLiveFilteringEnabled', isEnabled ? '1' : '0');
+        }
+
+        function initializeLiveFilteringState() {
+            var hasActiveQuery = !!(window.fanficSearchBar && window.fanficSearchBar.hasActiveQuery);
+            searchFormState.liveFilteringEnabled = getStoredLiveFilteringEnabled() || hasActiveQuery;
+        }
+
+        function buildCleanSearchUrl(includeDraftSearch) {
+            var baseUrl = $searchForm.attr('action') || window.location.pathname;
+            var params = {};
+
+            var searchVal = includeDraftSearch ? $searchInput.val() : searchFormState.committedSearchTerm;
+            if (searchVal && String(searchVal).trim() !== '') {
+                params.q = String(searchVal).trim();
+            }
+
+            var $sortSelectField = $searchForm.find('select[name="sort"]');
+            if ($sortSelectField.length && $sortSelectField.val()) {
+                params.sort = $sortSelectField.val();
+            }
+
+            var $directionSelectField = $searchForm.find('select[name="direction"]');
+            if ($directionSelectField.length && $directionSelectField.val()) {
+                params.direction = $directionSelectField.val();
+            }
+
+            var $ratingMin = $searchForm.find('input[name="rating_min"]');
+            if ($ratingMin.length && parseFloat($ratingMin.val() || '0') > 0) {
+                params.rating_min = $ratingMin.val();
+            }
+
+            if ($smartToggleCheckbox.is(':checked')) {
+                params.match_all_filters = '1';
+            }
+
+            var checkboxGroups = [
+                'status[]',
+                'genre[]',
+                'age[]',
+                'language[]',
+                'warnings_exclude[]',
+                'warnings_include[]'
+            ];
+
+            checkboxGroups.forEach(function(groupName) {
+                var values = [];
+                $searchForm.find('input[name="' + groupName + '"]:checked').each(function() {
+                    values.push($(this).val());
+                });
+                if (values.length > 0) {
+                    var cleanName = groupName.replace(/\[\]$/, '');
+                    params[cleanName] = values.join(' ');
+                }
+            });
+
+            var fandomValues = [];
+            $searchForm.find('input[name="fanfic_story_fandoms[]"]').each(function() {
+                if ($(this).val()) {
+                    fandomValues.push($(this).val());
+                }
+            });
+            if (fandomValues.length > 0) {
+                params.fandoms = fandomValues.join(' ');
+            }
+
+            $searchForm.find('.fanfic-advanced-search-filters select:not([name="sort"])').each(function() {
+                var name = $(this).attr('name');
+                if (!name) return;
+                var val = $(this).val();
+                if (val && val !== '') {
+                    var cleanName = name.replace(/\[\]$/, '');
+                    if (!params.hasOwnProperty(cleanName)) {
+                        params[cleanName] = val;
+                    }
+                }
+            });
+
+            var handledNames = ['status', 'genre', 'age', 'language', 'warnings_exclude', 'warnings_include', 'fandoms'];
+            $searchForm.find('.fanfic-advanced-search-filters .multi-select input[type="checkbox"]:checked').each(function() {
+                var name = $(this).attr('name');
+                if (!name) return;
+                var cleanName = name.replace(/\[\]$/, '');
+                if (handledNames.indexOf(cleanName) !== -1) return;
+                if (!params[cleanName]) {
+                    params[cleanName] = [];
+                }
+                if (Array.isArray(params[cleanName])) {
+                    params[cleanName].push($(this).val());
+                }
+            });
+
+            Object.keys(params).forEach(function(key) {
+                if (Array.isArray(params[key])) {
+                    params[key] = params[key].join(' ');
+                }
+            });
+
+            var queryParts = [];
+            Object.keys(params).forEach(function(key) {
+                if (params[key] !== '' && params[key] !== null && params[key] !== undefined) {
+                    var encoded = String(params[key]).split(/\s+/).map(encodeURIComponent).join(',');
+                    queryParts.push(encodeURIComponent(key) + '=' + encoded);
+                }
+            });
+
+            var queryString = queryParts.join('&');
+            return queryString ? baseUrl + '?' + queryString : baseUrl;
+        }
+
+        function submitSearchForm(includeDraftSearch) {
+            window.location.assign(buildCleanSearchUrl(!!includeDraftSearch));
+        }
+
+        function submitFiltersInstantly() {
+            if (!searchFormState.liveFilteringEnabled) {
+                return;
+            }
+
+            if (searchFormState.suppressAutoSubmit) {
+                return;
+            }
+
+            clearTimeout(searchFormState.autoSubmitTimer);
+            searchFormState.autoSubmitTimer = setTimeout(function() {
+                submitSearchForm(false);
+            }, 0);
+        }
+
+        function commitAndSubmitSearch() {
+            setCommittedSearchTerm($searchInput.val());
+            searchFormState.pendingSearchCommit = false;
+            setStoredLiveFilteringEnabled(true);
+            submitSearchForm(true);
+        }
+
+        window.fanficSearchBarState = window.fanficSearchBarState || {};
+        window.fanficSearchBarState.setCommittedSearchTerm = setCommittedSearchTerm;
+        window.fanficSearchBarState.setLiveFilteringEnabled = setStoredLiveFilteringEnabled;
+        window.fanficSearchBarState.submitFiltersInstantly = submitFiltersInstantly;
+        window.fanficSearchBarState.submitSearchForm = submitSearchForm;
+
+        $(document).on('change', PillsManager.config.formSelector + ' input:not(#fanfic-search-input), ' + PillsManager.config.formSelector + ' select', function() {
+            submitFiltersInstantly();
+        });
+
+        document.addEventListener('fanfic-fandoms-changed', function() {
+            submitFiltersInstantly();
+        });
+
+        if ($currentFiltersSection.length && $searchForm.length) {
+            var $targetForm = $searchForm.first();
+            if ($currentFiltersSection.parent()[0] !== $targetForm[0]) {
+                $currentFiltersSection.appendTo($targetForm);
+            }
+        }
+        initializeLiveFilteringState();
 
         // Get single-select taxonomy list from PHP localization
         var singleSelectTaxonomies = window.fanficSearchBar && window.fanficSearchBar.singleSelectTaxonomies ? window.fanficSearchBar.singleSelectTaxonomies : ['status', 'age', 'language'];
+        var advancedSearchStateKey = 'fanficAdvancedSearchExpanded';
+
+        function getAdvancedSearchExpandedState() {
+            if (!canUseSessionStorage()) {
+                return false;
+            }
+
+            return window.sessionStorage.getItem(advancedSearchStateKey) === '1';
+        }
+
+        function setAdvancedSearchExpandedState(isExpanded) {
+            if (!canUseSessionStorage()) {
+                return;
+            }
+
+            window.sessionStorage.setItem(advancedSearchStateKey, isExpanded ? '1' : '0');
+        }
+
+        function syncAdvancedSearchToggleUi(isExpanded) {
+            $advancedSearchToggle.attr('aria-expanded', isExpanded ? 'true' : 'false');
+            if (isExpanded) {
+                $toggleIcon.removeClass('dashicons-plus').addClass('dashicons-minus');
+            } else {
+                $toggleIcon.removeClass('dashicons-minus').addClass('dashicons-plus');
+            }
+        }
+
+        if (getAdvancedSearchExpandedState()) {
+            $advancedSearchAccordion.show();
+            syncAdvancedSearchToggleUi(true);
+        }
 
         // Advanced search toggle functionality
         $advancedSearchToggle.on('click', function() {
             var isExpanded = $advancedSearchToggle.attr('aria-expanded') === 'true';
 
             $advancedSearchAccordion.stop(true, true).slideToggle(200);
-
-            $advancedSearchToggle.attr('aria-expanded', !isExpanded);
-
-            if (isExpanded) {
-                $toggleIcon.removeClass('dashicons-minus').addClass('dashicons-plus');
-            } else {
-                $toggleIcon.removeClass('dashicons-plus').addClass('dashicons-minus');
-            }
+            syncAdvancedSearchToggleUi(!isExpanded);
+            setAdvancedSearchExpandedState(!isExpanded);
         });
 
         // Smart Toggle functionality (match_all_filters)
@@ -1062,6 +1333,7 @@
 
             // Update pills after toggling
             PillsManager.updatePills();
+            submitFiltersInstantly();
         });
         // Set initial state
         if ($smartToggleCheckbox.is(':checked')) {
@@ -1090,17 +1362,26 @@
 
         updateRatingDisplay($ratingFilter.val());
 
-        $ratingFilter.on('input change', function() {
+        $ratingFilter.on('input', function() {
             updateRatingDisplay(this.value);
             PillsManager.updatePills();
+        });
+
+        $ratingFilter.on('change', function() {
+            submitFiltersInstantly();
         });
 
         // Clear filters button functionality
         $clearFiltersButton.on('click', function(e) {
             e.preventDefault();
 
+            searchFormState.suppressAutoSubmit = true;
+            searchFormState.pendingSearchCommit = false;
+            clearTimeout(searchFormState.autoSubmitTimer);
+
             // Reset all inputs
             $('#fanfic-search-input').val('');
+            setCommittedSearchTerm('');
             if ($sortSelect.length) {
                 $sortSelect.val('');
             }
@@ -1117,6 +1398,7 @@
 
             $('.fanfic-selected-fandoms').empty();
             $('#fanfic-fandom-filter').val('');
+            document.dispatchEvent(new CustomEvent('fanfic-fandoms-changed'));
 
             // Reset both warnings multiselects
             if ($warningsExcludeMultiSelect.length) {
@@ -1135,7 +1417,7 @@
             }
 
             // Reset multi-select dropdowns (genres, languages, custom)
-            document.querySelectorAll('.multi-select:not(.fanfic-warnings-exclude-multiselect):not(.fanfic-warnings-include-multiselect)').forEach(function(select) {
+            document.querySelectorAll('.multi-select:not(.fanfic-warnings-exclude-multiselect):not(.fanfic-warnings-include-multiselect):not(.fanfic-fandom-multiselect)').forEach(function(select) {
                 var checkboxes = select.querySelectorAll('input[type="checkbox"]');
                 checkboxes.forEach(function(cb) {
                     cb.checked = false;
@@ -1157,14 +1439,21 @@
 
             // Update pills
             PillsManager.updatePills();
+
+            searchFormState.suppressAutoSubmit = false;
+            submitFiltersInstantly();
         });
 
         // Search on Enter key press
         $searchInput.on('keypress', function(e) {
             if (e.which === 13) {
                 e.preventDefault();
-                $searchForm.submit();
+                commitAndSubmitSearch();
             }
+        });
+
+        $(document).on('click', '.fanfic-search-submit', function() {
+            searchFormState.pendingSearchCommit = true;
         });
 
         // ===== CLEAN URL FORM SUBMISSION INTERCEPTOR =====
@@ -1172,128 +1461,20 @@
         // instead of PHP array notation (e.g., ?status=abandoned+ongoing instead of ?status%5B%5D=abandoned&status%5B%5D=ongoing)
         $searchForm.on('submit', function(e) {
             e.preventDefault();
-
-            var baseUrl = $searchForm.attr('action') || window.location.pathname;
-            var params = {};
-
-            // 1. Search text input - include only if non-empty
-            var searchVal = $searchInput.val();
-            if (searchVal && searchVal.trim() !== '') {
-                params.q = searchVal.trim();
+            if (searchFormState.pendingSearchCommit) {
+                commitAndSubmitSearch();
+                searchFormState.pendingSearchCommit = false;
+                return;
             }
 
-            // 2. Sort select - include only if non-empty
-            var $sortSelect = $searchForm.find('select[name="sort"]');
-            if ($sortSelect.length && $sortSelect.val()) {
-                params.sort = $sortSelect.val();
-            }
-
-            var $directionSelect = $searchForm.find('select[name="direction"]');
-            if ($directionSelect.length && $directionSelect.val()) {
-                params.direction = $directionSelect.val();
-            }
-
-            var $ratingMin = $searchForm.find('input[name="rating_min"]');
-            if ($ratingMin.length && parseFloat($ratingMin.val() || '0') > 0) {
-                params.rating_min = $ratingMin.val();
-            }
-
-            // 3. Match all filters toggle - include as match_all_filters=1 only if checked
-            if ($smartToggleCheckbox.is(':checked')) {
-                params.match_all_filters = '1';
-            }
-
-            // 4. Multi-select checkbox groups - collect checked values, join with space
-            var checkboxGroups = [
-                'status[]',
-                'genre[]',
-                'age[]',
-                'language[]',
-                'warnings_exclude[]',
-                'warnings_include[]'
-            ];
-
-            checkboxGroups.forEach(function(groupName) {
-                var values = [];
-                $searchForm.find('input[name="' + groupName + '"]:checked').each(function() {
-                    values.push($(this).val());
-                });
-                if (values.length > 0) {
-                    var cleanName = groupName.replace(/\[\]$/, '');
-                    params[cleanName] = values.join(' ');
-                }
-            });
-
-            // 5. Fandom hidden inputs - collect all values, join with space
-            var fandomValues = [];
-            $searchForm.find('input[name="fanfic_story_fandoms[]"]').each(function() {
-                if ($(this).val()) {
-                    fandomValues.push($(this).val());
-                }
-            });
-            if (fandomValues.length > 0) {
-                params.fandoms = fandomValues.join(' ');
-            }
-
-            // 6. Custom taxonomy selects and checkboxes in advanced filters
-            //    (single selects as-is, multi-select checkboxes space-joined without [])
-            $searchForm.find('.fanfic-advanced-search-filters select:not([name="sort"])').each(function() {
-                var name = $(this).attr('name');
-                if (!name) return;
-                var val = $(this).val();
-                if (val && val !== '') {
-                    var cleanName = name.replace(/\[\]$/, '');
-                    // Skip already-handled fields
-                    if (!params.hasOwnProperty(cleanName)) {
-                        params[cleanName] = val;
-                    }
-                }
-            });
-
-            // Custom taxonomy multi-select checkboxes not already handled
-            var handledNames = ['status', 'genre', 'age', 'language', 'warnings_exclude', 'warnings_include', 'fandoms'];
-            $searchForm.find('.fanfic-advanced-search-filters .multi-select input[type="checkbox"]:checked').each(function() {
-                var name = $(this).attr('name');
-                if (!name) return;
-                var cleanName = name.replace(/\[\]$/, '');
-                if (handledNames.indexOf(cleanName) !== -1) return;
-                if (!params[cleanName]) {
-                    params[cleanName] = [];
-                }
-                if (Array.isArray(params[cleanName])) {
-                    params[cleanName].push($(this).val());
-                }
-            });
-
-            // Convert any remaining arrays to space-joined strings
-            Object.keys(params).forEach(function(key) {
-                if (Array.isArray(params[key])) {
-                    params[key] = params[key].join(' ');
-                }
-            });
-
-            // 7. Build query string from non-empty params (use comma as value separator)
-            var queryParts = [];
-            Object.keys(params).forEach(function(key) {
-                if (params[key] !== '' && params[key] !== null && params[key] !== undefined) {
-                    // Encode each segment individually, join with literal comma
-                    var encoded = String(params[key]).split(/\s+/).map(encodeURIComponent).join(',');
-                    queryParts.push(encodeURIComponent(key) + '=' + encoded);
-                }
-            });
-
-            var queryString = queryParts.join('&');
-            var finalUrl = queryString ? baseUrl + '?' + queryString : baseUrl;
-
-            // Navigate to the clean URL
-            window.location.assign(finalUrl);
+            submitSearchForm(false);
         });
 
         // Prioritize browser language in the filter dropdown
         FanficLanguageFilter.prioritizeBrowserLanguage();
 
         // Initialize custom multi-select dropdowns
-        document.querySelectorAll('.multi-select').forEach(function(select) {
+        document.querySelectorAll('.multi-select:not(.fanfic-fandom-multiselect)').forEach(function(select) {
             var trigger = select.querySelector('.multi-select__trigger');
             var checkboxes = select.querySelectorAll('input[type="checkbox"]');
             var placeholder = select.dataset.placeholder || 'Select';

@@ -139,18 +139,6 @@ $activePillsContainer.html(html);
 - Updated localization to include `activeFilters` i18n string
 - Removed duplicate languages section
 
-**No breaking changes** - Form still works the same way.
-
-### 3. `assets/css/fanfic-search-bar.css`
-**Added:**
-- `.fanfic-common-filters` - Styling for always-visible filters
-- `.fanfic-live-filter-pills` - Container for pills
-- `.fanfic-filter-pill` - Individual pill styling
-- Animation effects (slide-in, pill-appear)
-- Responsive adjustments for mobile
-
-**No breaking changes** - Old styles still apply.
-
 ---
 
 ## Behavior Details

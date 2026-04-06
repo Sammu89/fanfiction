@@ -37,6 +37,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 		$paged = ( get_query_var( 'paged' ) ) ? absint( get_query_var( 'paged' ) ) : 1;
 
 		// Optimized WP_User_Query - only get users with plugin roles
+		$load_more_key = 'members-directory';
 		$args = array(
 			'role__in' => array(
 				'fanfiction_author',
@@ -57,7 +58,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 		if ( ! empty( $authors ) ) :
 			?>
-			<div class="fanfic-members-grid">
+			<div class="fanfic-load-more-region" data-fanfic-load-more-region data-fanfic-load-more-key="<?php echo esc_attr( $load_more_key ); ?>">
+			<div class="fanfic-members-grid" data-fanfic-load-more-list>
 				<?php
 				foreach ( $authors as $author ) :
 					// Get user object with roles (fields parameter above doesn't include roles)
@@ -117,7 +119,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 			if ( $total_pages > 1 ) :
 				?>
-				<nav class="fanfic-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Authors pagination', 'fanfiction-manager' ); ?>">
+				<nav class="fanfic-pagination" role="navigation" aria-label="<?php esc_attr_e( 'Authors pagination', 'fanfiction-manager' ); ?>" data-fanfic-load-more-pagination data-fanfic-load-more-key="<?php echo esc_attr( $load_more_key ); ?>">
 					<?php
 					echo paginate_links(
 						array(
@@ -135,6 +137,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 				</nav>
 				<?php
 			endif;
+			?>
+			</div>
+			<?php
 		else :
 			?>
 			<div class="fanfic-empty-state" role="status">

@@ -14,121 +14,208 @@
 	}
 
 	function initFandomField(container) {
-		if (typeof fanficFandoms === 'undefined') {
+		if (typeof fanficFandoms === 'undefined' || container.dataset.fandomsInitialized === 'true') {
 			return;
 		}
 
-		var searchInput = container.querySelector('input[type="text"]:not([type="hidden"])');
+		var multiselect = container.querySelector('.fanfic-fandom-multiselect');
+		var dropdown = multiselect ? multiselect.querySelector('.multi-select__dropdown') : null;
+		var searchInput = container.querySelector('.fanfic-fandom-search-input');
 		var resultsBox = container.querySelector('.fanfic-fandom-results');
 		var selectedBox = container.querySelector('.fanfic-selected-fandoms');
-		var inputWrapper = container.querySelector('.fanfic-pill-input-wrapper');
 		var originalCheckbox = document.querySelector('input[name="fanfic_is_original_work"]');
 		var maxFandoms = parseInt(container.getAttribute('data-max-fandoms'), 10) || 5;
 		var parentForm = container.closest('form');
 		var disableEmptyFandoms = !!(parentForm && parentForm.classList.contains('fanfic-stories-form'));
-		var savedFandomHTML = '';
+		var showAllOnClick = container.getAttribute('data-show-all-on-click') === '1';
+		var preloadedOptions = [];
+		var savedFandomHTML = selectedBox ? selectedBox.innerHTML : '';
 
-		if (!searchInput || !resultsBox || !selectedBox) {
+		if (!multiselect || !dropdown || !searchInput || !resultsBox || !selectedBox) {
 			return;
 		}
 
-		function dispatchChange() {
-			var event = new CustomEvent('fanfic-fandoms-changed');
-			document.dispatchEvent(event);
+		container.dataset.fandomsInitialized = 'true';
+
+		try {
+			preloadedOptions = JSON.parse(container.getAttribute('data-preloaded-options') || '[]');
+		} catch (error) {
+			preloadedOptions = [];
 		}
 
-		function getSelectedIds() {
-			return Array.from(selectedBox.querySelectorAll('input[name="fanfic_story_fandoms[]"]')).map(function(input) {
-				return input.value;
+		function dispatchChange() {
+			document.dispatchEvent(new CustomEvent('fanfic-fandoms-changed'));
+		}
+
+		function getSelectedWrappers() {
+			return Array.from(selectedBox.querySelectorAll('.fanfic-pill-value'));
+		}
+
+		function getSelectedItems() {
+			return getSelectedWrappers().map(function(wrapper) {
+				var labelText = wrapper.getAttribute('data-label');
+				if (!labelText) {
+					var labelNode = wrapper.querySelector('.fanfic-pill-value-text');
+					labelText = labelNode ? labelNode.textContent.trim() : '';
+				}
+
+				return {
+					id: wrapper.getAttribute('data-id'),
+					label: labelText
+				};
+			}).filter(function(item) {
+				return item.id && item.label;
 			});
 		}
 
-		function setOriginalMode(isOriginal) {
-			if (isOriginal) {
-				// Save current pills (including hidden inputs) before wiping
-				savedFandomHTML = selectedBox.innerHTML;
-				// Clear so hidden inputs are not submitted with the form
-				selectedBox.innerHTML = '';
-				searchInput.value = '';
-				searchInput.disabled = true;
-				resultsBox.innerHTML = '';
-				// Hide the entire fandom field
-				container.style.display = 'none';
-			} else {
-				// Show the fandom field and restore previous selection
-				container.style.display = '';
-				selectedBox.innerHTML = savedFandomHTML;
-				searchInput.disabled = false;
-			}
-			dispatchChange();
+		function getSelectedIds() {
+			return getSelectedItems().map(function(item) {
+				return String(item.id);
+			});
 		}
 
-		function addSelected(id, label) {
-			var existing = getSelectedIds();
-			if (existing.indexOf(String(id)) !== -1) {
-				return;
-			}
+		function closeDropdown() {
+			multiselect.classList.remove('open');
+			searchInput.setAttribute('aria-expanded', 'false');
+		}
 
-			if (existing.length >= maxFandoms) {
-				return;
-			}
+		function openDropdown() {
+			document.querySelectorAll('.multi-select.open').forEach(function(select) {
+				if (select !== multiselect) {
+					select.classList.remove('open');
+					var otherInput = select.querySelector('.fanfic-fandom-search-input');
+					if (otherInput) {
+						otherInput.setAttribute('aria-expanded', 'false');
+					}
+				}
+			});
 
+			multiselect.classList.add('open');
+			searchInput.setAttribute('aria-expanded', 'true');
+		}
+
+		function clearResults() {
+			resultsBox.innerHTML = '';
+			closeDropdown();
+		}
+
+		function buildSelectedPill(id, label) {
 			var wrapper = document.createElement('span');
+			var text = document.createElement('span');
+			var remove = document.createElement('button');
+			var hidden = document.createElement('input');
+
 			wrapper.className = 'fanfic-pill-value';
 			wrapper.setAttribute('data-id', id);
+			wrapper.setAttribute('data-label', label);
 
-			var text = document.createElement('span');
 			text.className = 'fanfic-pill-value-text';
 			text.textContent = label;
-			wrapper.appendChild(text);
 
-			var remove = document.createElement('button');
 			remove.type = 'button';
 			remove.className = 'fanfic-pill-value-remove';
 			remove.setAttribute('aria-label', fanficFandoms.strings.remove);
 			remove.textContent = '×';
 
-			var hidden = document.createElement('input');
 			hidden.type = 'hidden';
 			hidden.name = 'fanfic_story_fandoms[]';
 			hidden.value = id;
 
+			wrapper.appendChild(text);
 			wrapper.appendChild(remove);
 			wrapper.appendChild(hidden);
-			selectedBox.appendChild(wrapper);
+
+			return wrapper;
+		}
+
+		function syncVisibleResultStates() {
+			var selectedIds = getSelectedIds();
+
+			Array.from(resultsBox.querySelectorAll('.fanfic-fandom-result')).forEach(function(button) {
+				var isSelected = selectedIds.indexOf(String(button.getAttribute('data-id'))) !== -1;
+				button.classList.toggle('is-selected', isSelected);
+				button.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+			});
+		}
+
+		function addSelected(id, label) {
+			var selectedIds = getSelectedIds();
+
+			if (selectedIds.indexOf(String(id)) !== -1 || selectedIds.length >= maxFandoms) {
+				return;
+			}
+
+			selectedBox.appendChild(buildSelectedPill(id, label));
+			syncVisibleResultStates();
+			dispatchChange();
+		}
+
+		function removeSelected(id) {
+			var wrappers = getSelectedWrappers();
+
+			wrappers.forEach(function(wrapper) {
+				if (String(wrapper.getAttribute('data-id')) === String(id)) {
+					wrapper.remove();
+				}
+			});
+
+			syncVisibleResultStates();
 			dispatchChange();
 		}
 
 		function renderResults(items) {
+			var selectedIds = getSelectedIds();
+
 			resultsBox.innerHTML = '';
+			items = Array.isArray(items) ? items : [];
+
+			if (disableEmptyFandoms && showAllOnClick && !searchInput.value.trim()) {
+				items = items.filter(function(item) {
+					var count = typeof item.count === 'number' ? item.count : parseInt(item.count, 10) || 0;
+					return !item.disabled && count > 0;
+				});
+			}
+
 			if (!items.length) {
+				closeDropdown();
 				return;
 			}
 
 			items.forEach(function(item) {
 				var count = typeof item.count === 'number' ? item.count : parseInt(item.count, 10) || 0;
-				var btn = document.createElement('button');
-				btn.type = 'button';
-				btn.className = 'fanfic-fandom-result';
-				btn.setAttribute('data-id', item.id);
-				btn.setAttribute('data-label', item.label);
-				btn.textContent = disableEmptyFandoms ? (item.label + ' (' + count + ')') : item.label;
-				if (disableEmptyFandoms && (item.disabled || count === 0)) {
-					btn.disabled = true;
-					btn.classList.add('is-disabled');
+				var button = document.createElement('button');
+				var isSelected = selectedIds.indexOf(String(item.id)) !== -1;
+				var isDisabled = false;
+
+				button.type = 'button';
+				button.className = 'fanfic-fandom-result';
+				button.setAttribute('data-id', item.id);
+				button.setAttribute('data-label', item.label);
+				button.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+
+				if (isSelected) {
+					button.classList.add('is-selected');
 				}
-				resultsBox.appendChild(btn);
+
+				if (isDisabled) {
+					button.disabled = true;
+					button.classList.add('is-disabled');
+				}
+
+				button.textContent = disableEmptyFandoms ? (item.label + ' (' + count + ')') : item.label;
+				resultsBox.appendChild(button);
 			});
+
+			openDropdown();
 		}
 
 		function searchFandoms(query) {
 			if (query.length < 2) {
-				resultsBox.innerHTML = '';
+				clearResults();
 				return;
 			}
 
-			var url = fanficFandoms.restUrl + '?q=' + encodeURIComponent(query) + '&limit=20';
-			fetch(url, {
+			fetch(fanficFandoms.restUrl + '?q=' + encodeURIComponent(query) + '&limit=20', {
 				method: 'GET',
 				headers: {
 					'X-WP-Nonce': fanficFandoms.restNonce
@@ -138,59 +225,121 @@
 			}).then(function(data) {
 				renderResults(Array.isArray(data) ? data : []);
 			}).catch(function() {
-				resultsBox.innerHTML = '';
+				clearResults();
 			});
 		}
 
-		var debouncedSearch = debounce(function(e) {
+		function setOriginalMode(isOriginal) {
+			if (isOriginal) {
+				savedFandomHTML = selectedBox.innerHTML;
+				selectedBox.innerHTML = '';
+				searchInput.value = '';
+				searchInput.disabled = true;
+				searchInput.setAttribute('placeholder', '');
+				clearResults();
+				closeDropdown();
+				container.style.display = 'none';
+			} else {
+				container.style.display = '';
+				selectedBox.innerHTML = savedFandomHTML;
+				searchInput.disabled = false;
+				searchInput.setAttribute('placeholder', fanficFandoms.strings.searchPlaceholder || searchInput.getAttribute('data-default-placeholder') || '');
+			}
+
+			dispatchChange();
+		}
+
+		var debouncedSearch = debounce(function() {
 			if (originalCheckbox && originalCheckbox.checked) {
 				return;
 			}
-			searchFandoms(e.target.value.trim());
+
+			searchFandoms(searchInput.value.trim());
 		}, 250);
 
-		if (inputWrapper) {
-			inputWrapper.addEventListener('click', function(e) {
-				if (searchInput.disabled) {
-					return;
-				}
-				if (e.target.classList.contains('fanfic-pill-value-remove')) {
-					return;
-				}
-				searchInput.focus();
-			});
-		}
+		searchInput.setAttribute('data-default-placeholder', searchInput.getAttribute('placeholder') || '');
+
+		searchInput.addEventListener('click', function(event) {
+			event.stopPropagation();
+			if (searchInput.disabled) {
+				return;
+			}
+
+			if (showAllOnClick && !searchInput.value.trim() && preloadedOptions.length) {
+				renderResults(preloadedOptions);
+				return;
+			}
+
+			if (searchInput.value.trim().length < 2 || !resultsBox.children.length) {
+				return;
+			}
+
+			openDropdown();
+		});
 
 		searchInput.addEventListener('input', debouncedSearch);
-		resultsBox.addEventListener('click', function(e) {
-			var target = e.target;
-			if (!target.classList.contains('fanfic-fandom-result')) {
+
+		searchInput.addEventListener('keydown', function(event) {
+			if (event.key === 'Escape') {
+				closeDropdown();
+			}
+		});
+
+		resultsBox.addEventListener('click', function(event) {
+			var target = event.target.closest('.fanfic-fandom-result');
+			var selectedIds;
+
+			if (!target || target.disabled || target.classList.contains('is-disabled')) {
 				return;
 			}
-			if (target.disabled || target.classList.contains('is-disabled')) {
-				return;
-			}
+
 			if (originalCheckbox && originalCheckbox.checked) {
 				return;
 			}
-			if (getSelectedIds().length >= maxFandoms) {
+
+			selectedIds = getSelectedIds();
+
+			if (selectedIds.indexOf(String(target.getAttribute('data-id'))) !== -1) {
+				removeSelected(target.getAttribute('data-id'));
 				return;
 			}
-			addSelected(target.getAttribute('data-id'), target.getAttribute('data-label') || target.textContent);
+
+			if (selectedIds.length >= maxFandoms) {
+				return;
+			}
+
+			addSelected(target.getAttribute('data-id'), target.getAttribute('data-label') || target.textContent.trim());
 			searchInput.value = '';
-			resultsBox.innerHTML = '';
+			clearResults();
+			closeDropdown();
 		});
 
-		selectedBox.addEventListener('click', function(e) {
-			var target = e.target;
-			if (!target.classList.contains('fanfic-pill-value-remove')) {
+		selectedBox.addEventListener('click', function(event) {
+			var removeButton = event.target.closest('.fanfic-pill-value-remove');
+			var wrapper;
+
+			if (!removeButton) {
 				return;
 			}
-			var wrapper = target.closest('.fanfic-pill-value');
+
+			wrapper = removeButton.closest('.fanfic-pill-value');
 			if (wrapper) {
-				wrapper.remove();
-				dispatchChange();
+				removeSelected(wrapper.getAttribute('data-id'));
 			}
+		});
+
+		dropdown.addEventListener('click', function(event) {
+			event.stopPropagation();
+		});
+
+		document.addEventListener('click', function(event) {
+			if (!container.contains(event.target)) {
+				closeDropdown();
+			}
+		});
+
+		document.addEventListener('fanfic-fandoms-changed', function() {
+			syncVisibleResultStates();
 		});
 
 		if (originalCheckbox) {
@@ -200,14 +349,15 @@
 
 			if (originalCheckbox.checked) {
 				setOriginalMode(true);
+				return;
 			}
 		}
+
+		syncVisibleResultStates();
 	}
 
 	function init() {
-		// Initialize all fandom fields on the page
-		var containers = document.querySelectorAll('.fanfic-fandoms-field');
-		containers.forEach(function(container) {
+		document.querySelectorAll('.fanfic-fandoms-field').forEach(function(container) {
 			initFandomField(container);
 		});
 	}

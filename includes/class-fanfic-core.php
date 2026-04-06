@@ -2499,6 +2499,29 @@ class Fanfic_Core {
 			);
 		}
 
+		$load_more_js_file = FANFIC_PLUGIN_DIR . 'assets/js/fanfic-load-more.js';
+		$is_fanfic_frontend_page = (bool) get_query_var( 'fanfic_page' ) || is_post_type_archive( 'fanfiction_story' );
+		if ( $is_fanfic_frontend_page && file_exists( $load_more_js_file ) ) {
+			wp_enqueue_script(
+				'fanfic-load-more',
+				FANFIC_PLUGIN_URL . 'assets/js/fanfic-load-more.js',
+				array( 'jquery' ),
+				(string) filemtime( $load_more_js_file ),
+				true
+			);
+
+			wp_localize_script(
+				'fanfic-load-more',
+				'fanficLoadMore',
+				array(
+					'strings' => array(
+						'loadMore' => __( 'Load more...', 'fanfiction-manager' ),
+						'loading'  => __( 'Loading...', 'fanfiction-manager' ),
+					),
+				)
+			);
+		}
+
 		// Conditionally load the image uploader script for forms
 		global $fanfic_content_template;
 

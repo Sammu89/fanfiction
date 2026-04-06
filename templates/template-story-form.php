@@ -693,29 +693,18 @@ if ( $is_edit_mode ) {
 							</div>
 
 							<!-- Fandoms -->
-							<div class="fanfic-form-field fanfic-fandoms-field" data-max-fandoms="<?php echo esc_attr( Fanfic_Fandoms::MAX_FANDOMS ); ?>">
-								<label for="fanfic_fandom_search"><?php esc_html_e( 'Fandoms', 'fanfiction-manager' ); ?></label>
-								<div class="fanfic-pill-input-wrapper">
-									<div class="fanfic-selected-fandoms fanfic-pill-values" aria-live="polite">
-										<?php foreach ( $current_fandom_labels as $fandom ) : ?>
-											<span class="fanfic-pill-value" data-id="<?php echo esc_attr( $fandom['id'] ); ?>">
-												<span class="fanfic-pill-value-text"><?php echo esc_html( $fandom['label'] ); ?></span>
-												<button type="button" class="fanfic-pill-value-remove" aria-label="<?php esc_attr_e( 'Remove fandom', 'fanfiction-manager' ); ?>">&times;</button>
-												<input type="hidden" name="fanfic_story_fandoms[]" value="<?php echo esc_attr( $fandom['id'] ); ?>">
-											</span>
-										<?php endforeach; ?>
-									</div>
-									<input
-										type="text"
-										id="fanfic_fandom_search"
-										class="fanfic-input fanfic-pill-input"
-										autocomplete="off"
-										placeholder="<?php esc_attr_e( 'Search fandoms...', 'fanfiction-manager' ); ?>"
-									/>
-								</div>
-								<div class="fanfic-fandom-results" role="listbox" aria-label="<?php esc_attr_e( 'Fandom search results', 'fanfiction-manager' ); ?>"></div>
-								<p class="description"><?php esc_html_e( 'Select up to 5 fandoms. Search requires at least 2 characters.', 'fanfiction-manager' ); ?></p>
-							</div>
+							<?php
+							echo fanfic_render_fandom_multiselect_field(
+								array(
+									'wrapper_class'       => 'fanfic-form-field fanfic-fandoms-field',
+									'input_id'            => 'fanfic_fandom_search',
+									'selected_fandoms'    => $current_fandom_labels,
+									'trigger_placeholder' => __( 'Select Fandoms', 'fanfiction-manager' ),
+									'search_placeholder'  => __( 'Search fandoms...', 'fanfiction-manager' ),
+									'description'         => __( 'Select up to 5 fandoms. Search requires at least 2 characters.', 'fanfiction-manager' ),
+								)
+							);
+							?>
 						<?php endif; ?>
 
 						<?php if ( class_exists( 'Fanfic_Languages' ) && Fanfic_Languages::is_enabled() ) : ?>
